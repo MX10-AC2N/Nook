@@ -21,12 +21,6 @@
     members = data.members;
   };
 
-  const handleApprove = (event: MouseEvent) => {
-    const button = event.target as HTMLElement;
-    const id = button.getAttribute('data-member-id');
-    if (id) approve(id);
-  };
-
   onMount(loadMembers);
 </script>
 
@@ -52,8 +46,7 @@
         </span>
         {!member.approved && (
           <button
-            data-member-id={member.id}
-            on:click={handleApprove}
+            on:click={() => approve(member.id)}
             class="bg-green-500 text-white p-1 rounded text-sm"
           >
             Approuver
