@@ -37,9 +37,9 @@ jobs:
 
       - name: Install & build frontend
         run: |
-          cd frontend
-          npm ci
-          npm run build
+  cd frontend
+  npm install
+  npm run build
 
   # 3. Vérifie que le Docker image se build (simule CasaOS)
   docker-build:
