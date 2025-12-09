@@ -3,16 +3,17 @@ mod auth;
 mod upload;
 
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{Html, IntoResponse, Json},
+    response::{Html, Json},
     routing::{get, patch, post},
     Router,
 };
 use db::{init_db, AppState};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use tokio_tungstenite::tungstenite::Message;
 use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
@@ -40,27 +41,22 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v1.1 running on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service())
-        .await
-        .unwrap();
+    axum::serve(listener, app.into_make_service()).await.unwrap();
 }
 
-// --- Handlers ---
+use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_socket)
+async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(|socket| handle_socket(socket))
 }
 
 async fn handle_socket(mut socket: WebSocket) {
     while let Some(Ok(msg)) = socket.next().await {
-        if let Message::Text(text) = msg {
+        if let Ok(text) = msg.into_text() {
             let _ = socket.send(Message::Text(text)).await;
         }
     }
 }
-
-#[derive(serde::Deserialize)]
-struct Empty;
 
 async fn invite_handler(
     State(state): State<Arc<AppState>>,
@@ -77,7 +73,7 @@ async fn invite_handler(
 async fn join_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
-    Json(payload): Json<auth::JoinRequest>,
+    axum::Json(payload): axum::Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
         match auth::handle_join(&state.db, token.clone(), payload).await {
