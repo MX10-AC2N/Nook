@@ -1,26 +1,38 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { initSodium, generateKeyPair, encryptMessage } from '$lib/crypto';
+  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '$lib/crypto';
 
-  let messages: { sender: string; text: string }[] = [];
-  let input = '';
+  let messages: { sender: string; text: string; timestamp: Date }[] = $state([]);
+  let input = $state('');
   let ws: WebSocket | null = null;
-  let myKeys: { publicKey: string; privateKey: string } | null = null;
+  let myKeys: { publicKey: string; privateKey: string } | null = $state(null);
 
   onMount(async () => {
     await initSodium();
-    myKeys = generateKeyPair();
-    ws = new WebSocket('wss://nook.local/ws');
+    const storedKeys = localStorage.getItem('nook-keys');
+    if (storedKeys) {
+      myKeys = JSON.parse(storedKeys);
+    } else {
+      myKeys = generateKeyPair();
+      localStorage.setItem('nook-keys', JSON.stringify(myKeys));
+    }
+
+    ws = new WebSocket('ws://localhost:3000/ws'); // Remplace par ton URL
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      messages = [...messages, { sender: data.sender, text: data.text }];
+      if (data.type === 'text') {
+        const decrypted = decryptMessage(data.encrypted, data.senderPublicKey, myKeys!.privateKey);
+        messages = [...messages, { sender: data.sender, text: decrypted, timestamp: new Date() }];
+      }
     };
   });
 
   const send = () => {
     if (!input.trim() || !ws || !myKeys) return;
-    const encrypted = encryptMessage(input, "DEST_PUBLIC_KEY", myKeys.privateKey);
-    ws.send(JSON.stringify({ type: 'text', encrypted }));
+    // Pour cet exemple, on suppose que la clé publique du destinataire est connue
+    const recipientPublicKey = "DEST_PUBLIC_KEY";
+    const encrypted = encryptMessage(input, recipientPublicKey, myKeys.privateKey);
+    ws.send(JSON.stringify({ type: 'text', encrypted, senderPublicKey: myKeys.publicKey }));
     input = '';
   };
 </script>
