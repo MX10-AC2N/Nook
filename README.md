@@ -1,19 +1,21 @@
-# 🌿 Nook — Espace familial privé, sécurisé, auto-hébergé
+# 🌿 Nook — Espace familial privé
 
-> Une messagerie instantanée légère, chiffrée de bout en bout, pour votre cercle proche.  
-> Auto-hébergée sur CasaOS. Zéro cloud, zéro tracking.
+Messagerie sécurisée, auto-hébergée, pour votre cercle proche.
 
-## ✨ Fonctionnalités (Phase 1)
-- Chat texte sécurisé (E2EE)
-- Invitation avec validation admin
-- Interface PWA (installable sur mobile)
-- Partage de fichiers (HTTP ≤ 50 Mo, WebRTC P2P au-delà)
-- Appels audio/vidéo (à venir)
-- Planification de rendez-vous (à venir)
+## 🚀 Déploiement CasaOS
 
-## 🚀 Déploiement sur CasaOS
+1. Dans CasaOS → Apps → Installer depuis dossier
+2. Dans Nginx Proxy Manager :
+   - Host: `nook.votredomaine.com`
+   - Forward: `nook:3000`
+   - Activer HTTPS (Let’s Encrypt)
 
-### 1. Créer le repo sur GitHub
+> 🔐 Le premier lancement crée `data/admin.token`. Seul qui y a accès peut configurer l’admin.
+
+## 🛠️ Développement
 ```bash
-git clone https://github.com/TonUser/Nook.git
-cd Nook
+# Frontend
+cd frontend && npm run dev
+
+# Backend
+cd backend && cargo run
