@@ -1,34 +1,18 @@
-use sqlx::{Sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::sync::Arc;
 
-#[derive(Clone)]
 pub struct AppState {
-    pub db: Pool<Sqlite>,
+    pub db: SqlitePool,
 }
 
-pub async fn init_db() -> AppState {
-    // Créer dossier data si absent
+pub async fn init_db() -> Arc<AppState> {
     std::fs::create_dir_all("data").ok();
-    let db_url = "sqlite:data/members.db?mode=rwc";
-    let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
-
-    // Créer tables
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS members (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            public_key TEXT NOT NULL,
-            approved BOOLEAN DEFAULT 0,
-            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"
-    ).execute(&pool).await.unwrap();
-
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS invites (
-            token TEXT PRIMARY KEY,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"
-    ).execute(&pool).await.unwrap();
-
-    AppState { db: pool }
+    let db_url = "sqlite:data/nook.db";
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(db_url)
+        .await
+        .expect("Could not connect to SQLite");
+    sqlx::migrate!().run(&pool).await.unwrap();
+    Arc::new(AppState { db: pool })
 }
