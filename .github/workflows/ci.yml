@@ -20,7 +20,7 @@ jobs:
       - name: Build backend
         run: |
           cd backend
-          cargo build --release --locked
+          cargo build --release
 
   # 2. Vérifie que le frontend Svelte se build
   svelte-build:
