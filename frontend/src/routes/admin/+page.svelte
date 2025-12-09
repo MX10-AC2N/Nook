@@ -21,6 +21,7 @@
     members = data.members;
   };
 
+  // ✅ Fonction qui accepte l'ID du membre à approuver
   const handleApprove = (id: string) => {
     approve(id);
   };
@@ -49,6 +50,7 @@
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
         {!member.approved && (
+          <!-- ✅ Appelle une fonction qui accepte l'ID du membre -->
           <button on:click={() => handleApprove(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
             Approuver
           </button>
