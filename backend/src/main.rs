@@ -1,7 +1,3 @@
-mod db;
-mod auth;
-mod upload;
-
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -73,7 +69,7 @@ async fn invite_handler(
 async fn join_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
-    axum::Json(payload): axum::Json<auth::JoinRequest>,
+    Json(payload): Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
         match auth::handle_join(&state.db, token.clone(), payload).await {
