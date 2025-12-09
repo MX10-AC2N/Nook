@@ -17,7 +17,7 @@ pub struct UploadResponse {
 }
 
 pub async fn handle_upload(
-    State(state): State<Arc<AppState>>,
+    State(_state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, StatusCode> {
     tokio::fs::create_dir_all("data/uploads")
@@ -25,7 +25,6 @@ pub async fn handle_upload(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     while let Ok(Some(field)) = multipart.next_field().await {
-        let name = field.file_name().unwrap_or("file").to_string();
         let data = field
             .bytes()
             .await
