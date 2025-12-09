@@ -1,17 +1,16 @@
-# --- Build Frontend (SvelteKit) ---
+# --- Build Frontend ---
 FROM node:20 AS frontend-builder
 WORKDIR /app
 COPY frontend/ .
 RUN npm install && npm run build
-# → génère ./build/
 
-# --- Build Backend (Rust) ---
+# --- Build Backend ---
 FROM rust:1.83 AS backend-builder
 WORKDIR /app
 COPY backend/ .
 RUN cargo build --release
 
-# --- Final Runtime ---
+# --- Runtime ---
 FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 COPY --from=frontend-builder /app/build ./static
