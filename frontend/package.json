@@ -2,7 +2,7 @@
   "name": "nook-frontend",
   "private": true,
   "version": "0.1.0",
-  "type": "module",        // ← AJOUTE CETTE LIGNE
+  "type": "module",        
   "scripts": {
     "dev": "vite",
     "build": "vite build",
