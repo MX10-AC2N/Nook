@@ -1,49 +1,49 @@
 use axum::{
-    body::Bytes,
-    extract::Multipart,
+    extract::{Multipart, State},
     http::StatusCode,
     response::Json,
 };
 use serde::Serialize;
-use tokio::fs;
+use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
-const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 Mo
+use crate::db::AppState;
 
 #[derive(Serialize)]
 pub struct UploadResponse {
     pub success: bool,
-    pub url: Option<String>,
+    pub url: String,
 }
 
 pub async fn handle_upload(
+    State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<UploadResponse>, StatusCode> {
-    while let Some(field) = multipart
-        .next_field()
+    tokio::fs::create_dir_all("data/uploads")
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
-    {
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.file_name().unwrap_or("file").to_string();
         let data = field
             .bytes()
             .await
             .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-        if data.len() as u64 > MAX_FILE_SIZE {
-            return Err(StatusCode::PAYLOAD_TOO_LARGE);
-        }
-
-        let filename = uuid::Uuid::new_v4().to_string() + ".enc";
-        let path = format!("data/uploads/{}", filename);
-        fs::create_dir_all("data/uploads").await.ok();
-        fs::write(&path, data)
+        let path = format!("data/uploads/{}", uuid::Uuid::new_v4());
+        let mut file = File::create(&path)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        file.write_all(&data)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        // Planifier suppression dans 7 jours (à implémenter)
         return Ok(Json(UploadResponse {
             success: true,
-            url: Some(format!("/uploads/{}", filename)),
+            url: path.replace("data/", "/uploads/"),
         }));
     }
+
     Err(StatusCode::BAD_REQUEST)
 }
