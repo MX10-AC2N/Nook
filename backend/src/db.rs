@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite};
+use sqlx::{Sqlite::SqlitePoolOptions, SqlitePool};
 use std::sync::Arc;
 
 #[derive(Clone)]
