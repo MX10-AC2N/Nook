@@ -7,7 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # Seul job : tester le Docker build complet
+  # Seul job nécessaire : tester le build Docker complet
   docker-build:
     runs-on: ubuntu-latest
     steps:
