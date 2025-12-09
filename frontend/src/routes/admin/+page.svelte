@@ -44,14 +44,14 @@
         <span class={member.approved ? 'text-green-500' : 'text-yellow-500'}>
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
-        {!member.approved && (
+        {#if !member.approved}
           <button
             onclick={() => approve(member.id)}
             class="bg-green-500 text-white p-1 rounded text-sm"
           >
             Approuver
           </button>
-        )}
+        {/if}
       </div>
     {/each}
   </div>
