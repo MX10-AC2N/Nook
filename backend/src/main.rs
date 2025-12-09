@@ -5,7 +5,6 @@ mod upload;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::Html,
     routing::{get, post},
     Json, Router,
 };
@@ -27,6 +26,8 @@ async fn main() {
     let app = Router::new()
         .route("/api/invite", post(invite_handler))
         .route("/api/join", post(join_handler))
+        .route("/api/members/:id/approve", patch(approve_handler))
+        .route("/api/members", get(members_handler))
         .route("/api/upload", post(upload::handle_upload))
         .route("/ws", get(ws_handler))
         .nest_service("/static", ServeDir::new("static"))
@@ -39,19 +40,6 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service()).await.unwrap();
-}
-
-async fn invite_handler(
-    axum::extract::State(state): axum::extract::State<AppState>,
-) -> Result<Json<auth::ApiResponse>, axum::http::StatusCode> {
-    // Vérifier admin.token (simplifié)
-    match auth::create_invite(&state.db).await {
-        Ok(token) => Ok(Json(auth::ApiResponse {
-            success: true,
-            message: format!("https://nook.local/join?token={}", token),
-        })),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
-    }
 }
 
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
@@ -70,6 +58,21 @@ async fn handle_socket(mut socket: WebSocket) {
     }
 }
 
+use serde_json::Value;
+
+async fn invite_handler(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> Result<Json<auth::ApiResponse>, axum::http::StatusCode> {
+    // Vérifier admin.token (simplifié)
+    match auth::create_invite(&state.db).await {
+        Ok(token) => Ok(Json(auth::ApiResponse {
+            success: true,
+            message: format!("https://nook.local/join?token={}", token),
+        })),
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
+
 async fn join_handler(
     State(state): State<AppState>,
     Query(params): Query<std::collections::HashMap<String, String>>,
@@ -83,4 +86,20 @@ async fn join_handler(
     } else {
         Err(StatusCode::BAD_REQUEST)
     }
+}
+
+use axum::extract::Path;
+
+async fn approve_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<auth::ApiResponse>, StatusCode> {
+    auth::approve_member(&state.db, id).await.map(Json).map_err(|e| e)
+}
+
+async fn members_handler(
+    State(state): State<AppState>,
+) -> Result<Json<Value>, StatusCode> {
+    let members = auth::get_members(&state.db).await.map_err(|e| e)?;
+    Ok(Json(serde_json::json!({ "members": members })))
 }
