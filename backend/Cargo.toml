@@ -4,8 +4,9 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-axum = "0.7"
+axum = { version = "0.7", features = ["ws", "multipart"] }
 tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
 tower-http = { version = "0.6", features = ["fs", "trace"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -15,5 +16,7 @@ tokio-tungstenite = "0.23"
 futures-util = "0.3"
 tower-service = "0.3"
 http = "1.0"
-base64ct  = "=1.7.3"
+
+# 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
+base64ct = "=1.7.3"
