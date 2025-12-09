@@ -88,7 +88,7 @@ async fn join_handler(
     }
 }
 
-use axum::extract::Path;
+use axum::routing::patch;
 
 async fn approve_handler(
     State(state): State<AppState>,
