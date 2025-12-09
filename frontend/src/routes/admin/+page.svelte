@@ -21,7 +21,6 @@
     members = data.members;
   };
 
-  // ✅ Fonction nommée pour approuver un membre
   const handleApprove = (id: string) => {
     approve(id);
   };
@@ -50,7 +49,6 @@
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
         {!member.approved && (
-          <!-- ✅ Utilise une fonction nommée -->
           <button on:click={() => handleApprove(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
             Approuver
           </button>
