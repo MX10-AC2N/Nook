@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{get},
     Router, response::Html,
 };
 use std::net::SocketAddr;
@@ -27,8 +27,11 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook running on http://{}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+
+    // Utiliser `axum::serve` + `hyper_util::rt::TokioIo`
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service()
+    ).await.unwrap();
 }
