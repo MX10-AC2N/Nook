@@ -15,10 +15,8 @@ async fn main() {
         println!("✅ Admin token created: data/admin.token");
     }
 
-    // Serve frontend files from /static at runtime
     let app = Router::new()
-        .route("/", get(|| async { "" })) // fallback to index.html
-        .route("/admin", get(|| async { "" })) // fallback to admin.html
+        .route("/admin", get(|| async {}))
         .nest_service("/static", ServeDir::new("static"))
         .fallback_service(ServeFile::new("static/index.html"));
 
