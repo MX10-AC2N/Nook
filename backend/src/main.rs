@@ -56,6 +56,22 @@ async fn invite_handler(
     }
 }
 
+use axum::extract::ws::{WebSocket, WebSocketUpgrade};
+use futures_util::{SinkExt, StreamExt};
+
+async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
+    ws.on_upgrade(|socket| handle_socket(socket))
+}
+
+async fn handle_socket(mut socket: WebSocket) {
+    while let Some(Ok(msg)) = socket.next().await {
+        if let Ok(text) = msg.into_text() {
+            // Echo (à remplacer par broadcasting sécurisé)
+            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+        }
+    }
+}
+
 async fn join_handler(
     State(state): State<AppState>,
     Query(params): Query<std::collections::HashMap<String, String>>,
@@ -68,21 +84,5 @@ async fn join_handler(
         }
     } else {
         Err(StatusCode::BAD_REQUEST)
-    }
-}
-
-use axum::extract::ws::{WebSocket, WebSocketUpgrade};
-
-async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket))
-}
-
-async fn handle_socket(mut socket: WebSocket) {
-    // WebSocket minimal — à étendre avec crypto + forwarding
-    while let Ok(msg) = socket.recv().await {
-        if let Some(text) = msg.into_text().ok() {
-            // Echo (à remplacer par broadcasting sécurisé)
-            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
-        }
     }
 }
