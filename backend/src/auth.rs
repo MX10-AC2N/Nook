@@ -20,6 +20,13 @@ pub struct ApiResponse {
     pub message: String,
 }
 
+#[derive(Serialize)]
+pub struct Member {
+    pub id: String,
+    pub name: String,
+    pub approved: bool,
+}
+
 pub async fn create_invite(pool: &SqlitePool) -> Result<String, StatusCode> {
     let token = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO invites (token) VALUES (?)")
@@ -69,4 +76,34 @@ pub async fn handle_join(
         success: true,
         message: "Demande envoyée à l’administrateur".to_string(),
     })
+}
+
+pub async fn approve_member(
+    pool: &SqlitePool,
+    id: String,
+) -> Result<ApiResponse, StatusCode> {
+    sqlx::query("UPDATE members SET approved = 1 WHERE id = ?")
+        .bind(&id)
+        .execute(pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(ApiResponse {
+        success: true,
+        message: "Membre approuvé".to_string(),
+    })
+}
+
+pub async fn get_members(
+    pool: &SqlitePool,
+) -> Result<Vec<Member>, StatusCode> {
+    let rows = sqlx::query_as!(
+        Member,
+        "SELECT id, name, approved FROM members ORDER BY joined_at"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(rows)
 }
