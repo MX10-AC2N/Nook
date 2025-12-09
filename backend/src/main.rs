@@ -3,13 +3,16 @@ mod auth;
 mod upload;
 
 use axum::{
-    extract::ws::{WebSocket, WebSocketUpgrade},
-    response::{Html, IntoResponse},
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::{Html, IntoResponse, Json},
     routing::{get, patch, post},
     Router,
 };
 use db::{init_db, AppState};
-use std::net::SocketAddr;
+use serde_json::Value;
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
@@ -37,27 +40,27 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v1.1 running on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
+
+// --- Handlers ---
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(handle_socket)
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    use futures_util::{SinkExt, StreamExt};
     while let Some(Ok(msg)) = socket.next().await {
-        if let Ok(text) = msg.into_text() {
-            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+        if let Message::Text(text) = msg {
+            let _ = socket.send(Message::Text(text)).await;
         }
     }
 }
 
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
-use axum::response::Json;
-use serde_json::Value;
-use std::collections::HashMap;
+#[derive(serde::Deserialize)]
+struct Empty;
 
 async fn invite_handler(
     State(state): State<Arc<AppState>>,
@@ -74,7 +77,7 @@ async fn invite_handler(
 async fn join_handler(
     State(state): State<Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
-    axum::extract::Json(payload): axum::extract::Json<auth::JoinRequest>,
+    Json(payload): Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
         match auth::handle_join(&state.db, token.clone(), payload).await {
