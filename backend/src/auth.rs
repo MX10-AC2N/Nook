@@ -2,7 +2,6 @@ use axum::{
     extract::{Path, Query},
     http::StatusCode,
     response::Json,
-    Json as AxumJson,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -42,7 +41,6 @@ pub async fn handle_join(
     token: String,
     req: JoinRequest,
 ) -> Result<ApiResponse, StatusCode> {
-    // Vérifier token
     let row = sqlx::query("SELECT token FROM invites WHERE token = ?")
         .bind(&token)
         .fetch_optional(pool)
@@ -53,14 +51,12 @@ pub async fn handle_join(
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Supprimer le token
     sqlx::query("DELETE FROM invites WHERE token = ?")
         .bind(&token)
         .execute(pool)
         .await
         .ok();
 
-    // Créer membre en attente
     let id = Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO members (id, name, public_key, approved) VALUES (?, ?, ?, 0)"
