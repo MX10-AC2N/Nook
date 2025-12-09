@@ -7,41 +7,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # 1. Vérifie que le backend Rust compile
-  rust-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build backend
-        run: |
-          cd backend
-          cargo build --release
-
-  # 2. Vérifie que le frontend Svelte se build
-  svelte-build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          # Pas de cache car pas de package-lock.json
-
-      - name: Install & build frontend
-        run: |
-          cd frontend
-          npm install
-          npm run build
-
-  # 3. Vérifie que le Docker image se build (simule CasaOS)
+  # Seul job : tester le Docker build complet
   docker-build:
     runs-on: ubuntu-latest
     steps:
@@ -51,7 +17,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and export Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
