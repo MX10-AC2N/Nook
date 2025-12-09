@@ -1,8 +1,8 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
 
-  let inviteLink = $state('');
-  let members = $state<{ id: string; name: string; approved: boolean }[]>([]);
+  let inviteLink = '';
+  let members = [];
 
   const invite = async () => {
     const res = await fetch('/api/invite', { method: 'POST' });
@@ -10,7 +10,7 @@
     inviteLink = data.message;
   };
 
-  const approve = async (id: string) => {
+  const approve = async (id) => {
     await fetch(`/api/members/${id}/approve`, { method: 'PATCH' });
     loadMembers();
   };
@@ -26,7 +26,7 @@
 
 <div class="p-4">
   <h1 class="text-2xl font-bold mb-4">Admin — Nook</h1>
-  <button on:click={invite} class="bg-blue-500 text-white p-2 rounded">
+  <button onclick={invite} class="bg-blue-500 text-white p-2 rounded">
     Inviter un membre
   </button>
   {#if inviteLink}
@@ -46,7 +46,7 @@
         </span>
         {!member.approved && (
           <button
-            on:click={() => approve(member.id)}
+            onclick={() => approve(member.id)}
             class="bg-green-500 text-white p-1 rounded text-sm"
           >
             Approuver
