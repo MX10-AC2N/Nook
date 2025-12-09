@@ -3,10 +3,10 @@ mod auth;
 mod upload;
 
 use axum::{
-    extract::{Query, State},
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
+    extract::ws::{WebSocket, WebSocketUpgrade},
+    response::{Html, IntoResponse},
+    routing::{get, patch, post},
+    Router,
 };
 use db::{init_db, AppState};
 use std::net::SocketAddr;
@@ -14,7 +14,6 @@ use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
 async fn main() {
-    // Admin token
     std::fs::create_dir_all("data").ok();
     let token_path = "data/admin.token";
     if !std::path::Path::new(token_path).exists() {
@@ -37,45 +36,44 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v1.1 running on http://{}", addr);
-
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service()).await.unwrap();
 }
 
-use axum::extract::ws::{WebSocket, WebSocketUpgrade};
-use futures_util::{SinkExt, StreamExt};
-
-async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket))
+async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
+    ws.on_upgrade(handle_socket)
 }
 
 async fn handle_socket(mut socket: WebSocket) {
+    use futures_util::{SinkExt, StreamExt};
     while let Some(Ok(msg)) = socket.next().await {
         if let Ok(text) = msg.into_text() {
-            // Echo (à remplacer par broadcasting sécurisé)
             let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
         }
     }
 }
 
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::Json;
 use serde_json::Value;
+use std::collections::HashMap;
 
 async fn invite_handler(
-    axum::extract::State(state): axum::extract::State<AppState>,
-) -> Result<Json<auth::ApiResponse>, axum::http::StatusCode> {
-    // Vérifier admin.token (simplifié)
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<auth::ApiResponse>, StatusCode> {
     match auth::create_invite(&state.db).await {
         Ok(token) => Ok(Json(auth::ApiResponse {
             success: true,
             message: format!("https://nook.local/join?token={}", token),
         })),
-        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
 
 async fn join_handler(
-    State(state): State<AppState>,
-    Query(params): Query<std::collections::HashMap<String, String>>,
+    State(state): State<Arc<AppState>>,
+    Query(params): Query<HashMap<String, String>>,
     axum::extract::Json(payload): axum::extract::Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
@@ -88,17 +86,15 @@ async fn join_handler(
     }
 }
 
-use axum::routing::patch;
-
 async fn approve_handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     auth::approve_member(&state.db, id).await.map(Json).map_err(|e| e)
 }
 
 async fn members_handler(
-    State(state): State<AppState>,
+    State(state): State<Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
     let members = auth::get_members(&state.db).await.map_err(|e| e)?;
     Ok(Json(serde_json::json!({ "members": members })))
