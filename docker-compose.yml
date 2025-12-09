@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  nook:
+    build: .
+    container_name: nook
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - MAX_FILE_SIZE_MB=50
+      - FILE_RETENTION_DAYS=7
