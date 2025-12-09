@@ -2,7 +2,7 @@
 FROM node:20 AS frontend-builder
 WORKDIR /app
 COPY frontend/ .
-RUN npm ci && npm run build
+RUN npm install && npm run build
 # → génère ./static
 
 # --- Build Backend ---
