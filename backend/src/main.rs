@@ -3,7 +3,8 @@ mod auth;
 mod upload;
 
 use axum::{
-    extract::ws::{WebSocket, WebSocketUpgrade},
+    extract::{Query, State},
+    http::StatusCode,
     response::Html,
     routing::{get, post},
     Json, Router,
@@ -56,19 +57,21 @@ async fn invite_handler(
 }
 
 async fn join_handler(
-    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+    State(state): State<AppState>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
     axum::extract::Json(payload): axum::extract::Json<auth::JoinRequest>,
-    axum::extract::State(state): axum::extract::State<AppState>,
-) -> Result<Json<auth::ApiResponse>, axum::http::StatusCode> {
+) -> Result<Json<auth::ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
         match auth::handle_join(&state.db, token.clone(), payload).await {
             Ok(res) => Ok(Json(res)),
             Err(e) => Err(e),
         }
     } else {
-        Err(axum::http::StatusCode::BAD_REQUEST)
+        Err(StatusCode::BAD_REQUEST)
     }
 }
+
+use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket))
