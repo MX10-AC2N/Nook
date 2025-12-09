@@ -21,10 +21,12 @@
     members = data.members;
   };
 
-  // Fonction nommée pour approuver un membre
   const handleApprove = (id: string) => {
     approve(id);
   };
+
+  // ✅ Fonction intermédiaire pour éviter le parsing complexe
+  const createApproveHandler = (id: string) => () => handleApprove(id);
 
   onMount(loadMembers);
 </script>
@@ -50,7 +52,8 @@
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
         {!member.approved && (
-          <button on:click={handleApprove.bind(null, member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
+          <!-- ✅ Utilise une fonction intermédiaire -->
+          <button on:click={createApproveHandler(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
             Approuver
           </button>
         )}
