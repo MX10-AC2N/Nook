@@ -10,7 +10,7 @@ pub async fn init_db() -> AppState {
     // Créer dossier data si absent
     std::fs::create_dir_all("data").ok();
     let db_url = "sqlite:data/members.db?mode=rwc";
-    let pool = SqlitePool::connect(db_url).await.unwrap();
+    let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
 
     // Créer tables
     sqlx::query(
