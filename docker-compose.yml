@@ -7,7 +7,4 @@ services:
     expose:
       - "3000"
     volumes:
-      - ./data:/data
-    environment:
-      - MAX_FILE_SIZE_MB=50
-      - FILE_RETENTION_DAYS=7
+      - ./data:/app/data
