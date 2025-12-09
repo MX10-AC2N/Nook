@@ -7,7 +7,7 @@
 - Chat texte sécurisé (E2EE)
 - Invitation avec validation admin
 - Interface PWA (installable sur mobile)
-- Partage de fichiers (HTTP ≤ 200 Mo, WebRTC P2P au-delà)
+- Partage de fichiers (HTTP ≤ 50 Mo, WebRTC P2P au-delà)
 - Appels audio/vidéo (à venir)
 - Planification de rendez-vous (à venir)
 
