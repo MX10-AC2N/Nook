@@ -1,3 +1,7 @@
+mod db;
+mod auth;
+mod upload;
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
