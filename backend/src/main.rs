@@ -11,7 +11,7 @@ use axum::{
 };
 use db::{init_db, AppState};
 use std::net::SocketAddr;
-use tower_http::{services::{ServeDir, ServeFile}, limit::RequestBodyLimitLayer};
+use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
 async fn main() {
@@ -32,15 +32,13 @@ async fn main() {
         .nest_service("/static", ServeDir::new("static"))
         .nest_service("/uploads", ServeDir::new("data/uploads"))
         .fallback_service(ServeFile::new("static/index.html"))
-        .with_state(app_state)
-        .layer(RequestBodyLimitLayer::new(50 * 1024 * 1024));
+        .with_state(app_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v1.1 running on http://{}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app.into_make_service()).await.unwrap();
 }
 
 async fn invite_handler(
