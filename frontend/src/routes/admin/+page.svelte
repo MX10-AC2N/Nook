@@ -25,8 +25,8 @@
     approve(id);
   };
 
-  // Fonction intermédiaire qui encapsule l'id
-  const approveHandler = (id: string) => () => handleApprove(id);
+  // ✅ Fonction qui encapsule l'id et retourne une fonction sans arguments
+  const createApproveHandler = (id: string) => () => handleApprove(id);
 
   onMount(loadMembers);
 </script>
@@ -52,7 +52,8 @@
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
         {!member.approved && (
-          <button on:click={approveHandler(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
+          <!-- ✅ Utilise une fonction intermédiaire -->
+          <button on:click={createApproveHandler(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
             Approuver
           </button>
         )}
