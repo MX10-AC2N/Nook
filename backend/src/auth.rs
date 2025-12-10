@@ -93,10 +93,7 @@ pub async fn approve_member(
 pub async fn get_members(
     pool: &SqlitePool,
 ) -> Result<Vec<Member>, StatusCode> {
-    let rows = sqlx::query_as!(
-        Member,
-        "SELECT id, name, approved FROM members ORDER BY joined_at"
-    )
+    let rows = sqlx::query_as("SELECT id, name, approved FROM members ORDER BY joined_at")
     .fetch_all(pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
