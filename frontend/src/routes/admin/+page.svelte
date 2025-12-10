@@ -45,10 +45,7 @@
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
         {!member.approved && (
-          <button
-            onclick={() => approve(member.id)}
-            class="bg-green-500 text-white p-1 rounded text-sm"
-          >
+          <button onclick={() => approve(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
             Approuver
           </button>
         )}
