@@ -5,14 +5,14 @@ mod upload;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::{Html, Json},
+    response::Html,
     routing::{get, patch, post},
-    Router,
+    Json, Router,
 };
 use db::{init_db, AppState};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr};
 use tokio_tungstenite::tungstenite::Message;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -40,6 +40,7 @@ async fn main() {
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v1.1 running on http://{}", addr);
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service()).await.unwrap();
 }
@@ -51,15 +52,16 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    while let Some(Ok(msg)) = socket.next().await {
+    use futures_util::StreamExt; // ✅ Déplace ici
+    while let Some(Ok(msg)) = socket.next().await { // ✅ `.next()` au lieu de `.recv()`
         if let Ok(text) = msg.into_text() {
-            let _ = socket.send(Message::Text(text)).await;
+            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
         }
     }
 }
 
 async fn invite_handler(
-    State(state): State<Arc<AppState>>,
+    State(state): State<std::sync::Arc<AppState>>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     match auth::create_invite(&state.db).await {
         Ok(token) => Ok(Json(auth::ApiResponse {
@@ -71,7 +73,7 @@ async fn invite_handler(
 }
 
 async fn join_handler(
-    State(state): State<Arc<AppState>>,
+    State(state): State<std::sync::Arc<AppState>>,
     Query(params): Query<HashMap<String, String>>,
     Json(payload): Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
@@ -86,14 +88,14 @@ async fn join_handler(
 }
 
 async fn approve_handler(
-    State(state): State<Arc<AppState>>,
+    State(state): State<std::sync::Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     auth::approve_member(&state.db, id).await.map(Json).map_err(|e| e)
 }
 
 async fn members_handler(
-    State(state): State<Arc<AppState>>,
+    State(state): State<std::sync::Arc<AppState>>,
 ) -> Result<Json<Value>, StatusCode> {
     let members = auth::get_members(&state.db).await.map_err(|e| e)?;
     Ok(Json(serde_json::json!({ "members": members })))
