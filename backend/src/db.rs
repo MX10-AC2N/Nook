@@ -1,6 +1,7 @@
-use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
+use sqlx::{Pool, SqlitePool};
 use std::sync::Arc;
 
+#[derive(Clone)]
 pub struct AppState {
     pub db: SqlitePool,
 }
@@ -8,11 +9,7 @@ pub struct AppState {
 pub async fn init_db() -> Arc<AppState> {
     std::fs::create_dir_all("data").ok();
     let db_url = "sqlite:data/nook.db";
-    let pool = SqlitePoolOptions::new()
-        .max_connections(5)
-        .connect(db_url)
-        .await
-        .expect("Could not connect to SQLite");
-    sqlx::migrate!().run(&pool).await.unwrap();
+    let pool = SqlitePool::connect(db_url).await.unwrap();
+    sqlx::migrate!("./migrations").run(&pool).await.unwrap();
     Arc::new(AppState { db: pool })
 }
