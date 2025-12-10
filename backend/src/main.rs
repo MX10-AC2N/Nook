@@ -13,7 +13,7 @@ use db::{init_db, AppState};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::{collections::HashMap, net::SocketAddr};
-use tokio_tungstenite::tungstenite::{self, Message};
+use tokio_tungstenite::tungstenite::Message;
 use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
