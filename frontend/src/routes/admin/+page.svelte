@@ -21,6 +21,8 @@
     members = data.members;
   };
 
+  const handleApprove = (id: string) => () => approve(id);
+
   onMount(loadMembers);
 </script>
 
@@ -38,17 +40,20 @@
 
   <h2 class="text-xl font-bold mt-6">Membres</h2>
   <div class="mt-2">
-    {#each members as member}
+    {#each members as member (member.id)}
       <div class="flex justify-between items-center p-2 border-b">
         <span>{member.name}</span>
         <span class={member.approved ? 'text-green-500' : 'text-yellow-500'}>
           {member.approved ? 'Approuvé' : 'En attente'}
         </span>
-        {!member.approved && (
-          <button onclick={() => approve(member.id)} class="bg-green-500 text-white p-1 rounded text-sm">
+        {#if !member.approved}
+          <button 
+            onclick={handleApprove(member.id)} 
+            class="bg-green-500 text-white p-1 rounded text-sm ml-2"
+          >
             Approuver
           </button>
-        )}
+        {/if}
       </div>
     {/each}
   </div>
