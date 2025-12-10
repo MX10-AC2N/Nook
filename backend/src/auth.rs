@@ -1,8 +1,7 @@
 use axum::{
     extract::{Path, Query},
     http::StatusCode,
-    response::Json,
-    Json as AxumJson,
+    Json,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
