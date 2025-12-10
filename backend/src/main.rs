@@ -13,7 +13,7 @@ use db::{init_db, AppState};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::{collections::HashMap, net::SocketAddr};
-use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::{self, Message};
 use tower_http::services::{ServeDir, ServeFile};
 
 #[tokio::main]
@@ -52,8 +52,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    use futures_util::StreamExt; // ✅ Déplace ici
-    while let Some(Ok(msg)) = socket.next().await { // ✅ `.next()` au lieu de `.recv()`
+    while let Some(Ok(msg)) = socket.next().await {
         if let Ok(text) = msg.into_text() {
             let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
         }
