@@ -24,7 +24,7 @@ jobs:
           # Crée une base SQLite temporaire
           DATABASE_URL="sqlite:data/temp.db" sqlx database create
           # Exécute les migrations en spécifiant explicitement le dossier
-          DATABASE_URL="sqlite:data/temp.db" sqlx migrate run --source ./migrations
+          DATABASE_URL="sqlite:data/temp.db" sqlx migrate run --source ./backend/migrations
         
       - name: Generate SQLx offline cache
         run: |
