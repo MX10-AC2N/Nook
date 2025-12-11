@@ -12,33 +12,35 @@ on:
 jobs:
   sqlx-cache:
     runs-on: ubuntu-latest
-    env:
-      CARGO_TERM_COLOR: always
+    permissions:
+      contents: write  # Nécessaire pour pousser les changements
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
-          components: rustfmt, clippy
           
       - name: Cache Cargo dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
           
       - name: Install SQLx CLI
         run: |
-          cargo install sqlx-cli --version 0.7.3 --no-default-features --features sqlite --locked
+          cargo install sqlx-cli --version 0.7.3 --no-default-features --features sqlite
           
       - name: Set up backend workspace
         run: |
@@ -46,18 +48,19 @@ jobs:
           echo "Rust toolchain:"
           rustc --version
           cargo --version
-          echo "SQLx version:"
-          sqlx --version
-          echo "Project structure:"
-          find . -name "*.rs" | wc -l
+          echo "SQLx CLI version:"
+          cargo sqlx --version || echo "SQLx CLI not found, will install..."
           
       - name: Create and migrate SQLite database
         run: |
           cd backend
           mkdir -p data
           
+          # Vérifier si sqlite3 est installé
+          command -v sqlite3 || sudo apt-get update && sudo apt-get install -y sqlite3
+          
           # Créer une base de données SQLite
-          sqlite3 data/temp.db "SELECT 1;" || echo "SQLite available"
+          sqlite3 data/temp.db "SELECT 1;"
           
           # Exécuter les migrations si elles existent
           if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
@@ -72,57 +75,45 @@ jobs:
         run: |
           cd backend
           # Build avec les features SQLite
-          cargo build --features sqlite
+          cargo build --features sqlite --quiet
           
       - name: Generate SQLx offline cache
-        id: generate-cache
         run: |
           cd backend
           
           # Nettoyer l'ancien cache
           rm -rf .sqlx 2>/dev/null || true
           
-          # Essayer de générer le cache avec différentes méthodes
-          echo "Method 1: Standard prepare..."
+          echo "Génération du cache SQLx..."
+          
+          # Méthode 1: Standard prepare
           if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare; then
-            echo "✅ Cache generated with standard method"
-            exit 0
-          fi
-          
-          echo "Method 2: Prepare with all-targets..."
-          if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare -- --all-targets; then
-            echo "✅ Cache generated with all-targets"
-            exit 0
-          fi
-          
-          echo "Method 3: Prepare with check..."
-          cargo check --features sqlite
-          if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare; then
-            echo "✅ Cache generated after check"
-            exit 0
-          fi
-          
-          # Si tout échoue, créer un cache minimal
-          echo "⚠️ Creating minimal cache file..."
-          mkdir -p .sqlx
-          cat > .sqlx/query.json << 'EOF'
+            echo "✅ Cache generated"
+          else
+            echo "⚠️ First method failed, trying alternative..."
+            # Méthode 2: Build d'abord puis prepare
+            cargo build --features sqlite --quiet
+            if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare; then
+              echo "✅ Cache generated with build first"
+            else
+              echo "⚠️ Creating minimal cache file..."
+              mkdir -p .sqlx
+              cat > .sqlx/query.json << 'EOF'
 {
   "db": "SQLite",
   "queries": {}
 }
 EOF
+            fi
+          fi
           
       - name: Verify cache generation
         run: |
           cd backend
           if [ -d ".sqlx" ]; then
             echo "✅ SQLx cache directory exists"
-            echo "Files in .sqlx/:"
+            echo "Files:"
             ls -la .sqlx/
-            if [ -f ".sqlx/query.json" ]; then
-              echo "First 10 lines of query.json:"
-              head -10 .sqlx/query.json
-            fi
           else
             echo "❌ SQLx cache directory not found"
             exit 1
@@ -144,6 +135,6 @@ EOF
           else
             # Commit et push
             git commit -m "chore: update SQLx offline cache [skip ci]"
-            git push
+            git push origin HEAD:${{ github.ref_name }}
             echo "✅ Cache committed and pushed"
           fi
