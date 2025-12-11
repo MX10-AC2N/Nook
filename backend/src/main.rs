@@ -5,7 +5,6 @@ mod upload;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::Html,
     routing::{get, patch, post},
     Json, Router,
 };
@@ -49,13 +48,8 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
     ws.on_upgrade(|socket| handle_socket(socket))
 }
 
-async fn handle_socket(mut socket: WebSocket) {
-    use futures_util::{SinkExt, StreamExt};
-    while let Some(Ok(msg)) = socket.next().await {
-        if let Ok(text) = msg.into_text() {
-            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
-        }
-    }
+async fn handle_socket(_socket: WebSocket) {
+    // TODO: Implémenter le WebSocket plus tard
 }
 
 async fn invite_handler(
