@@ -1,7 +1,8 @@
 use axum::{
     extract::{Path, Query},
     http::StatusCode,
-    Json,
+    response::Json,
+    Json as AxumJson,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -19,7 +20,7 @@ pub struct ApiResponse {
     pub message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct Member {
     pub id: String,
     pub name: String,
@@ -93,7 +94,10 @@ pub async fn approve_member(
 pub async fn get_members(
     pool: &SqlitePool,
 ) -> Result<Vec<Member>, StatusCode> {
-    let rows = sqlx::query_as("SELECT id, name, approved FROM members ORDER BY joined_at")
+    let rows = sqlx::query_as!(
+        Member,
+        "SELECT id, name, approved FROM members ORDER BY joined_at"
+    )
     .fetch_all(pool)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
