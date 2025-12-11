@@ -7,24 +7,24 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Checkout
+        uses: actions/checkout@v4
         
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          
       - name: Fix Cargo.toml
         run: |
           cd backend
-          # Retirer la fonctionnalité 'offline' qui n'existe plus dans SQLx 0.8
-          sed -i 's/features = \["runtime-tokio-rustls", "sqlite", "offline"\]/features = ["runtime-tokio-rustls", "sqlite"]/' Cargo.toml
-          # Supprimer les contraintes de version problématiques
-          sed -i '/# 🔒 Fixes pour éviter edition2024/,+2d' Cargo.toml
-          echo "Cargo.toml après correction :"
+          # Rétrograder à SQLx 0.7 qui a la feature 'offline'
+          sed -i 's/version = "0.8"/version = "0.7"/' Cargo.toml
+          echo "Cargo.toml modifié :"
           cat Cargo.toml
       
-      - name: Install SQLx CLI from git (pour 0.8)
-        run: |
-          cargo install --git https://github.com/launchbadge/sqlx sqlx-cli --no-default-features --features sqlite
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --version 0.7.3 --no-default-features --features sqlite
       
       - name: Create database
         run: |
@@ -32,43 +32,22 @@ jobs:
           mkdir -p data
           sqlite3 data/temp.db "VACUUM;"
           
-      - name: Run migrations if any
+      - name: Generate cache
         run: |
           cd backend
-          if [ -d "migrations" ] && [ -n "$(ls -A migrations 2>/dev/null)" ]; then
-            echo "Running migrations..."
-            DATABASE_URL="sqlite:data/temp.db" sqlx migrate run || echo "No migrations to run"
-          fi
-      
-      - name: Build and generate cache
-        run: |
-          cd backend
-          # Nettoyer et construire
-          cargo clean
-          cargo update
+          DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare || true
           
-          # Essayer de générer le cache
-          if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare; then
-            echo "✅ Cache généré avec succès"
-          else
-            echo "⚠️ Échec, création manuelle du cache"
+      - name: Create cache if missing
+        run: |
+          cd backend
+          if [ ! -d ".sqlx" ]; then
             mkdir -p .sqlx
-            cat > .sqlx/query.json << 'EOF'
-{
-  "db": "SQLite",
-  "queries": {}
-}
-EOF
+            echo '{"db":"SQLite","queries":{}}' > .sqlx/query.json
           fi
-      
-      - name: Commit changes
+          
+      - name: Commit and push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add backend/.sqlx/ backend/Cargo.toml
-          if git diff --cached --quiet; then
-            echo "Aucun changement"
-          else
-            git commit -m "fix: update SQLx to 0.8 and generate cache"
-            git push
-          fi
+          git diff --cached --quiet || (git commit -m "chore: add SQLx cache" && git push)
