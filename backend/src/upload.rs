@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Multipart, State},
+    extract::{State, Multipart},
     http::StatusCode,
     response::Json,
 };
@@ -24,13 +24,22 @@ pub async fn handle_upload(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    while let Ok(Some(field)) = multipart.next_field().await {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
         let data = field
             .bytes()
             .await
             .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-        let path = format!("data/uploads/{}", uuid::Uuid::new_v4());
+        if data.len() as u64 > 50 * 1024 * 1024 {
+            return Err(StatusCode::PAYLOAD_TOO_LARGE);
+        }
+
+        let filename = uuid::Uuid::new_v4().to_string() + ".enc";
+        let path = format!("data/uploads/{}", filename);
         let mut file = File::create(&path)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
