@@ -1,126 +1,47 @@
-name: Generate SQLx Cache
+name: Debug SQLx Cache
 
 on: workflow_dispatch
 
 jobs:
-  generate-cache:
+  debug:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: wasm32-unknown-unknown
-          
+      - name: Install Rust
+        run: rustup update stable && rustup default stable
+      
       - name: Install SQLx CLI
-        run: |
-          cargo install sqlx-cli --no-default-features --features sqlite
-          
-      - name: Setup backend
+        run: cargo install sqlx-cli --version 0.7.3 --features sqlite
+      
+      - name: Check backend structure
         run: |
           cd backend
-          echo "=== Structure du projet ==="
+          echo "=== Fichiers dans backend/ ==="
           ls -la
+          echo ""
           echo "=== Cargo.toml ==="
           cat Cargo.toml
-          echo "=== Dépendances ==="
-          grep -A5 -B5 "sqlx" Cargo.toml || echo "sqlx non trouvé dans Cargo.toml"
-          
-      - name: Create database
+          echo ""
+          echo "=== Existe-t-il des fichiers .rs ? ==="
+          find . -name "*.rs" | head -10
+          echo ""
+          echo "=== Vérification de sqlx dans Cargo.toml ==="
+          if grep -q "sqlx" Cargo.toml; then
+            echo "✅ sqlx trouvé dans les dépendances"
+          else
+            echo "❌ sqlx NON trouvé dans les dépendances"
+          fi
+      
+      - name: Try cargo sqlx prepare
         run: |
           cd backend
           mkdir -p data
-          # Créer une vraie base SQLite
-          sqlite3 data/temp.db "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY);"
-          echo "Base de données créée:"
-          sqlite3 data/temp.db ".tables"
+          touch data/temp.db
           
-      - name: Try to generate cache
-        id: generate
-        run: |
-          cd backend
-          echo "Tentative de génération du cache SQLx..."
+          echo "=== Test de cargo metadata ==="
+          cargo metadata --format-version=1 > metadata.json 2>&1 && echo "✅ cargo metadata OK" || echo "❌ cargo metadata échoué"
           
-          # Essayer d'abord avec un build
-          echo "1. Building project..."
-          cargo build --features sqlite 2>&1 | tail -20
-          
-          # Essayer de générer le cache
-          echo "2. Generating cache..."
-          DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare 2>&1 | tee sqlx-output.log
-          
-          if [ -d ".sqlx" ]; then
-            echo "✅ Cache généré avec succès"
-            echo "success=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Échec de génération du cache"
-            echo "=== Log de l'erreur ==="
-            cat sqlx-output.log
-            echo "success=false" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Create minimal cache if failed
-        if: steps.generate.outputs.success == 'false'
-        run: |
-          cd backend
-          echo "Création d'un cache minimal..."
-          mkdir -p .sqlx
-          cat > .sqlx/query.json << 'EOF'
-{
-  "db": "SQLite",
-  "queries": {}
-}
-EOF
-          echo "Cache minimal créé"
-          ls -la .sqlx/
-          
-      - name: Verify cache exists
-        run: |
-          cd backend
-          echo "Vérification du cache..."
-          if [ -d ".sqlx" ]; then
-            echo "✅ Cache trouvé:"
-            ls -la .sqlx/
-            echo "=== Contenu du cache ==="
-            cat .sqlx/*.json || echo "Fichier JSON non trouvé"
-          else
-            echo "❌ Aucun cache trouvé"
-            exit 1
-          fi
-          
-      - name: Commit cache
-        run: |
-          echo "=== Avant commit ==="
-          find . -name ".sqlx" -type d
-          
-          # Configurer Git
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          # Ajouter le cache
-          git add backend/.sqlx/ -v || echo "Impossible d'ajouter backend/.sqlx/, recherche dans tout le repo..."
-          
-          # Alternative: trouver tous les dossiers .sqlx
-          find . -name ".sqlx" -type d | while read dir; do
-            echo "Ajout de $dir"
-            git add "$dir"
-          done
-          
-          # Vérifier les changements
-          echo "=== Changements à committer ==="
-          git status
-          
-          if git diff --cached --quiet; then
-            echo "Aucun changement à committer"
-          else
-            git commit -m "chore: update SQLx cache [skip ci]"
-            git push
-            echo "✅ Cache commité et poussé"
-          fi
+          echo "=== Test de cargo sqlx prepare ==="
+          DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare --verbose 2>&1 | tail -50
