@@ -12,8 +12,16 @@ RUN cargo build --release
 
 # --- Runtime ---
 FROM gcr.io/distroless/cc-debian12
+
+# 1. Définir l'utilisateur non-root AVANT WORKDIR
+USER nonroot
+
+# 2. Définir le répertoire de travail (il sera créé avec les bonnes permissions)
 WORKDIR /app
-COPY --from=frontend-builder /app/build ./static
-COPY --from=backend-builder /app/target/release/nook-backend ./
+
+# 3. Copier les fichiers de l'application
+COPY --from=frontend-builder --chown=nonroot:nonroot /app/build ./static
+COPY --from=backend-builder --chown=nonroot:nonroot /app/target/release/nook-backend ./
+
 EXPOSE 3000
 CMD ["./nook-backend"]
