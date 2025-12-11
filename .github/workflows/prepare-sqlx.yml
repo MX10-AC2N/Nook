@@ -20,7 +20,7 @@ jobs:
         run: |
           mkdir -p data
           # Vérifier que les migrations existent (pour débogage)
-          ls -la migrations/
+          ls -la back-end/migrations/
           # Crée une base SQLite temporaire
           DATABASE_URL="sqlite:data/temp.db" sqlx database create
           # Exécute les migrations en spécifiant explicitement le dossier
