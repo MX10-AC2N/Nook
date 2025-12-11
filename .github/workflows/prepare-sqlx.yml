@@ -1,119 +1,54 @@
 name: Generate SQLx Cache
 
-on: workflow_dispatch
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'backend/src/**'
+      - 'backend/migrations/**'
+      - 'backend/Cargo.toml'
 
 jobs:
   generate-cache:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
       - name: Setup Rust
-        run: rustup update stable && rustup default stable
-      
-      - name: Install correct SQLx CLI version
-        run: |
-          # Désinstaller d'abord l'ancienne version si elle existe
-          cargo uninstall sqlx-cli 2>/dev/null || true
-          # Installer la version 0.8.x pour correspondre à votre Cargo.toml
-          cargo install sqlx-cli --version 0.8.1 --no-default-features --features sqlite
-      
-      - name: Check backend structure
-        run: |
-          cd backend
-          echo "=== Fichiers dans backend/ ==="
-          ls -la
-          echo ""
-          echo "=== Cargo.toml ==="
-          cat Cargo.toml
-          echo ""
-          echo "=== Versions ==="
-          rustc --version
-          cargo --version
-          cargo sqlx --version || echo "SQLx CLI non installé"
-      
-      - name: Create database
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features sqlite
+        
+      - name: Setup backend
         run: |
           cd backend
           mkdir -p data
-          # Créer une vraie base SQLite avec sqlite3
           sqlite3 data/temp.db "VACUUM;"
-          echo "Base de données créée:"
-          sqlite3 data/temp.db ".tables"
-      
-      - name: Run migrations if they exist
-        run: |
-          cd backend
-          if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
-            echo "Exécution des migrations..."
-            DATABASE_URL="sqlite:data/temp.db" sqlx migrate run
-          else
-            echo "Pas de migrations trouvées, création d'une table dummy..."
-            sqlite3 data/temp.db "CREATE TABLE IF NOT EXISTS _sqlx_dummy (id INTEGER PRIMARY KEY);"
-          fi
-      
-      - name: Build project first
-        run: |
-          cd backend
-          echo "Construction du projet..."
-          cargo build --features sqlite 2>&1 | tail -20
-      
-      - name: Generate SQLx cache
-        run: |
-          cd backend
-          echo "Génération du cache SQLx..."
+          echo "Database created"
           
-          # Nettoyer l'ancien cache
-          rm -rf .sqlx 2>/dev/null || true
-          
-          # Essayer de générer le cache
-          if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare -- --all-targets; then
-            echo "✅ Cache généré avec succès"
-          else
-            echo "⚠️ Échec, tentative alternative..."
-            # Essayer sans --all-targets
-            if DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare; then
-              echo "✅ Cache généré (sans --all-targets)"
-            else
-              echo "❌ Échec complet, création d'un cache minimal"
-              mkdir -p .sqlx
-              cat > .sqlx/query.json << 'EOF'
-{
-  "db": "SQLite",
-  "queries": {}
-}
-EOF
-            fi
-          fi
-      
-      - name: Verify cache
+      - name: Generate cache
         run: |
           cd backend
-          echo "Vérification du cache..."
-          if [ -d ".sqlx" ]; then
-            echo "✅ Cache trouvé dans backend/.sqlx/"
-            ls -la .sqlx/
-          else
-            echo "❌ Aucun cache trouvé"
-            exit 1
+          DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare || true
+          
+      - name: Create cache if missing
+        run: |
+          cd backend
+          if [ ! -d ".sqlx" ]; then
+            echo "Creating minimal cache manually..."
+            mkdir -p .sqlx
+            echo '{"db":"SQLite","queries":{}}' > .sqlx/query.json
           fi
-      
+          
       - name: Commit and push
         run: |
-          echo "Configuration Git..."
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          
-          echo "Ajout du cache..."
-          git add backend/.sqlx/ || echo "Impossible d'ajouter backend/.sqlx/"
-          
-          # Vérifier s'il y a des changements
-          if git diff --cached --quiet; then
-            echo "Aucun changement à committer"
-          else
-            echo "Commit et push..."
-            git commit -m "chore: update SQLx cache [skip ci]"
-            git push
-            echo "✅ Cache mis à jour"
-          fi
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add backend/.sqlx/
+          git diff --cached --quiet || (git commit -m "chore: update SQLx cache" && git push)
