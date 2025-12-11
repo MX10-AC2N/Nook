@@ -47,11 +47,11 @@
   </div>
   <input
     bind:value={input}
-    on:keyup={(e: KeyboardEvent) => e.key === 'Enter' && send()}
+    onkeyup={(e: KeyboardEvent) => e.key === 'Enter' && send()}
     placeholder="Votre message..."
     class="w-full p-2 border rounded"
   />
-  <button on:click={send} class="mt-2 bg-green-500 text-white p-2 rounded">
+  <button onclick={send} class="mt-2 bg-green-500 text-white p-2 rounded">
     Envoyer
   </button>
 </div>
