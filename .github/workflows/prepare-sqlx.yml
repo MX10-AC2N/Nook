@@ -17,14 +17,15 @@ jobs:
         run: cargo install sqlx-cli
         
       - name: Create SQLite database and run migrations
-  run: |
-    mkdir -p data
-    # Vérifier que les migrations existent (pour débogage)
-    ls -la migrations/
-    # Crée une base SQLite temporaire
-    DATABASE_URL="sqlite:data/temp.db" sqlx database create
-    # Exécute les migrations en spécifiant explicitement le dossier
-    DATABASE_URL="sqlite:data/temp.db" sqlx migrate run --source ./migrations  
+        run: |
+          mkdir -p data
+          # Vérifier que les migrations existent (pour débogage)
+          ls -la migrations/
+          # Crée une base SQLite temporaire
+          DATABASE_URL="sqlite:data/temp.db" sqlx database create
+          # Exécute les migrations en spécifiant explicitement le dossier
+          DATABASE_URL="sqlite:data/temp.db" sqlx migrate run --source ./migrations
+        
       - name: Generate SQLx offline cache
         run: |
           DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare --workspace -- --all-targets
