@@ -5,6 +5,7 @@ mod upload;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    response::Html,
     routing::{get, patch, post},
     Json, Router,
 };
@@ -49,7 +50,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl axum::response::IntoResponse {
 }
 
 async fn handle_socket(_socket: WebSocket) {
-    // TODO: Implémenter le WebSocket plus tard
+    // TODO: Implémenter plus tard
 }
 
 async fn invite_handler(
