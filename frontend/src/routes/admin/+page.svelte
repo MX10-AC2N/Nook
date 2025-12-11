@@ -21,8 +21,6 @@
     members = data.members;
   };
 
-  const handleApprove = (id: string) => () => approve(id);
-
   onMount(loadMembers);
 </script>
 
@@ -33,7 +31,7 @@
   </button>
   {#if inviteLink}
     <div class="mt-4 p-2 bg-gray-100 rounded">
-      <p>Lien d’invitation :</p>
+      <p>Lien d'invitation :</p>
       <input type="text" value={inviteLink} class="w-full mt-1 p-1" readonly />
     </div>
   {/if}
@@ -48,7 +46,7 @@
         </span>
         {#if !member.approved}
           <button 
-            onclick={handleApprove(member.id)} 
+            onclick={() => approve(member.id)} 
             class="bg-green-500 text-white p-1 rounded text-sm ml-2"
           >
             Approuver
