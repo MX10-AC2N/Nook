@@ -73,31 +73,36 @@ jobs:
       - name: Installer sqlx-cli
         run: |
           cargo install sqlx-cli \
-            --version 0.8.2 \
+            --version 0.8.6 \
             --no-default-features \
             --features sqlite \
             --locked
 
       - name: Préparer cache SQLx si manquant
-  run: |
-    if [ ! -d ".sqlx" ]; then
-      echo "Cache SQLx manquant, génération..."
-      # S'assurer que sqlx-cli est installé
-      cargo install sqlx-cli --no-default-features --features sqlite --locked 2>/dev/null || true
-      
-      # Créer et migrer la base de données
-      echo "Création de la base de données et application des migrations..."
-      DATABASE_URL="sqlite:data/temp.db" sqlx database create
-      DATABASE_URL="sqlite:data/temp.db" sqlx migrate run
-      
-      # Générer le cache maintenant que les tables existent
-      echo "Génération du cache SQLx..."
-      DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare -- --all-targets
-      
-      echo "✓ Cache généré avec succès"
-    else
-      echo "Cache SQLx présent ✓"
-    fi
+        run: |
+          if [ ! -d ".sqlx" ]; then
+            echo "Cache SQLx manquant, génération..."
+            
+            # Appliquer les migrations
+            echo "Application des migrations..."
+            export DATABASE_URL="sqlite:data/temp.db"
+            
+            # Vérifier si des migrations existent
+            if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
+              sqlx migrate run
+            else
+              echo "⚠️ Aucune migration trouvée, création de la table 'members'..."
+              sqlite3 data/temp.db "CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY, name TEXT, approved BOOLEAN, joined_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
+            fi
+            
+            # Générer le cache
+            echo "Génération du cache SQLx..."
+            cargo sqlx prepare -- --all-targets
+            
+            echo "✓ Cache généré avec succès"
+          else
+            echo "Cache SQLx présent ✓"
+          fi
 
       - name: Build avec mode offline
         env:
@@ -156,7 +161,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          # Pas de cache pour éviter les erreurs
 
       - name: Vérifier l'existence du dossier frontend
         run: |
