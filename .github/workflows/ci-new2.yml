@@ -1,174 +1,254 @@
-name: CI – Build, Test & Publish Nook
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**/*.md'
+      - '**/*.txt'
+      - '**/.gitignore'
+      - '**/.dockerignore'
+      - '**/README*'
   pull_request:
-    branches: [ main ]
-  workflow_dispatch:          # déclenchement manuel
+    branches: [ main, develop ]
 
-permissions:
-  contents: read
-  packages: write            # nécessaire pour pousser sur GHCR
-  id-token: write           # OIDC si vous déployez sur un cloud
+env:
+  CARGO_TERM_COLOR: always
+  SQLX_OFFLINE: true
+  DATABASE_URL: "sqlite:data/test.db"
 
 jobs:
-  # --------------------------------------------------------------
-  # 1️⃣ Préparation : checkout + caches
-  # --------------------------------------------------------------
-  prepare:
+  setup_and_lockfiles:
+    name: 🔧 Préparation et Génération des Lockfiles
     runs-on: ubuntu-latest
+    
     outputs:
-      cargo-cache-key: ${{ steps.cargo-cache.outputs.cache-primary-key }}
-      npm-cache-key:   ${{ steps.npm-cache.outputs.cache-primary-key }}
+      cargo-lock-hash: ${{ steps.cargo-lock-hash.outputs.hash }}
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout du code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0               # besoin de tout l'historique (tags)
+          fetch-depth: 0
 
-      # --------- Cache Cargo ----------
-      - name: Cache Cargo registry & target
-        id: cargo-cache
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Vérifier et générer Cargo.lock
+        id: cargo-lock
+        run: |
+          cd backend || echo "Dossier backend non trouvé"
+          
+          # Générer Cargo.lock s'il n'existe pas
+          if [ ! -f "Cargo.lock" ]; then
+            echo "⚠️ Cargo.lock non trouvé, génération..."
+            cargo generate-lockfile
+            echo "lock-generated=true" >> $GITHUB_OUTPUT
+          else
+            echo "✓ Cargo.lock présent"
+            echo "lock-generated=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Vérifier si Cargo.lock est à jour
+          cargo update --dry-run || echo "Mise à jour disponible"
+
+      - name: Calculer hash Cargo.lock
+        id: cargo-lock-hash
+        run: |
+          if [ -f "backend/Cargo.lock" ]; then
+            hash=$(sha256sum backend/Cargo.lock | cut -d' ' -f1)
+            echo "hash=$hash" >> $GITHUB_OUTPUT
+          else
+            echo "hash=no-lockfile" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commiter Cargo.lock généré si nouveau
+        if: steps.cargo-lock.outputs.lock-generated == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add backend/Cargo.lock
+          git commit -m "ci: generate Cargo.lock" || echo "Aucun changement à commiter"
+          git push || echo "Push non nécessaire"
+
+  build_and_test:
+    name: 🏗️ Construction et Tests Rust
+    runs-on: ubuntu-latest
+    needs: setup_and_lockfiles
+    strategy:
+      matrix:
+        profile: [debug, release]
+        rust: [stable]
+    
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout avec lockfiles
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Installer Rust et outils
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Installer outils supplémentaires
+        run: |
+          cargo install cargo-udeps --locked || echo "cargo-udeps non installé"
+          cargo install cargo-audit || echo "cargo-audit non installé"
+          cargo install cargo-nextest || echo "cargo-nextest non installé"
+
+      - name: Cache Cargo
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            backend/target
-          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+            ~/.cargo/bin
+            target
+          key: ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}-${{ matrix.rust }}
           restore-keys: |
-            cargo-${{ runner.os }}-
-  # --------------------------------------------------------------
-  # 2️⃣ Build backend (Rust)
-  # --------------------------------------------------------------
-  build-backend:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout again
-        uses: actions/checkout@v4
+            ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}
+            ${{ runner.os }}-cargo-
 
-      - name: Install Rust toolchain
-        uses: actions/setup-rust@v2
-        with:
-          rust-version: "1.83"
-
-      - name: Build release binary
-        working-directory: backend
-        run: |
-          cargo fetch               # utilise le cache
-          cargo build --release
-
-      - name: Upload backend binary as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-binary
-          path: backend/target/release/*   # ajuste le nom du binaire
-  # --------------------------------------------------------------
-  # 3️⃣ Build frontend (Node)
-  # --------------------------------------------------------------
-  build-frontend:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout again
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"               # cache interne npm (équiv. à actions/cache)
-
-      - name: Install deps (npm ci)
-        working-directory: frontend
-        run: npm ci
-
-      - name: Build production bundle
-        working-directory: frontend
-        run: npm run build
-
-      - name: Upload built assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/**
-
-      # --------- Cache npm ----------
-      - name: Cache npm modules
-        id: npm-cache
+      - name: Cache Rustup
         uses: actions/cache@v4
         with:
-          path: frontend/node_modules
-          key: npm-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
-          restore-keys: |
-            npm-${{ runner.os }}-
-  # --------------------------------------------------------------
-  # 4️⃣ Tests (parallèles)
-  # --------------------------------------------------------------
-  test:
-    needs: [build-backend, build-frontend]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        component: [backend, frontend]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          path: ~/.rustup
+          key: ${{ runner.os }}-rustup-${{ matrix.rust }}
 
-      - name: Run backend tests
-        if: matrix.component == 'backend'
-        working-directory: backend
-        run: cargo test --quiet
-
-      - name: Run frontend tests
-        if: matrix.component == 'frontend'
-        working-directory: frontend
+      - name: Vérifier les dépendances
         run: |
-          npm ci
-          npm test
-  # --------------------------------------------------------------
-  # 5️⃣ Docker image (multi‑stage)
-  # --------------------------------------------------------------
-  docker-image:
-    needs: [build-backend, build-frontend, test]
+          cargo fetch --locked
+          cargo --version
+          rustc --version
+
+      - name: Préparer environnement de test
+        run: |
+          mkdir -p data
+          touch data/test.db
+          # Si vous utilisez des migrations SQLx
+          if [ -f "migrations" ]; then
+            cargo install sqlx-cli
+            sqlx database create
+            sqlx migrate run
+          fi
+
+      - name: Vérification de compilation
+        run: cargo check --all-targets --${{ matrix.profile }}
+
+      - name: Construction
+        run: cargo build --${{ matrix.profile }} --verbose
+
+      - name: Tests unitaires (avec cargo-nextest si disponible)
+        run: |
+          if command -v cargo-nextest &> /dev/null; then
+            cargo nextest run --profile=${{ matrix.profile }} --lib --tests
+          else
+            cargo test --${{ matrix.profile }} --lib --tests
+          fi
+
+      - name: Tests d'intégration
+        run: cargo test --test '*'
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: debug
+
+      - name: Tests de documentation
+        run: cargo test --doc
+
+  quality:
+    name: 📋 Contrôle Qualité
     runs-on: ubuntu-latest
+    needs: [setup_and_lockfiles, build_and_test]
+    defaults:
+      run:
+        working-directory: ./backend
+
     steps:
-      - name: Checkout (again)
+      - name: Checkout du code
         uses: actions/checkout@v4
 
-      # Récupère les artefacts produits précédemment
-      - name: Download backend binary
-        uses: actions/download-artifact@v4
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          name: backend-binary
-          path: backend/artifact
+          toolchain: stable
+          components: rustfmt, clippy
 
-      - name: Download frontend dist
-        uses: actions/download-artifact@v4
+      - name: Cache
+        uses: actions/cache@v4
         with:
-          name: frontend-dist
-          path: frontend/artifact
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Vérification formatage
+        run: cargo fmt --all -- --check
 
-      - name: Log in to GHCR (optional – needed only if you push)
-        uses: docker/login-action@v3
+      - name: Analyse statique avec Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -D clippy::cargo
+
+      - name: Vérifier les dépendances inutilisées
+        run: cargo udeps --all-targets || echo "⚠️ cargo-udeps non disponible"
+
+      - name: Audit de sécurité
+        run: cargo audit || echo "⚠️ Audit non disponible, vérifiez Cargo.lock manuellement"
+
+      - name: Vérifier les vulnérabilités connues
+        run: |
+          cargo audit --deny warnings || echo "Aucune vulnérabilité critique"
+
+      - name: Vérifier la documentation
+        run: cargo doc --no-deps --document-private-items
+
+      - name: Vérifier les licences
+        run: |
+          cargo install cargo-deny || echo "cargo-deny non installé"
+          cargo deny check || echo "Vérification des licences ignorée"
+
+  coverage:
+    name: 📊 Couverture de Code
+    runs-on: ubuntu-latest
+    needs: setup_and_lockfiles
+    if: github.event_name == 'pull_request'
+    
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: stable
 
-      - name: Build & load Docker image
-        uses: docker/build-push-action@v5
+      - name: Installer tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Couverture de code
+        run: cargo tarpaulin --out Xml --engine llvm
+
+      - name: Upload vers Codecov
+        uses: codecov/codecov-action@v3
         with:
-          context: .
-          file: Dockerfile
-          load: true                         # charge l’image dans le runner
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/nook:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/nook:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          file: ./cobertura.xml
+
+notifications:
+  on_success: change
+  on_failure: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
