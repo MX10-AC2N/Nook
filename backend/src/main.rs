@@ -48,7 +48,7 @@ async fn main() {
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket))
+    ws.on_upgrade(handle_socket)
 }
 
 async fn handle_socket(mut socket: WebSocket) {
@@ -96,10 +96,9 @@ async fn approve_handler(
     auth::approve_member(&state.db, id)
         .await
         .map(Json)
-        .map_err(|e| e)
 }
 
 async fn members_handler(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
-    let members = auth::get_members(&state.db).await.map_err(|e| e)?;
+    let members = auth::get_members(&state.db).await?;
     Ok(Json(serde_json::json!({ "members": members })))
 }
