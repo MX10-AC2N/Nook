@@ -1,9 +1,4 @@
-use axum::{
-    extract::{Path, Query},
-    http::StatusCode,
-    response::Json,
-    Json as AxumJson,
-};
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
@@ -71,7 +66,7 @@ pub async fn handle_join(
 
     Ok(ApiResponse {
         success: true,
-        message: "Demande envoyée à l’administrateur".to_string(),
+        message: "Demande envoyée à l'administrateur".to_string(),
     })
 }
 
@@ -94,8 +89,7 @@ pub async fn approve_member(
 pub async fn get_members(
     pool: &SqlitePool,
 ) -> Result<Vec<Member>, StatusCode> {
-    let rows = sqlx::query_as!(
-        Member,
+    let rows = sqlx::query_as::<_, Member>(
         "SELECT id, name, approved FROM members ORDER BY joined_at"
     )
     .fetch_all(pool)
