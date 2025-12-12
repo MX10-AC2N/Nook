@@ -40,7 +40,9 @@ async fn main() {
     println!("🚀 Nook v1.1 running on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service()).await.unwrap();
+    axum::serve(listener, app.into_make_service())
+        .await
+        .unwrap();
 }
 
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
@@ -51,10 +53,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 
 async fn handle_socket(mut socket: WebSocket) {
     // Import seulement à l'intérieur de la fonction où c'est utilisé
-    use futures_util::{
-        sink::SinkExt,
-        stream::StreamExt,
-    };
+    use futures_util::{sink::SinkExt, stream::StreamExt};
 
     while let Some(Ok(msg)) = socket.next().await {
         if let Ok(text) = msg.into_text() {
@@ -100,9 +99,7 @@ async fn approve_handler(
         .map_err(|e| e)
 }
 
-async fn members_handler(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Value>, StatusCode> {
+async fn members_handler(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
     let members = auth::get_members(&state.db).await.map_err(|e| e)?;
     Ok(Json(serde_json::json!({ "members": members })))
 }
