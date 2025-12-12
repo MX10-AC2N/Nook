@@ -35,4 +35,3 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCod
 
     Err(StatusCode::BAD_REQUEST)
 }
-
