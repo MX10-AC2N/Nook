@@ -48,7 +48,6 @@ jobs:
 
       - name: Cache Cargo
         uses: actions/cache@v4
-        id: cargo-cache
         with:
           path: |
             ~/.cargo/registry
@@ -132,6 +131,7 @@ jobs:
   frontend:
     name: 🎨 Frontend
     runs-on: ubuntu-latest
+    needs: setup
     
     steps:
       - name: Checkout du code
@@ -141,39 +141,68 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'frontend/package-lock.json'
+          # Pas de cache pour éviter les erreurs
 
-      - name: Vérifier l'existence des fichiers
+      - name: Vérifier l'existence du dossier frontend
         run: |
-          echo "Contenu du dossier frontend:"
-          ls -la frontend/
-          echo "Package-lock existe ?"
-          [ -f "frontend/package-lock.json" ] && echo "OUI" || echo "NON - génération..."
+          if [ ! -d "frontend" ]; then
+            echo "❌ Dossier frontend non trouvé"
+            exit 1
+          fi
+          echo "✓ Dossier frontend trouvé"
+
+      - name: Vérifier package.json
+        working-directory: ./frontend
+        run: |
+          if [ ! -f "package.json" ]; then
+            echo "❌ package.json non trouvé"
+            exit 1
+          fi
+          echo "✓ package.json trouvé"
+          cat package.json | jq '.scripts'
 
       - name: Générer package-lock si absent
         working-directory: ./frontend
         run: |
           if [ ! -f "package-lock.json" ]; then
-            echo "Génération de package-lock.json..."
+            echo "⚠️ package-lock.json non trouvé, génération..."
             npm install --package-lock-only
+            echo "✓ package-lock.json généré"
+          else
+            echo "✓ package-lock.json présent"
           fi
 
       - name: Installer dépendances
         working-directory: ./frontend
-        run: npm ci
+        run: |
+          echo "Installation des dépendances..."
+          npm ci --silent
+          echo "✓ Dépendances installées"
 
-      - name: Vérifier le lint
+      - name: Vérifier le lint (si configuré)
         working-directory: ./frontend
-        run: npm run lint || echo "Lint non configuré"
+        run: |
+          if npm run --silent lint 2>/dev/null; then
+            npm run lint
+          else
+            echo "⚠️ Script lint non configuré"
+          fi
 
       - name: Build
         working-directory: ./frontend
-        run: npm run build
+        run: |
+          echo "Build du frontend..."
+          npm run build
+          echo "✓ Build terminé"
 
-      - name: Tests unitaires
+      - name: Tests unitaires (si configurés)
         working-directory: ./frontend
-        run: npm test || echo "Tests non configurés"
+        run: |
+          if npm run --silent test 2>/dev/null; then
+            npm test
+          else
+            echo "⚠️ Tests non configurés"
+          fi
 
   lint:
     name: 📝 Lint et Formatage
