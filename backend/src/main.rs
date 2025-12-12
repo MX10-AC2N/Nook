@@ -52,7 +52,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 }
 
 async fn handle_socket(mut socket: WebSocket) {
-    // Import seulement à l'intérieur de la fonction où c'est utilisé
     use futures_util::stream::StreamExt;
 
     while let Some(Ok(msg)) = socket.next().await {
@@ -93,9 +92,7 @@ async fn approve_handler(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
-    auth::approve_member(&state.db, id)
-        .await
-        .map(Json)
+    auth::approve_member(&state.db, id).await.map(Json)
 }
 
 async fn members_handler(State(state): State<Arc<AppState>>) -> Result<Json<Value>, StatusCode> {
