@@ -78,7 +78,6 @@ jobs:
             --features sqlite \
             --locked
 
-      # Prépare SQLx cache
 - name: Prepare SQLx cache if missing
   working-directory: ./backend
   run: |
