@@ -11,13 +11,15 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCod
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?
     {
+        // Récupérer le nom AVANT de consommer le champ avec .bytes()
+        let name = field.name().unwrap_or("file").to_string();
+        
         let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
 
         if data.len() as u64 > 50 * 1024 * 1024 {
             return Err(StatusCode::PAYLOAD_TOO_LARGE);
         }
 
-        let name = field.name().unwrap_or("file").to_string();
         let ext = if name.contains('.') {
             name.split('.').last().unwrap_or("bin")
         } else {
