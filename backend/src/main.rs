@@ -53,7 +53,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 
 async fn handle_socket(mut socket: WebSocket) {
     // Import seulement à l'intérieur de la fonction où c'est utilisé
-    use futures_util::{sink::SinkExt, stream::StreamExt};
+    use futures_util::stream::StreamExt;
 
     while let Some(Ok(msg)) = socket.next().await {
         if let Ok(text) = msg.into_text() {
