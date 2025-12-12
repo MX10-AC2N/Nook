@@ -78,19 +78,24 @@ jobs:
             --features sqlite \
             --locked
 
-      - name: Préparer SQLx offline
-        env:
-          DATABASE_URL: "sqlite:data/temp.db"
-        run: |
-          echo "Préparation des requêtes SQLx offline..."
-          cargo sqlx prepare --database-url "$DATABASE_URL" || \
-            echo "SQLx prepare skipped (not critical)"
+      # Prépare SQLx cache
+- name: Prepare SQLx cache if missing
+  working-directory: ./backend
+  run: |
+    if [ ! -d ".sqlx" ]; then
+      echo "Cache SQLx manquant, génération..."
+      mkdir -p data
+      sqlite3 data/temp.db "VACUUM;"
+      cargo install sqlx-cli --no-default-features --features sqlite
+      DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
+    else
+      echo "Cache SQLx présent ✓"
+    fi
 
-      - name: Construire en mode debug
-        run: cargo build
-
-      - name: Construire en mode release
-        run: cargo build --release
+- name: Build with offline mode
+  env:
+    SQLX_OFFLINE: true
+  run: cargo build --release
 
   test:
     name: 🧪 Tests
