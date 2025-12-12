@@ -57,7 +57,7 @@ WORKDIR /app
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/
 
 # Copier les fichiers frontend buildés
-COPY --from=frontend-builder --chown=app:app /app/dist /app/static
+COPY --from=frontend-builder --chown=app:app /app/build /app/static
 
 # Créer d'abord le dossier migrations (peut être vide)
 RUN mkdir -p /app/migrations
