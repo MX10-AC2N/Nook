@@ -23,7 +23,10 @@ RUN if grep -q '"offline"' Cargo.toml; then \
 # 1. Créer la base de données temporaire
 RUN mkdir -p data && sqlite3 data/temp.db "VACUUM;"
 
-# 2. Exécuter les migrations si elles existent
+# 2. INSTALLER SQLX-CLI EN PREMIER
+RUN cargo install sqlx-cli --version 0.7.4 --no-default-features --features sqlite
+
+# 3. Exécuter les migrations si elles existent (MAINTENANT SQLX EST DISPONIBLE)
 RUN if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then \
       echo "Running migrations..." && \
       DATABASE_URL="sqlite:data/temp.db" sqlx migrate run; \
@@ -31,15 +34,13 @@ RUN if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then \
       echo "No migrations directory found, skipping."; \
     fi
 
-# 3. GÉNÉRER LE CACHE SQLX AVANT LE BUILD
-# Installer sqlx-cli temporairement
-RUN cargo install sqlx-cli --version 0.7.4 --no-default-features --features sqlite
-# Générer le cache de requêtes
+# 4. Générer le cache de requêtes
 RUN DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
-# Désinstaller sqlx-cli pour réduire la taille de l'image
+
+# 5. Désinstaller sqlx-cli pour réduire la taille de l'image
 RUN cargo uninstall sqlx-cli
 
-# 4. Build en mode release
+# 6. Build en mode release
 RUN cargo build --release
 
 # --- Runtime ---
