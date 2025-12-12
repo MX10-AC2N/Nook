@@ -238,25 +238,26 @@
         class="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         disabled={isLoading}
       />
-      <button
-        onclick={sendMessage}
-        disabled={isLoading || !input.trim()}
-        class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
-      >
-        {isLoading ? (
-          <>
-            <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            <span>Envoi...</span>
-          </>
-        ) : (
-          <>
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
-            <span>Envoyer</span>
-          </>
-        )}
-      </button>
+      <!-- ✅ Code corrigé -->
+<button
+  onclick={sendMessage}
+  disabled={isLoading || !input.trim()}
+  class="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
+>
+  {isLoading ? (
+    <div class="flex items-center gap-2">
+      <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+      <span>Envoi...</span>
+    </div>
+  ) : (
+    <div class="flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+      </svg>
+      <span>Envoyer</span>
+    </div>
+  )}
+</button>
     </div>
     <div class="mt-2 text-xs text-gray-500 flex justify-between">
       <div>
