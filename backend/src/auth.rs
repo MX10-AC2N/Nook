@@ -90,3 +90,4 @@ pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
 
     Ok(rows)
 }
+
