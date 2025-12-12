@@ -54,15 +54,13 @@ pub async fn handle_join(
         .ok();
 
     let id = Uuid::new_v4().to_string();
-    sqlx::query(
-        "INSERT INTO members (id, name, public_key, approved) VALUES (?, ?, ?, 0)"
-    )
-    .bind(&id)
-    .bind(&req.name)
-    .bind(&req.public_key)
-    .execute(pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query("INSERT INTO members (id, name, public_key, approved) VALUES (?, ?, ?, 0)")
+        .bind(&id)
+        .bind(&req.name)
+        .bind(&req.public_key)
+        .execute(pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(ApiResponse {
         success: true,
@@ -70,10 +68,7 @@ pub async fn handle_join(
     })
 }
 
-pub async fn approve_member(
-    pool: &SqlitePool,
-    id: String,
-) -> Result<ApiResponse, StatusCode> {
+pub async fn approve_member(pool: &SqlitePool, id: String) -> Result<ApiResponse, StatusCode> {
     sqlx::query("UPDATE members SET approved = 1 WHERE id = ?")
         .bind(&id)
         .execute(pool)
@@ -86,15 +81,12 @@ pub async fn approve_member(
     })
 }
 
-pub async fn get_members(
-    pool: &SqlitePool,
-) -> Result<Vec<Member>, StatusCode> {
-    let rows = sqlx::query_as::<_, Member>(
-        "SELECT id, name, approved FROM members ORDER BY joined_at"
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
+    let rows =
+        sqlx::query_as::<_, Member>("SELECT id, name, approved FROM members ORDER BY joined_at")
+            .fetch_all(pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(rows)
 }
