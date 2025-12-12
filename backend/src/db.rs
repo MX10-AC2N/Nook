@@ -17,3 +17,4 @@ pub async fn init_db() -> Arc<AppState> {
     sqlx::migrate!("./migrations").run(&pool).await.unwrap();
     Arc::new(AppState { db: pool })
 }
+
