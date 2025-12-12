@@ -1,0 +1,10 @@
+[build]
+# Toujours générer le lockfile en mode release
+lockfile = true
+
+[profile.dev]
+incremental = true
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
