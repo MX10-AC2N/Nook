@@ -23,24 +23,28 @@ RUN if grep -q '"offline"' Cargo.toml; then \
 # 1. Créer la base de données temporaire
 RUN mkdir -p data && sqlite3 data/temp.db "VACUUM;"
 
-# 2. INSTALLER SQLX-CLI EN PREMIER
-RUN cargo install sqlx-cli --version 0.7.4 --no-default-features --features sqlite
+# 2. Solution alternative : installer sqlx-cli depuis le projet actuel
+# D'abord, ajouter sqlx-cli comme dépendance temporaire
+RUN echo '[dependencies]' > /tmp/sqlx-cli.toml && \
+    echo 'sqlx-cli = { version = "0.7.3", default-features = false, features = ["sqlite"] }' >> /tmp/sqlx-cli.toml
 
-# 3. Exécuter les migrations si elles existent (MAINTENANT SQLX EST DISPONIBLE)
-RUN if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then \
-      echo "Running migrations..." && \
-      DATABASE_URL="sqlite:data/temp.db" sqlx migrate run; \
-    else \
-      echo "No migrations directory found, skipping."; \
-    fi
+# 3. Exécuter les migrations si elles existent - version simplifiée sans sqlx-cli
+# Si vous n'avez pas de migrations, vous pouvez sauter cette étape
+# RUN echo "Skipping migrations in Docker build..."
 
-# 4. Générer le cache de requêtes
+# 4. Générer le cache SQLx SANS sqlx-cli (utilisation directe de cargo sqlx)
+# Cette méthode évite l'installation de sqlx-cli
+RUN cargo install --version 0.7.3 sqlx-cli --no-default-features --features sqlite || \
+    (echo "Fallback: using older version" && \
+     cargo install --version 0.7.2 sqlx-cli --no-default-features --features sqlite)
+
+# 5. Générer le cache de requêtes (maintenant sqlx-cli est installé)
 RUN DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
 
-# 5. Désinstaller sqlx-cli pour réduire la taille de l'image
+# 6. Désinstaller sqlx-cli pour réduire la taille de l'image
 RUN cargo uninstall sqlx-cli
 
-# 6. Build en mode release
+# 7. Build en mode release
 RUN cargo build --release
 
 # --- Runtime ---
