@@ -3,7 +3,7 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend/ .
 # Clean install et build
-RUN npm ci && npm run build
+RUN npm install && npm run build
 
 # --- Build Backend ---
 FROM rust:1.83-alpine AS backend-builder
