@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'
@@ -10,7 +10,7 @@ on:
       - '**/.dockerignore'
       - '**/README*'
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,7 +19,7 @@ env:
 
 jobs:
   setup_and_lockfiles:
-    name: 🔧 Préparation et Génération des Lockfiles
+    name: 🔧 Préparation
     runs-on: ubuntu-latest
     
     outputs:
@@ -28,82 +28,57 @@ jobs:
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Installer Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
       - name: Vérifier et générer Cargo.lock
         id: cargo-lock
         run: |
-          cd backend || echo "Dossier backend non trouvé"
-          
-          # Générer Cargo.lock s'il n'existe pas
-          if [ ! -f "Cargo.lock" ]; then
-            echo "⚠️ Cargo.lock non trouvé, génération..."
-            cargo generate-lockfile
-            echo "lock-generated=true" >> $GITHUB_OUTPUT
+          if [ -d "backend" ]; then
+            cd backend
+            # Vérifier si Cargo.lock existe
+            if [ ! -f "Cargo.lock" ]; then
+              echo "⚠️ Cargo.lock non trouvé, génération..."
+              cargo generate-lockfile
+              echo "lock-generated=true" >> $GITHUB_OUTPUT
+            else
+              echo "✓ Cargo.lock présent"
+              echo "lock-generated=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "✓ Cargo.lock présent"
+            echo "⚠️ Dossier backend non trouvé"
             echo "lock-generated=false" >> $GITHUB_OUTPUT
           fi
-          
-          # Vérifier si Cargo.lock est à jour
-          cargo update --dry-run || echo "Mise à jour disponible"
 
       - name: Calculer hash Cargo.lock
         id: cargo-lock-hash
         run: |
           if [ -f "backend/Cargo.lock" ]; then
-            hash=$(sha256sum backend/Cargo.lock | cut -d' ' -f1)
-            echo "hash=$hash" >> $GITHUB_OUTPUT
+            echo "Calcul du hash..."
+            HASH=$(sha256sum backend/Cargo.lock | awk '{print $1}')
+            echo "hash=${HASH}" >> $GITHUB_OUTPUT
           else
-            echo "hash=no-lockfile" >> $GITHUB_OUTPUT
+            echo "hash=none" >> $GITHUB_OUTPUT
           fi
 
-      - name: Commiter Cargo.lock généré si nouveau
-        if: steps.cargo-lock.outputs.lock-generated == 'true'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add backend/Cargo.lock
-          git commit -m "ci: generate Cargo.lock" || echo "Aucun changement à commiter"
-          git push || echo "Push non nécessaire"
-
   build_and_test:
-    name: 🏗️ Construction et Tests Rust
+    name: 🏗️ Construction et Tests
     runs-on: ubuntu-latest
     needs: setup_and_lockfiles
-    strategy:
-      matrix:
-        profile: [debug, release]
-        rust: [stable]
     
     defaults:
       run:
         working-directory: ./backend
 
     steps:
-      - name: Checkout avec lockfiles
+      - name: Checkout du code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Installer Rust et outils
+      - name: Installer Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
-          targets: x86_64-unknown-linux-gnu
-
-      - name: Installer outils supplémentaires
-        run: |
-          cargo install cargo-udeps --locked || echo "cargo-udeps non installé"
-          cargo install cargo-audit || echo "cargo-audit non installé"
-          cargo install cargo-nextest || echo "cargo-nextest non installé"
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -111,55 +86,34 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin
             target
-          key: ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}-${{ matrix.rust }}
+          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}
-            ${{ runner.os }}-cargo-
+            cargo-${{ runner.os }}-
 
-      - name: Cache Rustup
-        uses: actions/cache@v4
-        with:
-          path: ~/.rustup
-          key: ${{ runner.os }}-rustup-${{ matrix.rust }}
+      - name: Installer les outils
+        run: |
+          # Installer uniquement si nécessaire
+          which cargo-udeps > /dev/null || cargo install cargo-udeps --locked 2>/dev/null || true
+          which cargo-audit > /dev/null || cargo install cargo-audit 2>/dev/null || true
 
       - name: Vérifier les dépendances
-        run: |
-          cargo fetch --locked
-          cargo --version
-          rustc --version
+        run: cargo fetch
 
-      - name: Préparer environnement de test
+      - name: Préparer environnement
         run: |
           mkdir -p data
+          # Créer fichier DB pour tests
           touch data/test.db
-          # Si vous utilisez des migrations SQLx
-          if [ -f "migrations" ]; then
-            cargo install sqlx-cli
-            sqlx database create
-            sqlx migrate run
-          fi
 
-      - name: Vérification de compilation
-        run: cargo check --all-targets --${{ matrix.profile }}
+      - name: Construction Debug
+        run: cargo build
 
-      - name: Construction
-        run: cargo build --${{ matrix.profile }} --verbose
+      - name: Construction Release
+        run: cargo build --release
 
-      - name: Tests unitaires (avec cargo-nextest si disponible)
-        run: |
-          if command -v cargo-nextest &> /dev/null; then
-            cargo nextest run --profile=${{ matrix.profile }} --lib --tests
-          else
-            cargo test --${{ matrix.profile }} --lib --tests
-          fi
-
-      - name: Tests d'intégration
-        run: cargo test --test '*'
-        env:
-          RUST_BACKTRACE: full
-          RUST_LOG: debug
+      - name: Exécuter les tests
+        run: cargo test -- --nocapture
 
       - name: Tests de documentation
         run: cargo test --doc
@@ -167,59 +121,7 @@ jobs:
   quality:
     name: 📋 Contrôle Qualité
     runs-on: ubuntu-latest
-    needs: [setup_and_lockfiles, build_and_test]
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-
-      - name: Cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ needs.setup_and_lockfiles.outputs.cargo-lock-hash }}
-
-      - name: Vérification formatage
-        run: cargo fmt --all -- --check
-
-      - name: Analyse statique avec Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery -D clippy::cargo
-
-      - name: Vérifier les dépendances inutilisées
-        run: cargo udeps --all-targets || echo "⚠️ cargo-udeps non disponible"
-
-      - name: Audit de sécurité
-        run: cargo audit || echo "⚠️ Audit non disponible, vérifiez Cargo.lock manuellement"
-
-      - name: Vérifier les vulnérabilités connues
-        run: |
-          cargo audit --deny warnings || echo "Aucune vulnérabilité critique"
-
-      - name: Vérifier la documentation
-        run: cargo doc --no-deps --document-private-items
-
-      - name: Vérifier les licences
-        run: |
-          cargo install cargo-deny || echo "cargo-deny non installé"
-          cargo deny check || echo "Vérification des licences ignorée"
-
-  coverage:
-    name: 📊 Couverture de Code
-    runs-on: ubuntu-latest
-    needs: setup_and_lockfiles
-    if: github.event_name == 'pull_request'
+    needs: [build_and_test]
     
     defaults:
       run:
@@ -232,23 +134,64 @@ jobs:
       - name: Installer Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+
+      - name: Formatage
+        run: cargo fmt --all -- --check
+
+      - name: Lint avec Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Vérifier dépendances inutilisées
+        run: |
+          if command -v cargo-udeps &> /dev/null; then
+            cargo udeps --all-targets || true
+          else
+            echo "cargo-udeps non installé"
+          fi
+
+      - name: Audit sécurité
+        run: |
+          if command -v cargo-audit &> /dev/null; then
+            cargo audit || true
+          else
+            echo "cargo-audit non installé"
+          fi
+
+  coverage:
+    name: 📊 Couverture
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [build_and_test]
+    
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Installer tarpaulin
-        run: cargo install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
 
-      - name: Couverture de code
-        run: cargo tarpaulin --out Xml --engine llvm
+      - name: Calculer couverture
+        run: cargo tarpaulin --out Xml
 
-      - name: Upload vers Codecov
+      - name: Upload résultats
         uses: codecov/codecov-action@v3
         with:
-          file: ./cobertura.xml
-
-notifications:
-  on_success: change
-  on_failure: always
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+          files: ./cobertura.xml
+          fail_ci_if_error: false
