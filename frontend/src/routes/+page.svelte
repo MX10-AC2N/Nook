@@ -15,9 +15,9 @@
     bind:value={name}
     placeholder="Votre prénom"
     class="w-full p-2 border rounded mb-4"
-    on:keyup={(e) => e.key === 'Enter' && join()}
+    onkeyup={(e) => e.key === 'Enter' && join()}
   />
-  <button on:click={join} class="w-full bg-green-500 text-white p-2 rounded">
+  <button onclick={join} class="w-full bg-green-500 text-white p-2 rounded">
     Rejoindre
   </button>
 </main>
