@@ -77,23 +77,26 @@ jobs:
             --no-default-features \
             --features sqlite \
             --locked
-      - name: Prepare SQLx cache if missing
-  working-directory: ./backend
-  run: |
-    if [ ! -d ".sqlx" ]; then
-      echo "Cache SQLx manquant, génération..."
-      mkdir -p data
-      sqlite3 data/temp.db "VACUUM;"
-      cargo install sqlx-cli --no-default-features --features sqlite
-      DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
-    else
-      echo "Cache SQLx présent ✓"
-    fi
 
-- name: Build with offline mode
-  env:
-    SQLX_OFFLINE: true
-  run: cargo build --release
+      - name: Préparer cache SQLx si manquant
+        run: |
+          if [ ! -d ".sqlx" ]; then
+            echo "Cache SQLx manquant, génération..."
+            mkdir -p data
+            sqlite3 data/temp.db "VACUUM;"
+            cargo install sqlx-cli --no-default-features --features sqlite
+            DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
+          else
+            echo "Cache SQLx présent ✓"
+          fi
+
+      - name: Build avec mode offline
+        env:
+          SQLX_OFFLINE: true
+        run: cargo build --release
+
+      - name: Build debug
+        run: cargo build
 
   test:
     name: 🧪 Tests
