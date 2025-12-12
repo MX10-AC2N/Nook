@@ -103,3 +103,4 @@ async fn members_handler(State(state): State<Arc<AppState>>) -> Result<Json<Valu
     let members = auth::get_members(&state.db).await.map_err(|e| e)?;
     Ok(Json(serde_json::json!({ "members": members })))
 }
+
