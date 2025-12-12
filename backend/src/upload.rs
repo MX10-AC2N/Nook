@@ -3,12 +3,11 @@ use std::fs;
 use uuid::Uuid;
 
 pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCode> {
-    while let Some(field) = multipart
+    if let Some(field) = multipart
         .next_field()
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?
     {
-        // Récupérer le nom AVANT de consommer le champ avec .bytes()
         let name = field.name().unwrap_or("file").to_string();
 
         let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -18,7 +17,7 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCod
         }
 
         let ext = if name.contains('.') {
-            name.split('.').last().unwrap_or("bin")
+            name.split('.').next_back().unwrap_or("bin")
         } else {
             "bin"
         };
