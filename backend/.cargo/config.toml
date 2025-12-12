@@ -1,6 +1,6 @@
 [build]
 # Toujours générer le lockfile en mode release
-lockfile = true
+#lockfile = true
 
 [profile.dev]
 incremental = true
