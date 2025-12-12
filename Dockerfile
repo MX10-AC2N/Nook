@@ -59,8 +59,9 @@ COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /ap
 # Copier les fichiers frontend buildés
 COPY --from=frontend-builder --chown=app:app /app/dist /app/static
 
-# Copier les migrations si elles existent
-COPY --from=backend-builder --chown=app:app /app/migrations /app/migrations 2>/dev/null || echo "No migrations to copy"
+# Créer d'abord le dossier migrations (peut être vide)
+RUN mkdir -p /app/migrations
+COPY --from=backend-builder --chown=app:app /app/migrations/. /app/migrations/ 2>/dev/null || :
 
 # Définir l'utilisateur
 USER app
