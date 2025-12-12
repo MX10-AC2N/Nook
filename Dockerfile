@@ -2,7 +2,6 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend/ .
-# Clean install et build
 RUN npm install && npm run build
 
 # --- Build Backend ---
@@ -16,26 +15,34 @@ WORKDIR /app
 # Copier les fichiers backend
 COPY backend/ .
 
-# Vérifier et corriger Cargo.toml si nécessaire
+# Corriger Cargo.toml - retirer la feature "offline"
 RUN if grep -q '"offline"' Cargo.toml; then \
       sed -i 's/features = \["runtime-tokio-rustls", "sqlite", "offline"\]/features = ["runtime-tokio-rustls", "sqlite"]/' Cargo.toml || true; \
     fi
 
-# Assurer que le cache SQLx existe
-RUN if [ ! -d ".sqlx" ]; then \
-      echo "Creating SQLx cache..."; \
-      mkdir -p .sqlx; \
-      echo '{"db":"SQLite","queries":{}}' > .sqlx/query.json; \
-    fi
-
-# Créer base de données temporaire
+# 1. Créer la base de données temporaire
 RUN mkdir -p data && sqlite3 data/temp.db "VACUUM;"
 
-# Build en mode release
+# 2. Exécuter les migrations si elles existent
+RUN if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then \
+      echo "Running migrations..." && \
+      DATABASE_URL="sqlite:data/temp.db" sqlx migrate run; \
+    else \
+      echo "No migrations directory found, skipping."; \
+    fi
+
+# 3. GÉNÉRER LE CACHE SQLX AVANT LE BUILD
+# Installer sqlx-cli temporairement
+RUN cargo install sqlx-cli --version 0.7.4 --no-default-features --features sqlite
+# Générer le cache de requêtes
+RUN DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
+# Désinstaller sqlx-cli pour réduire la taille de l'image
+RUN cargo uninstall sqlx-cli
+
+# 4. Build en mode release
 RUN cargo build --release
 
 # --- Runtime ---
-# Utiliser Alpine léger avec SQLite
 FROM alpine:3.19
 
 # Installer SQLite runtime
