@@ -1,7 +1,4 @@
-use axum::{
-    extract::Multipart,
-    http::StatusCode,
-};
+use axum::{extract::Multipart, http::StatusCode};
 use std::fs;
 use uuid::Uuid;
 
@@ -13,7 +10,7 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCod
     {
         // Récupérer le nom AVANT de consommer le champ avec .bytes()
         let name = field.name().unwrap_or("file").to_string();
-        
+
         let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
 
         if data.len() as u64 > 50 * 1024 * 1024 {
@@ -38,3 +35,4 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCod
 
     Err(StatusCode::BAD_REQUEST)
 }
+
