@@ -20,7 +20,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copier les fichiers de configuration Cargo (pour cache)
-COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/Cargo.toml backend/ ./
+
+# Génère Cargo.lock
+RUN cargo generate-lockfile
 
 # Créer un build dummy pour mettre en cache les dépendances
 RUN mkdir src && \
