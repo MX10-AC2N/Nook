@@ -77,8 +77,7 @@ jobs:
             --no-default-features \
             --features sqlite \
             --locked
-
-- name: Prepare SQLx cache if missing
+      - name: Prepare SQLx cache if missing
   working-directory: ./backend
   run: |
     if [ ! -d ".sqlx" ]; then
