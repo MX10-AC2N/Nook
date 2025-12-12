@@ -1,79 +1,162 @@
 # --- Build Frontend ---
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm ci
 COPY frontend/ .
-RUN npm install && npm run build
+RUN npm run build
 
 # --- Build Backend ---
-FROM rust:1.83-alpine AS backend-builder
+FROM rust:1.83-slim-bookworm AS backend-builder
 
-# Installer les dépendances nécessaires pour le build
-RUN apk add --no-cache musl-dev sqlite-dev sqlite
+# Installer les dépendances système
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    pkg-config \
+    libsqlite3-dev \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copier les fichiers backend
-COPY backend/ .
+# Copier les fichiers de configuration Cargo (pour cache)
+COPY backend/Cargo.toml backend/Cargo.lock ./
 
-# Corriger Cargo.toml - retirer la feature "offline"
-RUN if grep -q '"offline"' Cargo.toml; then \
-      sed -i 's/features = \["runtime-tokio-rustls", "sqlite", "offline"\]/features = ["runtime-tokio-rustls", "sqlite"]/' Cargo.toml || true; \
+# Créer un build dummy pour mettre en cache les dépendances
+RUN mkdir src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src target/release/deps/nook*
+
+# Copier le code source réel
+COPY backend/src ./src
+COPY backend/migrations ./migrations
+
+# Créer la base de données temporaire pour SQLx
+RUN mkdir -p data && \
+    sqlite3 data/temp.db "VACUUM;" && \
+    chmod 666 data/temp.db
+
+# Variable d'environnement pour SQLx
+ENV DATABASE_URL=sqlite:data/temp.db
+
+# Installer sqlx-cli (version stable et compatible)
+RUN cargo install sqlx-cli \
+    --version 0.8.2 \
+    --no-default-features \
+    --features sqlite \
+    --locked
+
+# Exécuter les migrations si elles existent
+RUN if [ -d migrations ] && [ "$(ls -A migrations 2>/dev/null)" ]; then \
+        echo "📦 Running migrations..." && \
+        sqlx migrate run --database-url "$DATABASE_URL"; \
+    else \
+        echo "⚠️  No migrations found"; \
     fi
 
-# 1. Créer la base de données temporaire
-RUN mkdir -p data && sqlite3 data/temp.db "VACUUM;"
+# Préparer le cache SQLx (optionnel mais recommandé)
+RUN cargo sqlx prepare --database-url "$DATABASE_URL" || \
+    echo "⚠️  SQLx prepare skipped (not critical)"
 
-# 2. Solution alternative : installer sqlx-cli depuis le projet actuel
-# D'abord, ajouter sqlx-cli comme dépendance temporaire
-RUN echo '[dependencies]' > /tmp/sqlx-cli.toml && \
-    echo 'sqlx-cli = { version = "0.7.3", default-features = false, features = ["sqlite"] }' >> /tmp/sqlx-cli.toml
-
-# 3. Exécuter les migrations si elles existent - version simplifiée sans sqlx-cli
-# Si vous n'avez pas de migrations, vous pouvez sauter cette étape
-# RUN echo "Skipping migrations in Docker build..."
-
-# 4. Générer le cache SQLx SANS sqlx-cli (utilisation directe de cargo sqlx)
-# Cette méthode évite l'installation de sqlx-cli
-RUN cargo install --version 0.7.3 sqlx-cli --no-default-features --features sqlite || \
-    (echo "Fallback: using older version" && \
-     cargo install --version 0.7.2 sqlx-cli --no-default-features --features sqlite)
-
-# 5. Générer le cache de requêtes (maintenant sqlx-cli est installé)
-RUN DATABASE_URL="sqlite:data/temp.db" cargo sqlx prepare
-
-# 6. Désinstaller sqlx-cli pour réduire la taille de l'image
-RUN cargo uninstall sqlx-cli
-
-# 7. Build en mode release
+# Build final en mode release
 RUN cargo build --release
 
-# --- Runtime ---
-FROM alpine:3.19
+# Vérifier que le binaire existe
+RUN ls -lh target/release/ && \
+    test -f target/release/nook-backend || \
+    (echo "❌ Binary not found!" && exit 1)
 
-# Installer SQLite runtime
-RUN apk add --no-cache \
-    sqlite \
+# --- Runtime ---
+FROM debian:bookworm-slim
+
+# Installer les dépendances runtime minimales
+RUN apt-get update && apt-get install -y \
     ca-certificates \
-    libgcc
+    libssl3 \
+    libsqlite3-0 \
+    sqlite3 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Créer utilisateur non-root
-RUN addgroup -g 1000 -S app && \
-    adduser -u 1000 -S app -G app
+RUN useradd -m -u 1000 -s /bin/bash app
 
-# Créer structure de dossiers
-RUN mkdir -p /app/data && chown -R app:app /app
+# Créer la structure de dossiers
+RUN mkdir -p /app/data /app/static /app/migrations && \
+    chown -R app:app /app
 
 WORKDIR /app
 
 # Copier le binaire backend
-COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/
+COPY --from=backend-builder --chown=app:app \
+    /app/target/release/nook-backend ./nook-backend
+
+# Vérifier que le binaire est exécutable
+RUN chmod +x /app/nook-backend && \
+    ls -lh /app/nook-backend
 
 # Copier les fichiers frontend buildés
-COPY --from=frontend-builder --chown=app:app /app/build /app/static
+COPY --from=frontend-builder --chown=app:app \
+    /app/build ./static
 
-# Créer d'abord le dossier migrations (peut être vide)
-RUN mkdir -p /app/migrations
-COPY --from=backend-builder --chown=app:app /app/migrations/. /app/migrations/ 2>/dev/null || :
+# Copier les migrations
+COPY --from=backend-builder --chown=app:app \
+    /app/migrations ./migrations
+
+# Script d'initialisation
+COPY --chmod=755 <<'EOF' /app/init.sh
+#!/bin/bash
+set -e
+
+echo "======================================"
+echo "🌿 Nook - Initialisation"
+echo "======================================"
+
+# Vérifier que le binaire existe
+if [ ! -f /app/nook-backend ]; then
+    echo "❌ Binary not found at /app/nook-backend"
+    exit 1
+fi
+
+# Créer le répertoire data s'il n'existe pas
+mkdir -p /app/data
+
+# Créer la base de données si elle n'existe pas
+if [ ! -f /app/data/nook.db ]; then
+    echo "📦 Creating new database..."
+    sqlite3 /app/data/nook.db "VACUUM;"
+    echo "✅ Database created at /app/data/nook.db"
+else
+    echo "✅ Database already exists"
+fi
+
+# Générer le token admin au premier lancement
+if [ ! -f /app/data/admin.token ]; then
+    echo "🔐 Generating admin token..."
+    TOKEN=$(openssl rand -hex 32)
+    echo "$TOKEN" > /app/data/admin.token
+    chmod 600 /app/data/admin.token
+    echo "✅ Admin token generated and saved"
+    echo "📝 Your admin token: $TOKEN"
+    echo "⚠️  Save this token securely!"
+else
+    echo "✅ Admin token already exists"
+fi
+
+# Afficher les informations de démarrage
+echo "======================================"
+echo "🚀 Starting Nook..."
+echo "📊 Environment:"
+echo "   - Database: $DATABASE_URL"
+echo "   - Static files: $STATIC_FILES_DIR"
+echo "   - Port: $PORT"
+echo "   - Log level: $RUST_LOG"
+echo "======================================"
+
+# Lancer l'application
+exec /app/nook-backend
+EOF
 
 # Définir l'utilisateur
 USER app
@@ -82,8 +165,17 @@ USER app
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:/app/data/nook.db
 ENV STATIC_FILES_DIR=/app/static
+ENV PORT=3000
 
+# Exposer le port
 EXPOSE 3000
 
-# Créer la base de données au démarrage si elle n'existe pas
-CMD ["sh", "-c", "if [ ! -f /app/data/nook.db ]; then sqlite3 /app/data/nook.db 'VACUUM;'; fi && /app/nook-backend"]
+# Volume pour la persistance des données
+VOLUME ["/app/data"]
+
+# Healthcheck pour Docker/Kubernetes
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Point d'entrée
+ENTRYPOINT ["/app/init.sh"]
