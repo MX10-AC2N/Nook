@@ -8,6 +8,8 @@ use sqlx::SqlitePool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::SharedState;
+
 #[derive(Deserialize)]
 pub struct JoinRequest {
     pub name: String,
@@ -99,9 +101,7 @@ pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
     Ok(rows)
 }
 
-// === Handlers Axum (à utiliser dans main.rs) ===
-
-use crate::SharedState;
+// === Handlers Axum ===
 
 pub async fn invite_handler(
     State(state): State<SharedState>,
