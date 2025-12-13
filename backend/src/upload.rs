@@ -1,8 +1,4 @@
-use axum::{
-    extract::Multipart,
-    http::StatusCode,
-    response::Json,
-};
+use axum::{extract::Multipart, http::StatusCode, response::Json};
 use serde::Serialize;
 use tokio::fs;
 
@@ -14,18 +10,13 @@ pub struct UploadResponse {
     pub url: Option<String>,
 }
 
-pub async fn handle_upload(
-    mut multipart: Multipart,
-) -> Result<Json<UploadResponse>, StatusCode> {
+pub async fn handle_upload(mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?
     {
-        let data = field
-            .bytes()
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
 
         if data.len() as u64 > MAX_FILE_SIZE {
             return Err(StatusCode::PAYLOAD_TOO_LARGE);
