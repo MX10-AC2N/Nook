@@ -140,7 +140,7 @@
         <input
           type="text"
           bind:value={gifQuery}
-          on:keyup={(e) => e.key === 'Enter' && searchGifs()}
+          onkeyup={(e) => e.key === 'Enter' && searchGifs()}
           placeholder="Rechercher un GIF..."
           class="w-full p-2 border rounded mb-2"
         />
@@ -149,12 +149,12 @@
             <img
               src={gif.media[0].gif.url}
               alt="GIF"
-              on:click={() => sendGif(gif.media[0].gif.url)}
+              onclick={() => sendGif(gif.media[0].gif.url)}
               class="cursor-pointer rounded"
             />
           {/each}
         </div>
-        <button on:click={() => showGifs = false} class="mt-2 text-sm text-blue-500">Fermer les GIFs</button>
+        <button onclick={() => showGifs = false} class="mt-2 text-sm text-blue-500">Fermer les GIFs</button>
       </div>
     {/if}
 
@@ -162,12 +162,12 @@
       <input
         type="text"
         bind:value={input}
-        on:keyup={handleKeyUp}
+        onkeyup={handleKeyUp}
         placeholder="Votre message..."
         class="flex-1 p-2 border rounded"
       />
       <button on:click={sendMessage} class="bg-green-500 text-white p-2 rounded">Envoyer</button>
-      <button on:click={() => showGifs = !showGifs} class="bg-purple-500 text-white p-2 rounded">GIF</button>
+      <button onclick={() => showGifs = !showGifs} class="bg-purple-500 text-white p-2 rounded">GIF</button>
     </div>
   </div>
 </div>
