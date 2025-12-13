@@ -166,7 +166,7 @@
         placeholder="Votre message..."
         class="flex-1 p-2 border rounded"
       />
-      <button on:click={sendMessage} class="bg-green-500 text-white p-2 rounded">Envoyer</button>
+      <button onclick={sendMessage} class="bg-green-500 text-white p-2 rounded">Envoyer</button>
       <button onclick={() => showGifs = !showGifs} class="bg-purple-500 text-white p-2 rounded">GIF</button>
     </div>
   </div>
