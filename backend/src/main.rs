@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use tower_http::services::{ServeDir, ServeFile};
 
-// État partagé unique
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
@@ -31,12 +30,9 @@ async fn main() {
         std::fs::write(token_path, token).expect("Failed to create admin.token");
     }
 
-    // Charger l'état
-    let app_state = db::init_db().await; // ← retourne AppState { db: SqlitePool }
-
-    // Créer l'état partagé
+    let app_state = db::init_db().await;
     let shared_state = SharedState {
-        db: app_state.db, // ← pas de clone nécessaire ici
+        db: app_state.db.clone(),
         webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
@@ -82,7 +78,7 @@ async fn handle_socket(mut socket: WebSocket) {
     }
 }
 
-// --- Proxy GIF ---
+// --- GIF Proxy ---
 use urlencoding;
 
 async fn gif_proxy(
