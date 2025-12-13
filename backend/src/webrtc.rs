@@ -2,23 +2,11 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::Json,
-    Json as AxumJson,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Clone)]
-pub struct WebRtcState {
-    pub sessions: std::sync::Arc<tokio::sync::RwLock<HashMap<String, String>>>,
-}
-
-impl WebRtcState {
-    pub fn new() -> Self {
-        Self {
-            sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
-        }
-    }
-}
+use crate::SharedState;
 
 #[derive(Deserialize)]
 pub struct OfferRequest {
@@ -34,11 +22,10 @@ pub struct OfferResponse {
 }
 
 pub async fn handle_offer(
-    State(state): State<WebRtcState>,
-    AxumJson(payload): AxumJson<OfferRequest>,
+    State(state): State<SharedState>,
+    Json(payload): Json<OfferRequest>,
 ) -> Result<Json<OfferResponse>, StatusCode> {
-    // Stocke l'offre pour le destinataire
-    let mut sessions = state.sessions.write().await;
+    let mut sessions = state.webrtc_sessions.write().await;
     sessions.insert(payload.to.clone(), payload.offer);
     Ok(Json(OfferResponse {
         success: true,
@@ -48,11 +35,11 @@ pub async fn handle_offer(
 }
 
 pub async fn handle_answer(
-    State(state): State<WebRtcState>,
+    State(state): State<SharedState>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<String, StatusCode> {
     if let Some(from) = params.get("from") {
-        let sessions = state.sessions.read().await;
+        let sessions = state.webrtc_sessions.read().await;
         if let Some(offer) = sessions.get(from) {
             return Ok(offer.clone());
         }
