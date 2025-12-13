@@ -137,3 +137,4 @@ pub async fn members_handler(
     let members = get_members(&state.db).await?;
     Ok(Json(serde_json::json!({ "members": members })))
 }
+
