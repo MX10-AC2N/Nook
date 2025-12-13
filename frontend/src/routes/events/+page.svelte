@@ -19,7 +19,7 @@
     <input bind:value={newEvent.title} placeholder="Titre" class="w-full p-2 mb-2 border rounded" />
     <input type="date" bind:value={newEvent.date} class="w-full p-2 mb-2 border rounded" />
     <input type="time" bind:value={newEvent.time} class="w-full p-2 mb-4 border rounded" />
-    <button on:click={addEvent} class="bg-blue-500 text-white p-2 rounded">Ajouter</button>
+    <button onclick={addEvent} class="bg-blue-500 text-white p-2 rounded">Ajouter</button>
   </div>
   <div>
     {#each events as event}
