@@ -10,11 +10,16 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-use db::{init_db, AppState};
-use webrtc::WebRtcState;
 use serde_json::Value;
 use std::{collections::HashMap, net::SocketAddr};
 use tower_http::services::{ServeDir, ServeFile};
+
+// État partagé unique
+#[derive(Clone)]
+pub struct SharedState {
+    pub db: sqlx::SqlitePool,
+    pub webrtc_sessions: std::sync::Arc<tokio::sync::RwLock<HashMap<String, String>>>,
+}
 
 #[tokio::main]
 async fn main() {
@@ -25,14 +30,15 @@ async fn main() {
         std::fs::write(token_path, token).expect("Failed to create admin.token");
     }
 
-    let app_state = init_db().await;
-    let webrtc_state = webrtc::WebRtcState::new();
+    let db = db::init_db().await.db;
+    let webrtc_sessions = std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new()));
+    let shared_state = SharedState { db, webrtc_sessions };
 
     let app = Router::new()
-        .route("/api/invite", post(invite_handler))
-        .route("/api/join", post(join_handler))
-        .route("/api/members/:id/approve", patch(approve_handler))
-        .route("/api/members", get(members_handler))
+        .route("/api/invite", post(auth::invite_handler))
+        .route("/api/join", post(auth::join_handler))
+        .route("/api/members/:id/approve", patch(auth::approve_handler))
+        .route("/api/members", get(auth::members_handler))
         .route("/api/upload", post(upload::handle_upload))
         .route("/api/gifs", get(gif_proxy))
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
@@ -41,8 +47,7 @@ async fn main() {
         .nest_service("/static", ServeDir::new("static"))
         .nest_service("/uploads", ServeDir::new("data/uploads"))
         .fallback_service(ServeFile::new("static/index.html"))
-        .with_state(app_state)
-        .with_state(webrtc_state);
+        .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook v2.0 running on http://{}", addr);
@@ -53,27 +58,25 @@ async fn main() {
         .unwrap();
 }
 
+// --- Handlers ---
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 use futures_util::StreamExt;
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_socket)
-}
-
-async fn handle_socket(mut socket: WebSocket) {
-    while let Some(Ok(msg)) = socket.next().await {
-        if let Ok(text) = msg.into_text() {
-            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+    ws.on_upgrade(|socket| async {
+        let mut socket = socket;
+        while let Some(Ok(msg)) = socket.next().await {
+            if let Ok(text) = msg.into_text() {
+                let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+            }
         }
-    }
+    })
 }
 
-// --- Proxy GIF (anonyme, sans tracking) ---
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
     if let Some(q) = params.get("q") {
-        // Utilise la clé publique officielle de Tenor
         let url = format!(
             "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
             urlencoding::encode(q)
@@ -86,9 +89,9 @@ async fn gif_proxy(
     }
 }
 
-// --- Handlers API ---
+// --- API handlers avec SharedState ---
 async fn invite_handler(
-    State(state): State<AppState>,
+    State(state): State<SharedState>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     match auth::create_invite(&state.db).await {
         Ok(token) => Ok(Json(auth::ApiResponse {
@@ -100,7 +103,7 @@ async fn invite_handler(
 }
 
 async fn join_handler(
-    State(state): State<AppState>,
+    State(state): State<SharedState>,
     Query(params): Query<HashMap<String, String>>,
     Json(payload): Json<auth::JoinRequest>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
@@ -115,14 +118,14 @@ async fn join_handler(
 }
 
 async fn approve_handler(
-    State(state): State<AppState>,
+    State(state): State<SharedState>,
     Path(id): Path<String>,
 ) -> Result<Json<auth::ApiResponse>, StatusCode> {
     auth::approve_member(&state.db, id).await.map(Json)
 }
 
 async fn members_handler(
-    State(state): State<AppState>,
+    State(state): State<SharedState>,
 ) -> Result<Json<Value>, StatusCode> {
     let members = auth::get_members(&state.db).await?;
     Ok(Json(serde_json::json!({ "members": members })))
