@@ -1,36 +1,47 @@
-use axum::{extract::Multipart, http::StatusCode};
-use std::fs;
-use uuid::Uuid;
+use axum::{
+    extract::Multipart,
+    http::StatusCode,
+    response::Json,
+};
+use serde::Serialize;
+use tokio::fs;
 
-pub async fn handle_upload(mut multipart: Multipart) -> Result<String, StatusCode> {
-    if let Some(field) = multipart
+const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 Mo
+
+#[derive(Serialize)]
+pub struct UploadResponse {
+    pub success: bool,
+    pub url: Option<String>,
+}
+
+pub async fn handle_upload(
+    mut multipart: Multipart,
+) -> Result<Json<UploadResponse>, StatusCode> {
+    while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?
     {
-        let name = field.name().unwrap_or("file").to_string();
+        let data = field
+            .bytes()
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-        let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-
-        if data.len() as u64 > 50 * 1024 * 1024 {
+        if data.len() as u64 > MAX_FILE_SIZE {
             return Err(StatusCode::PAYLOAD_TOO_LARGE);
         }
 
-        let ext = if name.contains('.') {
-            name.split('.').next_back().unwrap_or("bin")
-        } else {
-            "bin"
-        };
-
-        fs::create_dir_all("data/uploads").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        let filename = format!("{}.{}", Uuid::new_v4(), ext);
+        let filename = uuid::Uuid::new_v4().to_string() + ".enc";
         let path = format!("data/uploads/{}", filename);
+        fs::create_dir_all("data/uploads").await.ok();
+        fs::write(&path, data)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-        fs::write(&path, data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        return Ok(format!("/uploads/{}", filename));
+        return Ok(Json(UploadResponse {
+            success: true,
+            url: Some(format!("/uploads/{}", filename)),
+        }));
     }
-
     Err(StatusCode::BAD_REQUEST)
 }
