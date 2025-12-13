@@ -10,11 +10,12 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
+use db::AppState;
 use serde_json::Value;
-use std::{collections::HashMap, net::SocketAddr};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use tower_http::services::{ServeDir, ServeFile};
 
-// État partagé unique
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
@@ -30,9 +31,14 @@ async fn main() {
         std::fs::write(token_path, token).expect("Failed to create admin.token");
     }
 
-    let db = db::init_db().await.db;
-    let webrtc_sessions = std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new()));
-    let shared_state = SharedState { db, webrtc_sessions };
+    // Charger l'état de la base
+    let app_state = db::init_db().await; // ← retourne AppState { db: SqlitePool }
+
+    // Créer l'état partagé
+    let shared_state = SharedState {
+        db: app_state.db,
+        webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+    };
 
     let app = Router::new()
         .route("/api/invite", post(auth::invite_handler))
@@ -58,21 +64,25 @@ async fn main() {
         .unwrap();
 }
 
-// --- Handlers ---
+// --- WebSocket ---
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 use futures_util::StreamExt;
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async {
-        let mut socket = socket;
-        while let Some(Ok(msg)) = socket.next().await {
-            if let Ok(text) = msg.into_text() {
-                let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
-            }
-        }
+    ws.on_upgrade(|socket| async move {
+        handle_socket(socket).await;
     })
 }
 
+async fn handle_socket(mut socket: WebSocket) {
+    while let Some(Ok(msg)) = socket.next().await {
+        if let Ok(text) = msg.into_text() {
+            let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+        }
+    }
+}
+
+// --- Proxy GIF ---
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -87,46 +97,4 @@ async fn gif_proxy(
     } else {
         Err(StatusCode::BAD_REQUEST)
     }
-}
-
-// --- API handlers avec SharedState ---
-async fn invite_handler(
-    State(state): State<SharedState>,
-) -> Result<Json<auth::ApiResponse>, StatusCode> {
-    match auth::create_invite(&state.db).await {
-        Ok(token) => Ok(Json(auth::ApiResponse {
-            success: true,
-            message: format!("https://nook.local/join?token={}", token),
-        })),
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
-}
-
-async fn join_handler(
-    State(state): State<SharedState>,
-    Query(params): Query<HashMap<String, String>>,
-    Json(payload): Json<auth::JoinRequest>,
-) -> Result<Json<auth::ApiResponse>, StatusCode> {
-    if let Some(token) = params.get("token") {
-        match auth::handle_join(&state.db, token.clone(), payload).await {
-            Ok(res) => Ok(Json(res)),
-            Err(e) => Err(e),
-        }
-    } else {
-        Err(StatusCode::BAD_REQUEST)
-    }
-}
-
-async fn approve_handler(
-    State(state): State<SharedState>,
-    Path(id): Path<String>,
-) -> Result<Json<auth::ApiResponse>, StatusCode> {
-    auth::approve_member(&state.db, id).await.map(Json)
-}
-
-async fn members_handler(
-    State(state): State<SharedState>,
-) -> Result<Json<Value>, StatusCode> {
-    let members = auth::get_members(&state.db).await?;
-    Ok(Json(serde_json::json!({ "members": members })))
 }
