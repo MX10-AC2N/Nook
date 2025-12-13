@@ -4,7 +4,7 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, patch, post},
@@ -60,11 +60,12 @@ async fn main() {
         .unwrap();
 }
 
+// --- WebSocket ---
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
+    ws.on_upgrade(|mut socket| async move {
         while let Some(Ok(msg)) = socket.next().await {
             if let Ok(text) = msg.into_text() {
                 let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
@@ -72,6 +73,9 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
         }
     })
 }
+
+// --- GIF Proxy ---
+use urlencoding;
 
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
