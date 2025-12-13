@@ -16,6 +16,8 @@ futures-util = "0.3"
 tower-service = "0.3"
 http = "1.0"
 serde_urlencoded = "0.7"
+reqwest = { version = "0.12", features = ["json"] }
+urlencoding = "2.1"
 
 # 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
