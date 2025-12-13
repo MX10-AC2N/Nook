@@ -17,15 +17,21 @@ pub async fn init_db() -> AppState {
             public_key TEXT NOT NULL,
             approved BOOLEAN DEFAULT 0,
             joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"
-    ).execute(&pool).await.unwrap();
+        )",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS invites (
             token TEXT PRIMARY KEY,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"
-    ).execute(&pool).await.unwrap();
+        )",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     AppState { db: pool }
 }
