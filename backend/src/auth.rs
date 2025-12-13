@@ -29,6 +29,8 @@ pub struct Member {
     pub approved: bool,
 }
 
+// === Logique métier ===
+
 pub async fn create_invite(pool: &SqlitePool) -> Result<String, StatusCode> {
     let token = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO invites (token) VALUES (?)")
@@ -89,13 +91,16 @@ pub async fn approve_member(pool: &SqlitePool, id: String) -> Result<ApiResponse
 }
 
 pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
-    let rows = sqlx::query_as::<_, Member>("SELECT id, name, approved FROM members ORDER BY joined_at")
-        .fetch_all(pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rows =
+        sqlx::query_as::<_, Member>("SELECT id, name, approved FROM members ORDER BY joined_at")
+            .fetch_all(pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(rows)
 }
+
+// === Handlers Axum ===
 
 pub async fn invite_handler(
     State(state): State<SharedState>,
@@ -137,4 +142,3 @@ pub async fn members_handler(
     let members = get_members(&state.db).await?;
     Ok(Json(serde_json::json!({ "members": members })))
 }
-
