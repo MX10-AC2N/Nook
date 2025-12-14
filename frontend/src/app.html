@@ -1,12 +1,16 @@
+<!-- frontend/app.html -->
 <!DOCTYPE html>
 <html lang="fr">
 	<head>
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/icon-192.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="theme-color" content="#4ade80" />
-		<link rel="manifest" href="%sveltekit.assets%/manifest.json" />
 		%sveltekit.head%
+
+		<!-- Thèmes CSS -->
+		<link rel="stylesheet" href="/src/lib/ui/themes/jardin.css" />
+		<link rel="stylesheet" href="/src/lib/ui/themes/space.css" />
+		<link rel="stylesheet" href="/src/lib/ui/themes/maison.css" />
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
