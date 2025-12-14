@@ -42,27 +42,29 @@ RUN cargo build --release
 # Vérifier que le binaire existe
 RUN test -f target/release/nook-backend
 
-# --- Runtime ---
-FROM gcr.io/distroless/cc-debian12
+# --- Runtime intermédiaire (pour créer l'utilisateur) ---
+FROM debian:bookworm-slim AS runtime-builder
 
 # Créer l'utilisateur non-root
 RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
-WORKDIR /app
-
-# Copier le binaire backend
-COPY --from=backend-builder --chown=app:app \
-    /app/target/release/nook-backend ./nook-backend
-
-# Copier les fichiers frontend buildés
-COPY --from=frontend-builder --chown=app:app \
-    /app/build ./static
-
-# Créer les dossiers de données
-RUN mkdir -p /app/data /app/uploads && \
+# Créer les dossiers
+RUN mkdir -p /app/data /app/static /app/uploads && \
     chown -R app:app /app
 
+# Copier le binaire et les fichiers
+COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
+COPY --from=frontend-builder --chown=app:app /app/build /app/static
+
+# --- Final : distroless ---
+FROM gcr.io/distroless/cc-debian12
+
+# Copier depuis l'étape intermédiaire
+COPY --from=runtime-builder /etc/passwd /etc/passwd
+COPY --from=runtime-builder /app /app
+
+# Changer d'utilisateur
 USER app
 
 # Variables d'environnement
