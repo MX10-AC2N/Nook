@@ -170,6 +170,14 @@ ENV DATABASE_URL=sqlite:/app/data/nook.db
 ENV STATIC_FILES_DIR=/app/static
 ENV PORT=3000
 
+# --- Variables Phase 6 ---
+ENV SMTP_HOST=""
+ENV SMTP_USER=""
+ENV SMTP_PASS=""
+ENV TWILIO_SID=""
+ENV TWILIO_TOKEN=""
+ENV EMERGENCY_WEBHOOK_URL=""
+
 # Exposer le port
 EXPOSE 3000
 
