@@ -47,7 +47,7 @@
 
   const sendMessage = () => {
     if (!input.trim() || !myKeys || !ws) return;
-    const destPubKey = "DEST_PUBLIC_KEY"; // À remplacer par la clé du destinataire
+    const destPubKey = "DEST_PUBLIC_KEY";
     const encrypted = encryptMessage(input, destPubKey, myKeys.privateKey);
     ws.send(JSON.stringify({
       type: 'text',
@@ -135,12 +135,14 @@
         />
         <div class="grid grid-cols-3 gap-2">
           {#each gifResults as gif}
-            <img
-              src={gif.media[0].gif.url}
-              alt="GIF"
-              onclick={() => sendGif(gif.media[0].gif.url)}
-              class="cursor-pointer rounded"
-            />
+            <button class="p-0 bg-transparent border-0 cursor-pointer">
+              <img
+                src={gif.media[0].gif.url}
+                alt="GIF"
+                class="w-full h-full object-cover rounded"
+                onclick={() => sendGif(gif.media[0].gif.url)}
+              />
+            </button>
           {/each}
         </div>
         <button onclick={() => showGifs = false} class="mt-2 text-sm text-blue-500">Fermer les GIFs</button>
