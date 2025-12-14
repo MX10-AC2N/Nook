@@ -1,20 +1,21 @@
 <!-- frontend/src/lib/ui/ThemeSwitcher.svelte -->
 <script>
-  import { currentTheme, type Theme } from '$lib/ui/ThemeStore';
+  import { currentTheme } from '$lib/ui/ThemeStore';
+  import type { Theme } from '$lib/ui/ThemeStore';
 
-  const themes: { id: Theme; name: string; icon: string }[] = [
+  const themes = [
     { id: 'jardin', name: 'Jardin Secret', icon: '🌿' },
     { id: 'space', name: 'Space Hub', icon: '🚀' },
     { id: 'maison', name: 'Maison Chaleureuse', icon: '🏠' }
   ];
 
-  let selected = $state('jardin');
+  let selected = 'jardin';
 
   $effect(() => {
     currentTheme.subscribe(theme => selected = theme)();
   });
 
-  const selectTheme = (id: Theme) => {
+  const selectTheme = (id) => {
     currentTheme.set(id);
   };
 </script>
@@ -25,7 +26,7 @@
     {#each themes as theme}
       <button
         class="p-2 rounded border {selected === theme.id ? 'border-green-500' : 'border-gray-300'}"
-        onclick={() => selectTheme(theme.id)}
+        on:click={() => selectTheme(theme.id)}
       >
         {theme.icon}
       </button>
