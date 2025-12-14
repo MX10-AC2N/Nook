@@ -4,7 +4,7 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::{Query, State},
+    extract::Query,
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, patch, post},
@@ -60,7 +60,7 @@ async fn main() {
         .unwrap();
 }
 
-use axum::extract::ws::{WebSocket, WebSocketUpgrade};
+use axum::extract::ws::WebSocketUpgrade;
 use futures_util::StreamExt;
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
