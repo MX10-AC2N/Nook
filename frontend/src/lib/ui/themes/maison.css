@@ -1,0 +1,20 @@
+/* frontend/src/lib/ui/themes/maison.css */
+.theme-maison {
+  --bg-primary: #fdf2e9;
+  --bg-secondary: #fef3c7;
+  --accent: #ea580c;
+  --text-primary: #7c2d12;
+  --text-secondary: #9a3412;
+  --border: #fdba74;
+  --chat-mine: #ffedd5;
+  --chat-theirs: #fdf2e9;
+  --input-bg: #ffffff;
+  --button-hover: #f97316;
+  --status-online: #f97316;
+  --status-away: #ca8a04;
+  --animation: ease-out;
+}
+
+.theme-maison * {
+  font-family: 'Caveat', cursive;
+}
