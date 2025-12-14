@@ -18,7 +18,12 @@ http = "1.0"
 serde_urlencoded = "0.7"
 reqwest = { version = "0.12", features = ["json"] }
 urlencoding = "2.1"
-lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-rustls"] }
+lettre = { version = "0.11", default-features = false, features = [
+    "tokio1",
+    "tokio1-rustls",
+    "webpki-roots",
+    "ring"
+] }
 
 # 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
