@@ -1,32 +1,23 @@
-// Enregistrement du Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => console.log('SW registered'))
-      .catch(err => console.log('SW failed:', err));
-  });
-}
-
-// Service Worker (à compiler dans static/)
 self.addEventListener('push', (event) => {
   const data = event.data?.json() || { title: 'Nook', body: 'Nouveau message' };
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icon-192.png'
-    })
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then(response => {
-      return response || fetch(event.request);
-    })
-  );
+  const options = {
+    body: data.body,
+    icon: '/icon-192.png',
+    badge: '/icon-72.png',
+    vibrate: [200, 100, 200],
+    actions: [
+      { action: 'reply', title: 'Répondre', icon: '/reply.png' },
+      { action: 'dismiss', title: 'Ignorer' }
+    ]
+  };
+  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/chat'));
+  if (event.action === 'reply') {
+    clients.openWindow('/chat?reply=1');
+  } else {
+    clients.openWindow('/chat');
+  }
 });
