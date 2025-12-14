@@ -61,7 +61,7 @@ async fn main() {
 }
 
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(|mut socket| async move {
@@ -73,8 +73,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     })
 }
 
-use urlencoding;
-
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -83,9 +81,7 @@ async fn gif_proxy(
             "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
             urlencoding::encode(q)
         );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        let resp = reqwest::get(&url).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
         let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
         Ok(Json(json))
     } else {
