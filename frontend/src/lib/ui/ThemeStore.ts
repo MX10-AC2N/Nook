@@ -7,7 +7,9 @@ export const currentTheme = writable<Theme>('jardin');
 // Sauvegarde dans localStorage
 if (typeof window !== 'undefined') {
   const saved = localStorage.getItem('nook-theme') as Theme | null;
-  if (saved) currentTheme.set(saved);
+  if (saved) {
+    currentTheme.set(saved);
+  }
 }
 
 // Écoute les changements
