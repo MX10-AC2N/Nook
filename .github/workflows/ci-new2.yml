@@ -299,7 +299,7 @@ jobs:
             echo "cargo-audit non installé"
           fi
 
-    build-docker:
+  build-docker:
     name: 🐳 Build & Push Docker
     runs-on: ubuntu-latest
     needs: [build, test, frontend]
