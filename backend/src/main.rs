@@ -23,19 +23,42 @@ pub struct SharedState {
 
 #[tokio::main]
 async fn main() {
-    std::fs::create_dir_all("/app/data").ok();
-    let token_path = "/app/data/admin.token";
+    // Affichage de la bannière et de la version
+    println!("=======================================");
+    println!("🌿 Nook — Messagerie familiale privée");
+    println!("Version: v2.0.0");
+    println!("=======================================");
+
+    // Création du dossier data
+    std::fs::create_dir_all("data").ok();
+    let data_path = std::fs::canonicalize("data")
+        .unwrap_or_else(|_| std::path::PathBuf::from("data"))
+        .to_string_lossy()
+        .to_string();
+    println!("📁 Dossier de données: {}", data_path);
+
+    // Génération du token admin
+    let token_path = "data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
-        std::fs::write(token_path, token).expect("Failed to create admin.token");
+        std::fs::write(token_path, &token).expect("❌ Échec de la création du token admin");
+        println!("🔐 Token admin généré et sauvegardé dans 'data/admin.token'");
+        println!("⚠️  Copiez ce token : il est nécessaire pour accéder à l'interface admin");
+    } else {
+        println!("✅ Token admin déjà présent");
     }
 
+    // Initialisation de la base de données
     let app_state = db::init_db().await;
+    println!("🗃️  Base de données chargée");
+
+    // Création de l'état partagé
     let shared_state = SharedState {
         db: app_state.db.clone(),
-        webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+        webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
     };
 
+    // Configuration du routeur
     let app = Router::new()
         .route("/api/invite", post(auth::invite_handler))
         .route("/api/join", post(auth::join_handler))
@@ -46,47 +69,21 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        .nest_service("/app/static", ServeDir::new("static"))
-        .nest_service("/app/data/uploads", ServeDir::new("data/uploads"))
-        .fallback_service(ServeFile::new("/app/static/index.html"))
+        .nest_service("/static", tower_http::services::ServeDir::new("/app/static"))
+        .nest_service("/uploads", tower_http::services::ServeDir::new("/app/data/uploads"))
+        .fallback_service(tower_http::services::ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("🚀 Nook running on http://{}", addr);
+    // Démarrage du serveur
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+    println!("🚀 Nook démarré avec succès !");
+    println!("📡 Écoute sur : http://{}", addr);
+    println!("💡 Accédez à l'interface : http://{}/", addr);
+    println!("🔒 Interface admin : http://{}/admin", addr);
+    println!("=======================================");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
-}
-
-use axum::extract::ws::WebSocketUpgrade;
-use futures_util::StreamExt;
-
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|mut socket| async move {
-        while let Some(Ok(msg)) = socket.next().await {
-            if let Ok(text) = msg.into_text() {
-                let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
-            }
-        }
-    })
-}
-
-async fn gif_proxy(
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<Value>, StatusCode> {
-    if let Some(q) = params.get("q") {
-        let url = format!(
-            "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
-            urlencoding::encode(q)
-        );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-        Ok(Json(json))
-    } else {
-        Err(StatusCode::BAD_REQUEST)
-    }
 }
