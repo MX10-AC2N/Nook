@@ -46,13 +46,13 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        .nest_service("/static", ServeDir::new("static"))
-        .nest_service("/uploads", ServeDir::new("data/uploads"))
-        .fallback_service(ServeFile::new("static/index.html"))
+        .nest_service("/app/static", ServeDir::new("static"))
+        .nest_service("app/data/uploads", ServeDir::new("data/uploads"))
+        .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("🚀 Nook v2.0 running on http://{}", addr);
+    println!("🚀 Nook running on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
