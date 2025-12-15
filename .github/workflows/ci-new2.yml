@@ -306,7 +306,7 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     permissions:
       contents: read
-      packages: write  # ← nécessaire pour GHCR
+      packages: write
 
     steps:
       - name: Checkout
@@ -322,13 +322,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-            tags: |
-  ghcr.io/mx10-ac2n/nook:latest
-  ghcr.io/mx10-ac2n/nook:${{ github.sha }}
+          tags: |
+            ghcr.io/mx10-ac2n/nook:latest
+            ghcr.io/mx10-ac2n/nook:${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:${{ github.sha_short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
