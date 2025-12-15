@@ -7,7 +7,7 @@ pub struct AppState {
 
 pub async fn init_db() -> AppState {
     std::fs::create_dir_all("data").ok();
-    let db_url = "sqlite:data/members.db?mode=rwc";
+    let db_url = "sqlite:/app/data/members.db?mode=rwc";
     let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
 
     sqlx::query(
