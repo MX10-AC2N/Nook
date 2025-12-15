@@ -6,15 +6,10 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      fallback: 'index.html' // Nécessaire pour le mode SPA
+      fallback: 'index.html'  // Génère un index.html comme fallback SPA
     }),
     paths: {
-      base: ''
-    },
-    // ✅ Active le prerender pour générer index.html
-    prerender: {
-      enabled: true,
-      entries: ['/'] // Génère seulement la page racine
+      base: ''  // '' car servi à la racine (par Axum)
     }
   }
 };
