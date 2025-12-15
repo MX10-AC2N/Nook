@@ -6,15 +6,15 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      // Mode SPA pur : génère seulement les assets client + index.html comme fallback
-      fallback: 'index.html'
+      fallback: 'index.html' // Nécessaire pour le mode SPA
     }),
     paths: {
-      base: process.env.NODE_ENV === 'production' ? '' : ''  // '' est OK si servi à la racine
+      base: ''
     },
-    // Important : désactive le prerender global pour éviter les pages statiques vides
+    // ✅ Active le prerender pour générer index.html
     prerender: {
-      enabled: false
+      enabled: true,
+      entries: ['/'] // Génère seulement la page racine
     }
   }
 };
