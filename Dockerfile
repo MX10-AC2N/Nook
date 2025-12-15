@@ -60,12 +60,14 @@ COPY --from=frontend-builder --chown=app:app /app/build /app/static
 # --- Final : distroless ---
 FROM gcr.io/distroless/cc-debian12
 
+RUN mkdir -p /app/data /app/uploads
+
 # Copier depuis l'étape intermédiaire
 COPY --from=runtime-builder /etc/passwd /etc/passwd
 COPY --from=runtime-builder /app /app
 
 # Changer d'utilisateur
-USER app
+USER 65532
 
 # Variables d'environnement
 ENV RUST_LOG=info
@@ -76,4 +78,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Point d'entrée
-CMD ["./nook-backend"]
+CMD ["/app/nook-backend"]
