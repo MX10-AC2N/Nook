@@ -24,8 +24,8 @@ pub async fn handle_upload(mut multipart: Multipart) -> Result<Json<UploadRespon
         }
 
         let filename = uuid::Uuid::new_v4().to_string() + ".enc";
-        let path = format!("data/uploads/{}", filename);
-        fs::create_dir_all("data/uploads").await.ok();
+        let path = format!("/app/data/uploads/{}", filename);
+        fs::create_dir_all("/app/data/uploads").await.ok();
         fs::write(&path, data)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
