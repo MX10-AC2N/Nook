@@ -47,7 +47,7 @@ async fn main() {
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
         .nest_service("/app/static", ServeDir::new("static"))
-        .nest_service("app/data/uploads", ServeDir::new("data/uploads"))
+        .nest_service("/app/data/uploads", ServeDir::new("data/uploads"))
         .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
