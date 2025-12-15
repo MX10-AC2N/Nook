@@ -55,7 +55,7 @@ RUN mkdir -p /app/data /app/static /app/uploads && \
 
 # Copier le binaire et les fichiers
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
-COPY --from=frontend-builder --chown=app:app /app/build /app/static
+COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
 # --- Final : distroless ---
 FROM gcr.io/distroless/cc-debian12
