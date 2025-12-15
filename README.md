@@ -66,5 +66,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  nook- ```
+  nook-
 
