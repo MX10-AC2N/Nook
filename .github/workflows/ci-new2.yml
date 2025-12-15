@@ -214,6 +214,14 @@ jobs:
           npm run build
           echo "✓ Build terminé"
 
+      - name: Installer html-validate
+        working-directory: ./frontend
+        run: npm install --save-dev html-validate
+
+      - name: Valider index.html
+        working-directory: ./frontend
+        run: npx html-validate build/index.html
+
       - name: Tests unitaires (si configurés)
         working-directory: ./frontend
         run: |
