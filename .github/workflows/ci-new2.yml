@@ -330,6 +330,5 @@ jobs:
           tags: |
             ghcr.io/mx10-ac2n/nook:latest
             ghcr.io/mx10-ac2n/nook:${{ github.sha }}
-            ghcr.io/mx10-ac2n/nook:${{ github.sha_short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
