@@ -101,13 +101,8 @@ async fn gif_proxy(
             "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
             urlencoding::encode(q)
         );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        let json: Value = resp
-            .json()
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        let resp = reqwest::get(&url).await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
         Ok(Json(json))
     } else {
         Err(StatusCode::BAD_REQUEST)
