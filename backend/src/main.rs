@@ -24,7 +24,7 @@ pub struct SharedState {
 #[tokio::main]
 async fn main() {
     std::fs::create_dir_all("/app/data").ok();
-    let token_path = "data/admin.token";
+    let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
         std::fs::write(token_path, token).expect("Failed to create admin.token");
