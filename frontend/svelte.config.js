@@ -9,7 +9,7 @@ const config = {
       fallback: 'index.html'  // Génère un index.html comme fallback SPA
     }),
     paths: {
-      base: '/app/static'  // '' car servi à la racine (par Axum)
+      base: ''  // '' car servi à la racine (par Axum)
     }
   }
 };
