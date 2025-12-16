@@ -1,16 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
+  import ThemeSwitcher from '../lib/ui/ThemeSwitcher.svelte';
 
   let name = $state('');
   let error = $state('');
-
-  onMount(() => {
-    const storedName = localStorage.getItem('nook-name');
-    if (storedName) {
-      window.location.href = '/chat';
-    }
-  });
 
   const join = () => {
     if (name.trim()) {
@@ -21,50 +14,51 @@
     }
   };
 
-  const handleKeyUp = (e) => {
-    if (e.key === 'Enter') {
-      join();
-    }
-  };
+  onMount(() => {
+    const storedName = localStorage.getItem('nook-name');
+    if (storedName) window.location.href = '/chat';
+  });
 </script>
 
-<div class="flex flex-col items-center justify-center min-h-screen bg-white p-4">
-  <div class="max-w-md w-full">
-    <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Nook</h1>
-    <p class="text-center mb-8 text-gray-600">Rejoignez votre espace familial privé</p>
+<div class="min-h-screen flex flex-col items-center justify-center p-4 bg-[var(--bg-primary)] text-[var(--text-primary)]">
+  <div class="max-w-md w-full text-center">
+    <div class="text-5xl mb-4 animate-fade-in">🌿</div>
+    <h1 class="text-4xl font-bold mb-2">Nook</h1>
+    <p class="text-[var(--text-secondary)] mb-8">Votre espace familial privé</p>
 
     {#if error}
-      <div class="mb-4 p-3 bg-red-100 text-red-700 rounded">{error}</div>
+      <div class="mb-4 p-3 bg-red-100 text-red-700 rounded-lg">{error}</div>
     {/if}
 
     <input
       type="text"
       bind:value={name}
-      onkeyup={handleKeyUp}
       placeholder="Votre prénom"
-      class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
+      class="w-full p-4 rounded-xl border border-[var(--border)] bg-[var(--input-bg)] text-[var(--text-primary)] mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
+      onkeydown={(e) => e.key === 'Enter' && join()}
     />
 
     <button
       onclick={join}
-      class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 rounded-lg transition-colors"
+      class="w-full py-4 bg-[var(--accent)] text-white font-medium rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
     >
       Rejoindre
     </button>
 
-    <div class="mt-8 text-center text-sm text-gray-500">
-      <p>Protégé par le chiffrement de bout en bout</p>
-      <p>Respectueux de votre vie privée</p>
-    </div>
+    <p class="mt-8 text-sm text-[var(--text-secondary)]">
+      ✅ Zéro tracking • ✅ Chiffrement E2EE • ✅ Open-source
+    </p>
   </div>
 
-  <!-- Sélecteur de thème -->
   <ThemeSwitcher />
 </div>
 
 <style>
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, sans-serif;
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.6s var(--animation) forwards;
   }
 </style>
