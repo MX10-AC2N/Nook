@@ -60,7 +60,6 @@ async fn main() {
         .route("/ws", get(ws_handler))
         .nest_service("/static", ServeDir::new("/app/static"))
         .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
-        .layer(ContentTypeLayer::new("text/html"))
         .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
