@@ -308,7 +308,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/nook
+          images: ghcr.io/mx10-ac2n/nook
           tags: |
             type=ref,event=branch
             type=sha,prefix=
