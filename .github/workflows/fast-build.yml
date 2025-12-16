@@ -1,0 +1,101 @@
+name: Fast Build
+
+on:
+  workflow_dispatch:  # Lancement manuel uniquement
+    inputs:
+      branch:
+        description: 'Branche à utiliser'
+        required: false
+        default: '${{ github.ref_name }}'
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  backend-build:
+    name: 🏗️ Backend (Release)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: \( {{ runner.os }}-cargo-release- \){{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-release-
+            ${{ runner.os }}-cargo-
+
+      - name: Créer base de données temporaire (pour sqlx offline)
+        run: |
+          mkdir -p data
+          sqlite3 data/temp.db "VACUUM;"
+          chmod 666 data/temp.db
+
+      - name: Installer sqlx-cli (seulement si nécessaire)
+        run: |
+          if [ ! -d ".sqlx" ]; then
+            cargo install sqlx-cli --version 0.8.6 --no-default-features --features sqlite --locked
+          fi
+
+      - name: Préparer cache SQLx si manquant
+        run: |
+          if [ ! -d ".sqlx" ]; then
+            export DATABASE_URL="sqlite:data/temp.db"
+            if [ -d "migrations" ] && [ "$(ls -A migrations)" ]; then
+              sqlx migrate run
+            fi
+            cargo sqlx prepare -- --all-targets
+          fi
+
+      - name: Build Release (offline)
+        env:
+          SQLX_OFFLINE: true
+        run: cargo build --release
+
+  frontend-build:
+    name: 🎨 Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: \( {{ runner.os }}-node- \){{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Installer dépendances frontend
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
