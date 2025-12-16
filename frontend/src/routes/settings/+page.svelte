@@ -36,7 +36,7 @@
 
   <div class="mb-6">
     <h2 class="text-xl font-semibold mb-2">Sauvegarde</h2>
-    <button on:click={handleExport} class="bg-green-500 text-white p-2 rounded mr-2">Exporter</button>
+    <button onclick={handleExport} class="bg-green-500 text-white p-2 rounded mr-2">Exporter</button>
     <label class="bg-blue-500 text-white p-2 rounded cursor-pointer">
       Importer
       <input type="file" accept=".bin" on:change={handleImport} class="hidden" />
@@ -51,7 +51,7 @@
       class="w-full p-2 border rounded mb-2"
       rows="3"
     ></textarea>
-    <button on:click={triggerEmergency} class="bg-red-500 text-white p-2 rounded">
+    <button onclick={triggerEmergency} class="bg-red-500 text-white p-2 rounded">
       ⚠️ Envoyer une alerte d’urgence
     </button>
   </div>
