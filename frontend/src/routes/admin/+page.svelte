@@ -1,10 +1,10 @@
-<script lang="ts">
+<script>
   import { onMount } from 'svelte';
 
   let inviteLink = $state('');
-  let members = $state<{ id: string; name: string; approved: boolean }[]>([]);
+  let members = $state([]);
   let isLoading = $state(false);
-  let error = $state<string | null>(null);
+  let error = $state(null);
 
   const invite = async () => {
     try {
@@ -26,7 +26,7 @@
     }
   };
 
-  const approve = async (id: string) => {
+  const approve = async (id) => {
     try {
       error = null;
       const res = await fetch(`/api/members/${id}/approve`, { method: 'PATCH' });
