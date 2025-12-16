@@ -22,7 +22,7 @@ services:
     
     environment:
       # Base de données
-      - DATABASE_URL=sqlite:/app/data/nook.db
+      - DATABASE_URL=sqlite:/app/data/members.db
       
       # Configuration de l'application
       - STATIC_FILES_DIR=/app/static
