@@ -39,7 +39,7 @@
     <button onclick={handleExport} class="bg-green-500 text-white p-2 rounded mr-2">Exporter</button>
     <label class="bg-blue-500 text-white p-2 rounded cursor-pointer">
       Importer
-      <input type="file" accept=".bin" on:change={handleImport} class="hidden" />
+      <input type="file" accept=".bin" onchange={handleImport} class="hidden" />
     </label>
   </div>
 
