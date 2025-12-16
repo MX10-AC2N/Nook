@@ -1,4 +1,4 @@
-name: CI-new2
+name: CI-Long Build with verif.
 
 on:
   workflow_dispatch:
