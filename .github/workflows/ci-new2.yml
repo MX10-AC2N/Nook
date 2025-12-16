@@ -329,7 +329,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/nook:latest
-            ghcr.io/${{ github.repository }}/nook:${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:latest
+            ghcr.io/mx10-ac2n/nook:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
