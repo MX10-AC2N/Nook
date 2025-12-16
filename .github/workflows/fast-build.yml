@@ -1,33 +1,28 @@
-name: Fast Build
+name: CI - Nook (Fast Build)
 
 on:
-  workflow_dispatch:  # Lancement manuel uniquement
-    inputs:
-      branch:
-        description: 'Branche à utiliser'
-        required: false
-        default: 'main'  # Remplacez par votre branche par défaut (main/master/develop)
-        type: string
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:  # Lancement manuel
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  backend-build:
-    name: 🏗️ Backend (Release)
+  backend:
+    name: 🏗️ Backend
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: ./backend
 
     steps:
-      - name: Checkout du code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
 
-      - name: Installer Rust
+      - name: Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo
@@ -37,71 +32,73 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-release-
-            ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Créer base de données temporaire (pour sqlx offline)
-        run: |
-          mkdir -p data
-          touch data/temp.db
-          echo "Base de données temporaire créée"
-
-      - name: Installer sqlx-cli
-        run: cargo install sqlx-cli --version 0.8.6 --no-default-features --features sqlite --locked
-
-      - name: Préparer cache SQLx
-        env:
-          DATABASE_URL: "sqlite:data/temp.db"
-        run: |
-          # Exécuter les migrations si elles existent
-          if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
-            sqlx migrate run
-          fi
-          # Préparer le cache SQLx
-          cargo sqlx prepare -- --all-targets
-
-      - name: Build Release (offline)
-        env:
-          SQLX_OFFLINE: true
+      - name: Build
         run: cargo build --release
 
-      - name: Vérifier le binaire
-        run: |
-          ls -la target/release/
-          echo "✅ Build backend réussi!"
-
-  frontend-build:
+  frontend:
     name: 🎨 Frontend
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout du code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
 
-      - name: Setup Node.js
+      - name: Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Installer dépendances frontend
-        working-directory: ./frontend
+      - name: Install dependencies
         run: npm ci
-
-      - name: Build frontend
         working-directory: ./frontend
+
+      - name: Build
         run: npm run build
-
-      - name: Vérifier le build
         working-directory: ./frontend
+
+      - name: ✅ Vérifier que build/ est généré
         run: |
-          if [ -d "dist" ] || [ -d "build" ] || [ -d "out" ]; then
-            echo "✅ Build frontend réussi!"
-          else
-            echo "⚠️ Aucun répertoire de build trouvé, mais c'est peut-être normal selon votre configuration"
+          if [ ! -d "frontend/build" ]; then
+            echo "❌ ERREUR : le dossier 'build/' n'existe pas !"
+            ls -la frontend/
+            exit 1
           fi
+          echo "✅ Le dossier 'build/' existe :"
+          ls -la frontend/build/
+
+  docker:
+    name: 🐳 Docker (Push vers GHCR)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/nook:latest
+            ghcr.io/${{ github.repository }}/nook:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
