@@ -154,6 +154,7 @@
       />
       <button
         onclick={sendMessage}
+        aria-label="Envoyer le message."
         class="p-3 bg-[var(--accent)] text-white rounded-xl hover:bg-[var(--button-hover)] transition-colors"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
