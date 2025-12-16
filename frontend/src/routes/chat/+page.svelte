@@ -1,7 +1,7 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
-  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '$lib/crypto';
-  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
+  import { onMount } from 'svelte';
+  import ThemeSwitcher from '../lib/ui/ThemeSwitcher.svelte';
+  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '../lib/crypto';
 
   let input = $state('');
   let messages = $state([]);
@@ -41,10 +41,6 @@
     };
   });
 
-  onDestroy(() => {
-    if (ws) ws.close();
-  });
-
   const sendMessage = () => {
     if (!input.trim() || !myKeys || !ws) return;
     const destPubKey = "DEST_PUBLIC_KEY";
@@ -81,111 +77,97 @@
   const addReaction = (index, emoji) => {
     messages[index].reactions.push(emoji);
   };
-
-  const handleKeyUp = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
 </script>
 
-<div class="flex flex-col h-screen bg-gray-50">
+<div class="flex flex-col h-screen bg-[var(--bg-primary)]">
   <!-- En-tête -->
-  <div class="bg-white border-b p-4 shadow-sm">
-    <h1 class="text-2xl font-bold text-gray-800">Chat — Nook</h1>
+  <div class="p-4 bg-[var(--bg-secondary)] border-b border-[var(--border)]">
+    <h1 class="text-2xl font-bold text-[var(--text-primary)]">Chat — Nook</h1>
   </div>
 
   <!-- Messages -->
   <div class="flex-1 overflow-y-auto p-4 space-y-4">
     {#each messages as msg, i}
       <div class={`flex ${msg.sender === 'Vous' ? 'justify-end' : 'justify-start'}`}>
-        <div class={`max-w-xs md:max-w-md lg:max-w-lg rounded-lg p-3 ${msg.sender === 'Vous' ? 'bg-blue-500 text-white rounded-br-none' : 'bg-white border rounded-bl-none'}`}>
+        <div
+          class={`max-w-xs md:max-w-md lg:max-w-lg rounded-2xl p-4 transition-all duration-300 {msg.sender === 'Vous' ? 'bg-[var(--chat-mine)] text-white' : 'bg-[var(--chat-theirs)] text-[var(--text-primary)]'} shadow-[var(--depth)]`}
+        >
           <div class="flex justify-between items-baseline mb-1">
-            <span class={`text-sm font-medium ${msg.sender === 'Vous' ? 'text-blue-100' : 'text-gray-700'}`}>
+            <span class={`text-sm font-medium {msg.sender === 'Vous' ? 'text-[var(--chat-mine)]/80' : 'text-[var(--text-secondary)]'}`}>
               {msg.sender}
             </span>
-            <span class={`text-xs ml-2 ${msg.sender === 'Vous' ? 'text-blue-200' : 'text-gray-500'}`}>
+            <span class={`text-xs ml-2 {msg.sender === 'Vous' ? 'text-[var(--chat-mine)]/60' : 'text-[var(--text-secondary)]'}`}>
               {msg.timestamp}
             </span>
           </div>
           <p class="break-words">{msg.content}</p>
           <div class="mt-2 flex gap-1">
             {#each msg.reactions as reaction}
-              <span>{reaction}</span>
+              <span class="text-sm">{reaction}</span>
             {/each}
-            <button onclick={() => addReaction(i, '👍')} class="text-xs">👍</button>
-            <button onclick={() => addReaction(i, '❤️')} class="text-xs">❤️</button>
+            <button onclick={() => addReaction(i, '👍')} class="text-xs opacity-70 hover:opacity-100">👍</button>
+            <button onclick={() => addReaction(i, '❤️')} class="text-xs opacity-70 hover:opacity-100">❤️</button>
           </div>
         </div>
       </div>
     {/each}
   </div>
 
-  <!-- Zone de saisie -->
-  <div class="border-t bg-white p-4">
-    {#if showGifs}
-      <div class="mb-2">
-        <input
-          type="text"
-          bind:value={gifQuery}
-          onkeyup={(e) => e.key === 'Enter' && searchGifs()}
-          placeholder="Rechercher un GIF..."
-          class="w-full p-2 border rounded mb-2"
-        />
-        <div class="grid grid-cols-3 gap-2">
-          {#each gifResults as gif}
-            <button class="p-0 bg-transparent border-0 cursor-pointer">
-              <img
-                src={gif.media[0].gif.url}
-                alt="GIF"
-                class="w-full h-full object-cover rounded"
-                onclick={() => sendGif(gif.media[0].gif.url)}
-              />
-            </button>
-          {/each}
-        </div>
-        <button onclick={() => showGifs = false} class="mt-2 text-sm text-blue-500">Fermer les GIFs</button>
+  <!-- GIFs -->
+  {#if showGifs}
+    <div class="p-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]">
+      <input
+        type="text"
+        bind:value={gifQuery}
+        placeholder="Rechercher un GIF..."
+        class="w-full p-2 rounded-lg border border-[var(--border)] bg-[var(--input-bg)] text-[var(--text-primary)] mb-2"
+        onkeydown={(e) => e.key === 'Enter' && searchGifs()}
+      />
+      <div class="grid grid-cols-3 gap-2">
+        {#each gifResults as gif}
+          <button
+            class="p-0 bg-transparent border-0 cursor-pointer rounded-lg overflow-hidden shadow hover:shadow-lg transition-all"
+            onclick={() => sendGif(gif.media[0].gif.url)}
+          >
+            <img src={gif.media[0].gif.url} alt="GIF" class="w-full h-auto" />
+          </button>
+        {/each}
       </div>
-    {/if}
+      <button
+        onclick={() => showGifs = false}
+        class="mt-2 text-sm text-[var(--accent)]"
+      >
+        Fermer
+      </button>
+    </div>
+  {/if}
 
+  <!-- Saisie -->
+  <div class="p-4 border-t border-[var(--border)] bg-[var(--bg-secondary)]">
     <div class="flex gap-2">
       <input
         type="text"
         bind:value={input}
-        onkeyup={handleKeyUp}
         placeholder="Votre message..."
-        class="flex-1 p-2 border rounded"
+        class="flex-1 p-3 rounded-xl border border-[var(--border)] bg-[var(--input-bg)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
       />
-      <button onclick={sendMessage} class="bg-green-500 text-white p-2 rounded">
-        Envoyer
+      <button
+        onclick={sendMessage}
+        class="p-3 bg-[var(--accent)] text-white rounded-xl hover:bg-[var(--button-hover)] transition-colors"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+        </svg>
       </button>
-      <button onclick={() => showGifs = !showGifs} class="bg-purple-500 text-white p-2 rounded">
+      <button
+        onclick={() => showGifs = !showGifs}
+        class="p-3 bg-[var(--bg-primary)] border border-[var(--border)] rounded-xl hover:bg-[var(--bg-secondary)] transition-colors"
+      >
         GIF
       </button>
     </div>
   </div>
 
-  <!-- Sélecteur de thème -->
   <ThemeSwitcher />
 </div>
-
-<style>
-  .messages-container {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e0 #f7fafc;
-  }
-  
-  .messages-container::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  .messages-container::-webkit-scrollbar-track {
-    background: #f7fafc;
-  }
-  
-  .messages-container::-webkit-scrollbar-thumb {
-    background-color: #cbd5e0;
-    border-radius: 4px;
-  }
-</style>
