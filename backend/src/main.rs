@@ -103,7 +103,7 @@ async fn gif_proxy(
         );
         let resp = reqwest::get(&url)
             .await
-            .map_err(|_ StatusCode::BAD_GATEWAY)?;
+            .map_err(|_| StatusCode::BAD_GATEWAY)?;
         let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
         Ok(Json(json))
     } else {
