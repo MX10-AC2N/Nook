@@ -50,7 +50,7 @@ RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
 # Créer les dossiers
-RUN mkdir -p /app/data /app/static /app/uploads && \
+RUN mkdir -p /app/data /app/static /app/data/uploads && \
     chown -R app:app /app
 
 # Copier le binaire et les fichiers
