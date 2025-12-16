@@ -69,7 +69,7 @@ USER app
 
 # Variables d'environnement
 ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:/app/data/nook.db
+ENV DATABASE_URL=sqlite:/app/data/members.db
 ENV PORT=3000
 
 # Exposer le port
