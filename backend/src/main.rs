@@ -77,7 +77,7 @@ async fn main() {
 }
 
 // === Handler WebSocket ===
-use axum::extract::ws::{WebSocket, WebSocketUpgrade};
+use axum::extract::ws::WebSocketUpgrade;
 use futures_util::StreamExt;
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
@@ -91,8 +91,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 }
 
 // === Handler GIFs (proxy anonyme) ===
-use urlencoding;
-
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
