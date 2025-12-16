@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import ThemeSwitcher from '../lib/ui/ThemeSwitcher.svelte';
-  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '../lib/crypto';
+  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
+  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '$lib/crypto';
 
   let input = $state('');
   let messages = $state([]);
