@@ -220,7 +220,7 @@ jobs:
 
       - name: Valider index.html
         working-directory: ./frontend
-        run: npx html-validate build/index.html
+        run: npx html-validate build/index.html --no-config
 
       - name: Tests unitaires (si configurés)
         working-directory: ./frontend
