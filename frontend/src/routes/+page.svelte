@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import ThemeSwitcher from '../lib/ui/ThemeSwitcher.svelte';
+  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
 
   let name = $state('');
   let error = $state('');
