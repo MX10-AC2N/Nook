@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  workflow_dispatch:  # Lancement manuel
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -45,28 +45,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
         working-directory: ./frontend
+        run: npm ci
 
       - name: Build
-        run: npm run build
         working-directory: ./frontend
+        run: npm run build
 
-      - name: ✅ Vérifier que build/ est généré
+      - name: Lister fichiers après build
+        working-directory: ./frontend
         run: |
-          if [ ! -d "frontend/build" ]; then
-            echo "❌ ERREUR : le dossier 'build/' n'existe pas !"
-            ls -la frontend/
+          echo "Contenu du dossier frontend après build :"
+          ls -la
+          if [ -d "build" ]; then
+            echo "Contenu de build/ :"
+            ls -la build/
+          else
+            echo "❌ ERREUR : build/ n'existe pas"
             exit 1
           fi
-          echo "✅ Le dossier 'build/' existe :"
-          ls -la frontend/build/
+
+      - name: ✅ Vérifier que build/ est généré
+        working-directory: ./frontend
+        run: |
+          if [ ! -d "build" ]; then
+            echo "❌ ERREUR : le dossier 'build/' n'existe pas !"
+            ls -la
+            exit 1
+          fi
+          echo "✅ Le dossier 'build/' existe."
 
   docker:
     name: 🐳 Docker (Push vers GHCR)
@@ -96,7 +109,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/nook:latest
-            ghcr.io/${{ github.repository }}/nook:${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:latest
+            ghcr.io/mx10-ac2n/nook:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
