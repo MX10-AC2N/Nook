@@ -92,7 +92,7 @@
     <!-- Écran d'accueil appel -->
     <div class="absolute inset-0 flex items-center justify-center">
       <button
-        on:click={startCall}
+        onclick={startCall}
         class="p-12 bg-[var(--accent)] text-white rounded-full shadow-2xl hover:shadow-[0_0_60px_var(--accent)] hover:scale-110 transition-all duration-500 animate-pulse-slow"
       >
         <span class="text-6xl">
@@ -123,21 +123,21 @@
   {#if localStream || remoteStream}
     <div class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-6 p-6 bg-white/10 dark:bg-black/10 backdrop-blur-2xl border border-white/20 rounded-full shadow-2xl">
       <button
-        on:click={toggleMute}
+        onclick={toggleMute}
         class={`p-5 rounded-full transition-all ${isMuted ? 'bg-red-500/70' : 'bg-white/20'} hover:scale-110`}
       >
         {isMuted ? '🔇' : '🎤'}
       </button>
 
       <button
-        on:click={toggleVideo}
+        onclick={toggleVideo}
         class={`p-5 rounded-full transition-all ${isVideoOff ? 'bg-red-500/70' : 'bg-white/20'} hover:scale-110`}
       >
         {isVideoOff ? '📹⃠' : '📹'}
       </button>
 
       <button
-        on:click={hangUp}
+        onclick={hangUp}
         class="p-5 bg-red-500/80 hover:bg-red-600 rounded-full hover:scale-110 transition-all"
       >
         📞
