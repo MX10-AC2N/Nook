@@ -49,8 +49,8 @@ services:
       - nook-data:/app/data
     restart: unless-stopped
 volumes:
-  nook-data:
-```markdown
+  nook-data:```markdown
+
 ## 🛠 Stack technique (pour les curieux)
 | Partie       | Techno                  |
 |--------------|-------------------------|
