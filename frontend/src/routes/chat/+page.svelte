@@ -171,6 +171,7 @@
       />
       <button
         onclick={() => showGifs = !showGifs}
+        aria-label="Rechercher un GIF"
         class="p-4 rounded-2xl bg-white/20 dark:bg-black/20 border border-white/30 hover:bg-white/30 transition"
       >
         GIF
