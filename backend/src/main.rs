@@ -6,7 +6,7 @@ mod webrtc;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::{Html, IntoResponse, Json},
     routing::{get, patch, post},
     Router,
 };
@@ -28,17 +28,26 @@ async fn main() {
     println!("Version: v2.0.0");
     println!("=======================================");
 
-    std::fs::create_dir_all("/app/data").expect("Failed to create /app/data");
-    println!("📁 Dossier de données: /app/data");
+    // Créer les dossiers nécessaires
+    std::fs::create_dir_all("data").ok();
+    std::fs::create_dir_all("static").ok(); // Assure-toi que /app/static existe
 
-    let token_path = "/app/data/admin.token";
+    let token_path = "data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
-        std::fs::write(token_path, &token).expect("❌ Échec de la création du token admin");
-        println!("🔐 Token admin généré et sauvegardé dans '/app/data/admin.token'");
-        println!("⚠️  Copiez ce token : il est nécessaire pour accéder à l'interface admin");
+        std::fs::write(token_path, token).expect("❌ Échec de la création du token admin");
+        println!("🔐 Token admin généré dans 'data/admin.token'");
     } else {
         println!("✅ Token admin déjà présent");
+    }
+
+    // Vérifier que le fichier index.html existe
+    if !std::path::Path::new("static/index.html").exists() {
+        eprintln!("❌ ERREUR FATALE : Le fichier 'static/index.html' est manquant !");
+        eprintln!("💡 Assurez-vous que le frontend a bien été buildé et copié dans 'static/'");
+        std::process::exit(1);
+    } else {
+        println!("✅ Fichier index.html trouvé dans 'static/'");
     }
 
     let app_state = db::init_db().await;
@@ -50,6 +59,7 @@ async fn main() {
     };
 
     let app = Router::new()
+        // Routes API
         .route("/api/invite", post(auth::invite_handler))
         .route("/api/join", post(auth::join_handler))
         .route("/api/members/:id/approve", patch(auth::approve_handler))
@@ -59,17 +69,15 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        .nest_service("/static", ServeDir::new("/app/static"))
-        .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
-        .fallback_service(ServeFile::new("/app/static/index.html"))
+        // Fichiers statiques
+        .nest_service("/static", ServeDir::new("static"))
+        .nest_service("/uploads", ServeDir::new("data/uploads"))
+        // Toutes les autres routes → index.html (SPA SvelteKit)
+        .fallback_service(ServeFile::new("static/index.html"))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("🚀 Nook démarré avec succès !");
-    println!("📡 Écoute sur : http://{}", addr);
-    println!("💡 Accédez à l'interface : http://{}/", addr);
-    println!("🔒 Interface admin : http://{}/admin", addr);
-    println!("=======================================");
+    println!("🚀 Nook v2.0 running on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
