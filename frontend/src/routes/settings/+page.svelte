@@ -97,7 +97,7 @@
         <div>
           <p class="text-[var(--text-secondary)] mb-4">Exportez toutes vos conversations chiffrées</p>
           <button
-            on:click={handleExport}
+            onclick={handleExport}
             class="w-full py-4 bg-green-500/80 hover:bg-green-500 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300"
           >
             📥 Exporter la sauvegarde
@@ -140,7 +140,7 @@
       ></textarea>
 
       <button
-        on:click={triggerEmergency}
+        onclick={triggerEmergency}
         disabled={!emergencyMessage.trim()}
         class="w-full py-5 bg-red-600 hover:bg-red-700 disabled:bg-red-600/50 disabled:cursor-not-allowed text-white font-bold text-xl rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 flex items-center justify-center gap-3"
       >
