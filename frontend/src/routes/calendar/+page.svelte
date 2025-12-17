@@ -78,7 +78,7 @@
         />
       </div>
       <button
-        on:click={addEvent}
+        onclick={addEvent}
         class="w-full py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300"
       >
         Ajouter à la famille
