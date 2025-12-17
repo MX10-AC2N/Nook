@@ -11,9 +11,6 @@
   "dependencies": {
     "libsodium-wrappers": "^0.7.13",
     "simple-peer": "^9.11.1",
-    "@tsparticles/svelte": "^3.0.0",
-    "@tsparticles/slim": "^3.0.0",
-    "@tsparticles/shape-star": "^3.0.0"
   },
   "devDependencies": {
     "@sveltejs/kit": "^2.10.0",
