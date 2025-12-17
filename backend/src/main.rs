@@ -58,8 +58,8 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        .nest_service("/static", ServeDir::new("/app/static"))
         .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
+        .nest_service("/", ServeDir::new("/app/static"))
         .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
