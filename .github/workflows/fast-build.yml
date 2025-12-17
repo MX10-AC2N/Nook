@@ -36,10 +36,24 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
 
+      - name: Générer package-lock.json si absent
+  working-directory: ./frontend
+  run: |
+    if [ ! -f "package-lock.json" ]; then
+      echo "⚠️ package-lock.json absent, génération..."
+      npm install --package-lock-only
+      echo "✅ package-lock.json généré"
+    else
+      echo "✅ package-lock.json déjà présent"
+    fi
+
+      - name: Installer dépendances (mode CI)
+  working-directory: ./frontend
+  run: npm ci
+      
       - name: Build frontend
         working-directory: ./frontend
         run: |
-          npm ci
           npm run build
 
       - name: Build backend
