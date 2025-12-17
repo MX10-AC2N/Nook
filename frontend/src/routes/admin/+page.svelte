@@ -97,14 +97,14 @@
     {#if error}
       <div class="mb-6 p-4 bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-400 rounded-2xl flex justify-between items-center backdrop-blur-md">
         <span>{error}</span>
-        <button on:click={() => error = null} class="text-xl font-bold hover:scale-125 transition">×</button>
+        <button onclick={() => error = null} class="text-xl font-bold hover:scale-125 transition">×</button>
       </div>
     {/if}
 
     <!-- Bouton inviter -->
     <div class="mb-8">
       <button
-        on:click={invite}
+        onclick={invite}
         disabled={isLoading}
         class="px-8 py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
       >
@@ -124,7 +124,7 @@
             class="flex-1 p-3 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)]"
           />
           <button
-            on:click={copyLink}
+            onclick={copyLink}
             class="px-6 py-3 bg-[var(--accent)/80] hover:bg-[var(--accent)] text-white rounded-xl transition-all hover:scale-105 relative"
           >
             {#if copyFeedback}
@@ -164,7 +164,7 @@
 
               {#if !member.approved}
                 <button
-                  on:click={() => approve(member.id)}
+                  onclick={() => approve(member.id)}
                   class="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
                 >
                   Approuver
