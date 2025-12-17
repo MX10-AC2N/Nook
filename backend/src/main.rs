@@ -8,14 +8,13 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, get_service, patch, post},
-    Json, // <--- Ajout crucial ici
+    Json,
     Router,
 };
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tower_http::services::ServeDir;
-use tracing::{error, info};
 
 #[derive(Clone)]
 pub struct SharedState {
@@ -23,45 +22,30 @@ pub struct SharedState {
     pub webrtc_sessions: std::sync::Arc<tokio::sync::RwLock<HashMap<String, String>>>,
 }
 
-// Fallback SPA : sert index.html pour toutes les routes non-API
+// Fallback SPA
 async fn spa_fallback() -> impl IntoResponse {
     match tokio::fs::read_to_string("/app/static/index.html").await {
-        Ok(html) => Html(html).into_response(),
-        Err(e) => {
-            error!("Impossible de lire index.html : {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Erreur serveur : impossible de charger l'application",
-            )
-                .into_response()
-        }
+        Ok(html) => Html(html),
+        Err(_) => Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
     }
 }
 
 #[tokio::main]
 async fn main() {
-    // Logging verbeux
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
-
-    // Création des dossiers
+    // Création dossiers
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
 
-    info!("🚀 Démarrage de Nook v2.0");
+    println!("Démarrage de Nook v2.0");
 
     // Token admin
     let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
-        let new_token = uuid::Uuid::new_v4().to_string();
-        if let Err(e) = std::fs::write(token_path, &new_token) {
-            error!("Impossible d'écrire le token admin : {}", e);
-            panic!("Échec critique : token admin");
-        }
-        info!("🆕 Nouveau token admin généré : {}", new_token);
+        let token = uuid::Uuid::new_v4().to_string();
+        std::fs::write(token_path, &token).expect("Failed to create admin.token");
+        println!("Nouveau token admin généré : {}", token);
     } else {
-        info!("✅ Token admin chargé depuis /app/data/admin.token");
+        println!("Token admin chargé depuis /app/data/admin.token");
     }
 
     // Init DB
@@ -71,9 +55,7 @@ async fn main() {
         webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
-    // Router
     let app = Router::new()
-        // API
         .route("/api/invite", post(auth::invite_handler))
         .route("/api/join", post(auth::join_handler))
         .route("/api/members/:id/approve", patch(auth::approve_handler))
@@ -84,7 +66,7 @@ async fn main() {
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
 
-        // Assets statiques
+        // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
@@ -95,7 +77,9 @@ async fn main() {
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    info!("🌍 Nook prêt sur http://{}", addr);
+    println!("Nook prêt sur http://{}", addr);
+    println!("Static files : /app/static");
+    println!("Uploads : /app/data/uploads");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -103,7 +87,7 @@ async fn main() {
         .unwrap();
 }
 
-// WebSocket echo
+// WS handler
 use axum::extract::ws::WebSocketUpgrade;
 use futures_util::{SinkExt, StreamExt};
 
@@ -118,7 +102,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     })
 }
 
-// Proxy GIF Tenor
+// GIF proxy
 use urlencoding::encode;
 
 async fn gif_proxy(Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, StatusCode> {
