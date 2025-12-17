@@ -48,7 +48,7 @@ async fn main() {
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
 
-    info!("🚀 Démarrage de Nook v2.0");
+    info!("🚀 Démarrage de Nook..!");
 
     // Gestion du token admin
     let token_path = "/app/data/admin.token";
