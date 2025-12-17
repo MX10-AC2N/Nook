@@ -1,31 +1,45 @@
-<div align="center">
+# 🌿 Nook — Ta messagerie familiale privée & sécurisée
 
-# 🌿 Nook
-
-[![Stars](https://img.shields.io/github/stars/MX10-AC2N/Nook?style=social)](https://github.com/MX10-AC2N/Nook/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![WIP](https://img.shields.io/badge/Status-En%20développement-orange)]()
-[![Rust](https://img.shields.io/badge/Rust-black?style=flat&logo=rust)]()
-[![Svelte](https://img.shields.io/badge/Svelte-orange?style=flat&logo=svelte)]()
+[![Work in Progress](https://img.shields.io/badge/Status-En%20développement-orange)]()
+[![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)]()
+[![Svelte](https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00)]()
 
-**Messagerie familiale privée • Auto-hébergée • Chiffrée E2EE**
+> Une messagerie instantanée **auto-hébergée**, chiffrée de bout en bout, pensée pour ta famille et tes proches.  
+> ✅ Zéro cloud • ✅ Zéro compte • ✅ Zéro tracking • ✅ Open-source & gratuit
 
-**Zéro cloud • Zéro compte • Zéro tracking • 100% open-source**
+*Choisis ton univers : **Jardin Secret** 🌿 (doux, aquarelle), **Space Hub** 🚀 (futuriste), ou **Maison Chaleureuse** 🏠 (cosy)*
 
-🚀 **Déploie en 2 minutes** avec Docker ou CasaOS  
-🔐 **Tout chiffré côté client** • Appels WebRTC P2P • Calendrier partagé • GIFs & réactions
+## 🚀 Aperçu (screenshots à venir)
+![Accueil Jardin Secret](screenshots/accueil-jardin.png)  
+![Chat avec réactions](screenshots/chat-reactions.png)  
+*(Captures d’écran en cours d’ajout – le projet est en développement actif !)*
 
-### 🎨 Choisis ton univers
+## ✨ Fonctionnalités principales
+- 🔐 Chiffrement de bout en bout (libsodium, clés client-side)
+- 👥 Invitation + approbation des membres
+- 💬 Chat riche : emojis, réactions, GIFs (via Tenor anonyme)
+- 📎 Partage fichiers : ≤50 Mo chiffrés (auto-supprimés après 7j) • >50 Mo en P2P WebRTC
+- 📞 Appels audio/vidéo 1:1 (WebRTC P2P)
+- 🗓️ Calendrier familial partagé
+- 🎨 3 thèmes personnalisables + mode sombre/clair
+- 📲 PWA installable (Android, iOS, desktop)
 
-| Jardin Secret 🌿 | Space Hub 🚀 | Maison Chaleureuse 🏠 |
-|--------------------|--------------------|--------------------|
-| ![Jardin Secret – ambiance douce et naturelle](https://thumbs.dreamstime.com/b/colorful-flowers-bloom-brightly-along-winding-path-leading-to-charming-gate-lush-botanical-garden-inviting-visitors-394781787.jpg) | ![Space Hub – ambiance futuriste](https://thumbs.dreamstime.com/b/awe-inspiring-d-render-colossal-futuristic-space-station-orbiting-majestic-ringed-planet-intricate-multi-layered-398780776.jpg) | ![Maison Chaleureuse – ambiance cosy](https://thumbs.dreamstime.com/b/cozy-living-room-night-warm-light-fireplace-candles-christmas-decor-comfortable-sofa-coffee-table-winter-scene-outside-351073807.jpg) |
-| Thème doux, aquarelle, nature apaisante | Thème sci-fi, néons, espace infini | Thème chaleureux, foyer, tons cocooning |
+## 🛠 Stack technique
+- **Frontend** : Svelte + TypeScript
+- **Backend** : Rust
+- **Chiffrement** : libsodium
+- **P2P** : WebRTC
+- **Déploiement** : Docker, CasaOS, Yunohost…
 
-*(Illustrations évocatrices – screenshots réels à venir !)*
+## 🚀 Installation rapide
+### Option recommandée : CasaOS
+1. Apps → Custom Install
+2. Image : `ghcr.io/mx10-ac2n/nook:latest`
+3. Port 3000 → Volume `/appdata/nook` → `/app/data`
+4. Le token admin est dans `/appdata/nook/data/admin.token`
 
-## 🚀 Quick Start (Docker Compose)
-
+### Option universelle : Docker Compose
 ```yaml
 version: '3.8'
 services:
