@@ -8,16 +8,18 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "devDependencies": {
-    "@sveltejs/kit": "^2.10.0",
-    "svelte": "^5.0.0",
-    "@sveltejs/adapter-static": "^3.0.5",
-    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
-    "vite": "^5.0.0",
+  "dependencies": {
     "libsodium-wrappers": "^0.7.13",
     "simple-peer": "^9.11.1",
     "@tsparticles/svelte": "^3.0.0",
     "@tsparticles/slim": "^3.0.0",
     "@tsparticles/shape-star": "^3.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/kit": "^2.10.0",
+    "svelte": "^5.0.0",
+    "@sveltejs/adapter-static": "^3.0.5",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
+    "vite": "^5.0.0"
   }
 }
