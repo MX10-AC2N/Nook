@@ -23,36 +23,14 @@ pub struct SharedState {
 
 #[tokio::main]
 async fn main() {
-    println!("=======================================");
-    println!("🌿 Nook — Messagerie familiale privée");
-    println!("Version: v2.0.0");
-    println!("=======================================");
-
-    // Créer les dossiers nécessaires
     std::fs::create_dir_all("data").ok();
-    std::fs::create_dir_all("static").ok(); // Assure-toi que /app/static existe
-
     let token_path = "data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
-        std::fs::write(token_path, token).expect("❌ Échec de la création du token admin");
-        println!("🔐 Token admin généré dans 'data/admin.token'");
-    } else {
-        println!("✅ Token admin déjà présent");
-    }
-
-    // Vérifier que le fichier index.html existe
-    if !std::path::Path::new("static/index.html").exists() {
-        eprintln!("❌ ERREUR FATALE : Le fichier 'static/index.html' est manquant !");
-        eprintln!("💡 Assurez-vous que le frontend a bien été buildé et copié dans 'static/'");
-        std::process::exit(1);
-    } else {
-        println!("✅ Fichier index.html trouvé dans 'static/'");
+        std::fs::write(token_path, token).expect("Failed to create admin.token");
     }
 
     let app_state = db::init_db().await;
-    println!("🗃️  Base de données chargée");
-
     let shared_state = SharedState {
         db: app_state.db.clone(),
         webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
@@ -70,10 +48,10 @@ async fn main() {
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
         // Fichiers statiques
-        .nest_service("/static", ServeDir::new("static"))
-        .nest_service("/uploads", ServeDir::new("data/uploads"))
+        .nest_service("/static", ServeDir::new("/app/static"))
+        .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
         // Toutes les autres routes → index.html (SPA SvelteKit)
-        .fallback_service(ServeFile::new("static/index.html"))
+        .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
@@ -85,7 +63,6 @@ async fn main() {
         .unwrap();
 }
 
-// === Handler WebSocket ===
 use axum::extract::ws::{WebSocket, WebSocketUpgrade};
 use futures_util::{SinkExt, StreamExt};
 
@@ -100,7 +77,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     })
 }
 
-// === Handler GIFs (proxy anonyme) ===
 use urlencoding;
 
 async fn gif_proxy(
