@@ -1,7 +1,4 @@
 <script>
-  import '$lib/ui/themes/jardin.css';
-  import '$lib/ui/themes/space.css';
-  import '$lib/ui/themes/maison.css';
   import { onMount } from 'svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
 
@@ -11,7 +8,7 @@
   let animationId;
   let mouse = { x: 0, y: 0 };
 
-  // Config par thème
+  // Configurations précises par thème
   const themeConfigs = {
     'jardin-secret': {
       count: 60,
@@ -35,16 +32,16 @@
       count: 45,
       colors: ['#ff6b35', '#f7931e', '#ffd700', '#ff8c42'],
       size: { min: 3, max: 9 },
-      opacity: { min: 0.4, max: 0.9 },
       speed: 1.2,
       direction: 'top',
+      opacity: { min: 0.4, max: 0.9 },
       glow: true
     }
   };
 
   const createParticles = () => {
     const config = themeConfigs[$currentTheme] || themeConfigs['jardin-secret'];
-    const count = window.innerWidth < 768 ? config.count / 2 : config.count;
+    const count = window.innerWidth < 768 ? Math.floor(config.count / 2) : config.count;
 
     particles = [];
     for (let i = 0; i < count; i++) {
@@ -52,9 +49,9 @@
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         size: Math.random() * (config.size.max - config.size.min) + config.size.min,
-        speedX: (Math.random() - 0.5) * config.speed,
-        speedY: config.direction === 'top' ? -config.speed : 
-                config.direction === 'bottom' ? config.speed : 
+        speedX: (Math.random() - 0.5) * config.speed * 2,
+        speedY: config.direction === 'top' ? -config.speed * 1.5 :
+                config.direction === 'bottom' ? config.speed * 1.5 :
                 (Math.random() - 0.5) * config.speed * 2,
         color: config.colors[Math.floor(Math.random() * config.colors.length)],
         opacity: Math.random() * (config.opacity.max - config.opacity.min) + config.opacity.min,
@@ -67,9 +64,9 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     particles.forEach(p => {
-      // Glow effect
+      // Glow subtil
       if (p.glow) {
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 20;
         ctx.shadowColor = p.color;
       } else {
         ctx.shadowBlur = 0;
@@ -81,19 +78,19 @@
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
 
-      // Mouvement + interaction souris légère
+      // Interaction souris douce
       const dx = mouse.x - p.x;
       const dy = mouse.y - p.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance < 150) {
-        p.speedX += dx / 10000;
-        p.speedY += dy / 10000;
+      const distance = Math.hypot(dx, dy);
+      if (distance < 180) {
+        p.speedX += dx / 20000;
+        p.speedY += dy / 20000;
       }
 
       p.x += p.speedX;
       p.y += p.speedY;
 
-      // Rebond ou boucle
+      // Boucle infinie aux bords
       if (p.x < -p.size) p.x = canvas.width + p.size;
       if (p.x > canvas.width + p.size) p.x = -p.size;
       if (p.y < -p.size) p.y = canvas.height + p.size;
@@ -105,17 +102,17 @@
 
   onMount(() => {
     ctx = canvas.getContext('2d');
-    
-    const resizeCanvas = () => {
+
+    const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       createParticles();
     };
 
-    resizeCanvas();
+    resize();
     animate();
 
-    // Suivi souris pour interaction subtile
+    // Suivi souris
     window.addEventListener('mousemove', (e) => {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
@@ -126,25 +123,28 @@
       createParticles();
     });
 
-    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('resize', resize);
+
+    // Applique la classe thème sur body (comme ton ancien layout)
+    const unsubscribeBody = currentTheme.subscribe((theme) => {
+      document.body.className = `theme-${theme}`;
+    });
 
     return () => {
       cancelAnimationFrame(animationId);
       unsubscribe();
-      window.removeEventListener('resize', resizeCanvas);
+      unsubscribeBody();
+      window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', () => {});
     };
   });
 </script>
 
+<!-- Canvas fond global -->
 <canvas
   bind:this={canvas}
   class="fixed inset-0 -z-10 pointer-events-none"
 />
 
-<!-- Applique la classe thème sur body comme avant -->
-{:await currentTheme then theme}
-  <svelte:body class="theme-{theme}" />
-{/await}
-
+<!-- Contenu des pages -->
 <slot />
