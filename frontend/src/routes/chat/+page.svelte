@@ -143,19 +143,19 @@
         bind:value={gifQuery}
         placeholder="Rechercher un GIF..."
         class="w-full p-3 rounded-xl bg-white/20 dark:bg-black/20 border border-white/30 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] mb-3"
-        on:keydown={(e) => e.key === 'Enter' && searchGifs()}
+        onkeydown={(e) => e.key === 'Enter' && searchGifs()}
       />
       <div class="grid grid-cols-3 md:grid-cols-4 gap-3 max-h-64 overflow-y-auto">
         {#each gifResults as gif}
           <button
             class="rounded-xl overflow-hidden shadow hover:shadow-xl hover:scale-105 transition-all"
-            on:click={() => sendGif(gif.media[0].gif.url)}
+            onclick={() => sendGif(gif.media[0].gif.url)}
           >
             <img src={gif.media[0].gif.url} alt="GIF" class="w-full h-auto" loading="lazy" />
           </button>
         {/each}
       </div>
-      <button on:click={() => showGifs = false} class="mt-3 text-sm text-[var(--accent)]">Fermer</button>
+      <button onclick={() => showGifs = false} class="mt-3 text-sm text-[var(--accent)]">Fermer</button>
     </div>
   {/if}
 
