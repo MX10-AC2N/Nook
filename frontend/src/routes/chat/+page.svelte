@@ -178,6 +178,7 @@
       </button>
       <button
         onclick={sendMessage}
+        aria-label="Envoyer le message"
         class="p-4 bg-[var(--accent)] text-white rounded-2xl hover:scale-105 transition"
       >
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
