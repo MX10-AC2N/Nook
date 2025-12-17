@@ -167,16 +167,16 @@
         bind:value={input}
         placeholder="Écrivez un message..."
         class="flex-1 p-4 rounded-2xl bg-white/20 dark:bg-black/20 border border-white/30 focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40] transition-all"
-        on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
+        onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
       />
       <button
-        on:click={() => showGifs = !showGifs}
+        onclick={() => showGifs = !showGifs}
         class="p-4 rounded-2xl bg-white/20 dark:bg-black/20 border border-white/30 hover:bg-white/30 transition"
       >
         GIF
       </button>
       <button
-        on:click={sendMessage}
+        onclick={sendMessage}
         class="p-4 bg-[var(--accent)] text-white rounded-2xl hover:scale-105 transition"
       >
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
