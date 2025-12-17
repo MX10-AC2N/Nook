@@ -114,7 +114,7 @@
             <input
               type="file"
               accept=".bin"
-              on:change={handleImport}
+              onchange={handleImport}
               class="hidden"
               bind:this={backupFileInput}
             />
