@@ -76,7 +76,7 @@
       playsinline
       bind:this={remoteStream}
       class="absolute inset-0 w-full h-full object-cover"
-    />
+    ><video/>
   {:else if isCalling || isAnswering}
     <!-- Écran d'attente immersif -->
     <div class="absolute inset-0 flex items-center justify-center">
@@ -116,7 +116,7 @@
       muted
       bind:this={localStream}
       class="absolute top-6 right-6 w-64 h-64 md:w-80 md:h-80 object-cover rounded-3xl border-4 border-white/40 shadow-2xl backdrop-blur-md"
-    />
+    ><video/>
   {/if}
 
   <!-- Barre de contrôles glass (visible en appel) -->
