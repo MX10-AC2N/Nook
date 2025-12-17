@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="https://images.unsplash.com/photo-1748280523714-e5204d138964?auto=format&fit=crop&w=1600&q=80&ixlib=rb-4.0.3" alt="Nook – Ton jardin secret privé et sécurisé 🌿" style="border-radius: 20px; max-width: 100%; height: auto;" />
-
 # 🌿 Nook
 
 [![Stars](https://img.shields.io/github/stars/MX10-AC2N/Nook?style=social)](https://github.com/MX10-AC2N/Nook/stargazers)
@@ -21,10 +19,10 @@
 
 | Jardin Secret 🌿 | Space Hub 🚀 | Maison Chaleureuse 🏠 |
 |--------------------|--------------------|--------------------|
-| <img src="https://images.unsplash.com/photo-1748280523714-e5204d138964?auto=format&fit=crop&w=800&q=80&ixlib=rb-4.0.3" width="400" /> | <img src="https://thumbs.dreamstime.com/b/colossal-ring-shaped-space-station-hangs-silent-orbit-above-vibrant-blue-planet-testament-to-humanitys-technological-prowess-406427650.jpg" width="400" /> | <img src="https://images.unsplash.com/photo-1755633128337-69788f9e8ed7?auto=format&fit=crop&w=800&q=80&ixlib=rb-4.0.3" width="400" /> |
+| ![Jardin Secret – ambiance douce et naturelle](https://thumbs.dreamstime.com/b/colorful-flowers-bloom-brightly-along-winding-path-leading-to-charming-gate-lush-botanical-garden-inviting-visitors-394781787.jpg) | ![Space Hub – ambiance futuriste](https://thumbs.dreamstime.com/b/awe-inspiring-d-render-colossal-futuristic-space-station-orbiting-majestic-ringed-planet-intricate-multi-layered-398780776.jpg) | ![Maison Chaleureuse – ambiance cosy](https://thumbs.dreamstime.com/b/cozy-living-room-night-warm-light-fireplace-candles-christmas-decor-comfortable-sofa-coffee-table-winter-scene-outside-351073807.jpg) |
 | Thème doux, aquarelle, nature apaisante | Thème sci-fi, néons, espace infini | Thème chaleureux, foyer, tons cocooning |
 
-*(Images évocatrices libres ou stock – screenshots réels à venir ! Crédits : Tanya Barrow & David Todd McCarty sur Unsplash)*
+*(Illustrations évocatrices – screenshots réels à venir !)*
 
 ## 🚀 Quick Start (Docker Compose)
 
