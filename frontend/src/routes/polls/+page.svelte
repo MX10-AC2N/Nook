@@ -131,7 +131,7 @@
       </div>
 
       <button
-        on:click={createPoll}
+        onclick={createPoll}
         class="w-full py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300"
       >
         Créer le sondage
@@ -162,7 +162,7 @@
               {#each poll.options as option, j}
                 <div class="group">
                   <button
-                    on:click={() => vote(poll.id, j)}
+                    onclick={() => vote(poll.id, j)}
                     class="w-full text-left p-4 rounded-xl bg-white/20 dark:bg-black/20 border border-white/30 hover:bg-[var(--accent)/20] hover:border-[var(--accent)/50] hover:scale-105 transition-all flex items-center justify-between"
                   >
                     <span class="font-medium">{option}</span>
