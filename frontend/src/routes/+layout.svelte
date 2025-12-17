@@ -144,7 +144,7 @@
 <canvas
   bind:this={canvas}
   class="fixed inset-0 -z-10 pointer-events-none"
-/>
+></canvas>
 
 <!-- Contenu des pages -->
 <slot />
