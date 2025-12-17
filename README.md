@@ -1,45 +1,43 @@
-# 🌿 Nook — Ta messagerie familiale privée & sécurisée
+<div align="center">
 
+# 🌿 Nook — Ta messagerie familiale ultra privée
+
+[![Stars](https://img.shields.io/github/stars/MX10-AC2N/Nook?style=social)](https://github.com/MX10-AC2N/Nook/stargazers)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Work in Progress](https://img.shields.io/badge/Status-En%20développement-orange)]()
-[![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)]()
-[![Svelte](https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00)]()
+[![Status](https://img.shields.io/badge/Status-En%20développement%20actif-orange)]()
+[![Rust](https://img.shields.io/badge/Rust-black?style=flat&logo=rust&logoColor=white)]()
+[![Svelte](https://img.shields.io/badge/Svelte-orange?style=flat&logo=svelte&logoColor=white)]()
 
-> Une messagerie instantanée **auto-hébergée**, chiffrée de bout en bout, pensée pour ta famille et tes proches.  
-> ✅ Zéro cloud • ✅ Zéro compte • ✅ Zéro tracking • ✅ Open-source & gratuit
+**Auto-hébergée • Chiffrée E2EE • Zéro cloud • Zéro tracking**
 
-*Choisis ton univers : **Jardin Secret** 🌿 (doux, aquarelle), **Space Hub** 🚀 (futuriste), ou **Maison Chaleureuse** 🏠 (cosy)*
+Une messagerie pensée pour ta famille et tes proches.  
+Pas de compte, pas de pub, juste du privé et du cosy. 🚀
 
-## 🚀 Aperçu (screenshots à venir)
-![Accueil Jardin Secret](screenshots/accueil-jardin.png)  
-![Chat avec réactions](screenshots/chat-reactions.png)  
-*(Captures d’écran en cours d’ajout – le projet est en développement actif !)*
+</div>
 
-## ✨ Fonctionnalités principales
-- 🔐 Chiffrement de bout en bout (libsodium, clés client-side)
-- 👥 Invitation + approbation des membres
-- 💬 Chat riche : emojis, réactions, GIFs (via Tenor anonyme)
-- 📎 Partage fichiers : ≤50 Mo chiffrés (auto-supprimés après 7j) • >50 Mo en P2P WebRTC
-- 📞 Appels audio/vidéo 1:1 (WebRTC P2P)
-- 🗓️ Calendrier familial partagé
-- 🎨 3 thèmes personnalisables + mode sombre/clair
-- 📲 PWA installable (Android, iOS, desktop)
+## 🚀 Pourquoi Nook ?
+- 🔐 **Tout chiffré côté client** (libsodium – rien ne transite en clair)
+- 👥 Invitation + validation manuelle : tu décides qui entre
+- 💬 Chat fun : réactions, emojis, GIFs (anonymes via Tenor)
+- 📎 Fichiers jusqu’à 50 Mo chiffrés (auto-supprimés après 7j) • plus gros en P2P direct
+- 📞 Appels audio/vidéo 1:1 en WebRTC (zéro serveur intermédiaire)
+- 🗓️ Calendrier partagé pour toute la famille
+- 🎨 **3 thèmes de ouf** : Jardin Secret 🌿 (douceur nature), Space Hub 🚀 (vibes futuristes), Maison Chaleureuse 🏠 (cocooning total) + mode sombre/clair
+- 📲 PWA : installe-la comme une app sur téléphone ou ordi
 
-## 🛠 Stack technique
-- **Frontend** : Svelte + TypeScript
-- **Backend** : Rust
-- **Chiffrement** : libsodium
-- **P2P** : WebRTC
-- **Déploiement** : Docker, CasaOS, Yunohost…
+## 🖼️ Aperçu
+Captures d’écran en cours de préparation – ça arrive bientôt !  
+En attendant, imagine des interfaces magnifiques et super fluides selon le thème que tu choisis. 😏
 
-## 🚀 Installation rapide
-### Option recommandée : CasaOS
+## ⚡ Installation ultra simple (2 minutes top chrono)
+
+### Le plus facile : CasaOS (parfait pour les débutants)
 1. Apps → Custom Install
 2. Image : `ghcr.io/mx10-ac2n/nook:latest`
 3. Port 3000 → Volume `/appdata/nook` → `/app/data`
-4. Le token admin est dans `/appdata/nook/data/admin.token`
+4. Ton token admin apparaît dans `/appdata/nook/data/admin.token` → c’est parti !
 
-### Option universelle : Docker Compose
+### Pour les pros : Docker Compose
 ```yaml
 version: '3.8'
 services:
@@ -52,3 +50,30 @@ services:
     restart: unless-stopped
 volumes:
   nook-data:
+```markdown
+## 🛠 Stack technique (pour les curieux)
+| Partie       | Techno                  |
+|--------------|-------------------------|
+| Frontend     | Svelte + TypeScript     |
+| Backend      | Rust                    |
+| Chiffrement  | libsodium               |
+| P2P          | WebRTC                  |
+| Déploiement  | Docker, CasaOS, etc.    |
+
+## 🔮 Ce qui arrive bientôt
+- Appels de groupe 🎉
+- Notifications push 📲
+- Encore plus de thèmes et d’options mobile
+- Plein d’améliorations basées sur vos retours !
+
+## 🤝 Tu veux contribuer ?
+Le projet est ouvert à tous !  
+Bug, idée, code, design… tout est bienvenu.  
+Fork → bidouille → PR → on discute ensemble. C’est cool de construire ça à plusieurs. ❤️
+
+<div align="center">
+
+**License** : [MIT](LICENSE)  
+**Si Nook te plaît, claque une ⭐ – ça motive grave !**
+
+</div>
