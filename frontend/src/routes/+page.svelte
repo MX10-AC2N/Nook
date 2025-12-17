@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore'; // Pour accès réactif si besoin (optionnel ici)
+  import { currentTheme } from '$lib/ui/ThemeStore';
 
   let name = $state('');
   let error = $state('');
@@ -25,18 +25,20 @@
   <title>Nook – Votre espace familial privé</title>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-  <!-- Carte glassmorphism centrale – laisse les particules du layout briller au travers -->
-  <div class="max-w-md w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-10 text-center transition-all duration-1000 animate-fade-in">
+<div class="min-h-screen flex items-center justify-center p-6 relative">
+  <!-- Carte centrale avec glassmorphism renforcé -->
+  <div class="max-w-md w-full bg-white/15 dark:bg-black/15 backdrop-blur-2xl border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-10 text-center animate-fade-in">
     
-    <!-- Emoji thématique avec animation subtile -->
-    <div class="text-8xl mb-6 animate-float">
+    <!-- Emoji qui change selon le thème + animation float -->
+    <div class="text-9xl mb-8 animate-float">
       {#if $currentTheme === 'jardin-secret'}
         🌿
       {:else if $currentTheme === 'space-hub'}
         🚀
-      {:else}
+      {:else if $currentTheme === 'maison-chaleureuse'}
         🏠
+      {:else}
+        🌿
       {/if}
     </div>
 
@@ -58,7 +60,7 @@
       type="text"
       bind:value={name}
       placeholder="Votre prénom"
-      class="w-full p-5 rounded-2xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] placeholder-[var(--text-secondary)/70] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40] focus:bg-white/50 dark:focus:bg-black/50 focus:border-[var(--accent)] transition-all duration-300 mb-6 shadow-inner"
+      class="w-full p-5 rounded-2xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] placeholder-[var(--text-secondary)/70] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40] focus:bg-white/50 dark:focus:bg-black/50 focus:border-[var(--accent)] transition-all duration-300 mb-6 shadow-inner"
       on:keydown={(e) => e.key === 'Enter' && join()}
     />
 
@@ -88,7 +90,7 @@
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-12px); }
+    50% { transform: translateY(-15px); }
   }
 
   .animate-fade-in {
@@ -99,7 +101,7 @@
     animation: float 6s infinite ease-in-out;
   }
 
-  /* Respect du reduced motion */
+  /* Respect des préférences d'animation réduite */
   @media (prefers-reduced-motion: reduce) {
     * {
       animation-duration: 0.01ms !important;
