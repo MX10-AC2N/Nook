@@ -1,70 +1,42 @@
-# 🌿 Nook — Messagerie familiale privée & sécurisée
+<div align="center">
 
-> **Une messagerie instantanée auto-hébergée, chiffrée de bout en bout, pour ta famille et tes proches.**  
-> ✅ Zéro cloud • ✅ Zéro compte • ✅ Zéro tracking • ✅ Libre et gratuit • ✅ Open-source
+<img src="https://images.unsplash.com/photo-1748280523714-e5204d138964?auto=format&fit=crop&w=1600&q=80&ixlib=rb-4.0.3" alt="Nook – Ton jardin secret privé et sécurisé 🌿" style="border-radius: 20px; max-width: 100%; height: auto;" />
 
-[![CI/CD](https://github.com/MX10-AC2N/Nook/actions/workflows/ci-new2.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions)  
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)  
-[![Docker Image Size](https://img.shields.io/docker/image-size/ghcr.io/mx10-ac2n/nook/latest?label=Image%20size)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
+# 🌿 Nook
 
-![Nook Screenshot](https://raw.githubusercontent.com/MX10-AC2N/Nook/refs/heads/main/screenshots/chat-jardin.png)  
-*Thème « Jardin Secret » — doux, naturel, aquarelle*
+[![Stars](https://img.shields.io/github/stars/MX10-AC2N/Nook?style=social)](https://github.com/MX10-AC2N/Nook/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![WIP](https://img.shields.io/badge/Status-En%20développement-orange)]()
+[![Rust](https://img.shields.io/badge/Rust-black?style=flat&logo=rust)]()
+[![Svelte](https://img.shields.io/badge/Svelte-orange?style=flat&logo=svelte)]()
 
-![Nook Themes](https://raw.githubusercontent.com/MX10-AC2N/Nook/refs/heads/main/screenshots/themes-switcher.png)  
-*Choisis parmi 3 univers : Jardin Secret 🌿, Space Hub 🚀, Maison Chaleureuse 🏠*
+**Messagerie familiale privée • Auto-hébergée • Chiffrée E2EE**
 
----
+**Zéro cloud • Zéro compte • Zéro tracking • 100% open-source**
 
-## ✨ Fonctionnalités
+🚀 **Déploie en 2 minutes** avec Docker ou CasaOS  
+🔐 **Tout chiffré côté client** • Appels WebRTC P2P • Calendrier partagé • GIFs & réactions
 
-- 🔐 **Chiffrement de bout en bout (E2EE)** avec **libsodium** (clés générées côté client, jamais sur le serveur)
-- 👥 **Gestion des membres** : inviter → approuver → discuter (aucun accès sans validation)
-- 💬 **Chat riche** : texte, emojis, réactions (👍 ❤️), GIFs (proxy anonyme Tenor)
-- 📎 **Partage de fichiers** :
-  - **≤ 50 Mo** : upload chiffré (stockage temporaire, auto-supprimé après 7j)
-  - **> 50 Mo** : envoi **P2P direct** via WebRTC (aucun stockage serveur)
-- 📞 **Appels audio/vidéo 1:1** (WebRTC, P2P, chiffrés)
-- 🗓️ **Calendrier partagé** : planifiez rendez-vous, anniversaires, appels
-- 🎨 **3 thèmes personnalisables** :
-  - **🌿 Jardin Secret** : doux, aquarelle, feuilles animées
-  - **🚀 Space Hub** : futuriste, néon, effets de particules
-  - **🏠 Maison Chaleureuse** : feutre, crayon, bois
-- 📲 **PWA installable** : comme une app native sur **Android, iOS, PC**
-- 🌙 **Mode sombre/clair** : respecte les préférences système
-- 🌐 **Multiplateforme** : CasaOS, Docker, Docker Compose, Portainer, Yunohost…
+### 🎨 Choisis ton univers
 
----
+| Jardin Secret 🌿 | Space Hub 🚀 | Maison Chaleureuse 🏠 |
+|--------------------|--------------------|--------------------|
+| <img src="https://images.unsplash.com/photo-1748280523714-e5204d138964?auto=format&fit=crop&w=800&q=80&ixlib=rb-4.0.3" width="400" /> | <img src="https://thumbs.dreamstime.com/b/colossal-ring-shaped-space-station-hangs-silent-orbit-above-vibrant-blue-planet-testament-to-humanitys-technological-prowess-406427650.jpg" width="400" /> | <img src="https://images.unsplash.com/photo-1755633128337-69788f9e8ed7?auto=format&fit=crop&w=800&q=80&ixlib=rb-4.0.3" width="400" /> |
+| Thème doux, aquarelle, nature apaisante | Thème sci-fi, néons, espace infini | Thème chaleureux, foyer, tons cocooning |
 
-## 🚀 Déploiement rapide
+*(Images évocatrices libres ou stock – screenshots réels à venir ! Crédits : Tanya Barrow & David Todd McCarty sur Unsplash)*
 
-### 🏠 Option 1 : CasaOS (recommandé pour les débutants)
-
-1. Dans **CasaOS → Apps → Installer depuis l’image Docker**
-2. Colle : `ghcr.io/mx10-ac2n/nook:latest`
-3. Configure :
-   - **Port** : `3000`
-   - **Volume** : `/casaos/appdata/nook //app/data`
-4. **Démarre** → accède à `http://votre-nas:3000`
-
-> 🔑 Le **token admin** se trouve dans `/casaos/appdata/nook/data/admin.token`
-
----
-
-### 🐳 Option 2 : Docker Compose (universel)
+## 🚀 Quick Start (Docker Compose)
 
 ```yaml
-# docker-compose.yml
 version: '3.8'
 services:
   nook:
     image: ghcr.io/mx10-ac2n/nook:latest
-    container_name: nook
     ports:
       - "3000:3000"
     volumes:
-      - nook-/app/data
+      - nook-data:/app/data
     restart: unless-stopped
-
 volumes:
-  nook-
-
+  nook-data:
