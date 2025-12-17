@@ -61,11 +61,11 @@
       bind:value={name}
       placeholder="Votre prénom"
       class="w-full p-5 rounded-2xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] placeholder-[var(--text-secondary)/70] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40] focus:bg-white/50 dark:focus:bg-black/50 focus:border-[var(--accent)] transition-all duration-300 mb-6 shadow-inner"
-      on:keydown={(e) => e.key === 'Enter' && join()}
+      onkeydown={(e) => e.key === 'Enter' && join()}
     />
 
     <button
-      on:click={join}
+      onclick={join}
       class="w-full py-5 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300"
     >
       Rejoindre
