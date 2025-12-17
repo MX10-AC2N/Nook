@@ -4,7 +4,7 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::Query,
+    extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     routing::{get, patch, post},
@@ -12,6 +12,7 @@ use axum::{
 };
 use serde_json::Value;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use tower_http::services::{ServeDir, ServeFile};
 
 #[derive(Clone)]
@@ -58,12 +59,12 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
         .nest_service("/", ServeDir::new("/app/static"))
+        .nest_service("/uploads", ServeDir::new("/app/data/uploads"))
         .fallback_service(ServeFile::new("/app/static/index.html"))
         .with_state(shared_state);
 
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("🚀 Nook démarré avec succès !");
     println!("📡 Écoute sur : http://{}", addr);
     println!("💡 Accédez à l'interface : http://{}/", addr);
@@ -77,20 +78,23 @@ async fn main() {
 }
 
 // === Handler WebSocket ===
-use axum::extract::ws::WebSocketUpgrade;
-use futures_util::StreamExt;
+use axum::extract::ws::{WebSocket, WebSocketUpgrade};
+use futures_util::{SinkExt, StreamExt};
 
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|mut socket| async move {
-        while let Some(Ok(msg)) = socket.next().await {
+    ws.on_upgrade(|socket| async move {
+        let (mut sender, mut receiver) = socket.split();
+        while let Some(Ok(msg)) = receiver.next().await {
             if let Ok(text) = msg.into_text() {
-                let _ = socket.send(axum::extract::ws::Message::Text(text)).await;
+                let _ = sender.send(axum::extract::ws::Message::Text(text)).await;
             }
         }
     })
 }
 
 // === Handler GIFs (proxy anonyme) ===
+use urlencoding;
+
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
