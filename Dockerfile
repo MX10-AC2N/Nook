@@ -57,6 +57,14 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
+# ✅ Ajoute cette étape temporaire pour vérifier le contenu
+RUN ls -la /app/static && \
+    if [ ! -f "/app/static/index.html" ]; then \
+        echo "❌ ERREUR : index.html manquant dans /app/static" && \
+        exit 1; \
+    fi && \
+    echo "✅ index.html trouvé dans /app/static"
+
 # --- Final : distroless ---
 FROM gcr.io/distroless/cc-debian12
 
