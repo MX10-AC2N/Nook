@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{StatusCode, header::{SET_COOKIE, HeaderName}},
+    http::{StatusCode, header::SET_COOKIE, HeaderMap, HeaderName},
     response::{Json, AppendHeaders},
 };
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,12 @@ pub struct AdminLoginRequest {
 pub struct ApiResponse {
     pub success: bool,
     pub message: String,
+}
+
+#[derive(Serialize)]
+pub struct SessionInfo {
+    pub member_id: String,
+    pub member_name: String,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -317,7 +323,7 @@ pub async fn admin_login_handler(
 }
 
 pub async fn admin_logout_handler(
-    State(state): State<SharedState>,
+    State(_state): State<SharedState>,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Cookie d'expiration pour déconnecter
     let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
@@ -329,4 +335,34 @@ pub async fn admin_logout_handler(
             message: "Déconnexion réussie".to_string(),
         })
     ))
+}
+
+// === NOUVEAU : Validation de session pour le frontend ===
+
+pub async fn validate_session_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<SessionInfo>, StatusCode> {
+    // Fonction utilitaire pour extraire un cookie
+    fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+        headers.get_all(axum::http::header::COOKIE)
+            .into_iter()
+            .filter_map(|value| value.to_str().ok())
+            .flat_map(|s| s.split(';'))
+            .map(|cookie| cookie.trim())
+            .find(|cookie| cookie.starts_with(&format!("{}=", name)))
+            .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
+    }
+
+    // Récupère le token de session
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Utilise la fonction existante pour valider
+    match validate_session_and_get_user(&state.db, &session_token).await {
+        Ok((member_id, member_name)) => Ok(Json(SessionInfo { member_id, member_name })),
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
 }
