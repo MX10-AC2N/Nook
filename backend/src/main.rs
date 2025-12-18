@@ -31,7 +31,7 @@ struct ChatMessage {
 }
 
 // Structure pour suivre une connexion active
-struct Connection {
+pub struct Connection {
     member_id: String,
     member_name: String,
     sender: tokio::sync::mpsc::UnboundedSender<Message>,
@@ -86,6 +86,26 @@ async fn admin_middleware(
     Ok(next.run(request).await)
 }
 
+// Middleware pour vérifier l'authentification utilisateur normal
+async fn user_middleware(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+    request: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> Result<axum::response::Response, StatusCode> {
+    // Extraire le cookie de session utilisateur
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Vérifier si la session est valide
+    match auth::validate_session_and_get_user(&state.db, &session_token).await {
+        Ok(_) => Ok(next.run(request).await),
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
 // Fallback SPA
 async fn spa_fallback() -> impl IntoResponse {
     match tokio::fs::read_to_string("/app/static/index.html").await {
@@ -117,12 +137,16 @@ async fn main() {
         .route("/api/admin/login", post(auth::admin_login_handler))
         .route("/api/gifs", get(gif_proxy));
 
-    // Routes protégées (utilisateurs normaux)
+    // Routes utilisateur (protégées par session)
     let user_routes = Router::new()
-        .route("/ws", get(ws_handler))
+        .route("/api/validate-session", get(auth::validate_session_handler))
         .route("/api/upload", post(upload::handle_upload))
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
-        .route("/api/webrtc/answer", get(webrtc::handle_answer));
+        .route("/api/webrtc/answer", get(webrtc::handle_answer))
+        .route_layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            user_middleware,
+        ));
 
     // Routes admin protégées
     let admin_routes = Router::new()
@@ -139,6 +163,7 @@ async fn main() {
         .merge(public_routes)
         .merge(user_routes)
         .merge(admin_routes)
+        .route("/ws", get(ws_handler)) // WebSocket avec validation manuelle
         // Assets statiques
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
@@ -158,7 +183,7 @@ async fn main() {
         .unwrap();
 }
 
-// Handler WebSocket avec cookie de session
+// Handler WebSocket avec validation manuelle des cookies
 async fn ws_handler(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
