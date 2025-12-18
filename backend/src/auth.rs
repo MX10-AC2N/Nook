@@ -1,12 +1,14 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{StatusCode, header::SET_COOKIE},
+    response::{Json, AppendHeaders},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use uuid::Uuid;
+use bcrypt::verify;
+use chrono::{Utc, Duration};
 
 use crate::SharedState;
 
@@ -14,6 +16,17 @@ use crate::SharedState;
 pub struct JoinRequest {
     pub name: String,
     pub public_key: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub member_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct AdminLoginRequest {
+    pub username: String,
+    pub password: String,
 }
 
 #[derive(Serialize)]
@@ -27,6 +40,7 @@ pub struct Member {
     pub id: String,
     pub name: String,
     pub approved: bool,
+    pub joined_at: String,
 }
 
 // === Logique métier ===
@@ -92,12 +106,92 @@ pub async fn approve_member(pool: &SqlitePool, id: String) -> Result<ApiResponse
 
 pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
     let rows =
-        sqlx::query_as::<_, Member>("SELECT id, name, approved FROM members ORDER BY joined_at")
+        sqlx::query_as::<_, Member>("SELECT id, name, approved, joined_at FROM members ORDER BY joined_at DESC")
             .fetch_all(pool)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(rows)
+}
+
+// === Sessions utilisateurs ===
+
+pub async fn create_session(pool: &SqlitePool, member_id: &str) -> Result<String, StatusCode> {
+    let token = Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO sessions (token, member_id) VALUES (?, ?)")
+        .bind(&token)
+        .bind(member_id)
+        .execute(pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(token)
+}
+
+pub async fn validate_session_and_get_user(
+    pool: &SqlitePool,
+    token: &str,
+) -> Result<(String, String), StatusCode> {
+    // Supprimer les sessions vieilles de plus de 30 jours
+    let cutoff = Utc::now() - Duration::days(30);
+    sqlx::query("DELETE FROM sessions WHERE created_at < ?")
+        .bind(cutoff.naive_utc())
+        .execute(pool)
+        .await
+        .ok();
+
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT s.member_id, m.name FROM sessions s 
+         JOIN members m ON s.member_id = m.id 
+         WHERE s.token = ? AND m.approved = 1"
+    )
+    .bind(token)
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match row {
+        Some((member_id, member_name)) => Ok((member_id, member_name)),
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+// === Sessions administrateurs ===
+
+pub async fn validate_admin_session(
+    pool: &SqlitePool,
+    token: &str,
+) -> Result<String, StatusCode> {
+    // Supprimer les sessions admin vieilles de plus de 7 jours
+    let cutoff = Utc::now() - Duration::days(7);
+    sqlx::query("DELETE FROM admin_sessions WHERE created_at < ?")
+        .bind(cutoff.naive_utc())
+        .execute(pool)
+        .await
+        .ok();
+
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT admin_id FROM admin_sessions WHERE token = ?"
+    )
+    .bind(token)
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match row {
+        Some((admin_id,)) => Ok(admin_id),
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+pub async fn create_admin_session(pool: &SqlitePool, admin_id: &str) -> Result<String, StatusCode> {
+    let token = Uuid::new_v4().to_string();
+    sqlx::query("INSERT INTO admin_sessions (token, admin_id) VALUES (?, ?)")
+        .bind(&token)
+        .bind(admin_id)
+        .execute(pool)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(token)
 }
 
 // === Handlers Axum ===
@@ -141,4 +235,92 @@ pub async fn members_handler(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let members = get_members(&state.db).await?;
     Ok(Json(serde_json::json!({ "members": members })))
+}
+
+pub async fn login_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<LoginRequest>,
+) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+    // Vérifie que le membre existe et est approuvé
+    let row: Option<(String,)> = sqlx::query_as("SELECT id FROM members WHERE id = ? AND approved = 1")
+        .bind(&payload.member_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Crée une session
+    let session_token = create_session(&state.db, &payload.member_id).await?;
+
+    // Crée un cookie HTTP-Only sécurisé
+    let cookie = format!(
+        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000", // 30 jours
+    );
+
+    Ok((
+        AppendHeaders([(SET_COOKIE, cookie)]),
+        Json(ApiResponse {
+            success: true,
+            message: "Connexion réussie".to_string(),
+        })
+    ))
+}
+
+pub async fn admin_login_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<AdminLoginRequest>,
+) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+    // Récupérer l'admin depuis la base de données
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT id, password_hash FROM admins WHERE username = ?"
+    )
+    .bind(&payload.username)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let (admin_id, stored_hash) = row.unwrap();
+
+    // Vérifier le mot de passe avec bcrypt
+    if !verify(&payload.password, &stored_hash).unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Créer une session admin
+    let admin_token = create_admin_session(&state.db, &admin_id).await?;
+
+    // Créer un cookie admin séparé
+    let cookie = format!(
+        "nook_admin={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800", // 7 jours
+    );
+
+    Ok((
+        AppendHeaders([(SET_COOKIE, cookie)]),
+        Json(ApiResponse {
+            success: true,
+            message: "Connexion admin réussie".to_string(),
+        })
+    ))
+}
+
+pub async fn admin_logout_handler(
+    State(state): State<SharedState>,
+) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+    // Cookie d'expiration pour déconnecter
+    let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0";
+
+    Ok((
+        AppendHeaders([(SET_COOKIE, cookie.to_string())]),
+        Json(ApiResponse {
+            success: true,
+            message: "Déconnexion réussie".to_string(),
+        })
+    ))
 }
