@@ -133,8 +133,10 @@ pub async fn validate_session_and_get_user(
 ) -> Result<(String, String), StatusCode> {
     // Supprimer les sessions vieilles de plus de 30 jours
     let cutoff = Utc::now() - Duration::days(30);
+    let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+    
     sqlx::query("DELETE FROM sessions WHERE created_at < ?")
-        .bind(cutoff.naive_utc())
+        .bind(cutoff_str)
         .execute(pool)
         .await
         .ok();
@@ -163,8 +165,10 @@ pub async fn validate_admin_session(
 ) -> Result<String, StatusCode> {
     // Supprimer les sessions admin vieilles de plus de 7 jours
     let cutoff = Utc::now() - Duration::days(7);
+    let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
+    
     sqlx::query("DELETE FROM admin_sessions WHERE created_at < ?")
-        .bind(cutoff.naive_utc())
+        .bind(cutoff_str)
         .execute(pool)
         .await
         .ok();
@@ -258,6 +262,7 @@ pub async fn login_handler(
     // Crée un cookie HTTP-Only sécurisé
     let cookie = format!(
         "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000", // 30 jours
+        session_token
     );
 
     Ok((
@@ -299,6 +304,7 @@ pub async fn admin_login_handler(
     // Créer un cookie admin séparé
     let cookie = format!(
         "nook_admin={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800", // 7 jours
+        admin_token
     );
 
     Ok((
@@ -314,10 +320,10 @@ pub async fn admin_logout_handler(
     State(state): State<SharedState>,
 ) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Cookie d'expiration pour déconnecter
-    let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0";
+    let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
 
     Ok((
-        AppendHeaders([(SET_COOKIE, cookie.to_string())]),
+        AppendHeaders([(SET_COOKIE, cookie)]),
         Json(ApiResponse {
             success: true,
             message: "Déconnexion réussie".to_string(),
