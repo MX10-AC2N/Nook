@@ -1,6 +1,10 @@
 <script>
+  import '$lib/ui/themes/jardin.css';
+  import '$lib/ui/themes/space.css';
+  import '$lib/ui/themes/maison.css';
   import { onMount } from 'svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
+  import { page } from '$app/stores'; // Pour highlight page active
 
   let canvas;
   let ctx;
@@ -8,7 +12,7 @@
   let animationId;
   let mouse = { x: 0, y: 0 };
 
-  // Configurations précises par thème
+  // Configs thèmes
   const themeConfigs = {
     'jardin-secret': {
       count: 60,
@@ -32,16 +36,17 @@
       count: 45,
       colors: ['#ff6b35', '#f7931e', '#ffd700', '#ff8c42'],
       size: { min: 3, max: 9 },
+      opacity: { min: 0.4, max: 0.9 },
       speed: 1.2,
       direction: 'top',
-      opacity: { min: 0.4, max: 0.9 },
       glow: true
     }
   };
 
   const createParticles = () => {
     const config = themeConfigs[$currentTheme] || themeConfigs['jardin-secret'];
-    const count = window.innerWidth < 768 ? Math.floor(config.count / 2) : config.count;
+    const isMobile = window.innerWidth < 768;
+    const count = isMobile ? Math.floor(config.count / 2) : config.count; // Moins sur mobile pour perf
 
     particles = [];
     for (let i = 0; i < count; i++) {
@@ -49,9 +54,9 @@
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         size: Math.random() * (config.size.max - config.size.min) + config.size.min,
-        speedX: (Math.random() - 0.5) * config.speed * 2,
-        speedY: config.direction === 'top' ? -config.speed * 1.5 :
-                config.direction === 'bottom' ? config.speed * 1.5 :
+        speedX: (Math.random() - 0.5) * config.speed,
+        speedY: config.direction === 'top' ? -Math.random() * config.speed - 0.5 :
+                config.direction === 'bottom' ? Math.random() * config.speed + 0.5 :
                 (Math.random() - 0.5) * config.speed * 2,
         color: config.colors[Math.floor(Math.random() * config.colors.length)],
         opacity: Math.random() * (config.opacity.max - config.opacity.min) + config.opacity.min,
@@ -64,9 +69,8 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     particles.forEach(p => {
-      // Glow subtil
       if (p.glow) {
-        ctx.shadowBlur = 20;
+        ctx.shadowBlur = 15;
         ctx.shadowColor = p.color;
       } else {
         ctx.shadowBlur = 0;
@@ -78,23 +82,19 @@
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
 
-      // Interaction souris douce
       const dx = mouse.x - p.x;
       const dy = mouse.y - p.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance < 180) {
-        p.speedX += dx / 20000;
-        p.speedY += dy / 20000;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance < 150) {
+        p.speedX += dx / 10000;
+        p.speedY += dy / 10000;
       }
 
       p.x += p.speedX;
       p.y += p.speedY;
 
-      // Boucle infinie aux bords
-      if (p.x < -p.size) p.x = canvas.width + p.size;
-      if (p.x > canvas.width + p.size) p.x = -p.size;
-      if (p.y < -p.size) p.y = canvas.height + p.size;
-      if (p.y > canvas.height + p.size) p.y = -p.size;
+      if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+      if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
     });
 
     animationId = requestAnimationFrame(animate);
@@ -102,49 +102,92 @@
 
   onMount(() => {
     ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    createParticles();
+    animate();
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+    });
+
+    const unsubscribe = currentTheme.subscribe(() => {
+      createParticles();
+    });
 
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
       createParticles();
     };
-
-    resize();
-    animate();
-
-    // Suivi souris
-    window.addEventListener('mousemove', (e) => {
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
-    });
-
-    // Recréer les particules quand le thème change
-    const unsubscribe = currentTheme.subscribe(() => {
-      createParticles();
-    });
-
     window.addEventListener('resize', resize);
-
-    // Applique la classe thème sur body (comme ton ancien layout)
-    const unsubscribeBody = currentTheme.subscribe((theme) => {
-      document.body.className = `theme-${theme}`;
-    });
 
     return () => {
       cancelAnimationFrame(animationId);
       unsubscribe();
-      unsubscribeBody();
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', () => {});
     };
   });
 </script>
 
-<!-- Canvas fond global -->
 <canvas
   bind:this={canvas}
   class="fixed inset-0 -z-10 pointer-events-none"
 ></canvas>
 
-<!-- Contenu des pages -->
+<!-- Contenu pages -->
 <slot />
+
+<!-- Bottom navigation mobile -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 flex justify-around py-2 rounded-t-3xl shadow-2xl md:hidden z-50">
+  <a href="/" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">🏠</span>
+    <span class="text-xs">Accueil</span>
+  </a>
+  <a href="/chat" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">💬</span>
+    <span class="text-xs">Chat</span>
+  </a>
+  <a href="/call" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">📞</span>
+    <span class="text-xs">Appels</span>
+  </a>
+  <a href="/calendar" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">📅</span>
+    <span class="text-xs">Calendrier</span>
+  </a>
+  <a href="/polls" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/polls' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">🗳️</span>
+    <span class="text-xs">Sondages</span>
+  </a>
+</nav>
+
+<!-- Sidebar desktop/tablette -->
+<aside class="hidden md:block fixed left-0 top-0 h-screen w-24 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-r border-white/20 p-4 flex flex-col items-center gap-8 shadow-2xl z-50">
+  <a href="/" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🏠</a>
+  <a href="/chat" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">💬</a>
+  <a href="/call" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📞</a>
+  <a href="/calendar" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📅</a>
+  <a href="/polls" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/polls' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🗳️</a>
+  <a href="/admin" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/admin' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">⚙️</a>
+</aside>
+
+<style>
+  /* Responsive optimisations */
+  @media (max-width: 767px) {
+    aside { display: none; } /* Pas de sidebar sur mobile */
+    nav { padding-bottom: env(safe-area-inset-bottom); } /* Pour iPhone notch */
+  }
+
+  @media (min-width: 768px) and (max-width: 1024px) {
+    aside { width: 6rem; gap: 2rem; } /* Tablette : sidebar compacte */
+    aside a { font-size: 1.5rem; }
+  }
+
+  @media (min-width: 1025px) {
+    aside { width: 7rem; gap: 3rem; } /* PC : sidebar confortable */
+    aside a { font-size: 2rem; }
+  }
+</style>
