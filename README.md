@@ -1,70 +1,80 @@
-# 🌿 Nook — Messagerie familiale privée & sécurisée
+<div align="center">
 
-> **Une messagerie instantanée auto-hébergée, chiffrée de bout en bout, pour ta famille et tes proches.**  
-> ✅ Zéro cloud • ✅ Zéro compte • ✅ Zéro tracking • ✅ Libre et gratuit • ✅ Open-source
+# 🌿 Nook — Ta messagerie familiale ultra privée
 
-[![CI/CD](https://github.com/MX10-AC2N/Nook/actions/workflows/ci-new2.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions)  
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)  
-[![Docker Image Size](https://img.shields.io/docker/image-size/ghcr.io/mx10-ac2n/nook/latest?label=Image%20size)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
+[![Stars](https://img.shields.io/github/stars/MX10-AC2N/Nook?style=social)](https://github.com/MX10-AC2N/Nook/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Status](https://img.shields.io/badge/Status-En%20développement%20actif-orange)]()
+[![Rust](https://img.shields.io/badge/Rust-black?style=flat&logo=rust&logoColor=white)]()
+[![Svelte](https://img.shields.io/badge/Svelte-orange?style=flat&logo=svelte&logoColor=white)]()
 
-![Nook Screenshot](https://raw.githubusercontent.com/MX10-AC2N/Nook/refs/heads/main/screenshots/chat-jardin.png)  
-*Thème « Jardin Secret » — doux, naturel, aquarelle*
+**Auto-hébergée • Chiffrée E2EE • Zéro cloud • Zéro tracking**
 
-![Nook Themes](https://raw.githubusercontent.com/MX10-AC2N/Nook/refs/heads/main/screenshots/themes-switcher.png)  
-*Choisis parmi 3 univers : Jardin Secret 🌿, Space Hub 🚀, Maison Chaleureuse 🏠*
+Une messagerie pensée pour ta famille et tes proches.  
+Pas de compte, pas de pub, juste du privé et du cosy. 🚀
 
----
+</div>
 
-## ✨ Fonctionnalités
+## 🚀 Pourquoi Nook ?
+- 🔐 **Tout chiffré côté client** (libsodium – rien ne transite en clair)
+- 👥 Invitation + validation manuelle : tu décides qui entre
+- 💬 Chat fun : réactions, emojis, GIFs (anonymes via Tenor)
+- 📎 Fichiers jusqu’à 50 Mo chiffrés (auto-supprimés après 7j) • plus gros en P2P direct
+- 📞 Appels audio/vidéo 1:1 en WebRTC (zéro serveur intermédiaire)
+- 🗓️ Calendrier partagé pour toute la famille
+- 🎨 **3 thèmes de ouf** : Jardin Secret 🌿 (douceur nature), Space Hub 🚀 (vibes futuristes), Maison Chaleureuse 🏠 (cocooning total) + mode sombre/clair
+- 📲 PWA : installe-la comme une app sur téléphone ou ordi
 
-- 🔐 **Chiffrement de bout en bout (E2EE)** avec **libsodium** (clés générées côté client, jamais sur le serveur)
-- 👥 **Gestion des membres** : inviter → approuver → discuter (aucun accès sans validation)
-- 💬 **Chat riche** : texte, emojis, réactions (👍 ❤️), GIFs (proxy anonyme Tenor)
-- 📎 **Partage de fichiers** :
-  - **≤ 50 Mo** : upload chiffré (stockage temporaire, auto-supprimé après 7j)
-  - **> 50 Mo** : envoi **P2P direct** via WebRTC (aucun stockage serveur)
-- 📞 **Appels audio/vidéo 1:1** (WebRTC, P2P, chiffrés)
-- 🗓️ **Calendrier partagé** : planifiez rendez-vous, anniversaires, appels
-- 🎨 **3 thèmes personnalisables** :
-  - **🌿 Jardin Secret** : doux, aquarelle, feuilles animées
-  - **🚀 Space Hub** : futuriste, néon, effets de particules
-  - **🏠 Maison Chaleureuse** : feutre, crayon, bois
-- 📲 **PWA installable** : comme une app native sur **Android, iOS, PC**
-- 🌙 **Mode sombre/clair** : respecte les préférences système
-- 🌐 **Multiplateforme** : CasaOS, Docker, Docker Compose, Portainer, Yunohost…
+## 🖼️ Aperçu
+Captures d’écran en cours de préparation – ça arrive bientôt !  
+En attendant, imagine des interfaces magnifiques et super fluides selon le thème que tu choisis. 😏
 
----
+## ⚡ Installation ultra simple (2 minutes top chrono)
 
-## 🚀 Déploiement rapide
+### Le plus facile : CasaOS (parfait pour les débutants)
+1. Apps → Custom Install
+2. Image : `ghcr.io/mx10-ac2n/nook:latest`
+3. Port 3000 → Volume `/appdata/nook` → `/app/data`
+4. Ton token admin apparaît dans `/appdata/nook/data/admin.token` → c’est parti !
 
-### 🏠 Option 1 : CasaOS (recommandé pour les débutants)
-
-1. Dans **CasaOS → Apps → Installer depuis l’image Docker**
-2. Colle : `ghcr.io/mx10-ac2n/nook:latest`
-3. Configure :
-   - **Port** : `3000`
-   - **Volume** : `/casaos/appdata/nook //app/data`
-4. **Démarre** → accède à `http://votre-nas:3000`
-
-> 🔑 Le **token admin** se trouve dans `/casaos/appdata/nook/data/admin.token`
-
----
-
-### 🐳 Option 2 : Docker Compose (universel)
-
+### Pour les pros : Docker Compose
 ```yaml
-# docker-compose.yml
 version: '3.8'
 services:
   nook:
     image: ghcr.io/mx10-ac2n/nook:latest
-    container_name: nook
     ports:
       - "3000:3000"
     volumes:
-      - nook-/app/data
+      - nook-data:/app/data
     restart: unless-stopped
-
 volumes:
-  nook-
+  nook-data:
+```
 
+## 🛠 Stack technique (pour les curieux)
+| Partie       | Techno                  |
+|--------------|-------------------------|
+| Frontend     | Svelte + TypeScript     |
+| Backend      | Rust                    |
+| Chiffrement  | libsodium               |
+| P2P          | WebRTC                  |
+| Déploiement  | Docker, CasaOS, etc.    |
+
+## 🔮 Ce qui arrive bientôt
+- Appels de groupe 🎉
+- Notifications push 📲
+- Encore plus de thèmes et d’options mobile
+- Plein d’améliorations basées sur vos retours !
+
+## 🤝 Tu veux contribuer ?
+Le projet est ouvert à tous !  
+Bug, idée, code, design… tout est bienvenu.  
+Fork → bidouille → PR → on discute ensemble. C’est cool de construire ça à plusieurs. ❤️
+
+<div align="center">
+
+**License** : [MIT](LICENSE)  
+**Si Nook te plaît, claque une ⭐ – ça motive grave !**
+
+</div>

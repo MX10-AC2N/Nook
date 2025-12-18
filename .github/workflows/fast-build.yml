@@ -1,19 +1,42 @@
-name: CI - Nook (Fast Build)
+name: 🚀 Fast Build & Push (Manual)
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
-  workflow_dispatch:  # Lancement manuel
+  workflow_dispatch:  # Déclenchement manuel uniquement
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  setup:
+    name: 🔧 Setup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
   backend:
     name: 🏗️ Backend
     runs-on: ubuntu-latest
+    needs: setup
+
     defaults:
       run:
         working-directory: ./backend
@@ -22,7 +45,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Rust Toolchain
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo
@@ -34,42 +57,94 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build
+      - name: Générer Cargo.lock
+        run: |
+          if [ ! -f "Cargo.lock" ]; then
+            cargo generate-lockfile
+          fi
+
+      - name: Créer DB temporaire
+        run: |
+          mkdir -p data
+          sqlite3 data/temp.db "VACUUM;"
+
+      - name: Installer sqlx-cli
+        run: |
+          cargo install sqlx-cli --version 0.8.6 --no-default-features --features sqlite --locked
+
+      - name: Générer cache SQLx
+        env:
+          DATABASE_URL: "sqlite:data/temp.db"
+        run: |
+          if [ ! -d ".sqlx" ]; then
+            echo "Génération du cache SQLx..."
+            if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
+              sqlx migrate run
+            else
+              sqlite3 data/temp.db "CREATE TABLE IF NOT EXISTS members (id TEXT PRIMARY KEY, name TEXT, approved BOOLEAN);"
+            fi
+            cargo sqlx prepare -- --all-targets
+          fi
+
+      - name: Build Release
+        env:
+          SQLX_OFFLINE: true
         run: cargo build --release
+
+      - name: Vérifier binaire
+        run: |
+          if [ ! -f "target/release/nook-backend" ]; then
+            echo "❌ Binaire manquant"
+            exit 1
+          fi
+          echo "✅ Binaire généré"
 
   frontend:
     name: 🎨 Frontend
     runs-on: ubuntu-latest
+    needs: setup
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: ./frontend
-
-      - name: Build
-        run: npm run build
-        working-directory: ./frontend
-
-      - name: ✅ Vérifier que build/ est généré
+      - name: Vérifier existence frontend/
         run: |
-          if [ ! -d "frontend/build" ]; then
-            echo "❌ ERREUR : le dossier 'build/' n'existe pas !"
-            ls -la frontend/
+          if [ ! -d "frontend" ]; then
+            echo "❌ Dossier frontend absent"
             exit 1
           fi
-          echo "✅ Le dossier 'build/' existe :"
-          ls -la frontend/build/
+
+      - name: Générer package-lock.json
+        working-directory: ./frontend
+        run: |
+          if [ ! -f "package-lock.json" ]; then
+            npm install --package-lock-only
+          fi
+
+      - name: Installer dépendances
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Vérifier build/
+        run: |
+          if [ ! -d "frontend/build" ]; then
+            echo "❌ Dossier build/ absent"
+            exit 1
+          fi
+          echo "✅ Dossier build/ OK"
 
   docker:
-    name: 🐳 Docker (Push vers GHCR)
+    name: 🐳 Build & Push
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     permissions:
@@ -80,23 +155,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build & Push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/nook:latest
-            ghcr.io/${{ github.repository }}/nook:${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:manual-${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
