@@ -125,6 +125,7 @@ async fn main() {
         .route("/api/admin/invite", post(auth::invite_handler))
         .route("/api/admin/members", get(auth::members_handler))
         .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
+        .route("/api/analytics", get(analytics_handler))
         .route("/api/admin/logout", post(auth::admin_logout_handler))
         .route_layer(middleware::from_fn_with_state(
             shared_state.clone(),
