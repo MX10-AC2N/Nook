@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::{StatusCode, header::SET_COOKIE},
+    http::{StatusCode, header::{SET_COOKIE, HeaderName}},
     response::{Json, AppendHeaders},
 };
 use serde::{Deserialize, Serialize};
@@ -244,7 +244,7 @@ pub async fn members_handler(
 pub async fn login_handler(
     State(state): State<SharedState>,
     Json(payload): Json<LoginRequest>,
-) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Vérifie que le membre existe et est approuvé
     let row: Option<(String,)> = sqlx::query_as("SELECT id FROM members WHERE id = ? AND approved = 1")
         .bind(&payload.member_id)
@@ -277,7 +277,7 @@ pub async fn login_handler(
 pub async fn admin_login_handler(
     State(state): State<SharedState>,
     Json(payload): Json<AdminLoginRequest>,
-) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Récupérer l'admin depuis la base de données
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT id, password_hash FROM admins WHERE username = ?"
@@ -318,7 +318,7 @@ pub async fn admin_login_handler(
 
 pub async fn admin_logout_handler(
     State(state): State<SharedState>,
-) -> Result<(AppendHeaders<[(String, String); 1]>, Json<ApiResponse>), StatusCode> {
+) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Cookie d'expiration pour déconnecter
     let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
 
