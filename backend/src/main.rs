@@ -5,7 +5,7 @@ mod webrtc;
 
 use axum::{
     extract::{Query, State},
-    http::{StatusCode, HeaderMap},
+    http::{StatusCode, HeaderMap, header},
     response::{Html, IntoResponse},
     routing::{get, get_service, patch, post},
     Json, Router,
@@ -20,7 +20,6 @@ use tower_http::services::ServeDir;
 use futures_util::{stream::StreamExt, sink::SinkExt};
 use axum::extract::ws::{WebSocket, WebSocketUpgrade, Message};
 use serde::{Deserialize, Serialize};
-use headers::{Cookie, HeaderMapExt};
 
 // Structure pour un message de chat
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -47,6 +46,17 @@ pub struct SharedState {
     pub chat_connections: ActiveConnections,
 }
 
+// Fonction utilitaire pour extraire un cookie depuis les headers
+fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers.get_all(header::COOKIE)
+        .into_iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .map(|cookie| cookie.trim())
+        .find(|cookie| cookie.starts_with(&format!("{}=", name)))
+        .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
+}
+
 // Middleware pour vérifier l'authentification admin
 async fn admin_middleware(
     headers: HeaderMap,
@@ -55,13 +65,10 @@ async fn admin_middleware(
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
     // Extraire le cookie depuis les headers
-    let cookie_header = headers
-        .typed_get::<Cookie>()
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    
-    let admin_token = cookie_header
-        .get("nook_admin")
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let admin_token = match get_cookie(&headers, "nook_admin") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
 
     // Vérifier si le token admin est valide
     let exists: Option<(i64,)> = sqlx::query_as(
@@ -158,17 +165,12 @@ async fn ws_handler(
     State(state): State<SharedState>,
 ) -> impl IntoResponse {
     // Extraire le cookie de session depuis les headers
-    let cookie_header = match headers.typed_get::<Cookie>() {
-        Some(cookie) => cookie,
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
         None => return (StatusCode::UNAUTHORIZED, "Session requise").into_response(),
     };
 
-    let session_token = match cookie_header.get("nook_session") {
-        Some(token) => token,
-        None => return (StatusCode::UNAUTHORIZED, "Session invalide").into_response(),
-    };
-
-    match auth::validate_session_and_get_user(&state.db, session_token).await {
+    match auth::validate_session_and_get_user(&state.db, &session_token).await {
         Ok((member_id, member_name)) => {
             // Accepte la mise à niveau WebSocket
             ws.on_upgrade(move |socket| handle_authenticated_connection(socket, state, member_id, member_name))
