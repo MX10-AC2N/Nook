@@ -24,6 +24,8 @@ lettre = { version = "0.11", default-features = false, features = [
     "webpki-roots",
     "ring"
 ] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
