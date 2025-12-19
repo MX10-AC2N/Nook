@@ -170,7 +170,7 @@
           type="text"
           bind:value={identifier}
           placeholder="Nom d'utilisateur, ID membre ou 'admin'"
-          on:input={detectLoginType}
+          oninput={detectLoginType}
           class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           onkeydown={handleKeyPress}
         />
