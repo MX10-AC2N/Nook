@@ -3,6 +3,11 @@ import sodium from 'libsodium-wrappers';
 // Initialiser libsodium
 await sodium.ready;
 
+// Fonction d'initialisation (maintenue pour compatibilité)
+export async function initSodium() {
+  return sodium.ready;
+}
+
 /**
  * Génère une paire de clés cryptographiques (clé publique/privée)
  * @returns {Promise<{publicKey: string, privateKey: string}>}
@@ -20,7 +25,6 @@ export async function generateKeyPair() {
         console.error('Erreur génération clés:', error);
         throw error;
     }
-}
 
 /**
  * Chiffre un message avec la clé publique du destinataire
