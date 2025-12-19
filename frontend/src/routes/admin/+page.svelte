@@ -301,8 +301,9 @@
 
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Mot de passe actuel</label>
+            <label for="current-password" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Mot de passe actuel</label>
             <input
+              id="current-password"
               type="password"
               bind:value={currentPassword}
               placeholder="admin123 (par défaut)"
@@ -311,8 +312,9 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nouveau mot de passe</label>
+            <label for="new-password-admin" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nouveau mot de passe</label>
             <input
+              id="new-password-admin"
               type="password"
               bind:value={newPassword}
               placeholder="Au moins 8 caractères"
@@ -321,10 +323,10 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Confirmer le nouveau mot de passe</label>
+            <label for="confirm-new-password" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Confirmer le nouveau mot de passe</label>
             <input
-              type="password"
-              bind:value={confirmPassword}
+              id="confirm-new-password"
+              type="password" bind:value={confirmPassword}
               placeholder="Retapez le nouveau mot de passe"
               class="w-full p-3 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)]"
               onkeydown={(e) => e.key === 'Enter' && handleChangePassword()}
