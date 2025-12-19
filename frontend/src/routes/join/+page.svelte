@@ -155,10 +155,11 @@
     {:else if token}
       <div class="space-y-4">
         <div>
-          <label class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
+          <label for="member-name" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
             Votre prénom
           </label>
           <input
+            id="member-name"
             type="text"
             bind:value={name}
             placeholder="Ex: Jean, Marie, Pierre..."
@@ -221,9 +222,5 @@
   @keyframes fade-in {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
-  }
-  
-  .animate-fade-in {
-    animation: fade-in 0.3s ease-out;
   }
 </style>
