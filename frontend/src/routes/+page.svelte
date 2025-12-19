@@ -3,10 +3,11 @@
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
   import { goto } from '$app/navigation';
-  import { checkAuth } from '$lib/auth'; // <-- À créer (voir plus bas)
+  import { checkAuth } from '$lib/auth'; // <-- À créer
 
-  let userStatus = $state('loading'); // 'loading' | 'invited' | 'approved' | 'admin' | 'guest'
+  let userStatus = $state('loading');
   let memberId = $state(null);
+  let name = $state(''); // <-- AJOUTÉ: déclaration de la variable name
   let error = $state('');
 
   // Vérifie le statut de l'utilisateur au chargement
@@ -16,7 +17,6 @@
       userStatus = status.status;
       memberId = status.memberId;
 
-      // Redirige si déjà pleinement authentifié
       if (userStatus === 'approved') {
         goto('/chat');
       } else if (userStatus === 'admin') {
@@ -24,7 +24,7 @@
       }
     } catch (err) {
       console.error('Erreur vérification auth:', err);
-      userStatus = 'guest'; // Par défaut, montre l'interface invitée
+      userStatus = 'guest';
     }
   });
 
@@ -36,7 +36,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
-          // NOTE: Dans la vraie version, il faudra générer une clé publique ici
           public_key: 'temp_key_' + Date.now()
         })
       });
@@ -44,7 +43,7 @@
       if (response.ok) {
         const data = await response.json();
         userStatus = 'invited';
-        memberId = data.memberId; // Le backend doit renvoyer l'ID
+        memberId = data.memberId;
         error = '';
       } else {
         error = 'Erreur lors de la demande. Lien invalide ?';
@@ -54,7 +53,7 @@
     }
   };
 
-  // Pour les membres invités (en attente) : tenter de se connecter
+  // Pour les membres invités : tenter de se connecter
   const tryLogin = async () => {
     if (!memberId) return;
     try {
@@ -65,7 +64,6 @@
       });
 
       if (response.ok) {
-        // Le cookie 'nook_session' est défini par le serveur
         userStatus = 'approved';
         goto('/chat');
       } else {
@@ -113,7 +111,7 @@
         <p class="mt-4 text-[var(--text-secondary)]">Vérification de votre accès...</p>
       </div>
 
-    <!-- ÉTAT : Invité (arrivé via un lien d'invitation) -->
+    <!-- ÉTAT : Invité -->
     {:else if userStatus === 'guest'}
       <p class="text-sm text-[var(--text-secondary)] mb-6">
         Vous avez été invité à rejoindre ce Nook privé.
@@ -131,19 +129,19 @@
         onkeydown={(e) => e.key === 'Enter' && requestToJoin()}
       />
       <button
-        on:click={requestToJoin}
+        onclick={requestToJoin}
         class="w-full py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
       >
         Demander à rejoindre
       </button>
 
-    <!-- ÉTAT : Invité (demande envoyée, en attente d'approbation) -->
+    <!-- ÉTAT : Invité (demande envoyée) -->
     {:else if userStatus === 'invited'}
       <div class="py-6">
         <div class="text-5xl mb-4">⏳</div>
         <h3 class="text-xl font-bold mb-2">Demande envoyée !</h3>
         <p class="text-[var(--text-secondary)] mb-6">
-          L'administrateur du groupe doit approuver votre demande. Vous pouvez vérifier manuellement si c'est fait.
+          L'administrateur du groupe doit approuver votre demande.
         </p>
         {#if error}
           <div class="mb-4 p-3 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-2xl border border-yellow-500/30">
@@ -152,7 +150,7 @@
         {/if}
         <div class="flex gap-3">
           <button
-            on:click={tryLogin}
+            onclick={tryLogin}
             class="flex-1 py-3 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300"
           >
             Me connecter
@@ -166,11 +164,11 @@
         </div>
       </div>
 
-    <!-- ÉTAT : Erreur ou inconnu -->
+    <!-- ÉTAT : Erreur -->
     {:else}
       <div class="py-6">
         <p class="text-[var(--text-secondary)] mb-6">
-          Impossible de déterminer votre statut. Essayez de rafraîchir la page.
+          Impossible de déterminer votre statut.
         </p>
         <a
           href="/"
@@ -193,7 +191,6 @@
 </div>
 
 <style>
-  /* (Conserve les styles d'animation existants du fichier original) */
   @keyframes fade-in {
     from { opacity: 0; transform: translateY(30px); }
     to { opacity: 1; transform: translateY(0); }
