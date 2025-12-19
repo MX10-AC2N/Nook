@@ -142,7 +142,10 @@ async fn main() {
     // Routes publiques
     let public_routes = Router::new()
         .route("/api/join", post(auth::join_handler))
-        .route("/api/login", post(auth::login_handler))
+        .route("/api/login", post(auth::login_handler))  // Ancien login avec ID seulement
+        .route("/api/member/login", post(auth::member_login_handler))  // NOUVEAU login avec mot de passe
+        .route("/api/member/create-password", post(auth::create_password_handler))
+        .route("/api/member/check-password", get(auth::check_password_status_handler))
         .route("/api/admin/login", post(auth::admin_login_handler))
         .route("/api/gifs", get(gif_proxy));
 
@@ -158,14 +161,14 @@ async fn main() {
         ));
 
     // Dans la section des routes admin protégées :
-let admin_routes = Router::new()
-       .route("/api/admin/invite", post(auth::invite_handler))
-       .route("/api/admin/members", get(auth::members_handler))
-       .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
-       .route("/api/admin/check-first-login", get(auth::check_first_login_handler)) // <-- NOUVEAU
-    .route("/api/admin/change-password", post(auth::change_password_handler))    // <-- NOUVEAU
-    .route("/api/admin/logout", post(auth::admin_logout_handler))
-    .route_layer(middleware::from_fn_with_state(
+    let admin_routes = Router::new()
+        .route("/api/admin/invite", post(auth::invite_handler))
+        .route("/api/admin/members", get(auth::members_handler))
+        .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
+        .route("/api/admin/check-first-login", get(auth::check_first_login_handler)) // <-- NOUVEAU
+     .route("/api/admin/change-password", post(auth::change_password_handler))    // <-- NOUVEAU
+     .route("/api/admin/logout", post(auth::admin_logout_handler))
+     .route_layer(middleware::from_fn_with_state(
         shared_state.clone(),
         admin_middleware,
     ));
