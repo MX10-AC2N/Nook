@@ -18,7 +18,7 @@ http = "1.0"
 serde_urlencoded = "0.7"
 reqwest = { version = "0.12", features = ["json"] }
 urlencoding = "2.1"
-chrono = { version = "0.4", feature = ["serde"] }
+chrono = { version = "0.4", features = ["serde"] }
 bcrypt = "0.15"
 headers = "0.3"
 lettre = { version = "0.11", default-features = false, features = [
@@ -29,6 +29,9 @@ lettre = { version = "0.11", default-features = false, features = [
 ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+
+# 🔒 Rate limiting pour la sécurité
+tower-governor = { version = "0.4", features = ["cons"] }
 
 # 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
