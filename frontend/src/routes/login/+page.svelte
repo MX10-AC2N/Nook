@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { loginMember, loginAdmin, checkAuth } from '$lib/authStore';
 
   let identifier = $state(''); // Peut être username ou member_id
   let password = $state('');
@@ -9,34 +10,13 @@
   let loginType = $state('auto'); // 'auto', 'member', 'admin'
   let showAdminHint = $state(false);
 
-  onMount(() => {
+  onMount(async () => {
     // Vérifie si déjà connecté
-    checkExistingSession();
-  });
-
-  const checkExistingSession = async () => {
-    try {
-      // Vérifie session utilisateur
-      const userRes = await fetch('/api/validate-session', {
-        credentials: 'include'
-      });
-      if (userRes.ok) {
-        goto('/chat');
-        return;
-      }
-
-      // Vérifie session admin
-      const adminRes = await fetch('/api/admin/validate', {
-        credentials: 'include'
-      });
-      if (adminRes.ok) {
-        goto('/admin');
-        return;
-      }
-    } catch (err) {
-      // Pas de session, reste sur la page
+    const isAuthenticated = await checkAuth();
+    if (isAuthenticated) {
+      goto('/chat');
     }
-  };
+  });
 
   const detectLoginType = () => {
     // Si l'identifiant est "admin", c'est probablement un admin
@@ -58,62 +38,36 @@
       return;
     }
 
+    if (password.length < 1) {
+      error = 'Le mot de passe est requis';
+      return;
+    }
+
     isLoading = true;
     error = '';
 
     try {
-      let response;
+      let result;
       
       if (loginType === 'admin' || identifier.toLowerCase() === 'admin') {
         // Tentative de connexion admin
-        response = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            username: identifier.trim(), 
-            password: password.trim() 
-          }),
-          credentials: 'include'
-        });
+        result = await loginAdmin(identifier.trim(), password.trim());
         
-        if (response.ok) {
-          // Vérifie si besoin de changer le mot de passe (première connexion)
-          const firstLoginCheck = await fetch('/api/admin/check-first-login', {
-            credentials: 'include'
-          });
-          
-          if (firstLoginCheck.ok) {
-            const data = await firstLoginCheck.json();
-            if (data.needs_password_change) {
-              // Premier login admin, doit changer le mot de passe
-              goto('/admin');
-              return;
-            }
-          }
-          
-          goto('/admin');
-          return;
+        if (result.success) {
+          return; // La redirection est gérée dans loginAdmin
+        } else {
+          // Si échec admin, essaie connexion membre
+          result = await loginMember(identifier.trim(), password.trim());
         }
+      } else {
+        // Tentative de connexion membre
+        result = await loginMember(identifier.trim(), password.trim());
+      }
+
+      if (!result.success) {
+        error = result.error || 'Identifiants incorrects';
       }
       
-      // Si pas admin OU échec admin, essaie connexion membre
-      response = await fetch('/api/member/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          identifier: identifier.trim(), 
-          password: password.trim() 
-        }),
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        goto('/chat');
-      } else if (response.status === 401) {
-        error = 'Identifiants incorrects ou compte non approuvé';
-      } else {
-        error = 'Erreur de connexion';
-      }
     } catch (err) {
       console.error('Login error:', err);
       error = 'Impossible de contacter le serveur';
@@ -123,7 +77,7 @@
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !isLoading) {
       handleLogin();
     }
   };
@@ -143,11 +97,11 @@
     <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Connexion à Nook</h1>
     
     <p class="text-[var(--text-secondary)] mb-8">
-      Accédez à votre espace familial
+      Accédez à votre espace familial sécurisé
     </p>
 
     {#if showAdminHint}
-      <div class="mb-4 p-3 bg-blue-500/20 border border-blue-500/40 text-blue-600 dark:text-blue-400 rounded-xl">
+      <div class="mb-4 p-3 bg-blue-500/20 border border-blue-500/40 text-blue-600 dark:text-blue-400 rounded-xl animate-pulse">
         <p class="text-sm">
           <strong>Connexion admin détectée</strong><br>
           Utilisez vos identifiants administrateur
@@ -156,8 +110,11 @@
     {/if}
 
     {#if error}
-      <div class="mb-4 p-3 bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl border border-red-500/30">
-        {error}
+      <div class="mb-4 p-3 bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl border border-red-500/30 animate-fade-in">
+        <div class="flex items-center gap-2">
+          <span>⚠️</span>
+          <span>{error}</span>
+        </div>
       </div>
     {/if}
 
@@ -173,10 +130,11 @@
           oninput={detectLoginType}
           class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           onkeydown={handleKeyPress}
+          disabled={isLoading}
         />
         <p class="text-xs text-[var(--text-secondary)] mt-2 text-left">
-          Pour les admins : utilisez "admin"<br>
-          Pour les membres : votre nom d'utilisateur ou ID
+          • Pour les <strong>admins</strong> : utilisez "admin"<br>
+          • Pour les <strong>membres</strong> : votre nom d'utilisateur ou ID reçu
         </p>
       </div>
 
@@ -190,15 +148,22 @@
           placeholder="Votre mot de passe"
           class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           onkeydown={handleKeyPress}
+          disabled={isLoading}
         />
       </div>
 
       <button
         onclick={handleLogin}
         disabled={isLoading}
-        class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition"
+        class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
       >
-        {isLoading ? 'Connexion...' : 'Se connecter'}
+        {#if isLoading}
+          <span class="animate-spin">⟳</span>
+          <span>Connexion en cours...</span>
+        {:else}
+          <span>→</span>
+          <span>Se connecter</span>
+        {/if}
       </button>
     </div>
 
@@ -214,16 +179,30 @@
       </div>
 
       <div class="flex flex-col gap-2">
-        <a href="/join" class="text-sm text-[var(--accent)] hover:underline">
-          🎁 J'ai un lien d'invitation
+        <a href="/join" class="text-sm text-[var(--accent)] hover:underline flex items-center gap-1">
+          <span>🎁</span>
+          <span>J'ai un lien d'invitation</span>
         </a>
-        <a href="/create-password" class="text-sm text-[var(--accent)] hover:underline">
-          🔐 Créer un mot de passe (après approbation)
+        <a href="/create-password" class="text-sm text-[var(--accent)] hover:underline flex items-center gap-1">
+          <span>🔐</span>
+          <span>Créer un mot de passe (après approbation)</span>
         </a>
-        <a href="/" class="text-sm text-[var(--text-secondary)] hover:underline mt-2">
-          ← Retour à l'accueil
+        <a href="/" class="text-sm text-[var(--text-secondary)] hover:underline mt-2 flex items-center gap-1">
+          <span>←</span>
+          <span>Retour à l'accueil</span>
         </a>
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+  }
+</style>
