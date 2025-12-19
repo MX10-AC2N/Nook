@@ -12,7 +12,7 @@
   let gifQuery = $state('');
   let gifResults = $state([]);
   let showGifs = $state(false);
-  let currentUser = $state({ id: null, name: null }); // Rempli par le serveur
+  let currentUser = $state({ id: null, name: null });
   let connectionError = $state('');
 
   onMount(async () => {
@@ -20,7 +20,6 @@
     try {
       const sessionRes = await fetch('/api/validate-session', { credentials: 'include' });
       if (!sessionRes.ok) {
-        // Pas de session valide, rediriger vers l'accueil
         goto('/');
         return;
       }
@@ -42,8 +41,7 @@
       localStorage.setItem(`nook_keys_${currentUser.id}`, JSON.stringify(myKeys));
     }
 
-    // 3. Établir la connexion WebSocket SÉCURISÉE
-    // Le cookie 'nook_session' est envoyé automatiquement par le navigateur
+    // 3. Établir la connexion WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
@@ -55,11 +53,10 @@
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        // Le backend envoie désormais des messages structurés 'ChatMessage'
         if (data.from && data.content) {
           messages = [...messages, {
             id: `${data.from}_${Date.now()}`,
-            content: data.content, // Le serveur a déjà déchiffré/diffusé
+            content: data.content,
             sender: data.from_name,
             senderId: data.from,
             timestamp: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -83,9 +80,7 @@
 
   const sendMessage = () => {
     if (!input.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
-    // Envoi du message texte brut. Le chiffrement E2EE se ferait ICI dans une vraie implémentation.
-    // Pour la V1, on envoie en clair (le SSL/TLS du WebSocket protège).
-    ws.send(input); // Le backend attend juste le texte, pas un JSON complexe.
+    ws.send(input);
     input = '';
   };
 
@@ -98,7 +93,7 @@
 
   const sendGif = (url) => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(`[GIF] ${url}`); // Marqueur spécial pour les GIFs
+    ws.send(`[GIF] ${url}`);
     showGifs = false;
     gifQuery = '';
   };
@@ -107,8 +102,7 @@
     const msg = messages.find(m => m.id === msgId);
     if (msg) {
       msg.reactions.push(emoji);
-      messages = messages; // Mise à jour réactive
-      // Optionnel : envoyer la réaction au serveur via ws
+      messages = messages;
     }
   };
 </script>
@@ -155,9 +149,9 @@
             <p class="break-words">{msg.content}</p>
           {/if}
           <div class="mt-2 flex gap-1">
-            <button on:click={() => addReaction(msg.id, '👍')} class="text-lg hover:scale-125 transition">👍</button>
-            <button on:click={() => addReaction(msg.id, '❤️')} class="text-lg hover:scale-125 transition">❤️</button>
-            <button on:click={() => addReaction(msg.id, '😂')} class="text-lg hover:scale-125 transition">😂</button>
+            <button onclick={() => addReaction(msg.id, '👍')} class="text-lg hover:scale-125 transition">👍</button>
+            <button onclick={() => addReaction(msg.id, '❤️')} class="text-lg hover:scale-125 transition">❤️</button>
+            <button onclick={() => addReaction(msg.id, '😂')} class="text-lg hover:scale-125 transition">😂</button>
           </div>
         </div>
       </div>
@@ -167,24 +161,24 @@
   <!-- Panel GIFs -->
   {#if showGifs}
     <div class="p-4 backdrop-blur-xl bg-white/10 border-t border-white/20">
-      <input type="text" bind:value={gifQuery} placeholder="Rechercher un GIF..." on:keydown={(e) => e.key === 'Enter' && searchGifs()} class="w-full p-3 rounded-xl bg-white/20 border border-white/30 mb-3" />
+      <input type="text" bind:value={gifQuery} placeholder="Rechercher un GIF..." onkeydown={(e) => e.key === 'Enter' && searchGifs()} class="w-full p-3 rounded-xl bg-white/20 border border-white/30 mb-3" />
       <div class="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
         {#each gifResults as gif}
-          <button on:click={() => sendGif(gif.media[0].gif.url)} class="rounded-xl overflow-hidden">
+          <button onclick={() => sendGif(gif.media[0].gif.url)} class="rounded-xl overflow-hidden">
             <img src={gif.media[0].gif.url} alt="GIF" class="w-full h-auto" loading="lazy" />
           </button>
         {/each}
       </div>
-      <button on:click={() => showGifs = false} class="mt-2 text-sm text-[var(--accent)]">Fermer</button>
+      <button onclick={() => showGifs = false} class="mt-2 text-sm text-[var(--accent)]">Fermer</button>
     </div>
   {/if}
 
   <!-- Barre de saisie -->
   <div class="p-4 backdrop-blur-xl bg-white/10 border-t border-white/20">
     <div class="flex gap-2">
-      <input type="text" bind:value={input} placeholder="Écrivez un message..." on:keydown={(e) => e.key === 'Enter' && sendMessage()} class="flex-1 p-3 rounded-xl bg-white/20 border border-white/30" />
-      <button on:click={() => showGifs = !showGifs} class="p-3 rounded-xl bg-white/20 border border-white/30">GIF</button>
-      <button on:click={sendMessage} class="p-3 bg-[var(--accent)] text-white rounded-xl">Envoyer</button>
+      <input type="text" bind:value={input} placeholder="Écrivez un message..." onkeydown={(e) => e.key === 'Enter' && sendMessage()} class="flex-1 p-3 rounded-xl bg-white/20 border border-white/30" />
+      <button onclick={() => showGifs = !showGifs} class="p-3 rounded-xl bg-white/20 border border-white/30">GIF</button>
+      <button onclick={sendMessage} class="p-3 bg-[var(--accent)] text-white rounded-xl">Envoyer</button>
     </div>
   </div>
 
