@@ -26,4 +26,13 @@
     "typescript": "^5.0.0",
     "@types/libsodium-wrappers": "^0.7.13"
   }
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./jsconfig.json",
+    "check:watch": "svelte-check --tsconfig ./jsconfig.json --watch"
+  }
+}
 }
