@@ -142,16 +142,17 @@ async fn main() {
     // Routes publiques
     let public_routes = Router::new()
         .route("/api/join", post(auth::join_handler))
-        .route("/api/login", post(auth::login_handler))  // Ancien login avec ID seulement
-        .route("/api/member/login", post(auth::member_login_handler))  // NOUVEAU login avec mot de passe
+        .route("/api/login", post(auth::login_handler))
+        .route("/api/member/login", post(auth::member_login_handler))
         .route("/api/member/create-password", post(auth::create_password_handler))
         .route("/api/member/check-password", get(auth::check_password_status_handler))
         .route("/api/admin/login", post(auth::admin_login_handler))
+        .route("/api/validate-session", get(auth::validate_session_handler))
+        .route("/api/admin/validate", get(auth::admin_validate_handler))
         .route("/api/gifs", get(gif_proxy));
 
     // Routes utilisateur (protégées par session)
     let user_routes = Router::new()
-        .route("/api/validate-session", get(auth::validate_session_handler))
         .route("/api/upload", post(upload::handle_upload))
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
@@ -160,24 +161,24 @@ async fn main() {
             user_middleware,
         ));
 
-    // Dans la section des routes admin protégées :
+    // Routes admin protégées
     let admin_routes = Router::new()
         .route("/api/admin/invite", post(auth::invite_handler))
         .route("/api/admin/members", get(auth::members_handler))
         .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
-        .route("/api/admin/check-first-login", get(auth::check_first_login_handler)) // <-- NOUVEAU
-     .route("/api/admin/change-password", post(auth::change_password_handler))    // <-- NOUVEAU
-     .route("/api/admin/logout", post(auth::admin_logout_handler))
-     .route_layer(middleware::from_fn_with_state(
-        shared_state.clone(),
-        admin_middleware,
-    ));
+        .route("/api/admin/check-first-login", get(auth::check_first_login_handler))
+        .route("/api/admin/change-password", post(auth::change_password_handler))
+        .route("/api/admin/logout", post(auth::admin_logout_handler))
+        .route_layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            admin_middleware,
+        ));
 
     let app = Router::new()
         .merge(public_routes)
         .merge(user_routes)
         .merge(admin_routes)
-        .route("/ws", get(ws_handler)) // WebSocket avec validation manuelle
+        .route("/ws", get(ws_handler))
         // Assets statiques
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
