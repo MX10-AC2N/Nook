@@ -3,7 +3,7 @@
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
   import { goto } from '$app/navigation';
-  import { initSodium, generateKeyPair, encryptMessage, decryptMessage } from '$lib/crypto';
+  import { generateKeyPair, encryptMessage, decryptMessage } from '$lib/crypto';
 
   let input = $state('');
   let messages = $state([]);
