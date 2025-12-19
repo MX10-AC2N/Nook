@@ -335,7 +335,7 @@ pub async fn member_login_handler(
     Json(payload): Json<MemberLoginRequest>,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Chercher par username ou member_id
-    let row: Option<(String, String, String)> = sqlx::query_as(
+    let row: Option<(String, String, Option<String>)> = sqlx::query_as(
         "SELECT id, name, password_hash FROM members 
          WHERE (id = ? OR username = ?) AND approved = 1"
     )
@@ -349,15 +349,16 @@ pub async fn member_login_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    let (member_id, member_name, stored_hash) = row.unwrap();
+    let (member_id, member_name, stored_hash_opt) = row.unwrap();
     
     // Vérifier si le membre a un mot de passe défini
-    if stored_hash.is_empty() || stored_hash.is_null() {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    if !verify(&payload.password, &stored_hash).unwrap_or(false) {
-        return Err(StatusCode::UNAUTHORIZED);
+    match stored_hash_opt {
+        Some(stored_hash) if !stored_hash.is_empty() => {
+            if !verify(&payload.password, &stored_hash).unwrap_or(false) {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        },
+        _ => return Err(StatusCode::UNAUTHORIZED),
     }
 
     let session_token = create_session(&state.db, &member_id).await?;
@@ -428,7 +429,7 @@ pub async fn admin_logout_handler(
     ))
 }
 
-// === NOUVEAU : Handler de création de mot de passe ===
+// === Handler de création de mot de passe ===
 
 pub async fn create_password_handler(
     headers: HeaderMap,
@@ -464,7 +465,7 @@ pub async fn create_password_handler(
     }))
 }
 
-// === NOUVEAU : Handler de vérification de statut de mot de passe ===
+// === Handler de vérification de statut de mot de passe ===
 
 pub async fn check_password_status_handler(
     headers: HeaderMap,
@@ -480,7 +481,7 @@ pub async fn check_password_status_handler(
     let (member_id, member_name) = validate_session_and_get_user(&state.db, &session_token).await?;
 
     // Vérifier si le membre a un mot de passe
-    let row: Option<(String,)> = sqlx::query_as(
+    let row: Option<(Option<String>,)> = sqlx::query_as(
         "SELECT password_hash FROM members WHERE id = ?"
     )
     .bind(&member_id)
@@ -489,8 +490,8 @@ pub async fn check_password_status_handler(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let has_password = match row {
-        Some((hash,)) => !hash.is_empty(),
-        None => false,
+        Some((Some(hash),)) => !hash.is_empty(),
+        _ => false,
     };
 
     Ok(Json(PasswordStatus {
@@ -500,7 +501,7 @@ pub async fn check_password_status_handler(
     }))
 }
 
-// === NOUVEAU : Handler de validation de session ===
+// === Handler de validation de session ===
 
 pub async fn validate_session_handler(
     headers: HeaderMap,
@@ -522,7 +523,7 @@ pub async fn validate_session_handler(
     }
 }
 
-// === NOUVEAU : Handler de validation admin ===
+// === Handler de validation admin ===
 
 pub async fn admin_validate_handler(
     headers: HeaderMap,
