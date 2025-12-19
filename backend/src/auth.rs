@@ -37,8 +37,6 @@ pub struct ChangePasswordRequest {
 
 #[derive(Deserialize)]
 pub struct CreatePasswordRequest {
-    pub member_id: String,
-    pub username: String,
     pub password: String,
 }
 
@@ -332,6 +330,52 @@ pub async fn login_handler(
     ))
 }
 
+pub async fn member_login_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<MemberLoginRequest>,
+) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
+    // Chercher par username ou member_id
+    let row: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT id, name, password_hash FROM members 
+         WHERE (id = ? OR username = ?) AND approved = 1"
+    )
+    .bind(&payload.identifier)
+    .bind(&payload.identifier)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let (member_id, member_name, stored_hash) = row.unwrap();
+    
+    // Vérifier si le membre a un mot de passe défini
+    if stored_hash.is_empty() || stored_hash.is_null() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    if !verify(&payload.password, &stored_hash).unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let session_token = create_session(&state.db, &member_id).await?;
+
+    let cookie = format!(
+        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
+        session_token
+    );
+
+    Ok((
+        AppendHeaders([(SET_COOKIE, cookie)]),
+        Json(ApiResponse {
+            success: true,
+            message: format!("Connecté en tant que {}", member_name),
+        })
+    ))
+}
+
 pub async fn admin_login_handler(
     State(state): State<SharedState>,
     Json(payload): Json<AdminLoginRequest>,
@@ -384,7 +428,121 @@ pub async fn admin_logout_handler(
     ))
 }
 
-// === NOUVEAU : Utilitaires cookies ===
+// === NOUVEAU : Handler de création de mot de passe ===
+
+pub async fn create_password_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+    Json(payload): Json<CreatePasswordRequest>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    // Extraire le cookie de session
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Valider la session et récupérer l'ID du membre
+    let (member_id, _) = validate_session_and_get_user(&state.db, &session_token).await?;
+
+    // Hasher le mot de passe
+    let password_hash = hash(&payload.password, DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Mettre à jour le membre dans la base de données
+    sqlx::query(
+        "UPDATE members SET password_hash = ?, has_password = 1 WHERE id = ?"
+    )
+    .bind(&password_hash)
+    .bind(&member_id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "Mot de passe créé avec succès".to_string(),
+    }))
+}
+
+// === NOUVEAU : Handler de vérification de statut de mot de passe ===
+
+pub async fn check_password_status_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<PasswordStatus>, StatusCode> {
+    // Extraire le cookie de session
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    // Valider la session et récupérer les infos du membre
+    let (member_id, member_name) = validate_session_and_get_user(&state.db, &session_token).await?;
+
+    // Vérifier si le membre a un mot de passe
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT password_hash FROM members WHERE id = ?"
+    )
+    .bind(&member_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let has_password = match row {
+        Some((hash,)) => !hash.is_empty(),
+        None => false,
+    };
+
+    Ok(Json(PasswordStatus {
+        has_password,
+        name: member_name,
+        member_id,
+    }))
+}
+
+// === NOUVEAU : Handler de validation de session ===
+
+pub async fn validate_session_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<SessionInfo>, StatusCode> {
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    match validate_session_and_get_user(&state.db, &session_token).await {
+        Ok((member_id, member_name)) => {
+            Ok(Json(SessionInfo {
+                member_id,
+                member_name,
+            }))
+        },
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+// === NOUVEAU : Handler de validation admin ===
+
+pub async fn admin_validate_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    let admin_token = match get_cookie(&headers, "nook_admin") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    match validate_admin_session(&state.db, &admin_token).await {
+        Ok(_) => Ok(Json(ApiResponse {
+            success: true,
+            message: "Session admin valide".to_string(),
+        })),
+        Err(_) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+// === Utilitaires cookies ===
 
 fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get_all(axum::http::header::COOKIE)
@@ -396,7 +554,7 @@ fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
 }
 
-// === NOUVEAU : Vérification première connexion admin ===
+// === Vérification première connexion admin ===
 
 pub async fn check_first_login_handler(
     headers: HeaderMap,
@@ -430,7 +588,7 @@ pub async fn check_first_login_handler(
     }))
 }
 
-// === NOUVEAU : Changement de mot de passe admin ===
+// === Changement de mot de passe admin ===
 
 pub async fn change_password_handler(
     State(state): State<SharedState>,
@@ -476,164 +634,4 @@ pub async fn change_password_handler(
         success: true,
         message: "Mot de passe changé avec succès".to_string(),
     }))
-}
-
-// === NOUVEAU : Création de mot de passe membre ===
-
-pub async fn create_password_handler(
-    State(state): State<SharedState>,
-    Json(payload): Json<CreatePasswordRequest>,
-) -> Result<Json<ApiResponse>, StatusCode> {
-    let row: Option<(bool,)> = sqlx::query_as(
-        "SELECT approved FROM members WHERE id = ?"
-    )
-    .bind(&payload.member_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    match row {
-        Some((approved,)) => {
-            if !approved {
-                return Err(StatusCode::UNAUTHORIZED);
-            }
-        },
-        None => return Err(StatusCode::NOT_FOUND),
-    }
-
-    if !payload.username.is_empty() {
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT id FROM members WHERE username = ? AND id != ?"
-        )
-        .bind(&payload.username)
-        .bind(&payload.member_id)
-        .fetch_optional(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        if existing.is_some() {
-            return Ok(Json(ApiResponse {
-                success: false,
-                message: "Ce nom d'utilisateur est déjà pris".to_string(),
-            }));
-        }
-    }
-
-    let password_hash = hash(&payload.password, DEFAULT_COST)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if !payload.username.is_empty() {
-        sqlx::query(
-            "UPDATE members SET password_hash = ?, username = ?, has_password = 1 WHERE id = ?"
-        )
-        .bind(&password_hash)
-        .bind(&payload.username)
-        .bind(&payload.member_id)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    } else {
-        sqlx::query(
-            "UPDATE members SET password_hash = ?, has_password = 1 WHERE id = ?"
-        )
-        .bind(&password_hash)
-        .bind(&payload.member_id)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-
-    Ok(Json(ApiResponse {
-        success: true,
-        message: "Mot de passe créé avec succès".to_string(),
-    }))
-}
-
-// === NOUVEAU : Login membre avec mot de passe ===
-
-pub async fn member_login_handler(
-    State(state): State<SharedState>,
-    Json(payload): Json<MemberLoginRequest>,
-) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
-    let row: Option<(String, String, String)> = sqlx::query_as(
-        "SELECT id, password_hash, name FROM members WHERE (id = ? OR username = ?) AND approved = 1 AND has_password = 1"
-    )
-    .bind(&payload.identifier)
-    .bind(&payload.identifier)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    if row.is_none() {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let (member_id, stored_hash, member_name) = row.unwrap();
-
-    if !verify(&payload.password, &stored_hash).unwrap_or(false) {
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let session_token = create_session(&state.db, &member_id).await?;
-
-    let cookie = format!(
-        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
-        session_token
-    );
-
-    Ok((
-        AppendHeaders([(SET_COOKIE, cookie)]),
-        Json(ApiResponse {
-            success: true,
-            message: format!("Connexion réussie. Bienvenue {} !", member_name),
-        })
-    ))
-}
-
-// === NOUVEAU : Vérification état mot de passe membre ===
-
-pub async fn check_password_status_handler(
-    State(state): State<SharedState>,
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<PasswordStatus>, StatusCode> {
-    let member_id = match params.get("member_id") {
-        Some(id) => id,
-        None => return Err(StatusCode::BAD_REQUEST),
-    };
-
-    let row: Option<(bool, String)> = sqlx::query_as(
-        "SELECT has_password, name FROM members WHERE id = ? AND approved = 1"
-    )
-    .bind(member_id)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    match row {
-        Some((has_password, name)) => {
-            Ok(Json(PasswordStatus {
-                has_password,
-                name,
-                member_id: member_id.to_string(),
-            }))
-        },
-        None => Err(StatusCode::NOT_FOUND),
-    }
-}
-
-// === Validation de session pour le frontend ===
-
-pub async fn validate_session_handler(
-    headers: HeaderMap,
-    State(state): State<SharedState>,
-) -> Result<Json<SessionInfo>, StatusCode> {
-    let session_token = match get_cookie(&headers, "nook_session") {
-        Some(token) => token,
-        None => return Err(StatusCode::UNAUTHORIZED),
-    };
-
-    match validate_session_and_get_user(&state.db, &session_token).await {
-        Ok((member_id, member_name)) => Ok(Json(SessionInfo { member_id, member_name })),
-        Err(_) => Err(StatusCode::UNAUTHORIZED),
-    }
 }
