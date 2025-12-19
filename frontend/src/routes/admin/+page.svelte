@@ -119,24 +119,33 @@
   };
 
   const loadMembers = async () => {
-    try {
-      isLoading = true;
-      adminError = null;
-      const res = await fetch('/api/admin/members', {
-        credentials: 'include'
-      });
-      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
-      const data = await res.json();
-      members = data.members || [];
-    } catch (err) {
-      adminError = `Erreur : ${err.message}`;
-      if (err.message.includes('401')) {
-        isAdminAuthenticated = false;
-      }
-    } finally {
-      isLoading = false;
+  try {
+    isLoading = true;
+    adminError = null;
+    const res = await fetch('/api/admin/members', {
+      credentials: 'include'
+    });
+    
+    console.log('Status:', res.status, res.statusText); // <-- Ajoute ce log
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Erreur détaillée:', errorText);
+      throw new Error(`Erreur ${res.status}: ${errorText}`);
     }
-  };
+    
+    const data = await res.json();
+    members = data.members || [];
+  } catch (err) {
+    console.error('Erreur loadMembers:', err);
+    adminError = `Erreur : ${err.message}`;
+    if (err.message.includes('401') || err.message.includes('500')) {
+      isAdminAuthenticated = false;
+    }
+  } finally {
+    isLoading = false;
+  }
+};
 
   const copyLink = async () => {
     try {
