@@ -120,10 +120,11 @@
 
     <div class="space-y-4">
       <div>
-        <label class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
+        <label for="login-identifier" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
           Identifiant
         </label>
         <input
+          id="login-identifier"
           type="text"
           bind:value={identifier}
           placeholder="Nom d'utilisateur, ID membre ou 'admin'"
@@ -139,10 +140,11 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
+        <label for="login-password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
           Mot de passe
         </label>
         <input
+          id="login-password"
           type="password"
           bind:value={password}
           placeholder="Votre mot de passe"
