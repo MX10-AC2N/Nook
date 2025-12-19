@@ -1,10 +1,9 @@
 <script>
-  import '$lib/ui/themes/jardin.css';
-  import '$lib/ui/themes/space.css';
-  import '$lib/ui/themes/maison.css';
   import { onMount } from 'svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { page } from '$app/stores'; // Pour highlight page active
+  import { page } from '$app/stores';
+  import { isAuthenticated, isLoading, checkAuth } from '$lib/authStore';
+  import { goto } from '$app/navigation';
 
   let canvas;
   let ctx;
@@ -46,7 +45,7 @@
   const createParticles = () => {
     const config = themeConfigs[$currentTheme] || themeConfigs['jardin-secret'];
     const isMobile = window.innerWidth < 768;
-    const count = isMobile ? Math.floor(config.count / 2) : config.count; // Moins sur mobile pour perf
+    const count = isMobile ? Math.floor(config.count / 2) : config.count;
 
     particles = [];
     for (let i = 0; i < count; i++) {
@@ -101,6 +100,19 @@
   };
 
   onMount(() => {
+    // Vérifier l'authentification et protéger les routes
+    const checkAndRedirect = async () => {
+      const authValid = await checkAuth();
+      const publicPaths = ['/', '/login', '/join'];
+      
+      if (!authValid && !publicPaths.includes($page.url.pathname)) {
+        goto('/login');
+      }
+    };
+    
+    checkAndRedirect();
+
+    // Initialiser le canvas
     ctx = canvas.getContext('2d');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -138,14 +150,20 @@
 ></canvas>
 
 <!-- Contenu pages -->
-<slot />
+{#if isLoading}
+  <div class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+      <div class="text-6xl mb-4 animate-spin">🌀</div>
+      <p class="text-[var(--text-secondary)]">Chargement...</p>
+    </div>
+  </div>
+{:else}
+  <slot />
+{/if}
 
 <!-- Bottom navigation mobile -->
+{#if isAuthenticated && !$page.url.pathname.startsWith('/admin')}
 <nav class="fixed bottom-0 left-0 right-0 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 flex justify-around py-2 rounded-t-3xl shadow-2xl md:hidden z-50">
-  <a href="/" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/' ? 'text-[var(--accent)]' : '' }">
-    <span class="text-2xl">🏠</span>
-    <span class="text-xs">Accueil</span>
-  </a>
   <a href="/chat" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">💬</span>
     <span class="text-xs">Chat</span>
@@ -162,32 +180,39 @@
     <span class="text-2xl">🗳️</span>
     <span class="text-xs">Sondages</span>
   </a>
+  <a href="/settings" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/settings' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">⚙️</span>
+    <span class="text-xs">Réglages</span>
+  </a>
 </nav>
+{/if}
 
 <!-- Sidebar desktop/tablette -->
+{#if isAuthenticated && !$page.url.pathname.startsWith('/admin')}
 <aside class="hidden md:block fixed left-0 top-0 h-screen w-24 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-r border-white/20 p-4 flex flex-col items-center gap-8 shadow-2xl z-50">
-  <a href="/" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🏠</a>
   <a href="/chat" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">💬</a>
   <a href="/call" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📞</a>
   <a href="/calendar" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📅</a>
   <a href="/polls" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/polls' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🗳️</a>
-  <a href="/admin" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/admin' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">⚙️</a>
+  <a href="/settings" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/settings' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">⚙️</a>
+  <a href="/admin" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/admin' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">👑</a>
 </aside>
+{/if}
 
 <style>
   /* Responsive optimisations */
   @media (max-width: 767px) {
-    aside { display: none; } /* Pas de sidebar sur mobile */
-    nav { padding-bottom: env(safe-area-inset-bottom); } /* Pour iPhone notch */
+    aside { display: none; }
+    nav { padding-bottom: env(safe-area-inset-bottom); }
   }
 
   @media (min-width: 768px) and (max-width: 1024px) {
-    aside { width: 6rem; gap: 2rem; } /* Tablette : sidebar compacte */
+    aside { width: 6rem; gap: 2rem; }
     aside a { font-size: 1.5rem; }
   }
 
   @media (min-width: 1025px) {
-    aside { width: 7rem; gap: 3rem; } /* PC : sidebar confortable */
+    aside { width: 7rem; gap: 3rem; }
     aside a { font-size: 2rem; }
   }
 </style>
