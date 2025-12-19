@@ -31,7 +31,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # 🔒 Rate limiting pour la sécurité
-tower-governor = { version = "0.4", features = ["cons"] }
+tower_governor = { version = "0.4", features = ["cons"] }
 
 # 🔒 Fixes pour éviter edition2024
 home = "=0.5.11"
