@@ -12,13 +12,16 @@ pub async fn init_db() -> AppState {
     let db_url = "sqlite:/app/data/members.db?mode=rwc";
     let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
 
-    // Table membres
+    // Table membres MODIFIÉE
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS members (
             id TEXT PRIMARY KEY,
+            username TEXT UNIQUE,
             name TEXT NOT NULL,
+            password_hash TEXT,
             public_key TEXT NOT NULL,
             approved BOOLEAN DEFAULT 0,
+            has_password BOOLEAN DEFAULT 0,
             joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )",
     )
@@ -76,7 +79,7 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
-    // Créer un admin par défaut si la table est vide
+    // Créer un admin par défaut
     let admin_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM admins")
         .fetch_one(&pool)
         .await
@@ -84,7 +87,6 @@ pub async fn init_db() -> AppState {
     
     if admin_count.0 == 0 {
         let admin_id = Uuid::new_v4().to_string();
-        // IMPORTANT: À changer après la première connexion!
         let default_password = "admin123";
         let password_hash = hash(default_password, DEFAULT_COST).unwrap();
         
@@ -98,10 +100,8 @@ pub async fn init_db() -> AppState {
         
         println!("==================================================");
         println!("ADMIN PAR DÉFAUT CRÉÉ !");
-        println!("Username: admin");
-        println!("Password: admin123");
+        println!("Username: admin | Password: admin123");
         println!("==================================================");
-        println!("CHANGEZ CE MOT DE PASSE IMMÉDIATEMENT APRÈS CONNEXION !");
     }
 
     AppState { db: pool }
