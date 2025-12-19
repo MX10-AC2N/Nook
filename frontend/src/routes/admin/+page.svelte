@@ -155,7 +155,7 @@
       </h1>
     </div>
 
-    {/* 1. FORMULAIRE DE CONNEXION ADMIN */}
+    <!-- 1. FORMULAIRE DE CONNEXION ADMIN -->
     {#if !isAdminAuthenticated}
       <div>
         {#if loginError}
@@ -177,7 +177,7 @@
           class="w-full p-3 mb-6 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)]"
         />
         <button
-          on:click={handleAdminLogin}
+          onclick={handleAdminLogin}
           disabled={isLoggingIn}
           class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl disabled:opacity-60"
         >
@@ -189,10 +189,10 @@
       </div>
 
     {:else}
-    {/* 2. PANNEAU ADMIN (Affiché après connexion réussie) */}
+    <!-- 2. PANNEAU ADMIN (Affiché après connexion réussie) -->
       <!-- Bouton Déconnexion -->
       <div class="text-right mb-4">
-        <button on:click={handleLogout} class="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)]">
+        <button onclick={handleLogout} class="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)]">
           Déconnexion
         </button>
       </div>
@@ -200,14 +200,14 @@
       {#if adminError}
         <div class="mb-4 p-3 bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-400 rounded-2xl flex justify-between">
           <span>{adminError}</span>
-          <button on:click={() => adminError = null} class="font-bold">×</button>
+          <button onclick={() => adminError = null} class="font-bold">×</button>
         </div>
       {/if}
 
       <!-- Bouton inviter -->
       <div class="mb-6">
         <button
-          on:click={createInvite}
+          onclick={createInvite}
           disabled={isLoading}
           class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl disabled:opacity-60"
         >
@@ -221,7 +221,7 @@
           <p class="font-medium mb-2">Lien d'invitation :</p>
           <div class="flex gap-2">
             <input type="text" value={inviteLink} readonly class="flex-1 p-2 rounded bg-white/30 text-sm" />
-            <button on:click={copyLink} class="px-4 bg-[var(--accent)/80] text-white rounded">
+            <button onclick={copyLink} class="px-4 bg-[var(--accent)/80] text-white rounded">
               {copyFeedback ? '✓' : 'Copier'}
             </button>
           </div>
@@ -247,7 +247,7 @@
                   {member.approved ? '✓ Approuvé' : 'En attente'}
                 </span>
                 {#if !member.approved}
-                  <button on:click={() => approveMember(member.id)} class="px-3 py-1 bg-green-500 text-white rounded text-sm">
+                  <button onclick={() => approveMember(member.id)} class="px-3 py-1 bg-green-500 text-white rounded text-sm">
                     Approuver
                   </button>
                 {/if}
