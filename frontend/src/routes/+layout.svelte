@@ -4,6 +4,7 @@
   import { page } from '$app/stores';
   import { isAuthenticated, isLoading, checkAuth } from '$lib/authStore';
   import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
 
   let canvas;
   let ctx;
@@ -65,6 +66,8 @@
   };
 
   const animate = () => {
+    if (!ctx) return;
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     particles.forEach(p => {
@@ -100,24 +103,28 @@
   };
 
   onMount(() => {
-    // Vérifier l'authentification et protéger les routes
-    const checkAndRedirect = async () => {
-      const authValid = await checkAuth();
-      const publicPaths = ['/', '/login', '/join'];
-      
-      if (!authValid && !publicPaths.includes($page.url.pathname)) {
-        goto('/login');
+    if (!browser) return;
+    
+    // Initialiser le canvas
+    if (canvas) {
+      ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      createParticles();
+      animate();
+    }
+
+    // Vérifier l'authentification en arrière-plan sans bloquer
+    const initAuth = async () => {
+      try {
+        await checkAuth();
+      } catch (error) {
+        console.warn('Auth check failed (might be normal if not logged in):', error);
       }
     };
     
-    checkAndRedirect();
-
-    // Initialiser le canvas
-    ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    createParticles();
-    animate();
+    // Lancer la vérification d'authentification mais ne pas attendre
+    initAuth();
 
     window.addEventListener('mousemove', (e) => {
       mouse.x = e.clientX;
@@ -125,18 +132,24 @@
     });
 
     const unsubscribe = currentTheme.subscribe(() => {
-      createParticles();
+      if (canvas) {
+        createParticles();
+      }
     });
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      createParticles();
+      if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        createParticles();
+      }
     };
     window.addEventListener('resize', resize);
 
     return () => {
-      cancelAnimationFrame(animationId);
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
       unsubscribe();
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', () => {});
@@ -149,20 +162,11 @@
   class="fixed inset-0 -z-10 pointer-events-none"
 ></canvas>
 
-<!-- Contenu pages -->
-{#if isLoading}
-  <div class="min-h-screen flex items-center justify-center">
-    <div class="text-center">
-      <div class="text-6xl mb-4 animate-spin">🌀</div>
-      <p class="text-[var(--text-secondary)]">Chargement...</p>
-    </div>
-  </div>
-{:else}
-  <slot />
-{/if}
+<!-- Contenu pages - TOUJOURS AFFICHER SANS BLOQUER -->
+<slot />
 
-<!-- Bottom navigation mobile -->
-{#if isAuthenticated && !$page.url.pathname.startsWith('/admin')}
+<!-- Bottom navigation mobile - UNIQUEMENT SI AUTHENTIFIÉ -->
+{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password'}
 <nav class="fixed bottom-0 left-0 right-0 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 flex justify-around py-2 rounded-t-3xl shadow-2xl md:hidden z-50">
   <a href="/chat" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">💬</span>
@@ -176,9 +180,9 @@
     <span class="text-2xl">📅</span>
     <span class="text-xs">Calendrier</span>
   </a>
-  <a href="/polls" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/polls' ? 'text-[var(--accent)]' : '' }">
-    <span class="text-2xl">🗳️</span>
-    <span class="text-xs">Sondages</span>
+  <a href="/events" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/events' ? 'text-[var(--accent)]' : '' }">
+    <span class="text-2xl">🗓️</span>
+    <span class="text-xs">Événements</span>
   </a>
   <a href="/settings" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/settings' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">⚙️</span>
@@ -187,15 +191,17 @@
 </nav>
 {/if}
 
-<!-- Sidebar desktop/tablette -->
-{#if isAuthenticated && !$page.url.pathname.startsWith('/admin')}
+<!-- Sidebar desktop/tablette - UNIQUEMENT SI AUTHENTIFIÉ -->
+{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password'}
 <aside class="hidden md:block fixed left-0 top-0 h-screen w-24 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-r border-white/20 p-4 flex flex-col items-center gap-8 shadow-2xl z-50">
   <a href="/chat" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">💬</a>
   <a href="/call" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📞</a>
   <a href="/calendar" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📅</a>
-  <a href="/polls" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/polls' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🗳️</a>
+  <a href="/events" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/events' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">🗓️</a>
   <a href="/settings" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/settings' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">⚙️</a>
-  <a href="/admin" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/admin' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">👑</a>
+  {#if $isAuthenticated}
+    <a href="/admin" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/admin' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">👑</a>
+  {/if}
 </aside>
 {/if}
 
