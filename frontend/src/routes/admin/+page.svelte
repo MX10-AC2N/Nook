@@ -16,7 +16,8 @@
   let isLoading = $state(false);
   let adminError = $state(null);
   let copyFeedback = $state(false);
-  let needsPasswordChange = $state(false); // <-- NOUVEAU : détection première connexion
+  let needsPasswordChange = $state(false);
+  let passwordLinkFeedback = $state(null); // Pour les feedbacks de liens
 
   // Vérifie au chargement si une session admin existe déjà
   onMount(async () => {
@@ -26,7 +27,6 @@
       });
       
       if (checkResponse.ok) {
-        // Vérifie si c'est la première connexion (mot de passe par défaut)
         const firstLoginCheck = await fetch('/api/admin/check-first-login', {
           credentials: 'include'
         });
@@ -35,7 +35,7 @@
           const data = await firstLoginCheck.json();
           if (data.needs_password_change) {
             needsPasswordChange = true;
-            return; // Montre le formulaire de changement de mot de passe
+            return;
           }
         }
         
@@ -60,7 +60,6 @@
       });
 
       if (response.ok) {
-        // Vérifie si c'est la première connexion
         const firstLoginCheck = await fetch('/api/admin/check-first-login', {
           credentials: 'include'
         });
@@ -149,6 +148,36 @@
     }
   };
 
+  // --- NOUVEAU : Générer le lien de création de mot de passe ---
+  const getPasswordCreationLink = (memberId) => {
+    // Utilise l'URL actuelle comme base
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/create-password?member_id=${memberId}`;
+  };
+
+  const copyPasswordLink = async (memberId, memberName) => {
+    try {
+      const link = getPasswordCreationLink(memberId);
+      await navigator.clipboard.writeText(link);
+      
+      passwordLinkFeedback = {
+        memberId,
+        message: `Lien copié pour ${memberName}`
+      };
+      
+      setTimeout(() => {
+        passwordLinkFeedback = null;
+      }, 3000);
+    } catch (err) {
+      adminError = "Échec de la copie du lien.";
+    }
+  };
+
+  const sendPasswordLinkEmail = async (memberId, memberName) => {
+    // Placeholder - à implémenter si tu veux envoyer par email
+    alert(`Fonctionnalité email à implémenter pour ${memberName}`);
+  };
+
   const handleLogout = async () => {
     await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
     isAdminAuthenticated = false;
@@ -157,6 +186,7 @@
     members = [];
     inviteLink = '';
     needsPasswordChange = false;
+    passwordLinkFeedback = null;
   };
 
   // --- CHANGEMENT DE MOT DE PASSE ---
@@ -192,7 +222,6 @@
       });
 
       if (response.ok) {
-        // Mot de passe changé avec succès
         needsPasswordChange = false;
         isAdminAuthenticated = true;
         loadMembers();
@@ -212,7 +241,7 @@
 </svelte:head>
 
 <div class="min-h-screen flex flex-col items-center justify-start md:justify-center p-4 md:p-6 relative overflow-hidden">
-  <div class="max-w-md md:max-w-2xl w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-6 md:p-10 transition-all duration-1000 animate-fade-in mt-10 md:mt-0">
+  <div class="max-w-4xl w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-6 md:p-10 transition-all duration-1000 animate-fade-in mt-10 md:mt-0">
     
     <!-- En-tête commune -->
     <div class="flex items-center gap-3 md:gap-4 mb-6 md:mb-8">
@@ -235,6 +264,13 @@
         {/if}
       </h1>
     </div>
+
+    <!-- Feedback pour lien de mot de passe -->
+    {#if passwordLinkFeedback}
+      <div class="mb-4 p-3 bg-green-500/20 border border-green-500/40 text-green-600 dark:text-green-400 rounded-xl animate-pulse">
+        ✅ {passwordLinkFeedback.message}
+      </div>
+    {/if}
 
     <!-- 1. FORMULAIRE DE CHANGEMENT DE MOT DE PASSE (première connexion) -->
     {#if needsPasswordChange}
@@ -331,77 +367,233 @@
 
     <!-- 3. PANNEAU ADMIN (Affiché après connexion réussie) -->
     {:else}
-      <!-- Bouton Déconnexion -->
-      <div class="text-right mb-4">
-        <button onclick={handleLogout} class="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)]">
-          Déconnexion
-        </button>
-      </div>
-
-      {#if adminError}
-        <div class="mb-4 p-3 bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-400 rounded-xl flex justify-between">
-          <span>{adminError}</span>
-          <button onclick={() => adminError = null} class="font-bold">×</button>
+      <!-- En-tête avec boutons -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-[var(--text-primary)]">Gestion des membres</h2>
+          <p class="text-sm text-[var(--text-secondary)]">
+            {members.length} membre{members.length !== 1 ? 's' : ''} dans la famille
+          </p>
         </div>
-      {/if}
-
-      <!-- Bouton inviter -->
-      <div class="mb-6">
-        <button
-          onclick={createInvite}
-          disabled={isLoading}
-          class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl disabled:opacity-60"
-        >
-          {isLoading ? 'Création...' : 'Générer un lien d\'invitation'}
-        </button>
+        
+        <div class="flex gap-3">
+          <button
+            onclick={createInvite}
+            disabled={isLoading}
+            class="px-4 py-2 bg-[var(--accent)] text-white font-semibold rounded-xl disabled:opacity-60 hover:opacity-90"
+          >
+            {isLoading ? 'Création...' : '➕ Nouvelle invitation'}
+          </button>
+          <button
+            onclick={handleLogout}
+            class="px-4 py-2 bg-gray-500/20 text-[var(--text-secondary)] font-semibold rounded-xl hover:bg-gray-500/30"
+          >
+            Déconnexion
+          </button>
+        </div>
       </div>
 
       <!-- Lien d'invitation généré -->
       {#if inviteLink}
         <div class="mb-8 p-4 bg-white/20 dark:bg-black/20 rounded-xl border border-white/30">
-          <p class="font-medium mb-2 text-[var(--text-primary)]">Lien d'invitation :</p>
-          <div class="flex gap-2">
-            <input type="text" value={inviteLink} readonly class="flex-1 p-2 rounded bg-white/30 dark:bg-black/30 text-sm text-[var(--text-primary)]" />
-            <button onclick={copyLink} class="px-4 bg-[var(--accent)/80] text-white rounded">
-              {copyFeedback ? '✓' : 'Copier'}
+          <div class="flex justify-between items-center mb-2">
+            <p class="font-medium text-[var(--text-primary)]">✨ Nouveau lien d'invitation généré</p>
+            <button onclick={() => inviteLink = ''} class="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)]">
+              × Fermer
+            </button>
+          </div>
+          <div class="flex flex-col md:flex-row gap-2">
+            <input 
+              type="text" 
+              value={inviteLink} 
+              readonly 
+              class="flex-1 p-3 rounded bg-white/30 dark:bg-black/30 text-sm text-[var(--text-primary)]" 
+            />
+            <button
+              onclick={copyLink}
+              class="px-6 py-3 bg-[var(--accent)]/80 hover:bg-[var(--accent)] text-white rounded font-medium transition flex items-center justify-center gap-2"
+            >
+              {#if copyFeedback}
+                <span>✅ Copié !</span>
+              {:else}
+                <span>📋 Copier le lien</span>
+              {/if}
             </button>
           </div>
         </div>
       {/if}
 
+      <!-- Messages d'erreur -->
+      {#if adminError}
+        <div class="mb-4 p-3 bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-400 rounded-xl flex justify-between">
+          <span>{adminError}</span>
+          <button onclick={() => adminError = null} class="font-bold hover:text-red-700">×</button>
+        </div>
+      {/if}
+
       <!-- Liste des membres -->
-      <h2 class="text-xl font-bold mb-4 text-[var(--text-primary)]">Membres</h2>
       {#if isLoading && members.length === 0}
-        <p class="text-center py-4 text-[var(--text-secondary)]">Chargement...</p>
+        <div class="text-center py-12">
+          <div class="inline-block h-8 w-8 animate-spin rounded-full border-3 border-solid border-[var(--accent)] border-r-transparent"></div>
+          <p class="mt-4 text-[var(--text-secondary)]">Chargement des membres...</p>
+        </div>
       {:else if members.length === 0}
-        <p class="text-center py-4 italic text-[var(--text-secondary)]">Aucun membre.</p>
+        <div class="text-center py-12">
+          <div class="text-5xl mb-4">👋</div>
+          <h3 class="text-xl font-bold text-[var(--text-primary)] mb-2">Aucun membre pour le moment</h3>
+          <p class="text-[var(--text-secondary)]">
+            Générez votre premier lien d'invitation pour commencer !
+          </p>
+        </div>
       {:else}
-        <div class="space-y-3">
+        <div class="space-y-4">
           {#each members as member (member.id)}
-            <div class="flex items-center justify-between p-4 bg-white/20 dark:bg-black/20 rounded-xl border border-white/30">
-              <div>
-                <div class="font-semibold text-[var(--text-primary)]">{member.name}</div>
-                <div class="text-sm opacity-80 text-[var(--text-secondary)]">ID: {member.id}</div>
+            <div class="bg-white/10 dark:bg-black/10 rounded-xl border border-white/20 p-4 hover:bg-white/15 transition">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <!-- Informations du membre -->
+                <div class="flex-1">
+                  <div class="flex items-center gap-3 mb-2">
+                    <span class="font-semibold text-lg text-[var(--text-primary)]">{member.name}</span>
+                    <span class={`px-2 py-1 rounded-full text-xs font-medium ${member.approved ? 'bg-green-500/20 text-green-700 dark:text-green-300' : 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 animate-pulse'}`}>
+                      {member.approved ? '✅ Approuvé' : '⏳ En attente'}
+                    </span>
+                  </div>
+                  
+                  <div class="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
+                    <div class="flex items-center gap-1">
+                      <span class="opacity-70">ID :</span>
+                      <code class="bg-black/20 px-2 py-1 rounded text-xs">{member.id.slice(0, 8)}...</code>
+                    </div>
+                    <div class="flex items-center gap-1">
+                      <span class="opacity-70">Inscrit le :</span>
+                      <span>{new Date(member.joined_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+
+                  <!-- Indicateur mot de passe -->
+                  {#if member.approved && member.has_password !== undefined && !member.has_password}
+                    <div class="mt-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <div class="flex items-center gap-2 text-sm">
+                        <span class="text-blue-500">🔓</span>
+                        <span class="text-blue-600 dark:text-blue-400">
+                          <strong>Mot de passe non défini</strong> - Envoyez le lien ci-dessous
+                        </span>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- Actions -->
+                <div class="flex flex-col sm:flex-row gap-2">
+                  {#if !member.approved}
+                    <button
+                      onclick={() => approveMember(member.id)}
+                      class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition flex items-center justify-center gap-2"
+                    >
+                      <span>✅</span>
+                      <span>Approuver</span>
+                    </button>
+                  {:else}
+                    <!-- Actions pour membres approuvés -->
+                    <div class="flex flex-col gap-2">
+                      <button
+                        onclick={() => copyPasswordLink(member.id, member.name)}
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition flex items-center justify-center gap-2"
+                        title="Copier le lien de création de mot de passe"
+                      >
+                        <span>🔐</span>
+                        <span>Lien mot de passe</span>
+                      </button>
+                      
+                      {#if member.has_password === undefined || member.has_password === false}
+                        <div class="text-xs text-center text-blue-500">
+                          À envoyer au membre
+                        </div>
+                      {:else}
+                        <div class="text-xs text-center text-green-500">
+                          ✅ Mot de passe défini
+                        </div>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
               </div>
-              <div class="flex items-center gap-3">
-                <span class={`px-3 py-1 rounded-full text-sm ${member.approved ? 'bg-green-500/30 text-green-700 dark:text-green-300' : 'bg-yellow-500/30 text-yellow-700 dark:text-yellow-300'}`}>
-                  {member.approved ? '✓ Approuvé' : 'En attente'}
-                </span>
-                {#if !member.approved}
-                  <button onclick={() => approveMember(member.id)} class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600">
-                    Approuver
-                  </button>
-                {/if}
-              </div>
+
+              <!-- Lien généré (affiché temporairement) -->
+              {#if passwordLinkFeedback && passwordLinkFeedback.memberId === member.id}
+                <div class="mt-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <div>
+                      <p class="text-sm font-medium text-green-600 dark:text-green-400 mb-1">
+                        Lien de création de mot de passe pour {member.name} :
+                      </p>
+                      <input
+                        type="text"
+                        value={getPasswordCreationLink(member.id)}
+                        readonly
+                        class="w-full p-2 text-sm bg-black/20 rounded border border-green-500/30 text-green-700 dark:text-green-300"
+                      />
+                    </div>
+                    <button
+                      onclick={() => navigator.clipboard.writeText(getPasswordCreationLink(member.id))}
+                      class="px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded text-sm font-medium"
+                    >
+                      Recopier
+                    </button>
+                  </div>
+                  <p class="text-xs text-green-600/70 dark:text-green-400/70 mt-2">
+                    Partagez ce lien avec {member.name} pour qu'il crée son mot de passe.
+                  </p>
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
       {/if}
+
+      <!-- Guide d'utilisation -->
+      <div class="mt-8 p-4 bg-white/10 dark:bg-black/10 rounded-xl border border-white/20">
+        <h3 class="font-bold text-[var(--text-primary)] mb-2">📋 Guide rapide</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div class="flex items-start gap-2">
+            <span class="text-green-500">1.</span>
+            <span class="text-[var(--text-secondary)]">
+              <strong>Générez un lien d'invitation</strong> pour ajouter un nouveau membre
+            </span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="text-green-500">2.</span>
+            <span class="text-[var(--text-secondary)]">
+              <strong>Approuvez</strong> les demandes en attente
+            </span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="text-green-500">3.</span>
+            <span class="text-[var(--text-secondary)]">
+              <strong>Envoyez le lien "Lien mot de passe"</strong> aux membres approuvés
+            </span>
+          </div>
+          <div class="flex items-start gap-2">
+            <span class="text-green-500">4.</span>
+            <span class="text-[var(--text-secondary)]">
+              Les membres créent leur mot de passe sur <code>/create-password</code>
+            </span>
+          </div>
+        </div>
+      </div>
     {/if}
   </div>
 </div>
 
 <style>
   @keyframes fade-in { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .animate-fade-in { animation: fade-in 1s ease-out; }
+  .animate-spin { animation: spin 1s linear infinite; }
+  .animate-pulse { animation: pulse 2s infinite; }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
 </style>
