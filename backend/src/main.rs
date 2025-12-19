@@ -57,7 +57,7 @@ fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
 }
 
-// Middleware pour vérifier l'authentification admin
+// Middleware pour vérifier l'authentification admin (CORRIGÉ)
 async fn admin_middleware(
     headers: HeaderMap,
     State(state): State<SharedState>,
@@ -83,6 +83,10 @@ async fn admin_middleware(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
+    // Transmettre les headers dans l'extension de la requête
+    let mut request = request;
+    request.extensions_mut().insert(headers);
+    
     Ok(next.run(request).await)
 }
 
@@ -101,7 +105,12 @@ async fn user_middleware(
 
     // Vérifier si la session est valide
     match auth::validate_session_and_get_user(&state.db, &session_token).await {
-        Ok(_) => Ok(next.run(request).await),
+        Ok(_) => {
+            // Transmettre les headers
+            let mut request = request;
+            request.extensions_mut().insert(headers);
+            Ok(next.run(request).await)
+        },
         Err(_) => Err(StatusCode::UNAUTHORIZED),
     }
 }
