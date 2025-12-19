@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use uuid::Uuid;
-use bcrypt::verify;
+use bcrypt::{verify, hash, DEFAULT_COST};
 use chrono::{Utc, Duration};
 
 use crate::SharedState;
@@ -29,6 +29,12 @@ pub struct AdminLoginRequest {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 #[derive(Serialize)]
 pub struct ApiResponse {
     pub success: bool,
@@ -39,6 +45,11 @@ pub struct ApiResponse {
 pub struct SessionInfo {
     pub member_id: String,
     pub member_name: String,
+}
+
+#[derive(Serialize)]
+pub struct FirstLoginCheck {
+    pub needs_password_change: bool,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -137,7 +148,6 @@ pub async fn validate_session_and_get_user(
     pool: &SqlitePool,
     token: &str,
 ) -> Result<(String, String), StatusCode> {
-    // Supprimer les sessions vieilles de plus de 30 jours
     let cutoff = Utc::now() - Duration::days(30);
     let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
     
@@ -169,7 +179,6 @@ pub async fn validate_admin_session(
     pool: &SqlitePool,
     token: &str,
 ) -> Result<String, StatusCode> {
-    // Supprimer les sessions admin vieilles de plus de 7 jours
     let cutoff = Utc::now() - Duration::days(7);
     let cutoff_str = cutoff.format("%Y-%m-%d %H:%M:%S").to_string();
     
@@ -208,12 +217,30 @@ pub async fn create_admin_session(pool: &SqlitePool, admin_id: &str) -> Result<S
 
 pub async fn invite_handler(
     State(state): State<SharedState>,
+    headers: HeaderMap,
 ) -> Result<Json<ApiResponse>, StatusCode> {
     match create_invite(&state.db).await {
-        Ok(token) => Ok(Json(ApiResponse {
-            success: true,
-            message: format!("https://nook.local/join?token={}", token),
-        })),
+        Ok(token) => {
+            let protocol = headers
+                .get("X-Forwarded-Proto")
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("http")
+                .to_string();
+
+            let host = headers
+                .get("X-Forwarded-Host")
+                .or_else(|| headers.get("host"))
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("localhost:3000")
+                .to_string();
+
+            let join_url = format!("{}://{}/join?token={}", protocol, host, token);
+
+            Ok(Json(ApiResponse {
+                success: true,
+                message: join_url,
+            }))
+        },
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -251,7 +278,6 @@ pub async fn login_handler(
     State(state): State<SharedState>,
     Json(payload): Json<LoginRequest>,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
-    // Vérifie que le membre existe et est approuvé
     let row: Option<(String,)> = sqlx::query_as("SELECT id FROM members WHERE id = ? AND approved = 1")
         .bind(&payload.member_id)
         .fetch_optional(&state.db)
@@ -262,12 +288,10 @@ pub async fn login_handler(
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // Crée une session
     let session_token = create_session(&state.db, &payload.member_id).await?;
 
-    // Crée un cookie HTTP-Only sécurisé
     let cookie = format!(
-        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000", // 30 jours
+        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
         session_token
     );
 
@@ -284,7 +308,6 @@ pub async fn admin_login_handler(
     State(state): State<SharedState>,
     Json(payload): Json<AdminLoginRequest>,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
-    // Récupérer l'admin depuis la base de données
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT id, password_hash FROM admins WHERE username = ?"
     )
@@ -299,17 +322,14 @@ pub async fn admin_login_handler(
 
     let (admin_id, stored_hash) = row.unwrap();
 
-    // Vérifier le mot de passe avec bcrypt
     if !verify(&payload.password, &stored_hash).unwrap_or(false) {
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    // Créer une session admin
     let admin_token = create_admin_session(&state.db, &admin_id).await?;
 
-    // Créer un cookie admin séparé
     let cookie = format!(
-        "nook_admin={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800", // 7 jours
+        "nook_admin={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=604800",
         admin_token
     );
 
@@ -325,7 +345,6 @@ pub async fn admin_login_handler(
 pub async fn admin_logout_handler(
     State(_state): State<SharedState>,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
-    // Cookie d'expiration pour déconnecter
     let cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
 
     Ok((
@@ -337,30 +356,109 @@ pub async fn admin_logout_handler(
     ))
 }
 
-// === NOUVEAU : Validation de session pour le frontend ===
+// === NOUVEAU : Vérification première connexion ===
+
+fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers.get_all(axum::http::header::COOKIE)
+        .into_iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|s| s.split(';'))
+        .map(|cookie| cookie.trim())
+        .find(|cookie| cookie.starts_with(&format!("{}=", name)))
+        .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
+}
+
+pub async fn check_first_login_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<FirstLoginCheck>, StatusCode> {
+    let admin_token = match get_cookie(&headers, "nook_admin") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT a.password_hash FROM admin_sessions s 
+         JOIN admins a ON s.admin_id = a.id 
+         WHERE s.token = ?"
+    )
+    .bind(admin_token)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let hash = row.unwrap().0;
+    
+    let needs_password_change = verify("admin123", &hash).unwrap_or(false);
+
+    Ok(Json(FirstLoginCheck {
+        needs_password_change,
+    }))
+}
+
+// === NOUVEAU : Changement de mot de passe ===
+
+pub async fn change_password_handler(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    let admin_token = match get_cookie(&headers, "nook_admin") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT a.id, a.password_hash FROM admin_sessions s 
+         JOIN admins a ON s.admin_id = a.id 
+         WHERE s.token = ?"
+    )
+    .bind(admin_token)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let (admin_id, current_hash) = row.unwrap();
+
+    if !verify(&payload.current_password, &current_hash).unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let new_hash = hash(&payload.new_password, DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query("UPDATE admins SET password_hash = ? WHERE id = ?")
+        .bind(&new_hash)
+        .bind(&admin_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "Mot de passe changé avec succès".to_string(),
+    }))
+}
+
+// === Validation de session pour le frontend ===
 
 pub async fn validate_session_handler(
     headers: HeaderMap,
     State(state): State<SharedState>,
 ) -> Result<Json<SessionInfo>, StatusCode> {
-    // Fonction utilitaire pour extraire un cookie
-    fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-        headers.get_all(axum::http::header::COOKIE)
-            .into_iter()
-            .filter_map(|value| value.to_str().ok())
-            .flat_map(|s| s.split(';'))
-            .map(|cookie| cookie.trim())
-            .find(|cookie| cookie.starts_with(&format!("{}=", name)))
-            .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
-    }
-
-    // Récupère le token de session
     let session_token = match get_cookie(&headers, "nook_session") {
         Some(token) => token,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
 
-    // Utilise la fonction existante pour valider
     match validate_session_and_get_user(&state.db, &session_token).await {
         Ok((member_id, member_name)) => Ok(Json(SessionInfo { member_id, member_name })),
         Err(_) => Err(StatusCode::UNAUTHORIZED),
