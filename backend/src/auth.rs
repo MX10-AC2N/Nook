@@ -35,6 +35,19 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
+#[derive(Deserialize)]
+pub struct CreatePasswordRequest {
+    pub member_id: String,
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct MemberLoginRequest {
+    pub identifier: String,
+    pub password: String,
+}
+
 #[derive(Serialize)]
 pub struct ApiResponse {
     pub success: bool,
@@ -52,11 +65,20 @@ pub struct FirstLoginCheck {
     pub needs_password_change: bool,
 }
 
+#[derive(Serialize)]
+pub struct PasswordStatus {
+    pub has_password: bool,
+    pub name: String,
+    pub member_id: String,
+}
+
 #[derive(Serialize, sqlx::FromRow)]
 pub struct Member {
     pub id: String,
+    pub username: Option<String>,
     pub name: String,
     pub approved: bool,
+    pub has_password: bool,
     pub joined_at: String,
 }
 
@@ -104,7 +126,7 @@ pub async fn handle_join(
 
     Ok(ApiResponse {
         success: true,
-        message: "Demande envoyée à l'administrateur".to_string(),
+        message: id,
     })
 }
 
@@ -122,11 +144,12 @@ pub async fn approve_member(pool: &SqlitePool, id: String) -> Result<ApiResponse
 }
 
 pub async fn get_members(pool: &SqlitePool) -> Result<Vec<Member>, StatusCode> {
-    let rows =
-        sqlx::query_as::<_, Member>("SELECT id, name, approved, joined_at FROM members ORDER BY joined_at DESC")
-            .fetch_all(pool)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let rows = sqlx::query_as::<_, Member>(
+        "SELECT id, username, name, approved, has_password, joined_at FROM members ORDER BY joined_at DESC"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(rows)
 }
@@ -252,7 +275,12 @@ pub async fn join_handler(
 ) -> Result<Json<ApiResponse>, StatusCode> {
     if let Some(token) = params.get("token") {
         match handle_join(&state.db, token.clone(), payload).await {
-            Ok(res) => Ok(Json(res)),
+            Ok(res) => {
+                Ok(Json(ApiResponse {
+                    success: true,
+                    message: format!("Demande envoyée. Votre ID: {}", res.message),
+                }))
+            },
             Err(e) => Err(e),
         }
     } else {
@@ -356,7 +384,7 @@ pub async fn admin_logout_handler(
     ))
 }
 
-// === NOUVEAU : Vérification première connexion ===
+// === NOUVEAU : Utilitaires cookies ===
 
 fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get_all(axum::http::header::COOKIE)
@@ -367,6 +395,8 @@ fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .find(|cookie| cookie.starts_with(&format!("{}=", name)))
         .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
 }
+
+// === NOUVEAU : Vérification première connexion admin ===
 
 pub async fn check_first_login_handler(
     headers: HeaderMap,
@@ -400,7 +430,7 @@ pub async fn check_first_login_handler(
     }))
 }
 
-// === NOUVEAU : Changement de mot de passe ===
+// === NOUVEAU : Changement de mot de passe admin ===
 
 pub async fn change_password_handler(
     State(state): State<SharedState>,
@@ -446,6 +476,149 @@ pub async fn change_password_handler(
         success: true,
         message: "Mot de passe changé avec succès".to_string(),
     }))
+}
+
+// === NOUVEAU : Création de mot de passe membre ===
+
+pub async fn create_password_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<CreatePasswordRequest>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    let row: Option<(bool,)> = sqlx::query_as(
+        "SELECT approved FROM members WHERE id = ?"
+    )
+    .bind(&payload.member_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match row {
+        Some((approved,)) => {
+            if !approved {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        },
+        None => return Err(StatusCode::NOT_FOUND),
+    }
+
+    if !payload.username.is_empty() {
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM members WHERE username = ? AND id != ?"
+        )
+        .bind(&payload.username)
+        .bind(&payload.member_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if existing.is_some() {
+            return Ok(Json(ApiResponse {
+                success: false,
+                message: "Ce nom d'utilisateur est déjà pris".to_string(),
+            }));
+        }
+    }
+
+    let password_hash = hash(&payload.password, DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if !payload.username.is_empty() {
+        sqlx::query(
+            "UPDATE members SET password_hash = ?, username = ?, has_password = 1 WHERE id = ?"
+        )
+        .bind(&password_hash)
+        .bind(&payload.username)
+        .bind(&payload.member_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    } else {
+        sqlx::query(
+            "UPDATE members SET password_hash = ?, has_password = 1 WHERE id = ?"
+        )
+        .bind(&password_hash)
+        .bind(&payload.member_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "Mot de passe créé avec succès".to_string(),
+    }))
+}
+
+// === NOUVEAU : Login membre avec mot de passe ===
+
+pub async fn member_login_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<MemberLoginRequest>,
+) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
+    let row: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT id, password_hash, name FROM members WHERE (id = ? OR username = ?) AND approved = 1 AND has_password = 1"
+    )
+    .bind(&payload.identifier)
+    .bind(&payload.identifier)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let (member_id, stored_hash, member_name) = row.unwrap();
+
+    if !verify(&payload.password, &stored_hash).unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let session_token = create_session(&state.db, &member_id).await?;
+
+    let cookie = format!(
+        "nook_session={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
+        session_token
+    );
+
+    Ok((
+        AppendHeaders([(SET_COOKIE, cookie)]),
+        Json(ApiResponse {
+            success: true,
+            message: format!("Connexion réussie. Bienvenue {} !", member_name),
+        })
+    ))
+}
+
+// === NOUVEAU : Vérification état mot de passe membre ===
+
+pub async fn check_password_status_handler(
+    State(state): State<SharedState>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<PasswordStatus>, StatusCode> {
+    let member_id = match params.get("member_id") {
+        Some(id) => id,
+        None => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let row: Option<(bool, String)> = sqlx::query_as(
+        "SELECT has_password, name FROM members WHERE id = ? AND approved = 1"
+    )
+    .bind(member_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match row {
+        Some((has_password, name)) => {
+            Ok(Json(PasswordStatus {
+                has_password,
+                name,
+                member_id: member_id.to_string(),
+            }))
+        },
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 // === Validation de session pour le frontend ===
