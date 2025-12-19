@@ -157,16 +157,18 @@ async fn main() {
             user_middleware,
         ));
 
-    // Routes admin protégées
-    let admin_routes = Router::new()
-        .route("/api/admin/invite", post(auth::invite_handler))
-        .route("/api/admin/members", get(auth::members_handler))
-        .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
-        .route("/api/admin/logout", post(auth::admin_logout_handler))
-        .route_layer(middleware::from_fn_with_state(
-            shared_state.clone(),
-            admin_middleware,
-        ));
+    // Dans la section des routes admin protégées :
+let admin_routes = Router::new()
+       .route("/api/admin/invite", post(auth::invite_handler))
+       .route("/api/admin/members", get(auth::members_handler))
+       .route("/api/admin/members/:id/approve", patch(auth::approve_handler))
+       .route("/api/admin/check-first-login", get(auth::check_first_login_handler)) // <-- NOUVEAU
+    .route("/api/admin/change-password", post(auth::change_password_handler))    // <-- NOUVEAU
+    .route("/api/admin/logout", post(auth::admin_logout_handler))
+    .route_layer(middleware::from_fn_with_state(
+        shared_state.clone(),
+        admin_middleware,
+    ));
 
     let app = Router::new()
         .merge(public_routes)
