@@ -141,10 +141,11 @@
       {:else}
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
+            <label for="new-password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
               Nouveau mot de passe
             </label>
             <input
+              id="new-password"
               type="password"
               bind:value={password}
               placeholder="Minimum 8 caractères"
@@ -159,10 +160,11 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
+            <label for="confirm-password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
               Confirmer le mot de passe
             </label>
             <input
+              id="confirme pas sors"
               type="password"
               bind:value={confirmPassword}
               placeholder="Répétez votre mot de passe"
