@@ -54,7 +54,22 @@
         result = await loginAdmin(identifier.trim(), password.trim());
         
         if (result.success) {
-          return; // La redirection est gérée dans loginAdmin
+          // Vérifier si l'admin doit changer son mot de passe
+          const firstLoginCheck = await fetch('/api/admin/check-first-login', {
+            credentials: 'include'
+          });
+          
+          if (firstLoginCheck.ok) {
+            const data = await firstLoginCheck.json();
+            if (data.needs_password_change) {
+              // Premier login admin, doit changer le mot de passe
+              goto('/admin');
+              return;
+            }
+          }
+          
+          goto('/admin');
+          return;
         } else {
           // Si échec admin, essaie connexion membre
           result = await loginMember(identifier.trim(), password.trim());
@@ -64,7 +79,23 @@
         result = await loginMember(identifier.trim(), password.trim());
       }
 
-      if (!result.success) {
+      if (result.success) {
+        // Vérifier si le membre doit changer son mot de passe temporaire
+        const changeCheck = await fetch('/api/member/check-password-change', {
+          credentials: 'include'
+        });
+        
+        if (changeCheck.ok) {
+          const data = await changeCheck.json();
+          if (data.needs_password_change) {
+            // Premier login, doit changer le mot de passe temporaire
+            goto('/change-password');
+            return;
+          }
+        }
+        
+        goto('/chat');
+      } else {
         error = result.error || 'Identifiants incorrects';
       }
       
@@ -135,7 +166,7 @@
         />
         <p class="text-xs text-[var(--text-secondary)] mt-2 text-left">
           • Pour les <strong>admins</strong> : utilisez "admin"<br>
-          • Pour les <strong>membres</strong> : votre nom d'utilisateur ou ID reçu
+          • Pour les <strong>membres</strong> : votre nom d'utilisateur
         </p>
       </div>
 
@@ -176,18 +207,18 @@
         </p>
         <p class="text-xs text-[var(--text-secondary)]">
           • <strong>Admin</strong> : Identifiants par défaut : "admin" / "admin123"<br>
-          • <strong>Membre</strong> : Utilisez l'ID reçu après inscription
+          • <strong>Membre</strong> : Utilisez le nom d'utilisateur fourni par l'administrateur
         </p>
       </div>
 
       <div class="flex flex-col gap-2">
         <a href="/join" class="text-sm text-[var(--accent)] hover:underline flex items-center gap-1">
           <span>🎁</span>
-          <span>J'ai un lien d'invitation</span>
+          <span>J'ai un lien d'invitation (ancien système)</span>
         </a>
         <a href="/create-password" class="text-sm text-[var(--accent)] hover:underline flex items-center gap-1">
           <span>🔐</span>
-          <span>Créer un mot de passe (après approbation)</span>
+          <span>Créer un mot de passe (ancien système)</span>
         </a>
         <a href="/" class="text-sm text-[var(--text-secondary)] hover:underline mt-2 flex items-center gap-1">
           <span>←</span>
