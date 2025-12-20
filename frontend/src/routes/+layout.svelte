@@ -157,43 +157,47 @@
   });
 </script>
 
+<!-- Canvas en ARRIÈRE-PLAN (z-index très bas) -->
 <canvas
   bind:this={canvas}
-  class="fixed inset-0 -z-10 pointer-events-none"
+  class="fixed inset-0 pointer-events-none"
+  style="z-index: -100;"
 ></canvas>
 
-<!-- Contenu pages - TOUJOURS AFFICHER SANS BLOQUER -->
+<!-- Contenu pages - SANS overlay -->
 <slot />
 
-<!-- Bottom navigation mobile - UNIQUEMENT SI AUTHENTIFIÉ -->
-{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password'}
-<nav class="fixed bottom-0 left-0 right-0 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 flex justify-around py-2 rounded-t-3xl shadow-2xl md:hidden z-50">
+<!-- Bottom navigation mobile - AVEC z-index élevé -->
+{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password' && $page.url.pathname !== '/change-password'}
+<nav class="fixed bottom-0 left-0 right-0 bg-white/20 dark:bg-black/20 backdrop-blur-xl border-t border-white/40 flex justify-around py-3 rounded-t-3xl shadow-2xl md:hidden"
+     style="z-index: 1000;">
   <a href="/chat" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">💬</span>
-    <span class="text-xs">Chat</span>
+    <span class="text-xs mt-1">Chat</span>
   </a>
   <a href="/call" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">📞</span>
-    <span class="text-xs">Appels</span>
+    <span class="text-xs mt-1">Appels</span>
   </a>
   <a href="/calendar" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">📅</span>
-    <span class="text-xs">Calendrier</span>
+    <span class="text-xs mt-1">Calendrier</span>
   </a>
   <a href="/events" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/events' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">🗓️</span>
-    <span class="text-xs">Événements</span>
+    <span class="text-xs mt-1">Événements</span>
   </a>
   <a href="/settings" class="flex flex-col items-center text-[var(--text-primary)] hover:text-[var(--accent)] transition { $page.url.pathname === '/settings' ? 'text-[var(--accent)]' : '' }">
     <span class="text-2xl">⚙️</span>
-    <span class="text-xs">Réglages</span>
+    <span class="text-xs mt-1">Réglages</span>
   </a>
 </nav>
 {/if}
 
-<!-- Sidebar desktop/tablette - UNIQUEMENT SI AUTHENTIFIÉ -->
-{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password'}
-<aside class="hidden md:block fixed left-0 top-0 h-screen w-24 bg-white/10 dark:bg-black/10 backdrop-blur-xl border-r border-white/20 p-4 flex flex-col items-center gap-8 shadow-2xl z-50">
+<!-- Sidebar desktop/tablette - AVEC z-index élevé -->
+{#if $isAuthenticated && !$page.url.pathname.startsWith('/admin') && $page.url.pathname !== '/login' && $page.url.pathname !== '/join' && $page.url.pathname !== '/create-password' && $page.url.pathname !== '/change-password'}
+<aside class="hidden md:block fixed left-0 top-0 h-screen w-20 bg-white/20 dark:bg-black/20 backdrop-blur-xl border-r border-white/40 p-4 flex flex-col items-center gap-6 shadow-2xl"
+       style="z-index: 1000;">
   <a href="/chat" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/chat' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">💬</a>
   <a href="/call" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/call' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📞</a>
   <a href="/calendar" class="text-3xl hover:scale-110 transition { $page.url.pathname === '/calendar' ? 'text-[var(--accent)]' : 'text-[var(--text-primary)]' }">📅</a>
@@ -209,16 +213,32 @@
   /* Responsive optimisations */
   @media (max-width: 767px) {
     aside { display: none; }
-    nav { padding-bottom: env(safe-area-inset-bottom); }
+    nav { 
+      padding-bottom: env(safe-area-inset-bottom);
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    }
   }
 
   @media (min-width: 768px) and (max-width: 1024px) {
-    aside { width: 6rem; gap: 2rem; }
-    aside a { font-size: 1.5rem; }
+    aside { 
+      width: 5rem; 
+      gap: 1.5rem; 
+      padding: 1rem;
+    }
+    aside a { font-size: 1.8rem; }
   }
 
   @media (min-width: 1025px) {
-    aside { width: 7rem; gap: 3rem; }
-    aside a { font-size: 2rem; }
+    aside { 
+      width: 6rem; 
+      gap: 2rem; 
+      padding: 1.5rem;
+    }
+    aside a { font-size: 2.2rem; }
+  }
+
+  /* Améliorer la visibilité du contenu */
+  canvas {
+    opacity: 0.3; /* Réduire l'opacité pour mieux voir le contenu */
   }
 </style>
