@@ -46,6 +46,19 @@ pub struct MemberLoginRequest {
     pub password: String,
 }
 
+#[derive(Deserialize)]
+pub struct CreateMemberRequest {
+    pub name: String,
+    pub username: String,
+    pub temporary_password: String,
+}
+
+#[derive(Deserialize)]
+pub struct ChangeTemporaryPasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 #[derive(Serialize)]
 pub struct ApiResponse {
     pub success: bool,
@@ -138,6 +151,61 @@ pub async fn approve_member(pool: &SqlitePool, id: String) -> Result<ApiResponse
     Ok(ApiResponse {
         success: true,
         message: "Membre approuvé".to_string(),
+    })
+}
+
+/// Crée un nouveau membre directement (pour admin)
+pub async fn create_member(
+    pool: &SqlitePool,
+    req: CreateMemberRequest,
+) -> Result<ApiResponse, StatusCode> {
+    // Vérifier que le username n'existe pas déjà
+    let existing: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM members WHERE username = ?"
+    )
+    .bind(&req.username)
+    .fetch_optional(pool)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if existing.is_some() {
+        return Ok(Json(ApiResponse {
+            success: false,
+            message: "Ce nom d'utilisateur est déjà pris".to_string(),
+        }));
+    }
+
+    // Générer un ID unique
+    let id = Uuid::new_v4().to_string();
+    
+    // Hasher le mot de passe temporaire
+    let password_hash = hash(&req.temporary_password, DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Générer une clé publique par défaut (l'utilisateur pourra la changer)
+    let default_public_key = format!("temp_key_{}", id);
+
+    // Insérer le membre (approuvé d'office)
+    sqlx::query(
+        "INSERT INTO members (id, username, name, password_hash, public_key, approved, has_password) 
+         VALUES (?, ?, ?, ?, ?, 1, 1)"
+    )
+    .bind(&id)
+    .bind(&req.username)
+    .bind(&req.name)
+    .bind(&password_hash)
+    .bind(&default_public_key)
+    .execute(pool)
+    .await
+    .map_err(|e| {
+        println!("Erreur création membre: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(ApiResponse {
+        success: true,
+        message: format!("Membre créé avec succès. ID: {}, Username: {}, Mot de passe temporaire: {}", 
+            id, req.username, req.temporary_password),
     })
 }
 
@@ -286,6 +354,13 @@ pub async fn join_handler(
     }
 }
 
+pub async fn create_member_handler(
+    State(state): State<SharedState>,
+    Json(payload): Json<CreateMemberRequest>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    create_member(&state.db, payload).await.map(Json)
+}
+
 pub async fn approve_handler(
     State(state): State<SharedState>,
     Path(id): Path<String>,
@@ -429,7 +504,7 @@ pub async fn admin_logout_handler(
     ))
 }
 
-// === Handler de création de mot de passe ===
+// === Handler de création de mot de passe (ancien système) ===
 
 pub async fn create_password_handler(
     headers: HeaderMap,
@@ -498,6 +573,93 @@ pub async fn check_password_status_handler(
         has_password,
         name: member_name,
         member_id,
+    }))
+}
+
+// === Handler de vérification de changement de mot de passe (nouveau système) ===
+
+pub async fn check_password_change_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+) -> Result<Json<FirstLoginCheck>, StatusCode> {
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let (member_id, _) = validate_session_and_get_user(&state.db, &session_token).await?;
+
+    // Vérifier si le mot de passe est temporaire (par défaut "changeme123")
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT password_hash FROM members WHERE id = ?"
+    )
+    .bind(&member_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let needs_password_change = match row {
+        Some((hash,)) => {
+            // Si le hash correspond à "changeme123" (mot de passe temporaire par défaut)
+            verify("changeme123", &hash).unwrap_or(false)
+        },
+        None => false,
+    };
+
+    Ok(Json(FirstLoginCheck {
+        needs_password_change,
+    }))
+}
+
+// === Handler de changement de mot de passe temporaire ===
+
+pub async fn change_temporary_password_handler(
+    headers: HeaderMap,
+    State(state): State<SharedState>,
+    Json(payload): Json<ChangeTemporaryPasswordRequest>,
+) -> Result<Json<ApiResponse>, StatusCode> {
+    let session_token = match get_cookie(&headers, "nook_session") {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let (member_id, _) = validate_session_and_get_user(&state.db, &session_token).await?;
+
+    // Récupérer le hash actuel
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT password_hash FROM members WHERE id = ?"
+    )
+    .bind(&member_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let current_hash = row.unwrap().0;
+
+    // Vérifier l'ancien mot de passe
+    if !verify(&payload.current_password, &current_hash).unwrap_or(false) {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    // Hasher le nouveau mot de passe
+    let new_hash = hash(&payload.new_password, DEFAULT_COST)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Mettre à jour
+    sqlx::query("UPDATE members SET password_hash = ? WHERE id = ?")
+        .bind(&new_hash)
+        .bind(&member_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(ApiResponse {
+        success: true,
+        message: "Mot de passe changé avec succès".to_string(),
     }))
 }
 
