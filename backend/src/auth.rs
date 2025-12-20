@@ -169,10 +169,10 @@ pub async fn create_member(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if existing.is_some() {
-        return Ok(Json(ApiResponse {
+        return Ok(ApiResponse {
             success: false,
             message: "Ce nom d'utilisateur est déjà pris".to_string(),
-        }));
+        });
     }
 
     // Générer un ID unique
