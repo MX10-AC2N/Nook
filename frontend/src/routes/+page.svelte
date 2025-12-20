@@ -4,8 +4,20 @@
   import { currentTheme } from '$lib/ui/ThemeStore';
 
   onMount(() => {
-    // Pas de redirection automatique
-    // L'utilisateur choisit ce qu'il veut faire
+    // Vérifier si déjà connecté
+    fetch('/api/validate-session', { credentials: 'include' })
+      .then(res => {
+        if (res.ok) {
+          res.json().then(data => {
+            if (data.role === 'admin') {
+              window.location.href = '/admin';
+            } else {
+              window.location.href = '/chat';
+            }
+          });
+        }
+      })
+      .catch(() => {});
   });
 </script>
 
@@ -45,22 +57,22 @@
         <div class="text-5xl mb-4">🔐</div>
         <h3 class="text-xl font-bold mb-3 text-[var(--text-primary)]">Connexion</h3>
         <p class="text-[var(--text-secondary)] mb-6">
-          Accédez à votre espace familial avec votre compte
+          Accédez à votre espace familial
         </p>
         <a href="/login" class="inline-block w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 transition">
           Se connecter
         </a>
       </div>
 
-      <!-- Carte Rejoindre -->
+      <!-- Carte Inscription -->
       <div class="backdrop-blur-xl bg-white/15 dark:bg-black/15 border border-white/30 rounded-2xl p-6 md:p-8 hover:scale-105 transition-transform duration-300">
-        <div class="text-5xl mb-4">👨‍👩‍👧‍👦</div>
-        <h3 class="text-xl font-bold mb-3 text-[var(--text-primary)]">Rejoindre</h3>
+        <div class="text-5xl mb-4">📝</div>
+        <h3 class="text-xl font-bold mb-3 text-[var(--text-primary)]">Inscription</h3>
         <p class="text-[var(--text-secondary)] mb-6">
-          Vous avez reçu une invitation ? Rejoignez votre famille
+          Demandez à rejoindre l'espace familial
         </p>
-        <a href="/join" class="inline-block w-full py-3 bg-white/20 dark:bg-black/20 text-[var(--text-primary)] font-semibold rounded-xl border border-white/30 hover:bg-white/30 transition">
-          Utiliser un lien d'invitation
+        <a href="/register" class="inline-block w-full py-3 bg-white/20 dark:bg-black/20 text-[var(--text-primary)] font-semibold rounded-xl border border-white/30 hover:bg-white/30 transition">
+          Créer un compte
         </a>
       </div>
     </div>
@@ -69,7 +81,7 @@
     <div class="inline-flex flex-wrap justify-center gap-4 md:gap-6 text-sm md:text-base">
       <span class="flex items-center gap-2 text-green-500">
         <span class="text-lg">✅</span>
-        <span>Zéro tracking</span>
+        <span>Zéro localStorage</span>
       </span>
       <span class="flex items-center gap-2 text-green-500">
         <span class="text-lg">✅</span>
@@ -83,16 +95,6 @@
         <span class="text-lg">✅</span>
         <span>Auto-hébergé</span>
       </span>
-    </div>
-
-    <!-- Lien admin discret -->
-    <div class="mt-10 pt-6 border-t border-white/20">
-      <p class="text-sm text-[var(--text-secondary)]">
-        Administrateur ? 
-        <a href="/admin" class="text-[var(--accent)] hover:underline ml-2">
-          Accéder au panneau admin
-        </a>
-      </p>
     </div>
   </div>
 
