@@ -32,7 +32,24 @@ export async function checkAuth() {
             user.set(userData);
             isAuthenticated.set(true);
             isAdmin.set(false);
-            console.log('Utilisateur connecté:', userData);
+            
+            // Vérifier si besoin de changer le mot de passe temporaire
+            try {
+                const changeCheck = await fetch('/api/member/check-password-change', {
+                    credentials: 'include'
+                });
+                
+                if (changeCheck.ok) {
+                    const data = await changeCheck.json();
+                    if (data.needs_password_change) {
+                        // Rediriger vers la page de changement de mot de passe
+                        goto('/change-password');
+                    }
+                }
+            } catch (changeError) {
+                console.warn('Erreur vérification changement mot de passe:', changeError);
+            }
+            
             isLoading.set(false);
             return true;
         }
@@ -51,7 +68,24 @@ export async function checkAuth() {
             });
             isAuthenticated.set(true);
             isAdmin.set(true);
-            console.log('Admin connecté');
+            
+            // Vérifier si l'admin doit changer son mot de passe
+            try {
+                const firstLoginCheck = await fetch('/api/admin/check-first-login', {
+                    credentials: 'include'
+                });
+                
+                if (firstLoginCheck.ok) {
+                    const data = await firstLoginCheck.json();
+                    if (data.needs_password_change) {
+                        // Rediriger vers la page admin pour changer le mot de passe
+                        goto('/admin');
+                    }
+                }
+            } catch (adminError) {
+                console.warn('Erreur vérification admin:', adminError);
+            }
+            
             isLoading.set(false);
             return true;
         }
@@ -89,6 +123,20 @@ export async function loginMember(identifier, password) {
 
         if (response.ok) {
             await checkAuth();
+            
+            // Vérifier si besoin de changer le mot de passe temporaire
+            const changeCheck = await fetch('/api/member/check-password-change', {
+                credentials: 'include'
+            });
+            
+            if (changeCheck.ok) {
+                const data = await changeCheck.json();
+                if (data.needs_password_change) {
+                    goto('/change-password');
+                    return { success: true, needsPasswordChange: true };
+                }
+            }
+            
             goto('/chat');
             return { success: true };
         } else {
@@ -149,7 +197,13 @@ export async function loginAdmin(username, password) {
 export async function logout() {
     try {
         // Déconnexion admin si c'est un admin
-        if (isAdmin) {
+        const isAdminUser = false;
+        const unsubscribe = isAdmin.subscribe(value => {
+            if (value) isAdminUser = true;
+        });
+        unsubscribe();
+        
+        if (isAdminUser) {
             await fetch('/api/admin/logout', {
                 method: 'POST',
                 credentials: 'include'
@@ -189,7 +243,7 @@ export async function checkPasswordStatus() {
 }
 
 /**
- * Crée un mot de passe pour le membre actuel
+ * Crée un mot de passe pour le membre actuel (ancien système)
  */
 export async function createPassword(password) {
     try {
@@ -204,6 +258,57 @@ export async function createPassword(password) {
     } catch (error) {
         console.error('Erreur création mot de passe:', error);
         return false;
+    }
+}
+
+/**
+ * Change un mot de passe temporaire (nouveau système)
+ */
+export async function changeTemporaryPassword(currentPassword, newPassword) {
+    try {
+        const response = await fetch('/api/member/change-temporary-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword
+            }),
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            return { success: true };
+        } else {
+            return { 
+                success: false, 
+                error: 'Mot de passe actuel incorrect' 
+            };
+        }
+    } catch (error) {
+        console.error('Erreur changement mot de passe:', error);
+        return { 
+            success: false, 
+            error: 'Erreur réseau' 
+        };
+    }
+}
+
+/**
+ * Vérifie si l'utilisateur doit changer son mot de passe
+ */
+export async function checkIfPasswordChangeNeeded() {
+    try {
+        const response = await fetch('/api/member/check-password-change', {
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            return await response.json();
+        }
+        return { needs_password_change: false };
+    } catch (error) {
+        console.error('Erreur vérification changement mot de passe:', error);
+        return { needs_password_change: false };
     }
 }
 
