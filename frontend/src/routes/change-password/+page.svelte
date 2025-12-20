@@ -8,35 +8,23 @@
   let error = $state('');
   let success = $state('');
   let isLoading = $state(false);
-  let needsChange = $state(false);
 
   onMount(async () => {
-    // Vérifier si le changement est nécessaire
+    // Vérifier si connecté
     try {
-      const res = await fetch('/api/member/check-password-change', {
+      const res = await fetch('/api/validate-session', {
         credentials: 'include'
       });
       
-      if (res.ok) {
-        const data = await res.json();
-        needsChange = data.needs_password_change;
-        
-        if (!needsChange) {
-          // Rediriger vers le chat si pas besoin de changement
-          goto('/chat');
-        }
-      } else if (res.status === 401) {
-        // Non connecté, rediriger vers login
+      if (!res.ok) {
         goto('/login');
       }
     } catch (err) {
-      console.error('Erreur vérification:', err);
       goto('/login');
     }
   });
 
   async function handleSubmit() {
-    // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       error = 'Veuillez remplir tous les champs';
       return;
@@ -52,22 +40,11 @@
       return;
     }
     
-    // Vérifier la complexité
-    const hasUpperCase = /[A-Z]/.test(newPassword);
-    const hasLowerCase = /[a-z]/.test(newPassword);
-    const hasNumbers = /\d/.test(newPassword);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
-    
-    if (!hasUpperCase || !hasLowerCase || !hasNumbers) {
-      error = 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre';
-      return;
-    }
-
     isLoading = true;
     error = '';
 
     try {
-      const res = await fetch('/api/member/change-temporary-password', {
+      const res = await fetch('/api/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -85,24 +62,15 @@
         setTimeout(() => {
           goto('/chat');
         }, 2000);
-      } else if (res.status === 401) {
-        error = 'Mot de passe actuel incorrect';
       } else {
-        error = 'Erreur lors du changement de mot de passe';
+        error = 'Mot de passe actuel incorrect';
       }
     } catch (err) {
-      console.error('Erreur:', err);
       error = 'Erreur réseau';
     } finally {
       isLoading = false;
     }
   }
-  
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading) {
-      handleSubmit();
-    }
-  };
 </script>
 
 <svelte:head>
@@ -119,15 +87,12 @@
     <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Première connexion</h1>
     
     <p class="text-[var(--text-secondary)] mb-8">
-      Vous devez changer votre mot de passe temporaire pour continuer
+      Vous devez changer votre mot de passe pour continuer
     </p>
 
     {#if error}
       <div class="mb-4 p-3 bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl border border-red-500/30">
-        <div class="flex items-center gap-2">
-          <span>⚠️</span>
-          <span>{error}</span>
-        </div>
+        {error}
       </div>
     {/if}
 
@@ -137,24 +102,19 @@
         <p class="font-semibold">{success}</p>
         <p class="text-sm mt-2">Redirection vers l'espace principal...</p>
       </div>
-    {:else if needsChange}
+    {:else}
       <div class="space-y-4">
         <div>
           <label for="current-password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Mot de passe temporaire
+            Mot de passe actuel
           </label>
           <input
             id="current-password"
             type="password"
             bind:value={currentPassword}
-            placeholder="Entrez le mot de passe temporaire"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-            disabled={isLoading}
+            placeholder="Entrez votre mot de passe actuel"
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)]"
           />
-          <p class="text-xs text-[var(--text-secondary)] mt-1 text-left">
-            Utilisez le mot de passe fourni par l'administrateur
-          </p>
         </div>
 
         <div>
@@ -166,14 +126,8 @@
             type="password"
             bind:value={newPassword}
             placeholder="Minimum 8 caractères"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-            disabled={isLoading}
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)]"
           />
-          <p class="text-xs text-[var(--text-secondary)] mt-2 text-left">
-            • Au moins 8 caractères<br>
-            • Majuscule, minuscule et chiffre requis
-          </p>
         </div>
 
         <div>
@@ -185,30 +139,17 @@
             type="password"
             bind:value={confirmPassword}
             placeholder="Répétez le nouveau mot de passe"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-            disabled={isLoading}
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)]"
           />
         </div>
 
         <button
           onclick={handleSubmit}
-          disabled={isLoading || !currentPassword || !newPassword || !confirmPassword}
-          class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+          disabled={isLoading}
+          class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition"
         >
-          {#if isLoading}
-            <span class="animate-spin">⟳</span>
-            <span>Changement en cours...</span>
-          {:else}
-            <span>🔒</span>
-            <span>Changer le mot de passe</span>
-          {/if}
+          {isLoading ? 'Changement en cours...' : 'Changer le mot de passe'}
         </button>
-      </div>
-    {:else}
-      <div class="text-center py-4">
-        <div class="text-4xl mb-2">⏳</div>
-        <p class="text-[var(--text-secondary)]">Vérification en cours...</p>
       </div>
     {/if}
   </div>
