@@ -292,7 +292,15 @@ jobs:
         run: |
           if [ ! -f "package-lock.json" ]; then
             echo "🔄 Génération du package-lock.json..."
-            npm install --package-lock-only --no-audit --no-fund
+            # Utiliser une version existante de routify et ignorer les conflits de peer dependencies
+            npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps --save-exact
+            
+            # Corriger manuellement la version de routify si nécessaire
+            if grep -q "@roxi/routify" package.json; then
+              echo "🔧 Correction de la version de Routify..."
+              npm install @roxi/routify@latest --no-save --no-audit --no-fund --legacy-peer-deps
+            fi
+            
             echo "✅ package-lock.json généré"
           else
             echo "✅ package-lock.json déjà présent"
@@ -313,7 +321,7 @@ jobs:
         run: |
           if [ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]; then
             echo "🔄 Installation des dépendances npm..."
-            npm ci --no-audit --no-fund
+            npm ci --no-audit --no-fund --legacy-peer-deps
             echo "✅ Dépendances installées"
           else
             echo "✅ Dépendances récupérées depuis le cache"
@@ -326,7 +334,6 @@ jobs:
             "@sveltejs/kit"
             "libsodium-wrappers"
             "uuid"
-            "svelte-navigator"
           )
           
           MISSING_DEPS=()
@@ -343,6 +350,12 @@ jobs:
           if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
             echo "❌ Dépendances manquantes: ${MISSING_DEPS[*]}"
             exit 1
+          fi
+          
+          # Vérifier que routify est installé
+          if ! npm list "@roxi/routify" --depth=0 --silent >/dev/null 2>&1; then
+            echo "⚠️ Routify non installé, installation forcée..."
+            npm install @roxi/routify@latest --legacy-peer-deps
           fi
 
       - name: Build
