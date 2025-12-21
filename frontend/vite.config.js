@@ -5,28 +5,25 @@ import routify from '@roxi/routify/vite-plugin';
 export default defineConfig({
   plugins: [
     routify({
-      // Configuration adaptée à ta structure
-      routesDir: 'src/routes',           // Dossier des routes
-      layoutsDir: 'src/routes',           // Les layouts sont dans le même dossier que les routes
-      pagesDir: 'src/routes',             // Dossier des pages
-      useHash: false,
-      singleFetch: true,
+      // Configuration Routify adaptée
+      routesDir: 'src/routes',
+      layoutsDir: 'src/routes',
+      pagesDir: 'src/routes',
       extensions: ['.svelte', '.js', '.ts'],
       dynamicImports: true,
       ssr: false,
-      // Options Routify v3 spécifiques
       routifyDir: '.routify',
       ignore: [
-        '**/+*.*',                      // Ignorer les fichiers +layout.svelte, +page.svelte, etc.
-        '**/*.bak',                     // Ignorer les fichiers backup
-        '**/*.d.ts',                    // Ignorer les fichiers de type
-        '**/*.ts',                      // Ignorer les fichiers TypeScript purs
-        '**/*.js'                       // Ignorer les fichiers JavaScript purs
+        '**/+*.*',                      // Ignorer fichiers +layout.svelte, +page.svelte
+        '**/*.bak',                     // Fichiers backup
+        '**/*.d.ts',                    // Fichiers de type
+        '**/*.md',                     // Fichiers Markdown
+        '**/app.html'                   // Fichier app.html simplifié
       ],
       dynamic: true,
       autoFileRoutes: false,
-      // Spécifier explicitement le point d'entrée
-      entry: 'src/app.html'
+      base: '/',
+      trailingSlash: 'never'
     }),
     svelte({
       compilerOptions: {
@@ -35,32 +32,45 @@ export default defineConfig({
         immutable: true
       },
       onwarn: (warning, handler) => {
-        if (
-          warning.code === 'a11y-missing-attribute' || 
-          warning.code === 'css-unused-selector' ||
-          warning.message.includes('Svelte 5')
-        ) {
+        // Ignorer warnings spécifiques
+        const ignoredWarnings = [
+          'a11y-missing-attribute',
+          'css-unused-selector',
+          'Svelte 5',
+          'unused-css-selector'
+        ];
+        
+        if (ignoredWarnings.some(code => warning.code?.includes(code) || warning.message.includes(code))) {
           return;
         }
+        
+        // Ignorer warnings sur les events custom
+        if (warning.message.includes('customElement')) {
+          return;
+        }
+        
         handler(warning);
       }
     })
   ],
-  // Spécifier explicitement le fichier d'entrée
   build: {
     target: 'esnext',
     outDir: 'build',
     assetsDir: '_app',
     rollupOptions: {
       input: {
-        main: './src/app.html'  // Point d'entrée principal
+        main: './index.html'  // Point d'entrée principal
       },
       output: {
-        manualChunks: {
-          'libsodium': ['libsodium-wrappers'],
-          'chart': ['chart.js'],
-          'peer': ['simple-peer'],
-          'routify': ['@roxi/routify']
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('libsodium')) return 'libsodium';
+            if (id.includes('chart.js')) return 'chart';
+            if (id.includes('simple-peer')) return 'peer';
+            if (id.includes('@roxi/routify')) return 'routify';
+            if (id.includes('svelte')) return 'svelte';
+            return 'vendor';
+          }
         }
       }
     }
@@ -70,8 +80,20 @@ export default defineConfig({
     strictPort: true,
     host: true,
     fs: {
-      strict: true,
-      allow: ['..', './src']
+      strict: false,  // Désactiver la restriction stricte pour éviter les problèmes d'accès
+      allow: [
+        '..',
+        './src',
+        './node_modules'
+      ]
+    },
+    watch: {
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/.routify/**',
+        '**/*.bak'
+      ]
     }
   },
   preview: {
@@ -82,22 +104,45 @@ export default defineConfig({
     alias: {
       '$lib': './src/lib',
       '$components': './src/components',
-      '$routes': './src/routes'
+      '$routes': './src/routes',
+      '$assets': '/static'
     }
   },
-  // Configuration spécifique pour Svelte 5
   optimizeDeps: {
     include: [
       'svelte',
       'svelte/internal',
-      'svelte/elements',
       'svelte/store',
       'svelte/animate',
       'svelte/easing',
       'svelte/motion',
       'svelte/transition',
       'svelte/parse',
-      'svelte/compiler'
+      'svelte/compiler',
+      'uuid',
+      'libsodium-wrappers',
+      'simple-peer',
+      '@roxi/routify',
+      'chart.js'
+    ],
+    exclude: [
+      'vite',
+      'vitest'
     ]
-  }
+  },
+  assetsInclude: [
+    '**/*.png',
+    '**/*.jpg',
+    '**/*.jpeg',
+    '**/*.gif',
+    '**/*.svg',
+    '**/*.webp',
+    '**/*.ico',
+    '**/*.woff',
+    '**/*.woff2',
+    '**/*.ttf',
+    '**/*.eot',
+    '**/*.otf',
+    '**/*.map'
+  ]
 });
