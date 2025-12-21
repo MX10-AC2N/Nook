@@ -1,7 +1,12 @@
-<script lang="ts">
+<script context="module">
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+
+<script>
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
-  import { get } from 'svelte/store';
+  import { page } from '@roxi/routify';
+  import { goto } from '@roxi/routify';
   import { authStore } from '$lib/authStore';
   import { currentTheme } from '$lib/themeStore';
   import { 
@@ -38,123 +43,136 @@
   import { decryptPrivateKey, getStoredKeys } from '$lib/crypto';
   import MediaRecorder from '$lib/components/MediaRecorder.svelte';
   import MediaPlayer from '$lib/components/MediaPlayer.svelte';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 
+  // États locaux
   let messageInput = '';
   let gifSearch = '';
-  let myPrivateKey: Uint8Array | null = null;
+  let myPrivateKey = null;
   let showConversationSidebar = false;
   let showNewConversationModal = false;
   let newConversationName = '';
-  let selectedParticipants: string[] = [];
+  let selectedParticipants = [];
   let showMediaRecorder = false;
+  let loading = true;
+  let error = null;
 
   onMount(async () => {
-    const user = get(authStore).user;
-    if (!user) return;
+    if (!$authStore.isAuthenticated) {
+      goto('/login');
+      return;
+    }
 
-    currentUser.set({
-      id: user.id,
-      name: user.name,
-      username: user.username
-    });
+    try {
+      loading = true;
+      error = null;
+      
+      // Charger l'utilisateur courant
+      currentUser.set({
+        id: $authStore.user.id,
+        name: $authStore.user.name,
+        username: $authStore.user.username
+      });
 
-    // Charger les clés de chiffrement
-    const storedKeys = await getStoredKeys(user.id);
-    if (storedKeys) {
-      try {
-        // Dans une vraie implémentation, demander le mot de passe ou le récupérer du store sécurisé
-        const password = user.password || prompt('Entrez votre mot de passe pour déchiffrer vos messages:');
+      // Charger les clés de chiffrement
+      const storedKeys = await getStoredKeys($authStore.user.id);
+      if (storedKeys) {
+        const password = $authStore.user.password || prompt('Entrez votre mot de passe pour déchiffrer vos messages:');
         if (password) {
           myPrivateKey = await decryptPrivateKey(storedKeys.encryptedPrivateKey, password);
         }
-      } catch (err) {
-        connectionError.set('Erreur de déchiffrement des clés - vérifiez votre mot de passe');
       }
+
+      // Charger les conversations
+      await loadConversations();
+      
+      // Charger la première conversation si aucune active
+      if (!$activeConversationId && $conversations.length > 0) {
+        activeConversationId.set($conversations[0].id);
+      }
+      
+      loading = false;
+    } catch (err) {
+      error = err.message || 'Erreur de chargement du chat';
+      loading = false;
+      console.error('Erreur chat:', err);
     }
+  });
 
-    // Charger les conversations
-    await loadConversations();
+  // Charger les messages quand la conversation active change
+  $: if ($activeConversationId && $authStore.isAuthenticated) {
+    loadMessages($activeConversationId);
+    loadParticipants($activeConversationId);
+  }
+
+  // Gestion des websockets pour les messages en temps réel
+  let ws;
+  onMount(() => {
+    ws = new WebSocket(`wss://${window.location.host}/ws/messages`);
     
-    // S'abonner aux changements de conversation active
-    activeConversationId.subscribe(async (convId) => {
-      if (convId) {
-        await loadParticipants(convId);
-        await loadMessages(convId);
-      }
-    });
-
-    // S'abonner aux nouveaux messages via WebSocket
-    const ws = new WebSocket(`ws://${window.location.host}/ws/messages`);
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'new_message') {
-        const currentConvId = get(activeConversationId);
-        if (currentConvId === data.message.conversation_id) {
-          messages.update(msgs => [...msgs, data.message]);
-        }
-        
-        // Mettre à jour le compteur de messages non lus
-        conversations.update(convs => 
-          convs.map(conv => 
-            conv.id === data.message.conversation_id && conv.id !== currentConvId
-              ? { ...conv, unread_count: conv.unread_count + 1 }
-              : conv
-          )
-        );
+      if (data.type === 'new_message' && data.message.conversation_id === $activeConversationId) {
+        messages.update(msgs => [...msgs, data.message]);
       }
     };
     
-    return () => ws.close();
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      connectionError.set('Connexion WebSocket perdue');
+    };
+    
+    ws.onclose = () => {
+      console.log('WebSocket closed');
+      // On peut tenter de se reconnecter après un délai
+    };
+    
+    return () => {
+      if (ws) ws.close();
+    };
   });
 
   async function handleSendMessage() {
-    const convId = get(activeConversationId);
-    if (!messageInput.trim() || !myPrivateKey || !convId) return;
+    if (!messageInput.trim() || !myPrivateKey || !$activeConversationId) return;
     
     try {
-      // Obtenir les clés publiques des destinataires
-      const convParticipants = get(participants);
+      const convParticipants = $participants;
       const recipientPublicKeys = convParticipants
-        .filter(p => p.id !== get(currentUser)?.id)
-        .map(p => {
-          // Dans une vraie implémentation, récupérer la clé publique depuis le backend
-          return new Uint8Array(32); // Placeholder - à remplacer par la vraie clé
-        });
+        .filter(p => p.id !== $currentUser?.id)
+        .map(p => new Uint8Array(32)); // Placeholder - à remplacer par les vraies clés
       
       await sendMessage(
         messageInput.trim(), 
-        convId, 
+        $activeConversationId, 
         recipientPublicKeys, 
         myPrivateKey
       );
       messageInput = '';
     } catch (err) {
       connectionError.set('Erreur lors de l\'envoi du message');
+      console.error('Erreur envoi message:', err);
     }
   }
 
-  async function handleSendGif(gifUrl: string) {
-    const convId = get(activeConversationId);
-    if (!myPrivateKey || !convId) return;
+  async function handleSendGif(gifUrl) {
+    if (!myPrivateKey || !$activeConversationId) return;
     
     try {
-      // Obtenir les clés publiques des destinataires
-      const convParticipants = get(participants);
+      const convParticipants = $participants;
       const recipientPublicKeys = convParticipants
-        .filter(p => p.id !== get(currentUser)?.id)
-        .map(p => {
-          return new Uint8Array(32); // Placeholder
-        });
+        .filter(p => p.id !== $currentUser?.id)
+        .map(p => new Uint8Array(32)); // Placeholder
       
       await sendGif(
         gifUrl, 
-        convId, 
+        $activeConversationId, 
         recipientPublicKeys, 
         myPrivateKey
       );
       showGifs.set(false);
     } catch (err) {
       connectionError.set('Erreur lors de l\'envoi du GIF');
+      console.error('Erreur envoi GIF:', err);
     }
   }
 
@@ -164,13 +182,13 @@
     }
   }
 
-  async function handleKeyDown(e: KeyboardEvent) {
+  function handleKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (get(showGifs)) {
-        await handleSearchGifs();
+      if ($showGifs) {
+        handleSearchGifs();
       } else {
-        await handleSendMessage();
+        handleSendMessage();
       }
     }
   }
@@ -204,10 +222,11 @@
       closeNewConversationModal();
     } catch (err) {
       console.error('Erreur création conversation:', err);
+      alert('Erreur lors de la création de la conversation');
     }
   }
 
-  function toggleParticipantSelection(userId: string) {
+  function toggleParticipantSelection(userId) {
     if (selectedParticipants.includes(userId)) {
       selectedParticipants = selectedParticipants.filter(id => id !== userId);
     } else {
@@ -216,19 +235,13 @@
   }
 
   function handleStartVideoCall() {
-    const convId = get(activeConversationId);
-    if (!convId) return;
-    
-    // Rediriger vers la page d'appel avec le type vidéo
-    window.location.href = `/call/${convId}?call=1&type=video`;
+    if (!$activeConversationId) return;
+    goto(`/call/${$activeConversationId}?call=1&type=video`);
   }
 
   function handleStartAudioCall() {
-    const convId = get(activeConversationId);
-    if (!convId) return;
-    
-    // Rediriger vers la page d'appel avec le type audio
-    window.location.href = `/call/${convId}?call=1&type=audio`;
+    if (!$activeConversationId) return;
+    goto(`/call/${$activeConversationId}?call=1&type=audio`);
   }
 </script>
 
@@ -237,326 +250,349 @@
 </svelte:head>
 
 <div class="chat-container theme-{$currentTheme}">
-  <!-- Sidebar des conversations -->
-  <div class="sidebar {showConversationSidebar ? 'open' : ''}">
-    <div class="sidebar-header">
-      <h2>💬 Nook</h2>
-      <button class="new-conversation-button" on:click={openNewConversationModal}>
-        + Nouveau
+  {#if loading}
+    <div class="loading-screen">
+      <LoadingSpinner size="large" />
+      <p>Chargement de vos conversations...</p>
+    </div>
+  {:else if error}
+    <div class="error-screen">
+      <h2>❌ {$error}</h2>
+      <button onclick={() => window.location.reload()} class="retry-button">
+        🔄 Recharger
       </button>
     </div>
-    
-    <div class="search-conversations">
-      <input 
-        type="text" 
-        placeholder="Rechercher une conversation..." 
-        class="search-input"
-      />
-    </div>
-    
-    <div class="conversations-list">
-      {#each $sortedConversations as conv}
-        <div 
-          class="conversation-item {get(activeConversationId) === conv.id ? 'active' : ''}"
-          on:click={() => activeConversationId.set(conv.id)}
-        >
-          <div class="conversation-info">
-            <div class="conversation-avatar">
-              {#if conv.is_group}
-                👥
-              {:else}
-                {#each conv.participants as p}
-                  {#if p.id !== get(currentUser)?.id}
-                    {p.name.charAt(0)}
-                  {/if}
-                {/each}
-              {/if}
-            </div>
-            <div class="conversation-details">
-              <div class="conversation-name">
-                {conv.name || conv.participants.map(p => p.name).join(', ')}
-                {#if conv.unread_count > 0}
-                  <span class="unread-badge">{conv.unread_count}</span>
-                {/if}
-              </div>
-              <div class="conversation-preview">
-                {conv.last_message_preview || 'Aucun message'}
-              </div>
-            </div>
-          </div>
-          <div class="conversation-time">
-            {new Date(conv.last_message_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-          </div>
-        </div>
-      {/each}
-    </div>
-  </div>
-
-  <!-- Zone principale de chat -->
-  <div class="main-chat-area">
-    <!-- Header du chat -->
-    <header class="chat-header">
-      <button class="sidebar-toggle" on:click={toggleSidebar}>
-        ☰
-      </button>
+  {:else}
+    <!-- Sidebar des conversations -->
+    <div class="sidebar {showConversationSidebar ? 'open' : ''}">
+      <div class="sidebar-header">
+        <h2>💬 Nook</h2>
+        <button class="new-conversation-button" onclick={openNewConversationModal}>
+          + Nouveau
+        </button>
+      </div>
       
-      {#if $activeConversationId}
-        <div class="conversation-header">
-          <h1>{$conversationDisplayName}</h1>
-          <div class="call-buttons">
-            <button class="call-button audio" on:click={handleStartAudioCall}>
-              🎤
-            </button>
-            <button class="call-button video" on:click={handleStartVideoCall}>
-              📹
+      <div class="search-conversations">
+        <input 
+          type="text" 
+          placeholder="Rechercher une conversation..." 
+          class="search-input"
+        />
+      </div>
+      
+      <div class="conversations-list">
+        {#if $sortedConversations.length === 0}
+          <div class="empty-conversations">
+            <p>aucune conversation</p>
+            <button onclick={openNewConversationModal} class="create-first-button">
+              + Créer votre première conversation
             </button>
           </div>
-        </div>
-      {:else}
-        <div class="welcome-message">
-          <h1>🌱 Bienvenue dans Nook</h1>
-          <p>Sélectionnez une conversation ou créez-en une nouvelle pour commencer à discuter.</p>
-          <button class="start-button" on:click={openNewConversationModal}>
-            + Nouvelle conversation
-          </button>
-        </div>
-      {/if}
-      
-      <div class="theme-selector">
-        {#if $currentTheme === 'jardin-secret'}
-          <div class="theme-indicator jardin">🌿 Jardin Secret</div>
-        {:else if $currentTheme === 'space-hub'}
-          <div class="theme-indicator space">🚀 Space Hub</div>
         {:else}
-          <div class="theme-indicator maison">🏠 Maison Chaleureuse</div>
-        {/if}
-      </div>
-    </header>
-
-    {#if $connectionError}
-      <div class="error-banner">
-        {$connectionError}
-      </div>
-    {/if}
-
-    {#if $activeConversationId}
-      <main class="messages-area">
-        {#if $messages.length === 0}
-          <div class="empty-chat">
-            <p>C'est le début de cette conversation ! 🌱</p>
-            <p>Écrivez un message pour commencer à discuter avec votre famille et vos amis.</p>
-          </div>
-        {:else}
-          <div class="messages-list">
-            {#each $messages as msg (msg.id)}
-              <div class="message {msg.sender_id === $currentUser.id ? 'outgoing' : 'incoming'}">
-                <div class="message-header">
-                  <span class="sender">{msg.sender_name}</span>
-                  <span class="timestamp">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
-                
-                <div class="message-content">
-                  {#if msg.media_type === 'gif'}
-                    <img 
-                      src={msg.content} 
-                      alt="GIF" 
-                      class="gif-preview"
-                      loading="lazy"
-                      on:click={() => window.open(msg.content, '_blank')}
-                    />
-                  {:else if msg.media_type === 'audio' || msg.media_type === 'video'}
-                    <MediaPlayer 
-                      message={msg} 
-                      isCurrentUser={msg.sender_id === $currentUser.id}
-                    />
+          {#each $sortedConversations as conv}
+            <div 
+              class="conversation-item {get(activeConversationId) === conv.id ? 'active' : ''}"
+              onclick={() => activeConversationId.set(conv.id)}
+            >
+              <div class="conversation-info">
+                <div class="conversation-avatar">
+                  {#if conv.is_group}
+                    👥
                   {:else}
-                    {#await decryptMessageContent(msg, myPrivateKey) then decrypted}
-                      {decrypted}
-                    {:catch error}
-                      <span class="decryption-error">[Message illisible]</span>
-                    {/await}
-                  {/if}
-                </div>
-                
-                <div class="reactions">
-                  {#if msg.reactions && Object.keys(msg.reactions).length > 0}
-                    {#each Object.entries(msg.reactions) as [emoji, count]}
-                      <span class="reaction">{emoji} {count}</span>
+                    {#each conv.participants as p}
+                      {#if p.id !== $currentUser?.id}
+                        {p.name.charAt(0)}
+                      {/if}
                     {/each}
                   {/if}
-                  
-                  <button 
-                    class="add-reaction" 
-                    on:click={() => addReaction(msg.id, '❤️')}
-                    title="Réagir avec ❤️"
-                  >
-                    ❤️
-                  </button>
-                  <button 
-                    class="add-reaction" 
-                    on:click={() => addReaction(msg.id, '👍')}
-                    title="Réagir avec 👍"
-                  >
-                    👍
-                  </button>
-                  <button 
-                    class="add-reaction" 
-                    on:click={() => addReaction(msg.id, '😂')}
-                    title="Réagir avec 😂"
-                  >
-                    😂
-                  </button>
+                </div>
+                <div class="conversation-details">
+                  <div class="conversation-name">
+                    {conv.name || conv.participants.map(p => p.name).join(', ')}
+                    {#if conv.unread_count > 0}
+                      <span class="unread-badge">{conv.unread_count}</span>
+                    {/if}
+                  </div>
+                  <div class="conversation-preview">
+                    {conv.last_message_preview || 'Aucun message'}
+                  </div>
                 </div>
               </div>
-            {/each}
-          </div>
-        {/if}
-      </main>
-    {/if}
-
-    {#if $activeConversationId}
-      {#if get(recordingState).isRecording}
-        <div class="recording-banner">
-          <span class="recording-indicator"></span>
-          <span>Enregistrement en cours... {get(recordingState).duration}s</span>
-          <button class="stop-recording" on:click={() => stopRecording(true)}>
-            Arrêter
-          </button>
-          <button class="cancel-recording" on:click={() => stopRecording(false)}>
-            Annuler
-          </button>
-        </div>
-      {/if}
-
-      {#if $showGifs}
-        <div class="gif-search-area">
-          <input
-            type="text"
-            bind:value={gifSearch}
-            on:keydown={handleKeyDown}
-            placeholder="Rechercher un GIF..."
-            class="gif-input"
-            autofocus
-          />
-          
-          {#if $gifResults.length > 0}
-            <div class="gif-grid">
-              {#each $gifResults as gif}
-                <button 
-                  class="gif-item" 
-                  on:click={() => handleSendGif(gif.media[0].gif.url)}
-                  title={gif.title}
-                >
-                  <img 
-                    src={gif.media[0].tinygif.url || gif.media[0].gif.url} 
-                    alt={gif.title} 
-                    loading="lazy"
-                  />
-                </button>
-              {/each}
+              <div class="conversation-time">
+                {new Date(conv.last_message_at * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              </div>
             </div>
-          {:else if gifSearch}
-            <p class="no-gifs">Aucun GIF trouvé pour "{gifSearch}"</p>
-          {/if}
-          
-          <button class="close-gifs" on:click={() => showGifs.set(false)}>
-            Fermer la recherche
-          </button>
-        </div>
-      {/if}
-
-      <footer class="message-input-area">
-        <div class="input-container">
-          <div class="input-actions-left">
-            <button 
-              class="action-button emoji-toggle" 
-              on:click={() => toggleGifs()}
-              title={$showGifs ? 'Fermer les emojis' : 'Ajouter un GIF'}
-            >
-              {$showGifs ? '✕' : 'GIF'}
-            </button>
-            
-            <button 
-              class="action-button media-toggle" 
-              on:click={() => showMediaRecorder = !showMediaRecorder}
-              title={showMediaRecorder ? 'Fermer l\'enregistreur' : 'Messages audio/vidéo'}
-            >
-              {showMediaRecorder ? '✕' : '🎙️'}
-            </button>
-          </div>
-          
-          {#if showMediaRecorder}
-            <div class="media-recorder-container">
-              <MediaRecorder disabled={!$activeConversationId} />
-            </div>
-          {/if}
-          
-          <textarea
-            bind:value={messageInput}
-            on:keydown={handleKeyDown}
-            placeholder="Écris un message..."
-            class="message-input"
-            rows="1"
-            maxlength="1000"
-            disabled={!$activeConversationId}
-          ></textarea>
-          
-          <div class="input-actions-right">
-            <button 
-              class="action-button send" 
-              on:click={handleSendMessage}
-              disabled={!messageInput.trim() || !$activeConversationId}
-              title="Envoyer le message"
-            >
-              Envoyer
-            </button>
-          </div>
-        </div>
-      </footer>
-    {/if}
-  </div>
-
-  <!-- Modal pour nouvelle conversation -->
-  {#if showNewConversationModal}
-    <div class="modal-overlay">
-      <div class="new-conversation-modal">
-        <h2>✨ Nouvelle conversation</h2>
-        
-        <div class="modal-section">
-          <label for="conv-name">Nom du groupe (optionnel)</label>
-          <input
-            id="conv-name"
-            bind:value={newConversationName}
-            placeholder="Ex: Famille Dupont"
-          />
-        </div>
-        
-        <div class="modal-section">
-          <h3>Participants</h3>
-          <p>Sélectionnez les membres à ajouter :</p>
-          
-          {#each get(availableUsers) as user}
-            <label class="participant-checkbox">
-              <input
-                type="checkbox"
-                checked={selectedParticipants.includes(user.id)}
-                on:change={() => toggleParticipantSelection(user.id)}
-              />
-              <span>{user.name} (@{user.username})</span>
-            </label>
           {/each}
-        </div>
-        
-        <div class="modal-actions">
-          <button class="cancel-button" on:click={closeNewConversationModal}>
-            Annuler
-          </button>
-          <button class="create-button" on:click={handleCreateConversation}>
-            Créer la conversation
-          </button>
-        </div>
+        {/if}
       </div>
     </div>
+
+    <!-- Zone principale de chat -->
+    <div class="main-chat-area">
+      <!-- Header du chat -->
+      <header class="chat-header">
+        <button class="sidebar-toggle" onclick={toggleSidebar}>
+          ☰
+        </button>
+        
+        {#if $activeConversationId}
+          <div class="conversation-header">
+            <h1>{$conversationDisplayName}</h1>
+            <div class="call-buttons">
+              <button class="call-button audio" onclick={handleStartAudioCall}>
+                🎤
+              </button>
+              <button class="call-button video" onclick={handleStartVideoCall}>
+                📹
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="welcome-message">
+            <h1>🌱 Bienvenue dans Nook</h1>
+            <p>Sélectionnez une conversation ou créez-en une nouvelle pour commencer à discuter.</p>
+            <button class="start-button" onclick={openNewConversationModal}>
+              + Nouvelle conversation
+            </button>
+          </div>
+        {/if}
+        
+        <div class="theme-selector">
+          {#if $currentTheme === 'jardin-secret'}
+            <div class="theme-indicator jardin">🌿 Jardin Secret</div>
+          {:else if $currentTheme === 'space-hub'}
+            <div class="theme-indicator space">🚀 Space Hub</div>
+          {:else}
+            <div class="theme-indicator maison">🏠 Maison Chaleureuse</div>
+          {/if}
+        </div>
+      </header>
+
+      {#if $connectionError}
+        <div class="error-banner">
+          {$connectionError}
+        </div>
+      {/if}
+
+      {#if $activeConversationId}
+        <main class="messages-area">
+          {#if $messages.length === 0}
+            <div class="empty-chat">
+              <p>C'est le début de cette conversation ! 🌱</p>
+              <p>Écrivez un message pour commencer à discuter avec votre famille et vos amis.</p>
+            </div>
+          {:else}
+            <div class="messages-list">
+              {#each $messages as msg (msg.id)}
+                <div class="message {msg.sender_id === $currentUser.id ? 'outgoing' : 'incoming'}">
+                  <div class="message-header">
+                    <span class="sender">{msg.sender_name}</span>
+                    <span class="timestamp">{new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </div>
+                  
+                  <div class="message-content">
+                    {#if msg.media_type === 'gif'}
+                      <img 
+                        src={msg.content} 
+                        alt="GIF" 
+                        class="gif-preview"
+                        loading="lazy"
+                        onclick={() => window.open(msg.content, '_blank')}
+                      />
+                    {:else if msg.media_type === 'audio' || msg.media_type === 'video'}
+                      <MediaPlayer 
+                        message={msg} 
+                        isCurrentUser={msg.sender_id === $currentUser.id}
+                      />
+                    {:else}
+                      {#await decryptMessageContent(msg, myPrivateKey) then decrypted}
+                        {decrypted}
+                      {:catch error}
+                        <span class="decryption-error">[Message illisible]</span>
+                      {/await}
+                    {/if}
+                  </div>
+                  
+                  <div class="reactions">
+                    {#if msg.reactions && Object.keys(msg.reactions).length > 0}
+                      {#each Object.entries(msg.reactions) as [emoji, count]}
+                        <span class="reaction">{emoji} {count}</span>
+                      {/each}
+                    {/if}
+                    
+                    <button 
+                      class="add-reaction" 
+                      onclick={() => addReaction(msg.id, '❤️')}
+                      title="Réagir avec ❤️"
+                    >
+                      ❤️
+                    </button>
+                    <button 
+                      class="add-reaction" 
+                      onclick={() => addReaction(msg.id, '👍')}
+                      title="Réagir avec 👍"
+                    >
+                      👍
+                    </button>
+                    <button 
+                      class="add-reaction" 
+                      onclick={() => addReaction(msg.id, '😂')}
+                      title="Réagir avec 😂"
+                    >
+                      😂
+                    </button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </main>
+      {/if}
+
+      {#if $activeConversationId}
+        {#if $recordingState.isRecording}
+          <div class="recording-banner">
+            <span class="recording-indicator"></span>
+            <span>Enregistrement en cours... {$recordingState.duration}s</span>
+            <button class="stop-recording" onclick={() => stopRecording(true)}>
+              Arrêter
+            </button>
+            <button class="cancel-recording" onclick={() => stopRecording(false)}>
+              Annuler
+            </button>
+          </div>
+        {/if}
+
+        {#if $showGifs}
+          <div class="gif-search-area">
+            <input
+              type="text"
+              bind:value={gifSearch}
+              onkeydown={handleKeyDown}
+              placeholder="Rechercher un GIF..."
+              class="gif-input"
+              autofocus
+            />
+            
+            {#if $gifResults.length > 0}
+              <div class="gif-grid">
+                {#each $gifResults as gif}
+                  <button 
+                    class="gif-item" 
+                    onclick={() => handleSendGif(gif.media[0].gif.url)}
+                    title={gif.title}
+                  >
+                    <img 
+                      src={gif.media[0].tinygif.url || gif.media[0].gif.url} 
+                      alt={gif.title} 
+                      loading="lazy"
+                    />
+                  </button>
+                {/each}
+              </div>
+            {:else if gifSearch}
+              <p class="no-gifs">Aucun GIF trouvé pour "{gifSearch}"</p>
+            {/if}
+            
+            <button class="close-gifs" onclick={() => showGifs.set(false)}>
+              Fermer la recherche
+            </button>
+          </div>
+        {/if}
+
+        <footer class="message-input-area">
+          <div class="input-container">
+            <div class="input-actions-left">
+              <button 
+                class="action-button emoji-toggle" 
+                onclick={() => toggleGifs()}
+                title={$showGifs ? 'Fermer les emojis' : 'Ajouter un GIF'}
+              >
+                {$showGifs ? '✕' : 'GIF'}
+              </button>
+              
+              <button 
+                class="action-button media-toggle" 
+                onclick={() => showMediaRecorder = !showMediaRecorder}
+                title={showMediaRecorder ? 'Fermer l\'enregistreur' : 'Messages audio/vidéo'}
+              >
+                {showMediaRecorder ? '✕' : '🎙️'}
+              </button>
+            </div>
+            
+            {#if showMediaRecorder}
+              <div class="media-recorder-container">
+                <MediaRecorder disabled={!$activeConversationId} />
+              </div>
+            {/if}
+            
+            <textarea
+              bind:value={messageInput}
+              onkeydown={handleKeyDown}
+              placeholder="Écris un message..."
+              class="message-input"
+              rows="1"
+              maxlength="1000"
+              disabled={!$activeConversationId}
+            ></textarea>
+            
+            <div class="input-actions-right">
+              <button 
+                class="action-button send" 
+                onclick={handleSendMessage}
+                disabled={!messageInput.trim() || !$activeConversationId}
+                title="Envoyer le message"
+              >
+                Envoyer
+              </button>
+            </div>
+          </div>
+        </footer>
+      {/if}
+    </div>
+
+    <!-- Modal pour nouvelle conversation -->
+    {#if showNewConversationModal}
+      <div class="modal-overlay">
+        <div class="new-conversation-modal">
+          <h2>✨ Nouvelle conversation</h2>
+          
+          <div class="modal-section">
+            <label for="conv-name">Nom du groupe (optionnel)</label>
+            <input
+              id="conv-name"
+              bind:value={newConversationName}
+              placeholder="Ex: Famille Dupont"
+            />
+          </div>
+          
+          <div class="modal-section">
+            <h3>Participants</h3>
+            <p>Sélectionnez les membres à ajouter :</p>
+            
+            {#each $availableUsers as user}
+              <label class="participant-checkbox">
+                <input
+                  type="checkbox"
+                  checked={selectedParticipants.includes(user.id)}
+                  onclick={() => toggleParticipantSelection(user.id)}
+                />
+                <span>{user.name} (@{user.username})</span>
+              </label>
+            {/each}
+          </div>
+          
+          <div class="modal-actions">
+            <button class="cancel-button" onclick={closeNewConversationModal}>
+              Annuler
+            </button>
+            <button class="create-button" onclick={handleCreateConversation}>
+              Créer la conversation
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -566,6 +602,40 @@
     height: 100vh;
     width: 100%;
     overflow: hidden;
+  }
+
+  .loading-screen, .error-screen {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100%;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .error-screen h2 {
+    color: #f44336;
+    margin-bottom: 1.5rem;
+    font-size: 2rem;
+  }
+
+  .retry-button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 18px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .retry-button:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
   }
 
   .sidebar {
@@ -648,6 +718,33 @@
     flex: 1;
     overflow-y: auto;
     padding: 0.5rem;
+  }
+
+  .empty-conversations {
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+  }
+
+  .empty-conversations p {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+  }
+
+  .create-first-button {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .create-first-button:hover {
+    background: var(--primary-dark);
   }
 
   .conversation-item {
