@@ -121,7 +121,7 @@
       <p class="app-tagline">Messagerie privée pour la famille</p>
     </div>
     
-    <form on:submit|preventDefault={handleSubmit} class="login-form">
+    <form onsubmit|preventDefault={handleSubmit} class="login-form">
       <div class="form-group">
         <label for="username" class="form-label">Identifiant</label>
         <div class="input-wrapper">
