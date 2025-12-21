@@ -1,4 +1,4 @@
-<script context="module">
+<script module>
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
@@ -48,16 +48,16 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 
   // États locaux
-  let messageInput = '';
-  let gifSearch = '';
-  let myPrivateKey = null;
-  let showConversationSidebar = false;
-  let showNewConversationModal = false;
-  let newConversationName = '';
-  let selectedParticipants = [];
-  let showMediaRecorder = false;
-  let loading = true;
-  let error = null;
+  let messageInput = $state('');
+  let gifSearch = $state('');
+  let myPrivateKey = $state(null);
+  let showConversationSidebar = $state(false);
+  let showNewConversationModal = $state(false);
+  let newConversationName = $state('');
+  let selectedParticipants = $state([]);
+  let showMediaRecorder = $state(false);
+  let loading = $state(true);
+  let error = $state(null);
 
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
