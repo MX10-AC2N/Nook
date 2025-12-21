@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { routify } from '@roxi/routify/vite-plugin';
+import routify from '@roxi/routify/vite-plugin'; // Syntaxe corrigée pour Routify v3
 
 export default defineConfig({
   plugins: [
@@ -13,7 +13,11 @@ export default defineConfig({
       extensions: ['.svelte', '.js', '.ts'],
       dynamicImports: true,
       // Désactiver le routage côté serveur pour le moment
-      ssr: false
+      ssr: false,
+      // Options spécifiques à Routify v3
+      routifyDir: '.routify',
+      ignore: ['**/+*'],
+      dynamic: true
     }),
     svelte({
       compilerOptions: {
