@@ -1,27 +1,38 @@
 // frontend/src/lib/webrtc-calls.ts
-import { writable } from 'svelte/store';
-import type { CallSignal } from '$lib/types';
+import { writable, get } from 'svelte/store';
+import type { Writable } from 'svelte/store';
+import type { CallSignal } from './types';
+import { authStore } from './authStore';
+import { participants } from './conversationStore';
 
-interface CallState {
+// État d'appel WebRTC
+export interface CallState {
   isCalling: boolean;
+  isAnswering: boolean;
   isInCall: boolean;
   callType: 'audio' | 'video';
   localStream: MediaStream | null;
-  remoteStreams: Map<string, MediaStream>; // user_id -> stream
+  remoteStreams: Map<string, MediaStream>;
   peerConnections: Map<string, RTCPeerConnection>;
   currentConversationId: string | null;
   error: string | null;
+  isMuted: boolean;
+  isVideoOff: boolean;
 }
 
-export const callStore = writable<CallState>({
+// Store pour l'état d'appel
+export const callStore: Writable<CallState> = writable({
   isCalling: false,
+  isAnswering: false,
   isInCall: false,
   callType: 'audio',
   localStream: null,
   remoteStreams: new Map(),
   peerConnections: new Map(),
   currentConversationId: null,
-  error: null
+  error: null,
+  isMuted: false,
+  isVideoOff: false
 });
 
 class WebRTCCallManager {
@@ -29,10 +40,12 @@ class WebRTCCallManager {
   private localStream: MediaStream | null = null;
   private conversationId: string = '';
   private userId: string = '';
+  private peerConnections: Map<string, RTCPeerConnection> = new Map();
+  private remoteStreams: Map<string, MediaStream> = new Map();
 
   constructor() {
-    const auth = (window as any).authStore?.user;
-    this.userId = auth?.id || 'anonymous';
+    const user = get(authStore).user;
+    this.userId = user?.id || 'anonymous';
   }
 
   private async setupLocalStream(type: 'audio' | 'video'): Promise<MediaStream> {
@@ -40,17 +53,30 @@ class WebRTCCallManager {
       this.localStream.getTracks().forEach(track => track.stop());
     }
 
-    this.localStream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: type === 'video'
-    });
+    try {
+      const constraints = {
+        audio: true,
+        video: type === 'video' ? { width: 1280, height: 720, frameRate: 30 } : false
+      };
 
-    return this.localStream;
+      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Appliquer l'état mute/vidéo off si nécessaire
+      this.updateTrackStates();
+      
+      return this.localStream;
+    } catch (err) {
+      throw new Error(`Impossible d'accéder à la ${type === 'video' ? 'caméra' : 'microphone'}: ${err.message}`);
+    }
   }
 
   private createPeerConnection(remoteUserId: string): RTCPeerConnection {
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun.relay.metered.ca:80' }
+      ],
+      iceCandidatePoolSize: 10
     });
 
     // Ajouter les tracks locaux
@@ -73,25 +99,30 @@ class WebRTCCallManager {
 
     // Gérer les flux entrants
     pc.ontrack = (event) => {
+      const stream = event.streams[0];
+      this.remoteStreams.set(remoteUserId, stream);
+      
       callStore.update(state => {
         const newStreams = new Map(state.remoteStreams);
-        newStreams.set(remoteUserId, event.streams[0]);
+        newStreams.set(remoteUserId, stream);
         return { ...state, remoteStreams: newStreams };
       });
     };
 
     // Gestion des erreurs
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') {
+      const state = pc.connectionState;
+      if (state === 'failed' || state === 'disconnected') {
         this.endCallForUser(remoteUserId);
       }
     };
 
+    this.peerConnections.set(remoteUserId, pc);
     return pc;
   }
 
   private sendSignal(signal: Partial<CallSignal>) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
 
     const fullSignal: CallSignal = {
       conversationId: this.conversationId,
@@ -100,7 +131,7 @@ class WebRTCCallManager {
       type: signal.type || 'unknown',
       sdp: signal.sdp || null,
       candidate: signal.candidate || null,
-      ...signal
+      timestamp: Date.now()
     };
 
     this.ws.send(JSON.stringify(fullSignal));
@@ -120,40 +151,51 @@ class WebRTCCallManager {
         await this.handleIceCandidate(signal);
         break;
       case 'join':
-        if (this.callStoreValue.isInCall && signal.from_user_id !== this.userId) {
-          this.initiateCallWithUser(signal.from_user_id);
-        }
+        await this.handleJoin(signal);
         break;
       case 'leave':
-        this.endCallForUser(signal.from_user_id);
+        this.handleLeave(signal);
+        break;
+      case 'decline':
+        this.handleDecline(signal);
         break;
     }
   }
 
   private async handleOffer(signal: CallSignal) {
-    if (!signal.sdp || !signal.from_user_id) return;
+    if (!signal.sdp || !signal.from_user_id || !this.localStream) return;
 
+    // Créer une connexion pour cet utilisateur
     const pc = this.createPeerConnection(signal.from_user_id);
     
-    await pc.setRemoteDescription(new RTCSessionDescription({
-      type: 'offer',
-      sdp: signal.sdp
-    }));
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'offer',
+        sdp: signal.sdp
+      }));
 
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+      const answer = await pc.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: signal.sdp.includes('m=video') // Vérifier si l'offre contient de la vidéo
+      });
 
-    this.sendSignal({
-      type: 'answer',
-      to_user_id: signal.from_user_id,
-      sdp: answer.sdp
-    });
+      await pc.setLocalDescription(answer);
 
-    callStore.update(state => {
-      const newPCs = new Map(state.peerConnections);
-      newPCs.set(signal.from_user_id, pc);
-      return { ...state, peerConnections: newPCs };
-    });
+      this.sendSignal({
+        type: 'answer',
+        to_user_id: signal.from_user_id,
+        sdp: answer.sdp
+      });
+
+      callStore.update(state => ({
+        ...state,
+        isAnswering: false,
+        isInCall: true
+      }));
+    } catch (err) {
+      console.error('Erreur lors de la gestion de l\'offre:', err);
+      this.endCallForUser(signal.from_user_id);
+    }
   }
 
   private async handleAnswer(signal: CallSignal) {
@@ -162,10 +204,15 @@ class WebRTCCallManager {
     const pc = this.peerConnections.get(signal.from_user_id);
     if (!pc) return;
 
-    await pc.setRemoteDescription(new RTCSessionDescription({
-      type: 'answer',
-      sdp: signal.sdp
-    }));
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'answer',
+        sdp: signal.sdp
+      }));
+    } catch (err) {
+      console.error('Erreur lors de la gestion de la réponse:', err);
+      this.endCallForUser(signal.from_user_id);
+    }
   }
 
   private async handleIceCandidate(signal: CallSignal) {
@@ -175,55 +222,96 @@ class WebRTCCallManager {
     if (!pc) return;
 
     try {
-      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate as RTCIceCandidateInit));
+      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
     } catch (err) {
       console.error('Erreur ICE candidate:', err);
     }
   }
 
-  private get peerConnections(): Map<string, RTCPeerConnection> {
-    let pcs = new Map<string, RTCPeerConnection>();
-    callStore.update(state => {
-      pcs = state.peerConnections;
-      return state;
+  private async handleJoin(signal: CallSignal) {
+    if (signal.from_user_id === this.userId || !this.localStream) return;
+
+    // Si nous sommes déjà en appel, inviter le nouveau participant
+    if (get(callStore).isInCall && !this.peerConnections.has(signal.from_user_id)) {
+      await this.initiateCallWithUser(signal.from_user_id);
+    }
+  }
+
+  private handleLeave(signal: CallSignal) {
+    this.endCallForUser(signal.from_user_id);
+  }
+
+  private handleDecline(signal: CallSignal) {
+    if (signal.from_user_id === this.userId) return;
+    this.endCallForUser(signal.from_user_id);
+  }
+
+  private updateTrackStates() {
+    if (!this.localStream) return;
+
+    const audioTracks = this.localStream.getAudioTracks();
+    const videoTracks = this.localStream.getVideoTracks();
+
+    const state = get(callStore);
+    
+    audioTracks.forEach(track => {
+      track.enabled = !state.isMuted;
     });
-    return pcs;
+
+    videoTracks.forEach(track => {
+      track.enabled = !state.isVideoOff;
+    });
   }
 
-  private get callStoreValue(): CallState {
-    let state: CallState;
-    callStore.subscribe(s => state = s)();
-    return state;
-  }
-
-  public async startCall(conversationId: string, type: 'audio' | 'video', participants: string[]) {
+  public async startCall(conversationId: string, participantIds: string[], type: 'audio' | 'video') {
     try {
-      this.conversationId = conversationId;
-      const stream = await this.setupLocalStream(type);
-
-      callStore.set({
+      callStore.update(state => ({
+        ...state,
         isCalling: true,
-        isInCall: true,
         callType: type,
-        localStream: stream,
-        remoteStreams: new Map(),
-        peerConnections: new Map(),
         currentConversationId: conversationId,
         error: null
-      });
+      }));
 
-      // Connexion WebSocket
-      const wsUrl = `ws://${window.location.host}/ws/call?conv=${conversationId}`;
+      this.conversationId = conversationId;
+      this.localStream = await this.setupLocalStream(type);
+
+      callStore.update(state => ({
+        ...state,
+        localStream: this.localStream,
+        isCalling: true
+      }));
+
+      // Connexion WebSocket pour le signaling
+      const wsUrl = `wss://${window.location.host}/ws/call?conv=${conversationId}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        // Envoyer un signal de join explicite
+        // Envoyer un signal de join
         this.sendSignal({ type: 'join' });
         
-        // Initier les appels avec tous les participants
-        participants
-          .filter(id => id !== this.userId)
-          .forEach(userId => this.initiateCallWithUser(userId));
+        // Initier les appels avec tous les participants (sauf soi-même)
+        const targets = participantIds.filter(id => id !== this.userId);
+        
+        if (targets.length === 0) {
+          callStore.update(state => ({
+            ...state,
+            isCalling: false,
+            isInCall: true,
+            error: 'Aucun participant à appeler'
+          }));
+          return;
+        }
+
+        targets.forEach(userId => {
+          this.initiateCallWithUser(userId).catch(err => {
+            console.error(`Erreur appel à ${userId}:`, err);
+            callStore.update(state => ({
+              ...state,
+              error: `Impossible d'appeler ${userId}`
+            }));
+          });
+        });
       };
 
       this.ws.onmessage = (event) => {
@@ -243,44 +331,104 @@ class WebRTCCallManager {
       };
 
       this.ws.onclose = () => {
-        this.endCall();
+        console.log('WebSocket fermé');
+        if (get(callStore).isInCall) {
+          this.endCall();
+        }
       };
 
     } catch (err) {
       callStore.update(state => ({
         ...state,
-        error: err instanceof Error ? err.message : 'Erreur inconnue'
+        error: err instanceof Error ? err.message : 'Erreur inconnue',
+        isCalling: false
       }));
       this.endCall();
+      throw err;
     }
   }
 
   private async initiateCallWithUser(remoteUserId: string) {
     const pc = this.createPeerConnection(remoteUserId);
     
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    try {
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: this.localStream?.getVideoTracks().length > 0
+      });
+      
+      await pc.setLocalDescription(offer);
 
-    this.sendSignal({
-      type: 'offer',
-      to_user_id: remoteUserId,
-      sdp: offer.sdp
-    });
-
-    callStore.update(state => {
-      const newPCs = new Map(state.peerConnections);
-      newPCs.set(remoteUserId, pc);
-      return { ...state, peerConnections: newPCs };
-    });
+      this.sendSignal({
+        type: 'offer',
+        to_user_id: remoteUserId,
+        sdp: offer.sdp
+      });
+    } catch (err) {
+      console.error('Erreur création offre:', err);
+      this.endCallForUser(remoteUserId);
+    }
   }
 
-  public endCallForUser(userId: string) {
-    const pcs = this.peerConnections;
-    const pc = pcs.get(userId);
+  public async toggleMute() {
+    callStore.update(state => {
+      const newState = { ...state, isMuted: !state.isMuted };
+      return newState;
+    });
+    
+    // Mettre à jour les tracks audio
+    if (this.localStream) {
+      const audioTracks = this.localStream.getAudioTracks();
+      const muted = get(callStore).isMuted;
+      audioTracks.forEach(track => {
+        track.enabled = !muted;
+      });
+    }
+  }
 
+  public async toggleVideo() {
+    callStore.update(state => {
+      const newState = { ...state, isVideoOff: !state.isVideoOff };
+      return newState;
+    });
+    
+    // Mettre à jour les tracks vidéo
+    if (this.localStream) {
+      const videoTracks = this.localStream.getVideoTracks();
+      const videoOff = get(callStore).isVideoOff;
+      videoTracks.forEach(track => {
+        track.enabled = !videoOff;
+      });
+    }
+  }
+
+  public sendDeclineSignal(fromUserId: string, conversationId: string) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    
+    const signal: CallSignal = {
+      conversationId: conversationId,
+      from_user_id: this.userId,
+      to_user_id: fromUserId,
+      type: 'decline',
+      sdp: null,
+      candidate: null,
+      timestamp: Date.now()
+    };
+    
+    this.ws.send(JSON.stringify(signal));
+  }
+
+  private endCallForUser(userId: string) {
+    const pc = this.peerConnections.get(userId);
     if (pc) {
       pc.close();
-      pcs.delete(userId);
+      this.peerConnections.delete(userId);
+    }
+
+    const stream = this.remoteStreams.get(userId);
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      this.remoteStreams.delete(userId);
     }
 
     callStore.update(state => {
@@ -291,7 +439,7 @@ class WebRTCCallManager {
       newPCs.delete(userId);
       
       // Si plus personne dans l'appel, terminer complètement
-      if (newStreams.size === 0 && newPCs.size === 0) {
+      if (newStreams.size === 0 && newPCs.size === 0 && !state.isCalling) {
         this.endCall();
       }
       
@@ -306,6 +454,7 @@ class WebRTCCallManager {
   public endCall() {
     // Fermer toutes les connexions
     this.peerConnections.forEach(pc => pc.close());
+    this.peerConnections.clear();
     
     // Arrêter le stream local
     if (this.localStream) {
@@ -322,13 +471,16 @@ class WebRTCCallManager {
     // Réinitialiser l'état
     callStore.set({
       isCalling: false,
+      isAnswering: false,
       isInCall: false,
       callType: 'audio',
       localStream: null,
       remoteStreams: new Map(),
       peerConnections: new Map(),
       currentConversationId: null,
-      error: null
+      error: null,
+      isMuted: false,
+      isVideoOff: false
     });
   }
 }
@@ -336,11 +488,19 @@ class WebRTCCallManager {
 // Singleton
 export const callManager = new WebRTCCallManager();
 
-// Exposer des fonctions simples pour les composants
-export async function startGroupCall(conversationId: string, participants: string[], type: 'audio' | 'video' = 'audio') {
-  await callManager.startCall(conversationId, type, participants);
+// Fonctions utilitaires pour les composants
+export async function startGroupCall(conversationId: string, participantIds: string[], type: 'audio' | 'video' = 'audio') {
+  await callManager.startCall(conversationId, participantIds, type);
 }
 
 export function endCurrentCall() {
   callManager.endCall();
+}
+
+// Émettre un événement d'appel entrant pour le composant UI
+export function emitIncomingCall(fromUserId: string, conversationId: string) {
+  const event = new CustomEvent('incoming-call', {
+    detail: { from_user_id: fromUserId, conversation_id: conversationId }
+  });
+  window.dispatchEvent(event);
 }
