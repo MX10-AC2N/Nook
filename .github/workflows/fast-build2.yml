@@ -284,24 +284,12 @@ jobs:
           fi
           echo "✅ Dossier frontend trouvé"
 
-      - name: Installer npm globalement (si nécessaire)
-        run: |
-          npm install -g npm@latest || true
-
       - name: Générer package-lock.json si absent
         run: |
           if [ ! -f "package-lock.json" ]; then
-            echo "🔄 Génération du package-lock.json..."
-            # Utiliser une version existante de routify et ignorer les conflits de peer dependencies
-            npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps --save-exact
-            
-            # Corriger manuellement la version de routify si nécessaire
-            if grep -q "@roxi/routify" package.json; then
-              echo "🔧 Correction de la version de Routify..."
-              npm install @roxi/routify@latest --no-save --no-audit --no-fund --legacy-peer-deps
-            fi
-            
-            echo "✅ package-lock.json généré"
+            echo "🔄 Génération du package-lock.json avec résolution de conflits..."
+            npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps
+            echo "✅ package-lock.json généré avec succès"
           else
             echo "✅ package-lock.json déjà présent"
           fi
@@ -319,43 +307,64 @@ jobs:
 
       - name: Installer dépendances
         run: |
-          if [ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "🔄 Installation des dépendances npm..."
-            npm ci --no-audit --no-fund --legacy-peer-deps
-            echo "✅ Dépendances installées"
-          else
-            echo "✅ Dépendances récupérées depuis le cache"
-          fi
+          echo "🔄 Installation des dépendances npm..."
+          npm ci --no-audit --no-fund
+          echo "✅ Dépendances installées"
 
-      - name: Vérifier dépendances critiques
+      - name: Vérifier dépendances installées
         run: |
+          echo "🔍 Vérification des dépendances installées..."
+          
+          # Lister toutes les dépendances installées
+          echo "📦 Dépendances installées:"
+          npm list --depth=0
+          
+          # Vérifier les dépendances critiques une par une
           REQUIRED_DEPS=(
             "svelte"
             "@sveltejs/kit"
             "libsodium-wrappers"
             "uuid"
+            "@roxi/routify"
           )
           
           MISSING_DEPS=()
           
           for dep in "${REQUIRED_DEPS[@]}"; do
-            if ! npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
-              echo "⚠️ Dépendance manquante: $dep"
-              MISSING_DEPS+=("$dep")
-            else
+            if npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
               echo "✅ $dep installé"
+            else
+              echo "❌ $dep NON installé"
+              MISSING_DEPS+=("$dep")
             fi
           done
           
           if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
             echo "❌ Dépendances manquantes: ${MISSING_DEPS[*]}"
-            exit 1
+            echo "🔧 Tentative de réinstallation des dépendances manquantes..."
+            npm install "${MISSING_DEPS[@]}" --no-audit --no-fund
+            
+            # Vérifier à nouveau
+            echo "🔍 Re-vérification après réinstallation..."
+            for dep in "${MISSING_DEPS[@]}"; do
+              if npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
+                echo "✅ $dep installé après réinstallation"
+              else
+                echo "❌ $dep toujours NON installé"
+                exit 1
+              fi
+            done
           fi
           
-          # Vérifier que routify est installé
-          if ! npm list "@roxi/routify" --depth=0 --silent >/dev/null 2>&1; then
-            echo "⚠️ Routify non installé, installation forcée..."
-            npm install @roxi/routify@latest --legacy-peer-deps
+          echo "✅ Toutes les dépendances critiques sont installées"
+
+      - name: Lint (optionnel)
+        run: |
+          if [ -f "package.json" ] && grep -q "\"lint\"" package.json; then
+            echo "🔍 Linting du code..."
+            npm run lint || echo "⚠️ Linting a échoué mais ne bloque pas le build"
+          else
+            echo "⏭️ Pas de script lint dans package.json"
           fi
 
       - name: Build
