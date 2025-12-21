@@ -1,37 +1,72 @@
-<script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
-  import { get } from 'svelte/store';
-  import { currentTheme } from '$lib/themeStore';
-  import { callManager, callStore } from '$lib/webrtc-calls';
-  import { participants, loadParticipants } from '$lib/conversationStore';
+<script context="module">
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
 
+<script>
+  import { onMount, onDestroy } from 'svelte';
+  import { page } from '@roxi/routify';
+  import { goto } from '@roxi/routify';
+  import { authStore } from '$lib/authStore';
+  import { currentTheme } from '$lib/themeStore';
+  import { 
+    startGroupCall, 
+    endCurrentCall, 
+    callStore,
+    callManager
+  } from '$lib/webrtc-calls';
+  import { 
+    participants, 
+    loadParticipants,
+    activeConversationId
+  } from '$lib/conversationStore';
+  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
+
+  // États locaux
   let conversationId = $page.params.id;
+  let callType = $page.url.searchParams.get('type') || 'video';
+  let loading = true;
+  let error = null;
   let showIncomingCallModal = false;
   let incomingCallFrom = '';
   let incomingCallConvId = '';
 
   onMount(async () => {
-    // Charger les participants de la conversation
-    await loadParticipants(conversationId);
-    
-    // S'abonner aux appels entrants
-    window.addEventListener('incoming-call', handleIncomingCall);
-    
-    // Si l'URL contient ?call=1, initier un appel sortant
-    if ($page.url.searchParams.has('call')) {
-      const type = $page.url.searchParams.get('type') || 'video';
-      const participantIds = get(participants).map(p => p.id);
-      await callManager.startCall(conversationId, participantIds, type as 'audio' | 'video');
+    if (!$authStore.isAuthenticated) {
+      goto('/login');
+      return;
     }
-    
-    return () => {
-      window.removeEventListener('incoming-call', handleIncomingCall);
-      callManager.endCall();
-    };
+
+    try {
+      loading = true;
+      error = null;
+      
+      // Charger les participants de la conversation
+      await loadParticipants(conversationId);
+      
+      // Si l'URL contient ?call=1, initier un appel sortant
+      if ($page.url.searchParams.has('call')) {
+        const participantIds = $participants.map(p => p.id);
+        await startGroupCall(conversationId, participantIds, callType);
+      }
+      
+      loading = false;
+      
+      // Écouter les appels entrants
+      window.addEventListener('incoming-call', handleIncomingCall);
+      
+      return () => {
+        window.removeEventListener('incoming-call', handleIncomingCall);
+        endCurrentCall();
+      };
+    } catch (err) {
+      error = err.message || 'Erreur de chargement de l\'appel';
+      loading = false;
+      console.error('Erreur appel:', err);
+    }
   });
 
-  function handleIncomingCall(event: CustomEvent) {
+  function handleIncomingCall(event) {
     const { from_user_id, conversation_id } = event.detail;
     
     // Vérifier si cet appel est pour cette conversation
@@ -43,14 +78,18 @@
   }
 
   async function acceptCall() {
-    showIncomingCallModal = false;
-    const participantIds = get(participants).map(p => p.id);
-    await callManager.startCall(conversationId, participantIds, 'video');
+    try {
+      showIncomingCallModal = false;
+      const participantIds = $participants.map(p => p.id);
+      await startGroupCall(conversationId, participantIds, 'video');
+    } catch (err) {
+      error = err.message || 'Erreur lors de l\'acceptation de l\'appel';
+      console.error('Erreur acceptation appel:', err);
+    }
   }
 
   function declineCall() {
     showIncomingCallModal = false;
-    // Envoyer un signal de refus (à implémenter dans callManager)
     callManager.sendDeclineSignal(incomingCallFrom, conversationId);
   }
 
@@ -63,8 +102,25 @@
   }
 
   function endCall() {
-    callManager.endCall();
+    endCurrentCall();
+    goto('/chat');
   }
+
+  // Gestion des touches raccourci
+  function handleKeydown(e) {
+    if (e.key === 'm') {
+      toggleMute();
+    } else if (e.key === 'v') {
+      toggleVideo();
+    } else if (e.key === ' ') {
+      endCall();
+    }
+  }
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  });
 </script>
 
 <svelte:head>
@@ -72,185 +128,210 @@
 </svelte:head>
 
 <div class="call-container theme-{$currentTheme}">
-  <!-- Header avec thème -->
-  <header class="call-header">
-    {#if $currentTheme === 'jardin-secret'}
-      <div class="theme-indicator jardin">🌿 Appel Jardin Secret</div>
-    {:else if $currentTheme === 'space-hub'}
-      <div class="theme-indicator space">🚀 Appel Space Hub</div>
-    {:else}
-      <div class="theme-indicator maison">🏠 Appel Maison Chaleureuse</div>
-    {/if}
-  </header>
-
-  <main class="call-area">
-    {#if $callStore.isInCall}
-      <div class="video-grid">
-        {#if $callStore.localStream}
-          <div class="video-container local">
-            <video 
-              autoplay 
-              playsinline 
-              muted 
-              srcObject={$callStore.localStream} 
-              class="video-element local"
-            />
-            <div class="local-overlay">
-              <span>Vous</span>
-              <div class="local-indicators">
-                {#if !$callStore.isMuted}
-                  <span class="indicator mic-on">🎤</span>
-                {:else}
-                  <span class="indicator mic-off">🔇</span>
-                {/if}
-                {#if !$callStore.isVideoOff}
-                  <span class="indicator video-on">📹</span>
-                {:else}
-                  <span class="indicator video-off">📹❌</span>
-                {/if}
-              </div>
-            </div>
-          </div>
-        {/if}
-        
-        {#each Array.from($callStore.remoteStreams.entries()) as [userId, stream]}
-          <div class="video-container remote">
-            <video 
-              autoplay 
-              playsinline 
-              srcObject={stream} 
-              class="video-element remote"
-            />
-            <div class="remote-overlay">
-              <span>{get(participants).find(p => p.id === userId)?.name || userId}</span>
-            </div>
-          </div>
-        {/each}
-        
-        {#if $callStore.remoteStreams.size === 0 && !$callStore.localStream}
-          <div class="placeholder">
-            <p>Connexion aux participants...</p>
-            <div class="spinner"></div>
-          </div>
-        {/if}
-      </div>
-      
-      <div class="call-controls">
-        <button 
-          class="control-button {get(callStore).isMuted ? 'active' : ''}" 
-          on:click={toggleMute}
-          title={get(callStore).isMuted ? 'Activer le micro' : 'Couper le micro'}
-        >
-          {get(callStore).isMuted ? '🔇' : '🔊'}
-        </button>
-        
-        <button 
-          class="control-button {get(callStore).isVideoOff ? 'active' : ''}" 
-          on:click={toggleVideo}
-          title={get(callStore).isVideoOff ? 'Activer la caméra' : 'Désactiver la caméra'}
-        >
-          {get(callStore).isVideoOff ? '📹❌' : '📹'}
-        </button>
-        
-        <button 
-          class="control-button hangup" 
-          on:click={endCall}
-          title="Terminer l'appel"
-        >
-          📵
-        </button>
-        
-        <div class="call-info">
-          <span>💬 {$callStore.remoteStreams.size + 1} participants</span>
-          <span class="connection-status">✅ Connexion sécurisée P2P</span>
-        </div>
-      </div>
-    {:else if $callStore.isCalling || $callStore.isAnswering}
-      <div class="calling-screen">
-        <div class="calling-content">
-          <div class="avatar-large">
-            {#if $callStore.isCalling}
-              <span>✆ Appel en cours...</span>
-            {:else}
-              <span>✆ Appel entrant...</span>
-            {/if}
-          </div>
-          <p class="calling-to">
-            {#if $callStore.isCalling}
-              Appel en cours vers les participants...
-            {:else}
-              Appel entrant de {incomingCallFrom}
-            {/if}
-          </p>
-          <div class="calling-indicators">
-            <div class="pulse"></div>
-            <div class="pulse"></div>
-            <div class="pulse"></div>
-          </div>
-          <div class="connection-info">
-            Connexion sécurisée P2P
-          </div>
-        </div>
-      </div>
-    {:else}
-      <div class="no-call-screen">
-        <div class="theme-icon">
-          {#if $currentTheme === 'jardin-secret'}
-            🌸
-          {:else if $currentTheme === 'space-hub'}
-            🌌
-          {:else}
-            🏡
-          {/if}
-        </div>
-        <h2>Aucun appel en cours</h2>
-        <p>Cette conversation n'a pas d'appel actif.</p>
-        <button 
-          class="start-call-button" 
-          on:click={() => {
-            const participantIds = get(participants).map(p => p.id);
-            callManager.startCall(conversationId, participantIds, 'video');
-          }}
-        >
-          📞 Démarrer un appel vidéo
-        </button>
-        <button 
-          class="start-call-button audio" 
-          on:click={() => {
-            const participantIds = get(participants).map(p => p.id);
-            callManager.startCall(conversationId, participantIds, 'audio');
-          }}
-        >
-          🎤 Démarrer un appel audio
-        </button>
-      </div>
-    {/if}
-  </main>
-  
-  {#if $callStore.error}
-    <div class="call-error">
-      <p>{$callStore.error}</p>
-      <button on:click={() => callStore.update(s => ({ ...s, error: null }))}>
-        ✕ Fermer
+  {#if loading}
+    <div class="loading-screen">
+      <LoadingSpinner size="large" />
+      <p>Préparation de l'appel...</p>
+    </div>
+  {:else if error}
+    <div class="error-screen">
+      <h2>❌ {$error}</h2>
+      <button onclick={() => goto('/chat')} class="back-button">
+        ← Retour au chat
       </button>
     </div>
-  {/if}
-  
-  {#if showIncomingCallModal}
-    <div class="modal-overlay">
-      <div class="incoming-call-modal">
-        <div class="caller-avatar">
-          <span>✆</span>
+  {:else}
+    <!-- Header avec thème -->
+    <header class="call-header">
+      {#if $currentTheme === 'jardin-secret'}
+        <div class="theme-indicator jardin">🌿 Appel Jardin Secret</div>
+      {:else if $currentTheme === 'space-hub'}
+        <div class="theme-indicator space">🚀 Appel Space Hub</div>
+      {:else}
+        <div class="theme-indicator maison">🏠 Appel Maison Chaleureuse</div>
+      {/if}
+      
+      <div class="conversation-info">
+        <h1>Appel avec {conversationId}</h1>
+        <p class="participant-count">{#if $participants.length > 1}{$participants.length} participants{/if}</p>
+      </div>
+      
+      <button class="back-button" onclick={() => goto('/chat')}>
+        ← Retour
+      </button>
+    </header>
+
+    <main class="call-area">
+      {#if $callStore.isInCall}
+        <div class="video-grid">
+          {#if $callStore.localStream}
+            <div class="video-container local">
+              <video 
+                autoplay 
+                playsinline 
+                muted 
+                srcObject={$callStore.localStream} 
+                class="video-element local"
+              />
+              <div class="local-overlay">
+                <span>Vous</span>
+                <div class="local-indicators">
+                  {#if !$callStore.isMuted}
+                    <span class="indicator mic-on">🎤</span>
+                  {:else}
+                    <span class="indicator mic-off">🔇</span>
+                  {/if}
+                  {#if !$callStore.isVideoOff}
+                    <span class="indicator video-on">📹</span>
+                  {:else}
+                    <span class="indicator video-off">📹❌</span>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
+          
+          {#each Array.from($callStore.remoteStreams.entries()) as [userId, stream]}
+            <div class="video-container remote">
+              <video 
+                autoplay 
+                playsinline 
+                srcObject={stream} 
+                class="video-element remote"
+              />
+              <div class="remote-overlay">
+                <span>{$participants.find(p => p.id === userId)?.name || userId}</span>
+              </div>
+            </div>
+          {/each}
+          
+          {#if $callStore.remoteStreams.size === 0 && !$callStore.localStream}
+            <div class="placeholder">
+              <p>Connexion aux participants...</p>
+              <div class="spinner"></div>
+            </div>
+          {/if}
         </div>
-        <h3>Appel entrant</h3>
-        <p>de {incomingCallFrom}</p>
-        <p>dans la conversation {conversationId}</p>
-        <div class="modal-actions">
-          <button class="decline" on:click={declineCall}>❌ Refuser</button>
-          <button class="accept" on:click={acceptCall}>✅ Accepter</button>
+        
+        <div class="call-controls">
+          <button 
+            class="control-button {get(callStore).isMuted ? 'active' : ''}" 
+            onclick={toggleMute}
+            title={get(callStore).isMuted ? 'Activer le micro' : 'Couper le micro'}
+          >
+            {get(callStore).isMuted ? '🔇' : '🔊'}
+          </button>
+          
+          <button 
+            class="control-button {get(callStore).isVideoOff ? 'active' : ''}" 
+            onclick={toggleVideo}
+            title={get(callStore).isVideoOff ? 'Activer la caméra' : 'Désactiver la caméra'}
+          >
+            {get(callStore).isVideoOff ? '📹❌' : '📹'}
+          </button>
+          
+          <button 
+            class="control-button hangup" 
+            onclick={endCall}
+            title="Terminer l'appel (Espace)"
+          >
+            📵
+          </button>
+          
+          <div class="call-info">
+            <span>💬 {$callStore.remoteStreams.size + 1} participants</span>
+            <span class="connection-status">✅ Connexion sécurisée P2P</span>
+          </div>
+        </div>
+      {:else if $callStore.isCalling || $callStore.isAnswering}
+        <div class="calling-screen">
+          <div class="calling-content">
+            <div class="avatar-large">
+              {#if $callStore.isCalling}
+                <span>✆ Appel en cours...</span>
+              {:else}
+                <span>✆ Appel entrant...</span>
+              {/if}
+            </div>
+            <p class="calling-to">
+              {#if $callStore.isCalling}
+                Appel en cours vers les participants...
+              {:else}
+                Appel entrant de {incomingCallFrom}
+              {/if}
+            </p>
+            <div class="calling-indicators">
+              <div class="pulse"></div>
+              <div class="pulse"></div>
+              <div class="pulse"></div>
+            </div>
+            <div class="connection-info">
+              Connexion sécurisée P2P
+            </div>
+          </div>
+        </div>
+      {:else}
+        <div class="no-call-screen">
+          <div class="theme-icon">
+            {#if $currentTheme === 'jardin-secret'}
+              🌸
+            {:else if $currentTheme === 'space-hub'}
+              🌌
+            {:else}
+              🏡
+            {/if}
+          </div>
+          <h2>Aucun appel en cours</h2>
+          <p>Cette conversation n'a pas d'appel actif.</p>
+          <div class="start-call-buttons">
+            <button 
+              class="start-call-button audio" 
+              onclick={() => {
+                const participantIds = $participants.map(p => p.id);
+                startGroupCall(conversationId, participantIds, 'audio');
+              }}
+            >
+              🎤 Démarrer un appel audio
+            </button>
+            <button 
+              class="start-call-button video" 
+              onclick={() => {
+                const participantIds = $participants.map(p => p.id);
+                startGroupCall(conversationId, participantIds, 'video');
+              }}
+            >
+              📹 Démarrer un appel vidéo
+            </button>
+          </div>
+        </div>
+      {/if}
+    </main>
+    
+    {#if $callStore.error}
+      <div class="call-error">
+        <p>{$callStore.error}</p>
+        <button onclick={() => callStore.update(s => ({ ...s, error: null }))}>
+          ✕ Fermer
+        </button>
+      </div>
+    {/if}
+    
+    {#if showIncomingCallModal}
+      <div class="modal-overlay">
+        <div class="incoming-call-modal">
+          <div class="caller-avatar">
+            <span>✆</span>
+          </div>
+          <h3>Appel entrant</h3>
+          <p>de {incomingCallFrom}</p>
+          <p>dans la conversation {conversationId}</p>
+          <div class="modal-actions">
+            <button class="decline" onclick={declineCall}>❌ Refuser</button>
+            <button class="accept" onclick={acceptCall}>✅ Accepter</button>
+          </div>
         </div>
       </div>
-    </div>
+    {/if}
   {/if}
 </div>
 
@@ -264,11 +345,49 @@
     width: 100%;
   }
 
+  .loading-screen, .error-screen {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100%;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .error-screen h2 {
+    color: #f44336;
+    margin-bottom: 1.5rem;
+    font-size: 2rem;
+  }
+
+  .back-button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 18px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 1rem;
+  }
+
+  .back-button:hover {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+
   .call-header {
     padding: 1rem;
     text-align: center;
     border-bottom: 1px solid var(--border);
     background: var(--header-bg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
   .theme-indicator {
@@ -281,6 +400,22 @@
   .jardin { background: rgba(76, 175, 80, 0.15); color: #4CAF50; }
   .space { background: rgba(33, 150, 243, 0.15); color: #2196F3; }
   .maison { background: rgba(255, 152, 0, 0.15); color: #FF9800; }
+
+  .conversation-info {
+    flex: 1;
+    text-align: center;
+  }
+
+  .conversation-info h1 {
+    margin: 0;
+    font-size: 1.2rem;
+  }
+
+  .participant-count {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-top: 0.25rem;
+  }
 
   .call-area {
     flex: 1;
@@ -511,6 +646,12 @@
     margin-bottom: 0.5rem;
   }
 
+  .start-call-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+
   .start-call-button {
     background: var(--primary);
     color: white;
@@ -520,7 +661,6 @@
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
-    margin: 0.5rem;
     transition: all 0.2s;
   }
 
@@ -644,6 +784,55 @@
     transform: scale(1.05);
   }
 
+  /* Thèmes */
+  .theme-jardin-secret {
+    --primary: #4CAF50;
+    --primary-dark: #388E3C;
+    --secondary: #8BC34A;
+    --border: #C8E6C9;
+    --text: #333333;
+    --text-secondary: #666666;
+    --header-bg: #F0F7F0;
+    --call-bg: #F8FDF8;
+    --controls-bg: #FFFFFF;
+    --button-bg: #4CAF50;
+    --avatar-bg: #4CAF50;
+    --avatar-text: white;
+    --calling-bg: #E8F5E9;
+  }
+
+  .theme-space-hub {
+    --primary: #2196F3;
+    --primary-dark: #1976D2;
+    --secondary: #3F51B5;
+    --border: #BBDEFB;
+    --text: #333333;
+    --text-secondary: #666666;
+    --header-bg: #E3F2FD;
+    --call-bg: #F5FAFF;
+    --controls-bg: #FFFFFF;
+    --button-bg: #2196F3;
+    --avatar-bg: #2196F3;
+    --avatar-text: white;
+    --calling-bg: #E3F2FD;
+  }
+
+  .theme-maison-chaleureuse {
+    --primary: #FF9800;
+    --primary-dark: #E65100;
+    --secondary: #FF5722;
+    --border: #FFE0B2;
+    --text: #333333;
+    --text-secondary: #666666;
+    --header-bg: #FFF3E0;
+    --call-bg: #FFF9F5;
+    --controls-bg: #FFFFFF;
+    --button-bg: #FF9800;
+    --avatar-bg: #FF9800;
+    --avatar-text: white;
+    --calling-bg: #FFF3E0;
+  }
+
   /* Responsive */
   @media (max-width: 768px) {
     .video-grid {
@@ -657,6 +846,7 @@
     
     .call-info {
       margin-left: 0;
+      margin-top: 0.5rem;
     }
     
     .control-button {
@@ -668,6 +858,25 @@
     .hangup {
       width: 60px;
       height: 60px;
+    }
+    
+    .start-call-buttons {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .call-header {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .conversation-info {
+      text-align: center;
+    }
+    
+    .back-button {
+      width: 100%;
+      margin-top: 0.5rem;
     }
   }
 </style>
