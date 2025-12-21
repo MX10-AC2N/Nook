@@ -1,118 +1,196 @@
+<script context="module">
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+
 <script>
   import { onMount } from 'svelte';
-  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
+  import { goto } from '@roxi/routify';
+  import { authStore } from '$lib/authStore';
+  
+  // États
+  let loading = true;
+  let error = null;
+
+  // Rediriger selon l'état d'authentification
+  async function handleRedirect() {
+    try {
+      loading = true;
+      
+      // Attendre que l'auth soit initialisée
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const isAuthenticated = $authStore.isAuthenticated;
+      const isAdmin = $authStore.isAdmin;
+      
+      if (isAuthenticated) {
+        if (isAdmin) {
+          goto('/admin');
+        } else {
+          goto('/chat');
+        }
+      } else {
+        goto('/login');
+      }
+      
+      loading = false;
+    } catch (err) {
+      error = err.message || 'Erreur de redirection';
+      loading = false;
+      console.error('Erreur redirection:', err);
+    }
+  }
 
   onMount(() => {
-    // Vérifier si déjà connecté
-    fetch('/api/validate-session', { credentials: 'include' })
-      .then(res => {
-        if (res.ok) {
-          res.json().then(data => {
-            if (data.role === 'admin') {
-              window.location.href = '/admin';
-            } else {
-              window.location.href = '/chat';
-            }
-          });
-        }
-      })
-      .catch(() => {});
+    handleRedirect();
   });
+
+  // Gestion des erreurs
+  function handleError(err) {
+    error = err.message || 'Erreur système';
+    setTimeout(() => {
+      error = null;
+    }, 5000);
+  }
 </script>
 
 <svelte:head>
-  <title>Nook – Votre espace familial privé</title>
+  <title>Nook - Messagerie privée pour la famille</title>
+  <meta name="description" content="Nook - Une messagerie sécurisée, open source et auto-hébergée pour votre famille et vos amis proches">
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center p-4 md:p-6 relative overflow-hidden">
-  <!-- Carte glassmorphism centrale -->
-  <div class="max-w-2xl w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-6 md:p-10 text-center transition-all duration-1000 animate-fade-in">
-    
-    <!-- Logo et emoji -->
-    <div class="text-8xl md:text-9xl mb-6 md:mb-8 animate-float">
-      {#if $currentTheme === 'jardin-secret'}
-        🌿
-      {:else if $currentTheme === 'space-hub'}
-        🚀
-      {:else if $currentTheme === 'maison-chaleureuse'}
-        🏠
-      {:else}
-        🌿
-      {/if}
-    </div>
-
-    <h1 class="text-5xl md:text-6xl font-extrabold mb-4 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-light, var(--accent))] bg-clip-text text-transparent">
-      Nook
-    </h1>
-    
-    <p class="text-xl md:text-2xl text-[var(--text-secondary)] mb-8 md:mb-12 opacity-90">
-      Votre espace familial privé et sécurisé
-    </p>
-
-    <!-- Cartes d'action -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-10">
-      <!-- Carte Connexion -->
-      <div class="backdrop-blur-xl bg-white/15 dark:bg-black/15 border border-white/30 rounded-2xl p-6 md:p-8 hover:scale-105 transition-transform duration-300">
-        <div class="text-5xl mb-4">🔐</div>
-        <h3 class="text-xl font-bold mb-3 text-[var(--text-primary)]">Connexion</h3>
-        <p class="text-[var(--text-secondary)] mb-6">
-          Accédez à votre espace familial
-        </p>
-        <a href="/login" class="inline-block w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 transition">
-          Se connecter
-        </a>
-      </div>
-
-      <!-- Carte Inscription -->
-      <div class="backdrop-blur-xl bg-white/15 dark:bg-black/15 border border-white/30 rounded-2xl p-6 md:p-8 hover:scale-105 transition-transform duration-300">
-        <div class="text-5xl mb-4">📝</div>
-        <h3 class="text-xl font-bold mb-3 text-[var(--text-primary)]">Inscription</h3>
-        <p class="text-[var(--text-secondary)] mb-6">
-          Demandez à rejoindre l'espace familial
-        </p>
-        <a href="/register" class="inline-block w-full py-3 bg-white/20 dark:bg-black/20 text-[var(--text-primary)] font-semibold rounded-xl border border-white/30 hover:bg-white/30 transition">
-          Créer un compte
-        </a>
-      </div>
-    </div>
-
-    <!-- Informations sécurité -->
-    <div class="inline-flex flex-wrap justify-center gap-4 md:gap-6 text-sm md:text-base">
-      <span class="flex items-center gap-2 text-green-500">
-        <span class="text-lg">✅</span>
-        <span>Zéro localStorage</span>
-      </span>
-      <span class="flex items-center gap-2 text-green-500">
-        <span class="text-lg">✅</span>
-        <span>Chiffrement E2EE</span>
-      </span>
-      <span class="flex items-center gap-2 text-green-500">
-        <span class="text-lg">✅</span>
-        <span>Open-source</span>
-      </span>
-      <span class="flex items-center gap-2 text-green-500">
-        <span class="text-lg">✅</span>
-        <span>Auto-hébergé</span>
-      </span>
+{#if loading}
+  <div class="redirect-loading">
+    <div class="spinner"></div>
+    <p>Redirection...</p>
+  </div>
+{:else if error}
+  <div class="redirect-error">
+    <h2>❌ Erreur de redirection</h2>
+    <p>{$error}</p>
+    <div class="error-actions">
+      <button onclick={() => handleRedirect()} class="retry-button">
+        🔄 Réessayer
+      </button>
+      <button onclick={() => goto('/login')} class="login-button">
+        👤 Aller à la connexion
+      </button>
     </div>
   </div>
-
-  <!-- ThemeSwitcher -->
-  <div class="absolute bottom-8 right-8">
-    <ThemeSwitcher />
+{:else}
+  <div class="redirect-placeholder">
+    <p>Redirection en cours...</p>
   </div>
-</div>
+{/if}
 
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
+  .redirect-loading, .redirect-error, .redirect-placeholder {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+    padding: 2rem;
+    background: var(--bg-color);
+    color: var(--text-color);
   }
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
+
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(0,0,0,0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary);
+    animation: spin 1s linear infinite;
+    margin-bottom: 1.5rem;
   }
-  .animate-fade-in { animation: fade-in 1.2s ease-out forwards; }
-  .animate-float { animation: float 6s infinite ease-in-out; }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .redirect-loading p {
+    font-size: 1.2rem;
+    color: var(--primary);
+    font-weight: 500;
+  }
+
+  .redirect-error h2 {
+    color: #f44336;
+    margin-bottom: 1rem;
+    font-size: 1.8rem;
+  }
+
+  .redirect-error p {
+    color: #666;
+    margin-bottom: 2rem;
+    font-size: 1.1rem;
+  }
+
+  .error-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .retry-button, .login-button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .retry-button {
+    background: #4caf50;
+    color: white;
+  }
+
+  .login-button {
+    background: #2196f3;
+    color: white;
+  }
+
+  .retry-button:hover {
+    background: #43a047;
+    transform: translateY(-1px);
+  }
+
+  .login-button:hover {
+    background: #1976d2;
+    transform: translateY(-1px);
+  }
+
+  .redirect-placeholder p {
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* Thèmes */
+  .theme-jardin-secret {
+    --primary: #4CAF50;
+  }
+
+  .theme-space-hub {
+    --primary: #2196F3;
+  }
+
+  .theme-maison-chaleureuse {
+    --primary: #FF9800;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .error-actions {
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    
+    .retry-button, .login-button {
+      width: 100%;
+    }
+  }
 </style>
