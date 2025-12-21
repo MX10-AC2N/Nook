@@ -6,7 +6,7 @@ import { authStore } from '$lib/authStore';
 const routify = createRoutify({
   routes: import.meta.glob('./routes/**/+page.svelte'),
   layouts: {
-    default: import('./layouts/+layout.svelte'),
+    default: import('./routes/+layout.svelte'),
     admin: import('./layouts/admin.svelte'),
     auth: import('./layouts/auth.svelte')
   },
