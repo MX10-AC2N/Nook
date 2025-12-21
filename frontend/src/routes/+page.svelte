@@ -1,4 +1,4 @@
-<script context="module">
+<script module>
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
@@ -9,8 +9,9 @@
   import { authStore } from '$lib/authStore';
   
   // États
-  let loading = true;
-  let error = null;
+  import { $state } from 'svelte';
+  let loading = $state(true);
+  let error = $state(null);
 
   // Rediriger selon l'état d'authentification
   async function handleRedirect() {
