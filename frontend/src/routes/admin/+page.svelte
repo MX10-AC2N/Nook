@@ -1,198 +1,224 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
-
-  let inviteLink = $state('');
-  let members = $state([]);
-  let isLoading = $state(false);
-  let error = $state(null);
-  let copyFeedback = $state(false);
-
-  const invite = async () => {
+  
+  let members = [];
+  let invitations = [];
+  let loading = $state(true);
+  
+  // Nouveau membre
+  let newMember = $state({
+    name: '',
+    username: '',
+    temporaryPassword: 'changeme123'
+  });
+  let createMemberResult = $state({ success: false, message: '' });
+  
+  onMount(async () => {
+    await loadMembers();
+  });
+  
+  async function loadMembers() {
     try {
-      isLoading = true;
-      error = null;
-      const res = await fetch('/api/invite', { method: 'POST' });
-      
-      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
+      const res = await fetch('/api/admin/members');
+      if (res.ok) {
+        const data = await res.json();
+        members = data.members;
+      }
+    } catch (error) {
+      console.error('Erreur chargement membres:', error);
+    }
+    loading = false;
+  }
+  
+  async function createInvite() {
+    const res = await fetch('/api/admin/invite', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      invitations.push(data.message);
+    }
+  }
+  
+  async function approveMember(id) {
+    const res = await fetch(`/api/admin/members/${id}/approve`, {
+      method: 'PATCH'
+    });
+    if (res.ok) {
+      await loadMembers();
+    }
+  }
+  
+  async function createNewMember() {
+    if (!newMember.name.trim() || !newMember.username.trim()) {
+      createMemberResult = { success: false, message: 'Veuillez remplir tous les champs' };
+      return;
+    }
+    
+    if (newMember.username.length < 3) {
+      createMemberResult = { success: false, message: 'Le nom d\'utilisateur doit avoir au moins 3 caractères' };
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/admin/create-member', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMember),
+        credentials: 'include'
+      });
       
       const data = await res.json();
-      inviteLink = data.message;
-    } catch (err) {
-      error = `Erreur lors de la création du lien : ${err instanceof Error ? err.message : String(err)}`;
-      console.error('Erreur invite:', err);
-    } finally {
-      isLoading = false;
-    }
-  };
-
-  const approve = async (id) => {
-    try {
-      error = null;
-      const res = await fetch(`/api/members/${id}/approve`, { method: 'PATCH' });
+      createMemberResult = data;
       
-      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
-      
-      loadMembers();
-    } catch (err) {
-      error = `Erreur lors de l'approbation : ${err instanceof Error ? err.message : String(err)}`;
-      console.error('Erreur approve:', err);
+      if (data.success) {
+        // Réinitialiser le formulaire
+        newMember = { name: '', username: '', temporaryPassword: 'changeme123' };
+        // Recharger la liste
+        await loadMembers();
+      }
+    } catch (error) {
+      createMemberResult = { success: false, message: 'Erreur réseau' };
     }
-  };
-
-  const loadMembers = async () => {
-    try {
-      isLoading = true;
-      error = null;
-      const res = await fetch('/api/members');
-      
-      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
-      
-      const data = await res.json();
-      members = data.members || [];
-    } catch (err) {
-      error = `Erreur lors du chargement des membres : ${err instanceof Error ? err.message : String(err)}`;
-      console.error('Erreur loadMembers:', err);
-    } finally {
-      isLoading = false;
-    }
-  };
-
-  const copyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      copyFeedback = true;
-      setTimeout(() => copyFeedback = false, 2000);
-    } catch (err) {
-      error = "Échec de la copie (navigateur ancien ?)";
-    }
-  };
-
-  onMount(loadMembers);
+  }
 </script>
 
 <svelte:head>
-  <title>Admin — Nook</title>
+  <title>Administration — Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center p-6 relative">
-  <!-- Carte principale glassmorphism -->
-  <div class="max-w-2xl w-full bg-white/15 dark:bg-black/15 backdrop-blur-2xl border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 animate-fade-in">
-
-    <!-- Header thématique -->
-    <div class="flex items-center gap-4 mb-8">
-      <div class="text-5xl animate-float">
-        {#if $currentTheme === 'jardin-secret'}
-          🌿
-        {:else if $currentTheme === 'space-hub'}
-          🔑
-        {:else}
-          🏠
-        {/if}
-      </div>
-      <h1 class="text-3xl font-extrabold text-[var(--text-primary)]">Administration Nook</h1>
-    </div>
-
-    <!-- Message d'erreur -->
-    {#if error}
-      <div class="mb-6 p-4 bg-red-500/20 border border-red-500/40 text-red-600 dark:text-red-400 rounded-2xl flex justify-between items-center backdrop-blur-md">
-        <span>{error}</span>
-        <button onclick={() => error = null} class="text-xl font-bold hover:scale-125 transition">×</button>
-      </div>
-    {/if}
-
-    <!-- Bouton inviter -->
-    <div class="mb-8">
-      <button
-        onclick={invite}
-        disabled={isLoading}
-        class="px-8 py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
-      >
-        {isLoading ? 'Création en cours...' : 'Inviter un nouveau membre'}
-      </button>
-    </div>
-
-    <!-- Lien d'invitation -->
-    {#if inviteLink}
-      <div class="mb-10 p-6 bg-white/20 dark:bg-black/20 rounded-2xl border border-white/30 backdrop-blur-md">
-        <p class="font-medium text-[var(--text-primary)] mb-3">Lien d'invitation généré :</p>
-        <div class="flex gap-3">
+<div class="min-h-screen p-6">
+  <div class="max-w-6xl mx-auto">
+    <h1 class="text-3xl font-bold mb-8 text-[var(--text-primary)]">Administration Nook</h1>
+    
+    <!-- Section création de membre -->
+    <div class="bg-white/10 dark:bg-black/10 backdrop-blur-xl rounded-2xl p-6 mb-8">
+      <h2 class="text-2xl font-bold mb-4 text-[var(--text-primary)]">Créer un nouveau membre</h2>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div>
+          <label for="member-name" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nom complet</label>
           <input
+            id="member-name"
             type="text"
-            value={inviteLink}
-            readonly
-            class="flex-1 p-3 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)]"
+            bind:value={newMember.name}
+            placeholder="Ex: Jean Dupont"
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           />
-          <button
-            onclick={copyLink}
-            class="px-6 py-3 bg-[var(--accent)/80] hover:bg-[var(--accent)] text-white rounded-xl transition-all hover:scale-105 relative"
-          >
-            {#if copyFeedback}
-              <span class="animate-ping">✓ Copié !</span>
-            {:else}
-              Copier
-            {/if}
-          </button>
+        </div>
+        
+        <div>
+          <label for="member-username" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nom d'utilisateur</label>
+          <input
+            id="member-username"
+            type="text"
+            bind:value={newMember.username}
+            placeholder="Ex: jean.dupont"
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          />
+        </div>
+        
+        <div class="md:col-span-2">
+          <label for="temporary-password" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Mot de passe temporaire</label>
+          <input
+            id="temporary-password"
+            type="text"
+            bind:value={newMember.temporaryPassword}
+            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          />
+          <p class="text-xs text-[var(--text-secondary)] mt-1">
+            Le membre devra changer ce mot de passe lors de sa première connexion
+          </p>
         </div>
       </div>
-    {/if}
-
-    <!-- Liste des membres -->
-    <h2 class="text-2xl font-bold mb-6 text-[var(--text-primary)]">Membres de la famille</h2>
-
-    {#if isLoading && members.length === 0}
-      <div class="text-center py-8 text-[var(--text-secondary)]">Chargement des membres...</div>
-    {:else if members.length === 0}
-      <div class="text-center py-8 text-[var(--text-secondary)/70] italic">Aucun membre pour le moment</div>
-    {:else}
-      <div class="space-y-4">
-        {#each members as member (member.id)}
-          <div class="flex items-center justify-between p-5 bg-white/20 dark:bg-black/20 rounded-2xl border border-white/30 hover:scale-[1.02] transition-all backdrop-blur-md">
-            <div class="flex-1">
-              <div class="font-semibold text-lg">{member.name}</div>
-              <div class="text-sm text-[var(--text-secondary)/80]">ID: {member.id}</div>
-            </div>
-
-            <div class="flex items-center gap-4">
-              <span class={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                member.approved
-                  ? 'bg-green-500/30 text-green-600 dark:text-green-400 border border-green-500/50'
-                  : 'bg-yellow-500/30 text-yellow-600 dark:text-yellow-400 border border-yellow-500/50 animate-pulse'
-              }`}>
-                {member.approved ? '✓ Approuvé' : '⏳ En attente'}
-              </span>
-
-              {#if !member.approved}
-                <button
-                  onclick={() => approve(member.id)}
-                  class="px-5 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-                >
-                  Approuver
-                </button>
-              {/if}
-            </div>
-          </div>
-        {/each}
+      
+      <button
+        onclick={createNewMember}
+        class="px-6 py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 transition"
+      >
+        Créer le membre
+      </button>
+      
+      {#if createMemberResult.message}
+        <div class={`mt-4 p-3 rounded-xl ${createMemberResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          {createMemberResult.message}
+        </div>
+      {/if}
+    </div>
+    
+    <!-- Liste des membres existants -->
+    <div class="bg-white/10 dark:bg-black/10 backdrop-blur-xl rounded-2xl p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-[var(--text-primary)]">Membres ({members.length})</h2>
+        <button
+          onclick={createInvite}
+          class="px-4 py-2 bg-blue-500/80 text-white rounded-xl hover:opacity-90 transition"
+        >
+          + Créer un lien d'invitation
+        </button>
       </div>
-    {/if}
+      
+      {#if invitations.length > 0}
+        <div class="mb-6 p-4 bg-blue-500/10 rounded-xl">
+          <h3 class="font-bold mb-2 text-blue-400">Liens d'invitation générés :</h3>
+          {#each invitations as invite}
+            <div class="mb-2 p-2 bg-white/5 rounded">
+              <code class="text-sm break-all">{invite}</code>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      
+      {#if loading}
+        <div class="text-center py-8">
+          <div class="text-4xl animate-spin mb-2">🌀</div>
+          <p class="text-[var(--text-secondary)]">Chargement...</p>
+        </div>
+      {:else if members.length === 0}
+        <div class="text-center py-8 text-[var(--text-secondary)]">
+          Aucun membre pour l'instant
+        </div>
+      {:else}
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-white/20">
+                <th class="text-left p-3 text-[var(--text-primary)]">Nom</th>
+                <th class="text-left p-3 text-[var(--text-primary)]">Username</th>
+                <th class="text-left p-3 text-[var(--text-primary)]">ID</th>
+                <th class="text-left p-3 text-[var(--text-primary)]">Statut</th>
+                <th class="text-left p-3 text-[var(--text-primary)]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each members as member (member.id)}
+                <tr class="border-b border-white/10 hover:bg-white/5">
+                  <td class="p-3 text-[var(--text-primary)]">{member.name}</td>
+                  <td class="p-3 text-[var(--text-primary)]">{member.username || 'N/A'}</td>
+                  <td class="p-3 text-[var(--text-secondary)] text-sm font-mono">{member.id.substring(0, 8)}...</td>
+                  <td class="p-3">
+                    {#if member.approved}
+                      <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">Approuvé</span>
+                    {:else}
+                      <span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">En attente</span>
+                    {/if}
+                  </td>
+                  <td class="p-3">
+                    {#if !member.approved}
+                      <button
+                        onclick={() => approveMember(member.id)}
+                        class="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition text-sm"
+                      >
+                        Approuver
+                      </button>
+                    {:else}
+                      <span class="text-[var(--text-secondary)] text-sm">✓ Approuvé</span>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
-
-<style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(40px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-12px); }
-  }
-
-  .animate-fade-in { animation: fade-in 1s ease-out forwards; }
-  .animate-float { animation: float 6s infinite ease-in-out; }
-
-  @media (prefers-reduced-motion: reduce) {
-    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  }
-</style>

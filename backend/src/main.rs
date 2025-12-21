@@ -4,82 +4,147 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::Query,
+    extract::State,
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, get_service, patch, post},
-    Json,
+    routing::{get, get_service, post},
     Router,
+    middleware::{self, Next},
 };
-use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    pub webrtc_sessions: std::sync::Arc<tokio::sync::RwLock<HashMap<String, String>>>,
+    // Anciens champs conservés pour compatibilité (peuvent être supprimés plus tard)
+    pub webrtc_sessions: Arc<RwLock<HashMap<String, String>>>,
+    pub chat_connections: Arc<RwLock<HashMap<String, String>>>,
+    // Nouveau champ pour WebRTC multi-conversation
+    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, tokio::sync::broadcast::Sender<webrtc::CallSignal>>>>,
 }
 
-// Fallback SPA
-async fn spa_fallback() -> impl IntoResponse {
-    match tokio::fs::read_to_string("/app/static/index.html").await {
-        Ok(html) => Html(html),
-        Err(_) => Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
+// Middleware admin (inchangé)
+async fn admin_middleware(
+    headers: axum::http::HeaderMap,
+    State(state): State<SharedState>,
+    request: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> Result<axum::response::Response, StatusCode> {
+    let token = auth::get_cookie(&headers, "nook_admin");
+
+    let token = match token {
+        Some(t) => t,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT u.id FROM sessions s 
+         JOIN users u ON s.user_id = u.id 
+         WHERE s.token = ? AND u.role = 'admin'"
+    )
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
     }
+
+    Ok(next.run(request).await)
+}
+
+// Middleware utilisateur (inchangé)
+async fn user_middleware(
+    headers: axum::http::HeaderMap,
+    State(state): State<SharedState>,
+    request: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> Result<axum::response::Response, StatusCode> {
+    let token = auth::get_cookie(&headers, "nook_session");
+
+    let token = match token {
+        Some(t) => t,
+        None => return Err(StatusCode::UNAUTHORIZED),
+    };
+
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT u.id FROM sessions s 
+         JOIN users u ON s.user_id = u.id 
+         WHERE s.token = ? AND u.role = 'member' AND u.approved = 1"
+    )
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if row.is_none() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    Ok(next.run(request).await)
 }
 
 #[tokio::main]
 async fn main() {
-    // Création dossiers
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
 
-    println!("Démarrage de Nook v2.0");
+    println!("Démarrage de Nook v3.0 - Système simplifié");
 
-    // Token admin
-    let token_path = "/app/data/admin.token";
-    if !std::path::Path::new(token_path).exists() {
-        let token = uuid::Uuid::new_v4().to_string();
-        std::fs::write(token_path, &token).expect("Failed to create admin.token");
-        println!("Nouveau token admin généré : {}", token);
-    } else {
-        println!("Token admin chargé depuis /app/data/admin.token");
-    }
-
-    // Init DB
     let app_state = db::init_db().await;
     let shared_state = SharedState {
         db: app_state.db.clone(),
-        webrtc_sessions: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+        webrtc_sessions: Arc::new(RwLock::new(HashMap::new())),
+        chat_connections: Arc::new(RwLock::new(HashMap::new())),
+        webrtc_broadcasts: Arc::new(RwLock::new(HashMap::new())),
     };
 
-    let app = Router::new()
-        .route("/api/invite", post(auth::invite_handler))
-        .route("/api/join", post(auth::join_handler))
-        .route("/api/members/:id/approve", patch(auth::approve_handler))
-        .route("/api/members", get(auth::members_handler))
-        .route("/api/upload", post(upload::handle_upload))
-        .route("/api/gifs", get(gif_proxy))
-        .route("/api/webrtc/offer", post(webrtc::handle_offer))
-        .route("/api/webrtc/answer", get(webrtc::handle_answer))
-        .route("/ws", get(ws_handler))
+    let public_routes = Router::new()
+        .route("/api/register", post(auth::register_handler))
+        .route("/api/login", post(auth::login_handler))
+        .route("/api/validate-session", get(auth::validate_session_handler))
+        .route("/api/logout", post(auth::logout_handler));
 
-        // Assets
+    let user_routes = Router::new()
+        .route("/api/change-password", post(auth::change_password_handler))
+        .route("/api/upload-media", post(upload::handle_upload_media))
+        .route("/api/upload", post(upload::handle_upload))
+        // Anciennes routes WebRTC retirées (remplacées par WebSocket)
+        .route_layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            user_middleware,
+        ));
+
+    let admin_routes = Router::new()
+        .route("/api/admin/pending-users", get(auth::pending_users_handler))
+        .route("/api/admin/all-users", get(auth::all_users_handler))
+        .route("/api/admin/approve-user", post(auth::approve_user_handler))
+        .route_layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            admin_middleware,
+        ));
+
+    let app = Router::new()
+        .merge(public_routes)
+        .merge(user_routes)
+        .merge(admin_routes)
+        // Nouvelle route WebSocket pour appels 1:1 et groupe
+        .route("/ws/call", get(webrtc::call_ws_handler))
+        // Assets statiques
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
-
-        // Fallback SPA
         .fallback(get(spa_fallback))
-
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Nook prêt sur http://{}", addr);
-    println!("Static files : /app/static");
-    println!("Uploads : /app/data/uploads");
+    println!("Système simplifié - Pas de localStorage, tout en base de données");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app.into_make_service())
@@ -87,36 +152,9 @@ async fn main() {
         .unwrap();
 }
 
-// WS handler
-use axum::extract::ws::WebSocketUpgrade;
-use futures_util::{SinkExt, StreamExt};
-
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
-        let (mut sender, mut receiver) = socket.split();
-        while let Some(Ok(msg)) = receiver.next().await {
-            if let Ok(text) = msg.into_text() {
-                let _ = sender.send(axum::extract::ws::Message::Text(text)).await;
-            }
-        }
-    })
-}
-
-// GIF proxy
-use urlencoding::encode;
-
-async fn gif_proxy(Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, StatusCode> {
-    if let Some(q) = params.get("q") {
-        let url = format!(
-            "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
-            encode(q)
-        );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-        Ok(Json(json))
-    } else {
-        Err(StatusCode::BAD_REQUEST)
+async fn spa_fallback() -> impl IntoResponse {
+    match tokio::fs::read_to_string("/app/static/index.html").await {
+        Ok(html) => Html(html),
+        Err(_) => Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
     }
 }
