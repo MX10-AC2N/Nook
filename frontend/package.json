@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "libsodium-wrappers": "^0.7.13",
+    "uuid": "^9.0.0",
+    "svelte-navigator": "^3.0.0",
     "chart.js": "^4.4.0",
     "simple-peer": "^9.11.1"
   },
