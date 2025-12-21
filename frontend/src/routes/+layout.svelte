@@ -1,4 +1,4 @@
-<script context="module">
+<script module>
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
@@ -10,10 +10,10 @@
   import { authStore } from '$lib/authStore';
   import { currentTheme } from '$lib/themeStore';
   
-  // États
-  let loading = true;
-  let error = null;
-  let previousPath = '';
+  // États (runes mode obligatoire)
+  let loading = $state(true);
+  let error = $state(null);
+  let previousPath = $state('');
 
   // Vérifier l'authentification et rediriger si nécessaire
   function checkAuth() {
@@ -68,10 +68,12 @@
     }
   });
 
-  // Écouter les changements de route
-  $: if ($page.path) {
-    checkAuth();
-  }
+  // Réagir aux changements de route (remplace la déclaration $: legacy)
+  $effect(() => {
+    if ($page.path) {
+      checkAuth();
+    }
+  });
 
   // Gestion des erreurs
   function handleError(err) {
@@ -89,7 +91,7 @@
   </div>
 {:else if error}
   <div class="layout-error">
-    <p>{$error}</p>
+    <p>{error}</p>
     <button onclick={() => window.location.reload()} class="retry-button">
       🔄 Recharger
     </button>
@@ -104,7 +106,7 @@
         </button>
       </div>
     {/if}
-    
+
     <slot />
   </div>
 {/if}
