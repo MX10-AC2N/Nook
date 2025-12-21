@@ -10,13 +10,13 @@
   import { currentTheme } from '$lib/themeStore';
   import { login as apiLogin } from '$lib/auth';
   
-  // États réactifs
-  let username = '';
-  let password = '';
-  let loading = false;
-  let error = null;
-  let success = null;
-  let lastAttempt = 0;
+  // États réactifs (runes mode)
+  let username = $state('');
+  let password = $state('');
+  let loading = $state(false);
+  let error = $state(null);
+  let success = $state(null);
+  let lastAttempt = $state(0);
   
   // Gestion de l'auto-focus
   let usernameInput;
@@ -51,7 +51,9 @@
   }
   
   // Gestion de la soumission du formulaire
-  async function handleSubmit() {
+  async function handleSubmit(event) {
+    event.preventDefault();  // Empêche le rechargement de la page
+    
     // Empêcher les tentatives trop fréquentes
     const now = Date.now();
     if (now - lastAttempt < 1000) {
@@ -70,11 +72,11 @@
       loading = true;
       error = null;
       
-      const success = await apiLogin(username.trim(), password.trim());
+      const loginSuccess = await apiLogin(username.trim(), password.trim());
       
-      if (success) {
+      if (loginSuccess) {
         // Message de succès temporaire
-        this.success = 'Connexion réussie ! Redirection...';
+        success = 'Connexion réussie ! Redirection...';
         
         // Rediriger selon le rôle
         setTimeout(() => {
@@ -98,15 +100,9 @@
   // Gestion de l'appui sur Enter
   function handleKeyDown(e) {
     if (e.key === 'Enter' && !loading) {
-      handleSubmit();
+      handleSubmit(e);
     }
   }
-  
-  // Effacer les messages après un délai
-  onDestroy(() => {
-    if (error) error = null;
-    if (success) success = null;
-  });
 </script>
 
 <svelte:head>
@@ -120,8 +116,8 @@
       <h1 class="app-name">Nook</h1>
       <p class="app-tagline">Messagerie privée pour la famille</p>
     </div>
-    
-    <form onsubmit|preventDefault={handleSubmit} class="login-form">
+
+    <form onsubmit={handleSubmit} class="login-form">
       <div class="form-group">
         <label for="username" class="form-label">Identifiant</label>
         <div class="input-wrapper">
@@ -135,11 +131,11 @@
             autocomplete="username"
             required
             disabled={loading}
-            ref={usernameInput}
+            bind:this={usernameInput}
           />
         </div>
       </div>
-      
+
       <div class="form-group">
         <label for="password" class="form-label">Mot de passe</label>
         <div class="input-wrapper">
@@ -154,23 +150,23 @@
             autocomplete="current-password"
             required
             disabled={loading}
-            ref={passwordInput}
+            bind:this={passwordInput}
           />
         </div>
       </div>
-      
+
       {#if error}
         <div class="error-message">
-          <span>❌ {$error}</span>
+          <span>❌ {error}</span>
         </div>
       {/if}
-      
+
       {#if success}
         <div class="success-message">
-          <span>✅ {$success}</span>
+          <span>✅ {success}</span>
         </div>
       {/if}
-      
+
       <button 
         type="submit" 
         class="submit-button"
@@ -179,12 +175,12 @@
         {loading ? 'Connexion en cours...' : 'Se connecter'}
       </button>
     </form>
-    
+
     <div class="footer-links">
       <a href="/join" class="footer-link">📋 Créer un compte</a>
       <a href="/forgot-password" class="footer-link">❓ Mot de passe oublié</a>
     </div>
-    
+
     <div class="theme-info">
       {#if $currentTheme === 'jardin-secret'}
         <span class="theme-badge jardin">🌿 Jardin Secret</span>
@@ -195,7 +191,7 @@
       {/if}
     </div>
   </div>
-  
+
   <div class="security-note">
     <p>🔒 Connexion sécurisée - Aucune donnée stockée en clair</p>
     <p>🌐 Open Source & Auto-hébergé</p>
@@ -203,6 +199,7 @@
 </div>
 
 <style>
+  /* Ton style reste exactement identique – rien à changer ici */
   .login-container {
     min-height: 100vh;
     display: flex;
