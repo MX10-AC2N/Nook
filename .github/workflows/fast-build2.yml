@@ -1,4 +1,4 @@
-name: 🚀 Fast Build & Push (Manual)
+name: 🚀 Fast Build & Push 2 (Manual)
 
 on:
   workflow_dispatch:  # Déclenchement manuel uniquement
