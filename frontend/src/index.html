@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#4a90e2" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nook • Messagerie privée pour la famille</title>
+  <script type="module" src="/src/main.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background: #f5f5f5;
+      color: #333;
+      min-height: 100vh;
+    }
+    #app {
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+      <div style="text-align: center; padding: 2rem;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🌱</div>
+        <h1 style="font-size: 2rem; margin-bottom: 1rem;">Nook</h1>
+        <p style="color: #666; margin-bottom: 2rem;">Chargement de l'application...</p>
+        <div style="width: 40px; height: 40px; border: 4px solid rgba(76, 175, 80, 0.3); border-top-color: #4CAF50; border-radius: 50%; margin: 0 auto; animation: spin 1s linear infinite;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Animation de chargement
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>
