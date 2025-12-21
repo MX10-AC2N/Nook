@@ -572,7 +572,7 @@
             <h3>Participants</h3>
             <p>Sélectionnez les membres à ajouter :</p>
             
-            {#each $availableUsers as user}
+            {#each availableUsers as user}
               <label class="participant-checkbox">
                 <input
                   type="checkbox"
