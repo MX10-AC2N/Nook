@@ -170,20 +170,7 @@
     font-style: italic;
   }
 
-  /* Thèmes */
-  .theme-jardin-secret {
-    --primary: #4CAF50;
-  }
-
-  .theme-space-hub {
-    --primary: #2196F3;
-  }
-
-  .theme-maison-chaleureuse {
-    --primary: #FF9800;
-  }
-
-  /* Responsive */
+   /* Responsive */
   @media (max-width: 768px) {
     .error-actions {
       flex-direction: column;
