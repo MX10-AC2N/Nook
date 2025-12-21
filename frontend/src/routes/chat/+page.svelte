@@ -102,10 +102,12 @@
   });
 
   // Charger les messages quand la conversation active change
-  $: if ($activeConversationId && $authStore.isAuthenticated) {
-    loadMessages($activeConversationId);
-    loadParticipants($activeConversationId);
-  }
+  $effect(() => {
+    if ($activeConversationId && $authStore.isAuthenticated) {
+      loadMessages($activeConversationId);
+      loadParticipants($activeConversationId);
+    }
+  });
 
   // Gestion des websockets pour les messages en temps réel
   let ws;
