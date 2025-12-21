@@ -112,6 +112,7 @@ async fn main() {
 
     let user_routes = Router::new()
         .route("/api/change-password", post(auth::change_password_handler))
+        .route("/api/upload-media", post(upload::handle_upload_media))
         .route("/api/upload", post(upload::handle_upload))
         // Anciennes routes WebRTC retirées (remplacées par WebSocket)
         .route_layer(middleware::from_fn_with_state(
