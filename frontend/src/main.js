@@ -1,50 +1,27 @@
 import { createRoutify } from '@roxi/routify';
 import App from './App.svelte';
 import { authStore } from '$lib/authStore';
+import { initCrypto } from '$lib/crypto';
 
-// Configuration Routify
+// Initialiser Routify avec les routes
 const routify = createRoutify({
-  routes: import.meta.glob('./routes/**/+page.svelte'),
+  routes: import.meta.glob('./routes/**/+page.svelte', { eager: true }),
   layouts: {
-    default: import('./routes/+layout.svelte'),
-    admin: import('./layouts/admin.svelte'),
-    auth: import('./layouts/auth.svelte')
+    default: () => import('./routes/+layout.svelte')
   },
   options: {
-    // Mode Svelte 5 compatible
     svelte5: true,
-    // Pas de SSR pour le moment
     ssr: false,
-    // Gestion automatique des transitions
     transitions: true,
-    // Précharger les liens hover
     linkPreload: true
   }
 });
 
-// Initialiser l'état d'authentification avant le chargement
-function initAuth() {
-  return new Promise((resolve) => {
-    const unsubscribe = authStore.subscribe(($auth) => {
-      if (!$auth.loading) {
-        unsubscribe();
-        resolve();
-      }
-    });
-    
-    // Timeout de sécurité (5 secondes max)
-    setTimeout(() => {
-      unsubscribe();
-      resolve();
-    }, 5000);
-  });
-}
-
 // Initialiser l'application
 async function initApp() {
   try {
-    // Attendre que l'auth soit initialisée
-    await initAuth();
+    // Initialiser le chiffrement
+    await initCrypto();
     
     // Créer l'application Svelte
     const app = new App({
@@ -52,9 +29,7 @@ async function initApp() {
       props: {
         routify
       },
-      // Activer le mode runes pour Svelte 5
       runes: true,
-      // Désactiver les avertissements en production
       hydrate: import.meta.env.PROD
     });
     
@@ -93,6 +68,3 @@ if (document.readyState === 'loading') {
 } else {
   initApp();
 }
-
-// Export pour les tests
-export default { initApp };
