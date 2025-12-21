@@ -25,12 +25,12 @@
   // États locaux
   let conversationId = $page.params.id;
   let callType = $page.url.searchParams.get('type') || 'video';
-  let loading = true;
-  let error = null;
-  let showIncomingCallModal = false;
-  let incomingCallFrom = '';
-  let incomingCallConvId = '';
-
+  import { $state } from 'svelte';
+  let loading = $state(true);
+  let error = $state(null);
+  let showIncomingCallModal = $state(false);
+  let incomingCallFrom = $state('');
+let incomingCallConvId = $state('');
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
       goto('/login');
@@ -198,7 +198,7 @@
                 playsinline 
                 srcObject={stream} 
                 class="video-element remote"
-              />
+              ></video>
               <div class="remote-overlay">
                 <span>{$participants.find(p => p.id === userId)?.name || userId}</span>
               </div>
