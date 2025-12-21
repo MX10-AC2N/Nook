@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   
-  let members = [];
-  let invitations = [];
+  import { $state } from 'svelte';
+  let members = $state([]);
+  let invitations = $state([]);
   let loading = $state(true);
   
   // Nouveau membre
