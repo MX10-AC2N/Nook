@@ -1,35 +1,32 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import routify from '@roxi/routify/vite-plugin'; // Syntaxe corrigée pour Routify v3
+import routifyPlugin from '@roxi/routify/vite-plugin'; // Import par défaut
 
 export default defineConfig({
   plugins: [
-    routify({
-      // Configuration Routify pour Svelte 5
+    routifyPlugin({ // Utiliser le plugin directement
+      // Configuration Routify
       routesDir: 'src/routes',
       layoutsDir: 'src/layouts',
       useHash: false,
       singleFetch: true,
       extensions: ['.svelte', '.js', '.ts'],
       dynamicImports: true,
-      // Désactiver le routage côté serveur pour le moment
       ssr: false,
-      // Options spécifiques à Routify v3
+      // Options spécifiques Routify v3
       routifyDir: '.routify',
-      ignore: ['**/+*'],
-      dynamic: true
+      ignore: ['**/+page.svelte', '**/+layout.svelte', '**/+error.svelte'],
+      dynamic: true,
+      // Désactiver le routage automatique des fichiers +*
+      autoFileRoutes: false
     }),
     svelte({
       compilerOptions: {
-        // Activer le mode Svelte 5 (runes)
         runes: true,
-        // Désactiver l'accessibilité warnings pour le développement
-        // (à réactiver en production si nécessaire)
         accessors: true,
         immutable: true
       },
       onwarn: (warning, handler) => {
-        // Ignorer certains warnings spécifiques à Routify
         if (
           warning.code === 'a11y-missing-attribute' || 
           warning.code === 'css-unused-selector' ||
@@ -57,7 +54,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          // Séparer les grosses dépendances
           'libsodium': ['libsodium-wrappers'],
           'chart': ['chart.js'],
           'peer': ['simple-peer']
