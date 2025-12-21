@@ -4,43 +4,43 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::{Query, State},
-    http::{StatusCode, HeaderMap, header},
+    extract::State,
+    http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, get_service, post},
-    Json, Router,
+    Router,
     middleware::{self, Next},
 };
-use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
+    // Anciens champs conservés pour compatibilité (peuvent être supprimés plus tard)
     pub webrtc_sessions: Arc<RwLock<HashMap<String, String>>>,
     pub chat_connections: Arc<RwLock<HashMap<String, String>>>,
+    // Nouveau champ pour WebRTC multi-conversation
+    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, tokio::sync::broadcast::Sender<webrtc::CallSignal>>>>,
 }
 
-// Middleware admin
+// Middleware admin (inchangé)
 async fn admin_middleware(
-    headers: HeaderMap,
+    headers: axum::http::HeaderMap,
     State(state): State<SharedState>,
     request: axum::http::Request<axum::body::Body>,
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
     let token = auth::get_cookie(&headers, "nook_admin");
-    
+
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    
-    // Vérifier si c'est un admin
+
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT u.id FROM sessions s 
          JOIN users u ON s.user_id = u.id 
@@ -50,29 +50,28 @@ async fn admin_middleware(
     .fetch_optional(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     if row.is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
+
     Ok(next.run(request).await)
 }
 
-// Middleware utilisateur (membre approuvé)
+// Middleware utilisateur (inchangé)
 async fn user_middleware(
-    headers: HeaderMap,
+    headers: axum::http::HeaderMap,
     State(state): State<SharedState>,
     request: axum::http::Request<axum::body::Body>,
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
     let token = auth::get_cookie(&headers, "nook_session");
-    
+
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    
-    // Vérifier si c'est un membre approuvé
+
     let row: Option<(String,)> = sqlx::query_as(
         "SELECT u.id FROM sessions s 
          JOIN users u ON s.user_id = u.id 
@@ -82,49 +81,44 @@ async fn user_middleware(
     .fetch_optional(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+
     if row.is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
+
     Ok(next.run(request).await)
 }
 
 #[tokio::main]
 async fn main() {
-    // Création dossiers
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
 
     println!("Démarrage de Nook v3.0 - Système simplifié");
 
-    // Init DB
     let app_state = db::init_db().await;
     let shared_state = SharedState {
         db: app_state.db.clone(),
         webrtc_sessions: Arc::new(RwLock::new(HashMap::new())),
         chat_connections: Arc::new(RwLock::new(HashMap::new())),
+        webrtc_broadcasts: Arc::new(RwLock::new(HashMap::new())),
     };
 
-    // Routes publiques
     let public_routes = Router::new()
         .route("/api/register", post(auth::register_handler))
         .route("/api/login", post(auth::login_handler))
         .route("/api/validate-session", get(auth::validate_session_handler))
         .route("/api/logout", post(auth::logout_handler));
 
-    // Routes utilisateur (membres approuvés)
     let user_routes = Router::new()
         .route("/api/change-password", post(auth::change_password_handler))
         .route("/api/upload", post(upload::handle_upload))
-        .route("/api/webrtc/offer", post(webrtc::handle_offer))
-        .route("/api/webrtc/answer", get(webrtc::handle_answer))
+        // Anciennes routes WebRTC retirées (remplacées par WebSocket)
         .route_layer(middleware::from_fn_with_state(
             shared_state.clone(),
             user_middleware,
         ));
 
-    // Routes admin
     let admin_routes = Router::new()
         .route("/api/admin/pending-users", get(auth::pending_users_handler))
         .route("/api/admin/all-users", get(auth::all_users_handler))
@@ -138,11 +132,12 @@ async fn main() {
         .merge(public_routes)
         .merge(user_routes)
         .merge(admin_routes)
+        // Nouvelle route WebSocket pour appels 1:1 et groupe
+        .route("/ws/call", get(webrtc::call_ws_handler))
         // Assets statiques
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
-        // Fallback SPA
         .fallback(get(spa_fallback))
         .with_state(shared_state);
 
