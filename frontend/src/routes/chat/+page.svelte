@@ -9,6 +9,7 @@
   import { goto } from '@roxi/routify';
   import { authStore } from '$lib/authStore';
   import { currentTheme } from '$lib/themeStore';
+  import { availableUser } from '$lib/conversationStore';
   import { 
     messages, 
     currentUser, 
