@@ -1,4 +1,4 @@
-<script context="module">
+<script module>
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
@@ -172,7 +172,7 @@
                 muted 
                 srcObject={$callStore.localStream} 
                 class="video-element local"
-              />
+              ></video>
               <div class="local-overlay">
                 <span>Vous</span>
                 <div class="local-indicators">
