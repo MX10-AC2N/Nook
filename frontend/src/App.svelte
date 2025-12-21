@@ -1,11 +1,11 @@
-<script context="module">
+<script module>
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
 
 <script>
-  import { page } from '@roxi/routify';
-  import { Outlet } from '@roxi/routify/outlet';
+  import { onMount } from 'svelte';
+  import { Router } from '@roxi/routify';
   import { authStore, logout } from '$lib/authStore';
   import { currentTheme } from '$lib/themeStore';
   import { connectionError } from '$lib/chatStore';
@@ -14,10 +14,10 @@
   import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
   import ThemeInjector from '$lib/components/ThemeInjector.svelte';
   
-  // États réactifs
-  let loading = true;
-  let appError = null;
-  let showMenu = false;
+  // États réactifs (runes mode obligatoire)
+  let loading = $state(true);
+  let appError = $state(null);
+  let showMenu = $state(false);
 
   // Initialiser au chargement
   async function initApp() {
@@ -42,10 +42,12 @@
     }
   }
 
-  // Écouter les changements d'authentification
-  $: if ($authStore.isAuthenticated !== undefined) {
-    initApp();
-  }
+  // Réagir aux changements d'authentification (remplace la déclaration $: legacy)
+  $effect(() => {
+    if ($authStore.isAuthenticated !== undefined) {
+      initApp();
+    }
+  });
 
   // Gestion des erreurs globales
   function handleGlobalError(error) {
@@ -113,7 +115,7 @@
     <div class="error-overlay">
       <div class="error-content">
         <h2>❌ Erreur système</h2>
-        <p>{$appError}</p>
+        <p>{appError}</p>
         <button onclick={() => location.reload()} class="retry-button">
           🔄 Recharger l'application
         </button>
@@ -125,12 +127,12 @@
         <button class="menu-toggle" onclick={toggleMenu} aria-label="Menu">
           ☰
         </button>
-        
+
         <div class="logo">
           <span class="logo-icon">🌱</span>
           <span class="logo-text">Nook</span>
         </div>
-        
+
         <div class="header-actions">
           {#if $authStore.isAuthenticated}
             <div class="user-info">
@@ -154,7 +156,7 @@
               ✕
             </button>
           </div>
-          
+
           <ul class="menu-items">
             <li>
               <a href="/chat" onclick={closeMenu}>
@@ -177,7 +179,7 @@
               </a>
             </li>
           </ul>
-          
+
           <div class="menu-footer">
             <p>Version 3.0 • Système simplifié</p>
             <button onclick={handleLogout} class="menu-logout">
@@ -186,20 +188,19 @@
           </div>
         </nav>
       {/if}
-      
+
       <main class="main-content">
         {#if $connectionError}
           <div class="connection-error">
             <p>{$connectionError}</p>
-            <button onclick={() => $connectionError = null} class="error-dismiss">
+            <button onclick={() => connectionError.set(null)} class="error-dismiss">
               ✕
             </button>
           </div>
         {/if}
-        
-        <Suspense fallback={<LoadingSpinner size="medium" />}>
-          <Outlet />
-        </Suspense>
+
+        <!-- Routify 3 : le router rend directement les routes (+page.svelte, +layout.svelte, etc.) -->
+        <Router />
       </main>
     </div>
   {/if}
@@ -219,6 +220,7 @@
 </div>
 
 <style>
+  /* Ton style reste exactement identique – rien à changer */
   :global(html, body) {
     margin: 0;
     padding: 0;
