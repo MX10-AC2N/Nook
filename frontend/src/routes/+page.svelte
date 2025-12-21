@@ -9,7 +9,6 @@
   import { authStore } from '$lib/authStore';
   
   // États
-  import { $state } from 'svelte';
   let loading = $state(true);
   let error = $state(null);
 
