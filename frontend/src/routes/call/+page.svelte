@@ -25,7 +25,6 @@
   // États locaux
   let conversationId = $page.params.id;
   let callType = $page.url.searchParams.get('type') || 'video';
-  import { $state } from 'svelte';
   let loading = $state(true);
   let error = $state(null);
   let showIncomingCallModal = $state(false);
