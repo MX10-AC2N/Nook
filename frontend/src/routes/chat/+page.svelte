@@ -28,6 +28,7 @@
     conversations,
     activeConversationId,
     participants,
+    availableUsers,
     loadConversations,
     loadParticipants,
     createConversation,
