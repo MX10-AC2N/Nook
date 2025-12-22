@@ -1,6 +1,11 @@
+<script module>
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+
 <script>
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto } from '@roxi/routify';  // ← Routify au lieu de $app/navigation (SvelteKit)
 
   onMount(async () => {
     // Rediriger vers la nouvelle page de changement de mot de passe
