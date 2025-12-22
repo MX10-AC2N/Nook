@@ -2,7 +2,8 @@
   // Mode Svelte 5 (runes)
   export const runes = true;
 </script>
-QQ
+
+<script>
   import { onMount } from 'svelte';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
