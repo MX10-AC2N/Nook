@@ -1,8 +1,13 @@
+<script module>
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+
 <script>
   import { onMount } from 'svelte';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { goto } from '$app/navigation';
+  import { goto } from '@roxi/routify';  // ← Routify au lieu de $app/navigation (SvelteKit)
   import { generateKeyPair, storeKeys } from '$lib/crypto';
 
   let token = $state('');
@@ -99,7 +104,7 @@
 
 <div class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
   <div class="max-w-md w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 text-center">
-    
+
     <div class="text-6xl mb-6">
       {#if $currentTheme === 'jardin-secret'}
         🌿
@@ -111,7 +116,7 @@
     </div>
 
     <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Rejoindre Nook</h1>
-    
+
     <p class="text-[var(--text-secondary)] mb-6">
       Vous avez été invité à rejoindre un espace familial privé et sécurisé
     </p>
@@ -138,14 +143,14 @@
         <div class="text-4xl mb-2">✅</div>
         <p class="font-semibold text-lg">{success}</p>
         <p class="text-sm mt-2">L'administrateur vous approuvera bientôt.</p>
-        
+
         {#if memberId}
           <div class="mt-4 p-2 bg-white/10 dark:bg-black/10 rounded">
             <p class="text-xs font-mono break-all">Votre ID: <span class="font-bold">{memberId}</span></p>
             <p class="text-xs mt-1">Conservez cet ID pour votre première connexion !</p>
           </div>
         {/if}
-        
+
         <div class="mt-4">
           <a href="/" class="inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition">
             Retour à l'accueil
@@ -172,7 +177,7 @@
             Ce nom sera visible par les autres membres de la famille
           </p>
         </div>
-        
+
         <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
           <p class="text-xs text-blue-400">
             <span class="font-semibold">⚠️ Important :</span> 
@@ -180,7 +185,7 @@
             Ces clés seront stockées localement dans votre navigateur.
           </p>
         </div>
-        
+
         <button
           onclick={submitRequest}
           disabled={isLoading || !name.trim()}
