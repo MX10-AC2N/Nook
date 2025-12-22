@@ -1,8 +1,12 @@
-<script>
+<script module>
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+QQ
   import { onMount } from 'svelte';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { goto } from '$app/navigation';
+  import { goto } from '@roxi/routify';
 
   let name = $state('');
   let username = $state('');
