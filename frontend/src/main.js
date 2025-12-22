@@ -1,6 +1,6 @@
 import { createRoutify } from '@roxi/routify';
 import App from './App.svelte';
-import { authStore } from '$lib/authStore';
+import { authStore } from './lib/authStore';
 import { initCrypto } from '$lib/crypto';
 
 // Initialiser Routify avec les routes
