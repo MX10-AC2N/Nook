@@ -1,6 +1,11 @@
+<script module>
+  // Mode Svelte 5 (runes)
+  export const runes = true;
+</script>
+
 <script>
   import { onMount } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { goto } from '@roxi/routify';  // ← Routify au lieu de $app/navigation (SvelteKit)
 
   let currentPassword = $state('');
   let newPassword = $state('');
@@ -79,13 +84,13 @@
 
 <div class="min-h-screen flex flex-col items-center justify-center p-4">
   <div class="max-w-md w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 text-center">
-    
+
     <div class="text-6xl mb-6">
       🔐
     </div>
 
     <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Première connexion</h1>
-    
+
     <p class="text-[var(--text-secondary)] mb-8">
       Vous devez changer votre mot de passe pour continuer
     </p>
