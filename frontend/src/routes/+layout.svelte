@@ -107,7 +107,7 @@
       </div>
     {/if}
 
-    <slot />
+    {@render children()}
   </div>
 {/if}
 
