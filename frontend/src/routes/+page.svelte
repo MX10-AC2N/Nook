@@ -1,183 +1,83 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { isAuthenticated, isAdmin, authLoading } from '$lib/authStore';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 
-<script>
-  import { onMount } from 'svelte';
-  import { goto } from '@roxi/routify';
-  import { authStore } from '$lib/authStore';
-  
-  // États
-  let loading = $state(true);
-  let error = $state(null);
+	let redirectError = $state<string | null>(null);
+	let redirecting = $state(true);
 
-  // Rediriger selon l'état d'authentification
-  async function handleRedirect() {
-    try {
-      loading = true;
-      
-      // Attendre que l'auth soit initialisée
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const isAuthenticated = $authStore.isAuthenticated;
-      const isAdmin = $authStore.isAdmin;
-      
-      if (isAuthenticated) {
-        if (isAdmin) {
-          goto('/admin');
-        } else {
-          goto('/chat');
-        }
-      } else {
-        goto('/login');
-      }
-      
-      loading = false;
-    } catch (err) {
-      error = err.message || 'Erreur de redirection';
-      loading = false;
-      console.error('Erreur redirection:', err);
-    }
-  }
+	async function handleRedirect() {
+		if (!browser) return;
+		
+		try {
+			redirecting = true;
+			redirectError = null;
+			await new Promise(resolve => setTimeout(resolve, 300));
+			
+			if ($authLoading) {
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}
 
-  onMount(() => {
-    handleRedirect();
-  });
+			if ($isAdmin) {
+				goto('/admin');
+			} else if ($isAuthenticated) {
+				goto('/chat');
+			} else {
+				goto('/login');
+			}
+		} catch (err) {
+			redirectError = err instanceof Error ? err.message : 'Erreur de redirection';
+			redirecting = false;
+		}
+	}
 
-  // Gestion des erreurs
-  function handleError(err) {
-    error = err.message || 'Erreur système';
-    setTimeout(() => {
-      error = null;
-    }, 5000);
-  }
+	onMount(() => {
+		handleRedirect();
+	});
 </script>
 
 <svelte:head>
-  <title>Nook - Messagerie privée pour la famille</title>
-  <meta name="description" content="Nook - Une messagerie sécurisée, open source et auto-hébergée pour votre famille et vos amis proches">
+	<title>Nook - Messagerie familiale ultra privée</title>
+	<meta name="description" content="Messagerie familiale ultra privée, auto-hébergée et chiffrée de bout en bout" />
 </svelte:head>
 
-{#if loading}
-  <div class="redirect-loading">
-    <div class="spinner"></div>
-    <p>Redirection...</p>
-  </div>
-{:else if error}
-  <div class="redirect-error">
-    <h2>❌ Erreur de redirection</h2>
-    <p>{$error}</p>
-    <div class="error-actions">
-      <button onclick={() => handleRedirect()} class="retry-button">
-        🔄 Réessayer
-      </button>
-      <button onclick={() => goto('/login')} class="login-button">
-        👤 Aller à la connexion
-      </button>
-    </div>
-  </div>
-{:else}
-  <div class="redirect-placeholder">
-    <p>Redirection en cours...</p>
-  </div>
-{/if}
+<div class="home-container">
+	{#if redirecting}
+		<div class="redirecting">
+			<div class="loader"></div>
+			<p>Redirection en cours...</p>
+		</div>
+	{:else if redirectError}
+		<div class="redirect-error">
+			<h1>❌ Erreur de redirection</h1>
+			<p class="error-detail">{redirectError}</p>
+			<div class="error-actions">
+				<button onclick={handleRedirect} class="retry-btn">🔄 Réessayer</button>
+				<a href="/login" class="login-link">👤 Aller à la connexion</a>
+			</div>
+		</div>
+	{:else}
+		<div class="redirecting">
+			<div class="loader"></div>
+			<p>Redirection en cours...</p>
+		</div>
+	{/if}
+</div>
 
 <style>
-  .redirect-loading, .redirect-error, .redirect-placeholder {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    text-align: center;
-    padding: 2rem;
-    background: var(--bg-color);
-    color: var(--text-color);
-  }
-
-  .spinner {
-    width: 50px;
-    height: 50px;
-    border: 5px solid rgba(0,0,0,0.1);
-    border-radius: 50%;
-    border-top-color: var(--primary);
-    animation: spin 1s linear infinite;
-    margin-bottom: 1.5rem;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .redirect-loading p {
-    font-size: 1.2rem;
-    color: var(--primary);
-    font-weight: 500;
-  }
-
-  .redirect-error h2 {
-    color: #f44336;
-    margin-bottom: 1rem;
-    font-size: 1.8rem;
-  }
-
-  .redirect-error p {
-    color: #666;
-    margin-bottom: 2rem;
-    font-size: 1.1rem;
-  }
-
-  .error-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-  }
-
-  .retry-button, .login-button {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 12px;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .retry-button {
-    background: #4caf50;
-    color: white;
-  }
-
-  .login-button {
-    background: #2196f3;
-    color: white;
-  }
-
-  .retry-button:hover {
-    background: #43a047;
-    transform: translateY(-1px);
-  }
-
-  .login-button:hover {
-    background: #1976d2;
-    transform: translateY(-1px);
-  }
-
-  .redirect-placeholder p {
-    color: var(--text-secondary);
-    font-style: italic;
-  }
-
-   /* Responsive */
-  @media (max-width: 768px) {
-    .error-actions {
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-    
-    .retry-button, .login-button {
-      width: 100%;
-    }
-  }
+	.home-container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; }
+	.redirecting { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+	.redirecting p { color: #666; font-size: 1.1rem; }
+	.loader { width: 50px; height: 50px; border: 4px solid #e0e0e0; border-top-color: #2d5a27; border-radius: 50%; animation: spin 1s linear infinite; }
+	@keyframes spin { to { transform: rotate(360deg); } }
+	.redirect-error { max-width: 400px; padding: 2rem; }
+	.redirect-error h1 { font-size: 1.5rem; color: #d32f2f; margin-bottom: 1rem; }
+	.error-detail { color: #666; margin-bottom: 1.5rem; }
+	.error-actions { display: flex; flex-direction: column; gap: 0.75rem; }
+	.retry-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: background 0.2s; }
+	.retry-btn:hover { background: #3d7a37; }
+	.login-link { padding: 0.75rem 1.5rem; background: #f5f5f5; color: #333; text-decoration: none; border-radius: 8px; transition: background 0.2s; }
+	.login-link:hover { background: #eeeeee; }
 </style>
