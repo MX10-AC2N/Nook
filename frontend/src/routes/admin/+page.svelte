@@ -1,224 +1,202 @@
-<script>
-  import { onMount } from 'svelte';
-  
-  let members = $state([]);
-  let invitations = $state([]);
-  let loading = $state(true);
-  
-  // Nouveau membre
-  let newMember = $state({
-    name: '',
-    username: '',
-    temporaryPassword: 'changeme123'
-  });
-  let createMemberResult = $state({ success: false, message: '' });
-  
-  onMount(async () => {
-    await loadMembers();
-  });
-  
-  async function loadMembers() {
-    try {
-      const res = await fetch('/api/admin/members');
-      if (res.ok) {
-        const data = await res.json();
-        members = data.members;
-      }
-    } catch (error) {
-      console.error('Erreur chargement membres:', error);
-    }
-    loading = false;
-  }
-  
-  async function createInvite() {
-    const res = await fetch('/api/admin/invite', { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      invitations.push(data.message);
-    }
-  }
-  
-  async function approveMember(id) {
-    const res = await fetch(`/api/admin/members/${id}/approve`, {
-      method: 'PATCH'
-    });
-    if (res.ok) {
-      await loadMembers();
-    }
-  }
-  
-  async function createNewMember() {
-    if (!newMember.name.trim() || !newMember.username.trim()) {
-      createMemberResult = { success: false, message: 'Veuillez remplir tous les champs' };
-      return;
-    }
-    
-    if (newMember.username.length < 3) {
-      createMemberResult = { success: false, message: 'Le nom d\'utilisateur doit avoir au moins 3 caractères' };
-      return;
-    }
-    
-    try {
-      const res = await fetch('/api/admin/create-member', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newMember),
-        credentials: 'include'
-      });
-      
-      const data = await res.json();
-      createMemberResult = data;
-      
-      if (data.success) {
-        // Réinitialiser le formulaire
-        newMember = { name: '', username: '', temporaryPassword: 'changeme123' };
-        // Recharger la liste
-        await loadMembers();
-      }
-    } catch (error) {
-      createMemberResult = { success: false, message: 'Erreur réseau' };
-    }
-  }
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { isAdmin, authUser, authLoading } from '$lib/authStore';
+
+	let pendingUsers = $state<any[]>([]);
+	let allUsers = $state<any[]>([]);
+	let loading = $state(true);
+	let activeTab = $state<'pending' | 'all'>('pending');
+	let generatingInvite = $state(false);
+
+	onMount(async () => {
+		if (!$authLoading && !$isAdmin) {
+			goto('/chat');
+			return;
+		}
+		await loadUsers();
+		loading = false;
+	});
+
+	async function loadUsers() {
+		try {
+			const [pendingRes, allRes] = await Promise.all([
+				fetch('/api/admin/pending-users', { credentials: 'include' }),
+				fetch('/api/admin/all-users', { credentials: 'include' })
+			]);
+
+			if (pendingRes.ok) {
+				const data = await pendingRes.json();
+				pendingUsers = data.users || [];
+			}
+			if (allRes.ok) {
+				const data = await allRes.json();
+				allUsers = data.users || [];
+			}
+		} catch (err) {
+			console.error('Erreur chargement utilisateurs:', err);
+		}
+	}
+
+	async function approveUser(userId: string) {
+		try {
+			const response = await fetch('/api/admin/approve-user', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ user_id: userId })
+			});
+
+			if (response.ok) {
+				await loadUsers();
+			}
+		} catch (err) {
+			console.error('Erreur approbation:', err);
+		}
+	}
+
+	async function generateInvite() {
+		generatingInvite = true;
+		try {
+			const response = await fetch('/api/admin/generate-invite', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include'
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				await navigator.clipboard.writeText(data.invite_link);
+				alert('Lien d\'invitation copié dans le presse-papiers !');
+			}
+		} catch (err) {
+			console.error('Erreur génération invite:', err);
+		} finally {
+			generatingInvite = false;
+		}
+	}
+
+	function formatDate(timestamp: number): string {
+		return new Date(timestamp * 1000).toLocaleDateString('fr-FR', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
 </script>
 
 <svelte:head>
-  <title>Administration — Nook</title>
+	<title>Administration - Nook</title>
 </svelte:head>
 
-<div class="min-h-screen p-6">
-  <div class="max-w-6xl mx-auto">
-    <h1 class="text-3xl font-bold mb-8 text-[var(--text-primary)]">Administration Nook</h1>
-    
-    <!-- Section création de membre -->
-    <div class="bg-white/10 dark:bg-black/10 backdrop-blur-xl rounded-2xl p-6 mb-8">
-      <h2 class="text-2xl font-bold mb-4 text-[var(--text-primary)]">Créer un nouveau membre</h2>
-      
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <div>
-          <label for="member-name" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nom complet</label>
-          <input
-            id="member-name"
-            type="text"
-            bind:value={newMember.name}
-            placeholder="Ex: Jean Dupont"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          />
-        </div>
-        
-        <div>
-          <label for="member-username" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Nom d'utilisateur</label>
-          <input
-            id="member-username"
-            type="text"
-            bind:value={newMember.username}
-            placeholder="Ex: jean.dupont"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          />
-        </div>
-        
-        <div class="md:col-span-2">
-          <label for="temporary-password" class="block text-sm font-medium mb-2 text-[var(--text-primary)]">Mot de passe temporaire</label>
-          <input
-            id="temporary-password"
-            type="text"
-            bind:value={newMember.temporaryPassword}
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-          />
-          <p class="text-xs text-[var(--text-secondary)] mt-1">
-            Le membre devra changer ce mot de passe lors de sa première connexion
-          </p>
-        </div>
-      </div>
-      
-      <button
-        onclick={createNewMember}
-        class="px-6 py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 transition"
-      >
-        Créer le membre
-      </button>
-      
-      {#if createMemberResult.message}
-        <div class={`mt-4 p-3 rounded-xl ${createMemberResult.success ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-          {createMemberResult.message}
-        </div>
-      {/if}
-    </div>
-    
-    <!-- Liste des membres existants -->
-    <div class="bg-white/10 dark:bg-black/10 backdrop-blur-xl rounded-2xl p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-2xl font-bold text-[var(--text-primary)]">Membres ({members.length})</h2>
-        <button
-          onclick={createInvite}
-          class="px-4 py-2 bg-blue-500/80 text-white rounded-xl hover:opacity-90 transition"
-        >
-          + Créer un lien d'invitation
-        </button>
-      </div>
-      
-      {#if invitations.length > 0}
-        <div class="mb-6 p-4 bg-blue-500/10 rounded-xl">
-          <h3 class="font-bold mb-2 text-blue-400">Liens d'invitation générés :</h3>
-          {#each invitations as invite}
-            <div class="mb-2 p-2 bg-white/5 rounded">
-              <code class="text-sm break-all">{invite}</code>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      
-      {#if loading}
-        <div class="text-center py-8">
-          <div class="text-4xl animate-spin mb-2">🌀</div>
-          <p class="text-[var(--text-secondary)]">Chargement...</p>
-        </div>
-      {:else if members.length === 0}
-        <div class="text-center py-8 text-[var(--text-secondary)]">
-          Aucun membre pour l'instant
-        </div>
-      {:else}
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead>
-              <tr class="border-b border-white/20">
-                <th class="text-left p-3 text-[var(--text-primary)]">Nom</th>
-                <th class="text-left p-3 text-[var(--text-primary)]">Username</th>
-                <th class="text-left p-3 text-[var(--text-primary)]">ID</th>
-                <th class="text-left p-3 text-[var(--text-primary)]">Statut</th>
-                <th class="text-left p-3 text-[var(--text-primary)]">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each members as member (member.id)}
-                <tr class="border-b border-white/10 hover:bg-white/5">
-                  <td class="p-3 text-[var(--text-primary)]">{member.name}</td>
-                  <td class="p-3 text-[var(--text-primary)]">{member.username || 'N/A'}</td>
-                  <td class="p-3 text-[var(--text-secondary)] text-sm font-mono">{member.id.substring(0, 8)}...</td>
-                  <td class="p-3">
-                    {#if member.approved}
-                      <span class="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm">Approuvé</span>
-                    {:else}
-                      <span class="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-sm">En attente</span>
-                    {/if}
-                  </td>
-                  <td class="p-3">
-                    {#if !member.approved}
-                      <button
-                        onclick={() => approveMember(member.id)}
-                        class="px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition text-sm"
-                      >
-                        Approuver
-                      </button>
-                    {:else}
-                      <span class="text-[var(--text-secondary)] text-sm">✓ Approuvé</span>
-                    {/if}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {/if}
-    </div>
-  </div>
+<div class="admin-container">
+	<div class="admin-header">
+		<h1>👑 Administration</h1>
+		<p>Gérez les membres et les invitations de votre espace familial</p>
+	</div>
+
+	<div class="admin-actions">
+		<button class="invite-btn" onclick={generateInvite} disabled={generatingInvite}>
+			{generatingInvite ? 'Génération...' : '➕ Générer un lien d\'invitation'}
+		</button>
+	</div>
+
+	<div class="admin-tabs">
+		<button class="tab" class:active={activeTab === 'pending'} onclick={() => activeTab = 'pending'}>
+			En attente ({pendingUsers.length})
+		</button>
+		<button class="tab" class:active={activeTab === 'all'} onclick={() => activeTab = 'all'}>
+			Tous les membres ({allUsers.length})
+		</button>
+	</div>
+
+	<div class="admin-content">
+		{#if loading}
+			<div class="loading">Chargement...</div>
+		{:else if activeTab === 'pending'}
+			{#if pendingUsers.length === 0}
+				<div class="empty-state">
+					<p>Aucun membre en attente d'approbation</p>
+				</div>
+			{:else}
+				<div class="user-list">
+					{#each pendingUsers as user}
+						<div class="user-card pending">
+							<div class="user-info">
+								<span class="user-name">{user.name}</span>
+								<span class="user-username">@{user.username}</span>
+								<span class="user-date">Demandé le {formatDate(user.created_at)}</span>
+							</div>
+							<div class="user-actions">
+								<button class="approve-btn" onclick={() => approveUser(user.id)}>
+									✅ Approuver
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{:else}
+			<div class="user-list">
+				{#each allUsers as user}
+					<div class="user-card" class:admin={user.role === 'admin'}>
+						<div class="user-info">
+							<span class="user-name">
+								{user.name}
+								{#if user.role === 'admin'}
+									<span class="admin-badge">Admin</span>
+								{/if}
+							</span>
+							<span class="user-username">@{user.username}</span>
+							<span class="user-status" class:approved={user.approved}>
+								{user.approved ? '✅ Approuvé' : '⏳ En attente'}
+							</span>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</div>
 </div>
+
+<style>
+	.admin-container { max-width: 800px; margin: 0 auto; padding: 1rem; }
+	.admin-header { text-align: center; margin-bottom: 2rem; }
+	.admin-header h1 { font-size: 1.75rem; color: #2d5a27; margin-bottom: 0.5rem; }
+	.admin-header p { color: #666; }
+	
+	.admin-actions { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+	.invite-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; transition: background 0.2s; }
+	.invite-btn:hover:not(:disabled) { background: #3d7a37; }
+	.invite-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+	
+	.admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid #eee; padding-bottom: 0.5rem; }
+	.tab { padding: 0.75rem 1.25rem; background: none; border: none; cursor: pointer; font-size: 0.95rem; color: #666; border-radius: 8px 8px 0 0; transition: all 0.2s; }
+	.tab:hover { background: #f0f7f0; }
+	.tab.active { background: #2d5a27; color: white; }
+	
+	.admin-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+	.loading { padding: 2rem; text-align: center; color: #666; }
+	.empty-state { padding: 3rem; text-align: center; color: #888; }
+	
+	.user-list { padding: 1rem; }
+	.user-card { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; transition: background 0.2s; }
+	.user-card:last-child { border-bottom: none; }
+	.user-card:hover { background: #f8f9fa; }
+	.user-card.pending { background: #fff8e1; }
+	.user-card.admin { background: #e3f2fd; }
+	
+	.user-info { display: flex; flex-direction: column; gap: 0.25rem; }
+	.user-name { font-weight: 500; color: #333; display: flex; align-items: center; gap: 0.5rem; }
+	.admin-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; background: #2196f3; color: white; border-radius: 4px; }
+	.user-username { font-size: 0.85rem; color: #888; }
+	.user-date, .user-status { font-size: 0.8rem; color: #666; }
+	.user-status.approved { color: #4caf50; }
+	
+	.user-actions { display: flex; gap: 0.5rem; }
+	.approve-btn { padding: 0.5rem 1rem; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+	.approve-btn:hover { background: #43a047; }
+</style>
