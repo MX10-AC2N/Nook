@@ -7,36 +7,34 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json --watch",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
-  "dependencies": {
-    "@roxi/routify": "^3.6.4",
-    "chart.js": "^4.4.0",
-    "libsodium-wrappers": "^0.7.13",
-    "simple-peer": "^9.11.1",
-    "uuid": "^9.0.1"
-  },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",
-    "@sveltejs/adapter-static": "^3.0.5",
-    "@sveltejs/kit": "^2.10.0",
-    "@sveltejs/vite-plugin-svelte": "^4.0.0-next.6",
+    "@sveltejs/adapter-static": "^3.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@types/libsodium-wrappers": "^0.7.13",
     "@types/uuid": "^9.0.8",
     "autoprefixer": "^10.4.19",
-    "eslint": "^9.39.2",
-    "eslint-plugin-svelte": "^3.12.1",
-    "svelte-eslint-parser": "^1.4.1",
+    "eslint": "^9.0.0",
+    "eslint-plugin-svelte": "^2.40.0",
     "postcss": "^8.4.38",
     "prettier": "^3.2.5",
     "prettier-plugin-svelte": "^3.2.3",
     "svelte": "^5.0.0",
-    "svelte-check": "^3.6.0",
+    "svelte-check": "^4.0.0",
     "tslib": "^2.6.2",
     "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "vite": "^5.4.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "libsodium-wrappers": "^0.7.13",
+    "simple-peer": "^9.11.1",
+    "uuid": "^9.0.1"
   }
 }
