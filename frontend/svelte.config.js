@@ -3,20 +3,30 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
-  preprocess: vitePreprocess(),
-  compilerOptions: {
-    runes: false,        // ← Désactive le runes mode par défaut
-    accessors: false,    // Nettoie les warnings accessors
-    immutable: false     // Nettoie les warnings immutable
-  },
-  kit: {
-    adapter: adapter({
-      fallback: 'index.html'  // Génère un index.html comme fallback SPA
-    }),
-    paths: {
-      base: ''  // '' car servi à la racine (par Axum)
-    }
-  }
+	preprocess: vitePreprocess(),
+	compilerOptions: {
+		runes: true,
+		accessors: true,
+		immutable: false
+	},
+	kit: {
+		adapter: adapter({
+			pages: 'build',
+			assets: 'build',
+			fallback: 'index.html',
+			precompress: false,
+			strict: true
+		}),
+		alias: {
+			$lib: './src/lib',
+			$components: './src/components',
+			$routes: './src/routes',
+			$assets': './static'
+		},
+		serviceWorker: {
+			register: false
+		}
+	}
 };
 
 export default config;
