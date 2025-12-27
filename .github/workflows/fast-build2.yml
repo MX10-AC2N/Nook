@@ -1,7 +1,6 @@
 name: 🚀 Fast Build & Push 2 (Manual)
-
 on:
-  workflow_dispatch:  # Déclenchement manuel uniquement
+  workflow_dispatch: # Déclenchement manuel uniquement
   push:
     branches: [develop, main]
     paths:
@@ -10,7 +9,6 @@ on:
       - 'Dockerfile'
       - '.github/workflows/fast-build2.yml'
       - 'Cargo.lock'
-
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: warn
@@ -19,7 +17,6 @@ jobs:
   setup:
     name: 🔧 Setup
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,11 +49,9 @@ jobs:
     name: 🏗️ Backend
     runs-on: ubuntu-latest
     needs: setup
-
     defaults:
       run:
         working-directory: ./backend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,12 +94,10 @@ jobs:
         run: |
           mkdir -p /tmp/nook-data
           mkdir -p migrations
-          
           # Copier les migrations existantes
           if [ -d "../../backend/migrations" ]; then
             cp -r ../../backend/migrations/* migrations/
           fi
-          
           # Créer une base de données temporaire
           sqlite3 /tmp/nook-data/nook.db "VACUUM;"
           echo "DATABASE_URL=sqlite:/tmp/nook-data/nook.db" > .env
@@ -118,12 +111,10 @@ jobs:
           DATABASE_URL: "sqlite:/tmp/nook-data/nook.db"
         run: |
           echo "🔄 Application des migrations SQL..."
-          
           # Liste toutes les migrations
           if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
             echo "📁 Migrations trouvées:"
             ls -la migrations/
-            
             # Appliquer chaque migration dans l'ordre
             for migration in migrations/*.sql; do
               if [ -f "$migration" ]; then
@@ -131,73 +122,67 @@ jobs:
                 sqlx migrate run --source . --database-url "$DATABASE_URL"
               fi
             done
-            
             echo "✅ Toutes les migrations appliquées"
           else
             echo "⚠️ Aucune migration trouvée, création des tables de base..."
             sqlite3 /tmp/nook-data/nook.db "
-              CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'member',
-                approved BOOLEAN NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                public_key TEXT,
-                private_key_encrypted TEXT
-              );
-              
-              CREATE TABLE IF NOT EXISTS sessions (
-                token TEXT PRIMARY KEY,
-                user_id TEXT NOT NULL,
-                expires_at INTEGER NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-              );
-              
-              CREATE TABLE IF NOT EXISTS conversations (
-                id TEXT PRIMARY KEY,
-                name TEXT,
-                is_group BOOLEAN NOT NULL DEFAULT 0,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                last_message_at INTEGER,
-                last_message_preview TEXT,
-                unread_count INTEGER DEFAULT 0
-              );
-              
-              CREATE TABLE IF NOT EXISTS conversation_members (
-                conversation_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                joined_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                PRIMARY KEY(conversation_id, user_id)
-              );
-              
-              CREATE TABLE IF NOT EXISTS messages (
-                id TEXT PRIMARY KEY,
-                conversation_id TEXT NOT NULL,
-                sender_id TEXT NOT NULL,
-                content TEXT,
-                encrypted_keys TEXT,
-                nonce TEXT,
-                media_type TEXT,
-                media_url TEXT,
-                duration INTEGER,
-                timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-                FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
-              );
-              
-              CREATE TABLE IF NOT EXISTS message_reactions (
-                message_id TEXT NOT NULL,
-                user_id TEXT NOT NULL,
-                emoji TEXT NOT NULL,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-                PRIMARY KEY(message_id, user_id, emoji)
-              );
+            CREATE TABLE IF NOT EXISTS users (
+              id TEXT PRIMARY KEY,
+              name TEXT NOT NULL,
+              username TEXT NOT NULL UNIQUE,
+              password_hash TEXT NOT NULL,
+              role TEXT NOT NULL DEFAULT 'member',
+              approved BOOLEAN NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+              public_key TEXT,
+              private_key_encrypted TEXT
+            );
+            CREATE TABLE IF NOT EXISTS sessions (
+              token TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL,
+              expires_at INTEGER NOT NULL,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS conversations (
+              id TEXT PRIMARY KEY,
+              name TEXT,
+              is_group BOOLEAN NOT NULL DEFAULT 0,
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+              last_message_at INTEGER,
+              last_message_preview TEXT,
+              unread_count INTEGER DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS conversation_members (
+              conversation_id TEXT NOT NULL,
+              user_id TEXT NOT NULL,
+              joined_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+              FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+              PRIMARY KEY(conversation_id, user_id)
+            );
+            CREATE TABLE IF NOT EXISTS messages (
+              id TEXT PRIMARY KEY,
+              conversation_id TEXT NOT NULL,
+              sender_id TEXT NOT NULL,
+              content TEXT,
+              encrypted_keys TEXT,
+              nonce TEXT,
+              media_type TEXT,
+              media_url TEXT,
+              duration INTEGER,
+              timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+              FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+              FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS message_reactions (
+              message_id TEXT NOT NULL,
+              user_id TEXT NOT NULL,
+              emoji TEXT NOT NULL,
+              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+              FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+              PRIMARY KEY(message_id, user_id, emoji)
+            );
             "
             echo "✅ Tables de base créées"
           fi
@@ -208,14 +193,11 @@ jobs:
           SQLX_OFFLINE: "true"
         run: |
           echo "🔄 Génération du cache SQLx..."
-          
           # Vérifier que les tables existent
           TABLES=$(sqlite3 /tmp/nook-data/nook.db ".tables")
           echo "📋 Tables disponibles: $TABLES"
-          
           # Générer le cache
           cargo sqlx prepare -- --all-targets --lib
-          
           # Vérifier que le cache a été généré
           if [ -d ".sqlx" ]; then
             echo "✅ Cache SQLx généré avec succès"
@@ -237,16 +219,13 @@ jobs:
             echo "❌ Binaire manquant: $BIN_PATH"
             exit 1
           fi
-          
           # Vérifier les permissions
           chmod +x "$BIN_PATH"
-          
           # Vérifier la taille raisonnable
           SIZE=$(stat -c%s "$BIN_PATH")
           if [ "$SIZE" -lt 1000000 ]; then
             echo "⚠️ Binaire très petit ($SIZE octets), vérification nécessaire"
           fi
-          
           echo "✅ Binaire généré: $BIN_PATH ($SIZE octets)"
 
       - name: Upload backend artifact
@@ -260,11 +239,9 @@ jobs:
     name: 🎨 Frontend
     runs-on: ubuntu-latest
     needs: setup
-
     defaults:
       run:
         working-directory: ./frontend
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -292,15 +269,7 @@ jobs:
         run: |
           if [ ! -f "package-lock.json" ]; then
             echo "🔄 Génération du package-lock.json..."
-            # Utiliser une version existante de routify et ignorer les conflits de peer dependencies
-            npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps --save-exact
-            
-            # Corriger manuellement la version de routify si nécessaire
-            if grep -q "@roxi/routify" package.json; then
-              echo "🔧 Correction de la version de Routify..."
-              npm install @roxi/routify@latest --no-save --no-audit --no-fund --legacy-peer-deps
-            fi
-            
+            npm install --package-lock-only --no-audit --no-fund
             echo "✅ package-lock.json généré"
           else
             echo "✅ package-lock.json déjà présent"
@@ -321,23 +290,22 @@ jobs:
         run: |
           if [ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]; then
             echo "🔄 Installation des dépendances npm..."
-            npm ci --no-audit --no-fund --legacy-peer-deps
+            npm ci --no-audit --no-fund
             echo "✅ Dépendances installées"
           else
             echo "✅ Dépendances récupérées depuis le cache"
           fi
 
-      - name: Vérifier dépendances critiques
+      - name: Vérifier dépendances critiques (SvelteKit)
         run: |
           REQUIRED_DEPS=(
             "svelte"
             "@sveltejs/kit"
+            "vite"
             "libsodium-wrappers"
             "uuid"
           )
-          
           MISSING_DEPS=()
-          
           for dep in "${REQUIRED_DEPS[@]}"; do
             if ! npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
               echo "⚠️ Dépendance manquante: $dep"
@@ -346,16 +314,9 @@ jobs:
               echo "✅ $dep installé"
             fi
           done
-          
           if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
             echo "❌ Dépendances manquantes: ${MISSING_DEPS[*]}"
             exit 1
-          fi
-          
-          # Vérifier que routify est installé
-          if ! npm list "@roxi/routify" --depth=0 --silent >/dev/null 2>&1; then
-            echo "⚠️ Routify non installé, installation forcée..."
-            npm install @roxi/routify@latest --legacy-peer-deps
           fi
 
       - name: Build
@@ -364,23 +325,20 @@ jobs:
           npm run build
           echo "✅ Build frontend terminé"
 
-      - name: Vérifier build/
+      - name: Vérifier build/ (Structure SvelteKit)
         run: |
           BUILD_DIR="build"
-          
           if [ ! -d "$BUILD_DIR" ]; then
             echo "❌ Dossier $BUILD_DIR absent"
             exit 1
           fi
-          
-          # Vérifier les fichiers essentiels
+          # Vérifier les fichiers essentiels pour SvelteKit SPA
           REQUIRED_FILES=(
             "index.html"
-            "_app/manifest.json"
-            "_app/version.json"
           )
-          
           MISSING_FILES=()
+          echo "📁 Contenu du dossier build:"
+          ls -la "$BUILD_DIR/"
           
           for file in "${REQUIRED_FILES[@]}"; do
             if [ ! -f "$BUILD_DIR/$file" ]; then
@@ -391,12 +349,20 @@ jobs:
             fi
           done
           
+          # Vérifier que le dossier _app existe (contenu compilé)
+          if [ ! -d "$BUILD_DIR/_app" ]; then
+            echo "⚠️ Dossier _app absent - le build SvelteKit peut être différent"
+          else
+            echo "✅ Dossier _app présent"
+            echo "📁 Contenu de _app:"
+            ls -la "$BUILD_DIR/_app/"
+          fi
+          
           if [ ${#MISSING_FILES[@]} -gt 0 ]; then
             echo "❌ Fichiers manquants dans le build: ${MISSING_FILES[*]}"
             exit 1
           fi
-          
-          echo "✅ Dossier $BUILD_DIR OK"
+          echo "✅ Dossier $BUILD_DIR OK (Structure SvelteKit)"
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
@@ -413,7 +379,6 @@ jobs:
       contents: read
       packages: write
       id-token: write
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
