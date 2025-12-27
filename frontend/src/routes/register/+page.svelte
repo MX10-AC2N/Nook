@@ -1,216 +1,133 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { getPendingInviteToken } from '$lib/auth';
 
-<script>
-  import { onMount } from 'svelte';
-  import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
-  import { goto } from '@roxi/routify';
+	let name = $state('');
+	let username = $state('');
+	let password = $state('');
+	let confirmPassword = $state('');
+	let error = $state('');
+	let success = $state(false);
+	let loading = $state(false);
+	let inviteToken = $state('');
 
-  let name = $state('');
-  let username = $state('');
-  let password = $state('');
-  let confirmPassword = $state('');
-  let error = $state('');
-  let success = $state('');
-  let isLoading = $state(false);
+	onMount(() => {
+		inviteToken = getPendingInviteToken() || '';
+		if (!inviteToken) {
+			error = 'Un token d\'invitation est requis pour créer un compte';
+		}
+	});
 
-  onMount(() => {
-    // Vérifier si déjà connecté
-    fetch('/api/validate-session', { credentials: 'include' })
-      .then(res => {
-        if (res.ok) {
-          goto('/chat');
-        }
-      })
-      .catch(() => {});
-  });
+	async function handleRegister() {
+		if (!name || !username || !password || !confirmPassword) {
+			error = 'Veuillez remplir tous les champs';
+			return;
+		}
 
-  const submitRegister = async () => {
-    // Validation
-    if (!name.trim() || !username.trim() || !password || !confirmPassword) {
-      error = 'Veuillez remplir tous les champs';
-      return;
-    }
-    
-    if (username.length < 3) {
-      error = 'L\'identifiant doit contenir au moins 3 caractères';
-      return;
-    }
-    
-    if (password.length < 8) {
-      error = 'Le mot de passe doit contenir au moins 8 caractères';
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      error = 'Les mots de passe ne correspondent pas';
-      return;
-    }
+		if (password !== confirmPassword) {
+			error = 'Les mots de passe ne correspondent pas';
+			return;
+		}
 
-    isLoading = true;
-    error = '';
+		if (password.length < 8) {
+			error = 'Le mot de passe doit contenir au moins 8 caractères';
+			return;
+		}
 
-    try {
-      const response = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          username: username.trim(),
-          password: password
-        })
-      });
+		loading = true;
+		error = '';
 
-      const data = await response.json();
-      
-      if (data.success) {
-        success = data.message;
-        name = '';
-        username = '';
-        password = '';
-        confirmPassword = '';
-      } else {
-        error = data.message || 'Erreur lors de l\'inscription';
-      }
-    } catch (err) {
-      error = 'Impossible de contacter le serveur';
-    } finally {
-      isLoading = false;
-    }
-  };
+		try {
+			const response = await fetch('/api/register', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name, username, password, invite_token: inviteToken })
+			});
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading) {
-      submitRegister();
-    }
-  };
+			const data = await response.json();
+
+			if (response.ok) {
+				success = true;
+			} else {
+				error = data.message || 'Erreur lors de l\'inscription';
+			}
+		} catch (err) {
+			error = 'Erreur de connexion au serveur';
+		} finally {
+			loading = false;
+		}
+	}
 </script>
 
 <svelte:head>
-  <title>Inscription — Nook</title>
+	<title>Inscription - Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
-  <div class="max-w-md w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 text-center">
-    
-    <div class="text-6xl mb-6">
-      {#if $currentTheme === 'jardin-secret'}
-        🌿
-      {:else if $currentTheme === 'space-hub'}
-        🚀
-      {:else}
-        🏠
-      {/if}
-    </div>
+<div class="register-container">
+	{#if success}
+		<div class="success-card">
+			<h1>✅ Inscription发送ée</h1>
+			<p>Votre demande d'inscription a été envoyée à l'administrateur.</p>
+			<p>Vous recevrez une notification une fois votre compte approuvé.</p>
+			<a href="/login" class="back-btn">Retour à la connexion</a>
+		</div>
+	{:else}
+		<div class="register-card">
+			<h1>🌱 Nook</h1>
+			<p class="subtitle">Créer votre compte familial</p>
 
-    <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Inscription à Nook</h1>
-    
-    <p class="text-[var(--text-secondary)] mb-6">
-      Demandez à rejoindre l'espace familial
-    </p>
+			{#if error}
+				<div class="error-message">{error}</div>
+			{/if}
 
-    {#if error}
-      <div class="mb-4 p-3 bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl border border-red-500/30">
-        {error}
-      </div>
-    {/if}
+			<form onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
+				<div class="form-group">
+					<label for="name">Prénom</label>
+					<input type="text" id="name" bind:value={name} placeholder="Votre prénom" disabled={loading || !inviteToken} />
+				</div>
 
-    {#if success}
-      <div class="mb-4 p-3 bg-green-500/20 text-green-600 dark:text-green-400 rounded-xl border border-green-500/30">
-        <div class="text-4xl mb-2">✅</div>
-        <p class="font-semibold">{success}</p>
-        <p class="text-sm mt-2">Vous recevrez un email lorsque votre compte sera approuvé.</p>
-        <div class="mt-4">
-          <a href="/login" class="inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition">
-            Aller à la connexion
-          </a>
-        </div>
-      </div>
-    {:else}
-      <div class="space-y-4">
-        <div>
-          <label for="name" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Votre nom
-          </label>
-          <input
-            id="name"
-            type="text"
-            bind:value={name}
-            placeholder="Ex: Jean Dupont"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-          />
-        </div>
-        
-        <div>
-          <label for="username" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Identifiant
-          </label>
-          <input
-            id="username"
-            type="text"
-            bind:value={username}
-            placeholder="Ex: jean.dupont"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-          />
-          <p class="text-xs text-[var(--text-secondary)] mt-1 text-left">
-            Minimum 3 caractères. Utilisez-le pour vous connecter.
-          </p>
-        </div>
+				<div class="form-group">
+					<label for="username">Identifiant</label>
+					<input type="text" id="username" bind:value={username} placeholder="Identifiant unique" disabled={loading || !inviteToken} />
+				</div>
 
-        <div>
-          <label for="password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Mot de passe
-          </label>
-          <input
-            id="password"
-            type="password"
-            bind:value={password}
-            placeholder="Minimum 8 caractères"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-          />
-        </div>
+				<div class="form-group">
+					<label for="password">Mot de passe</label>
+					<input type="password" id="password" bind:value={password} placeholder="Au moins 8 caractères" disabled={loading || !inviteToken} />
+				</div>
 
-        <div>
-          <label for="confirm-password" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Confirmer le mot de passe
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            bind:value={confirmPassword}
-            placeholder="Répétez le mot de passe"
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
-          />
-        </div>
+				<div class="form-group">
+					<label for="confirmPassword">Confirmer le mot de passe</label>
+					<input type="password" id="confirmPassword" bind:value={confirmPassword} placeholder="Répétez le mot de passe" disabled={loading || !inviteToken} />
+				</div>
 
-        <button
-          onclick={submitRegister}
-          disabled={isLoading}
-          class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 transition"
-        >
-          {isLoading ? 'Inscription en cours...' : 'Demander l\'inscription'}
-        </button>
-      </div>
-    {/if}
+				<button type="submit" class="register-btn" disabled={loading || !inviteToken}>
+					{loading ? 'Inscription...' : 'S\'inscrire'}
+				</button>
+			</form>
 
-    <div class="mt-6 pt-4 border-t border-white/20">
-      <p class="text-sm text-[var(--text-secondary)]">
-        Déjà un compte ? 
-        <a href="/login" class="text-[var(--accent)] hover:underline ml-1">
-          Se connecter
-        </a>
-      </p>
-    </div>
-  </div>
-
-  <div class="absolute bottom-8 right-8">
-    <ThemeSwitcher />
-  </div>
+			<div class="links">
+				<a href="/login">Déjà un compte ? Se connecter</a>
+			</div>
+		</div>
+	{/if}
 </div>
+
+<style>
+	.register-container { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 100px); padding: 1rem; }
+	.register-card, .success-card { background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+	.success-card h1 { color: #2d5a27; margin-bottom: 1rem; }
+	h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+	.subtitle { color: #666; margin-bottom: 2rem; }
+	.form-group { margin-bottom: 1.25rem; text-align: left; }
+	label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #333; }
+	input { width: 100%; padding: 0.75rem; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1rem; }
+	input:focus { outline: none; border-color: #2d5a27; }
+	.error-message { background: #ffebee; color: #c62828; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.9rem; }
+	.register-btn { width: 100%; padding: 0.875rem; background: #2d5a27; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; }
+	.register-btn:hover:not(:disabled) { background: #3d7a37; }
+	.register-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+	.back-btn { display: inline-block; margin-top: 1.5rem; padding: 0.75rem 1.5rem; background: #2d5a27; color: white; text-decoration: none; border-radius: 8px; }
+	.links { margin-top: 1.5rem; }
+	.links a { color: #2d5a27; text-decoration: none; font-size: 0.9rem; }
+</style>
