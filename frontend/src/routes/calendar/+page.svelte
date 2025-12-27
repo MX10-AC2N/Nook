@@ -1,140 +1,253 @@
-<script>
-  import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { isAuthenticated } from '$lib/authStore';
 
-  let events = $state([]);
-  let newEvent = $state({ title: '', date: '', time: '' });
-  let showAddFeedback = $state(false);
+	let currentDate = $state(new Date());
+	let events = $state<any[]>([]);
+	let showAddModal = $state(false);
+	let newEvent = $state({ title: '', date: '', time: '', description: '' });
+	let loading = $state(true);
 
-  const loadEvents = () => {
-    const stored = localStorage.getItem('nook-calendar-events');
-    if (stored) {
-      events = JSON.parse(stored).sort((a, b) => {
-        return new Date(a.date + ' ' + a.time) - new Date(b.date + ' ' + b.time);
-      });
-    }
-  };
+	const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-  const saveEvents = () => {
-    localStorage.setItem('nook-calendar-events', JSON.stringify(events));
-  };
+	onMount(async () => {
+		if (!$isAuthenticated) {
+			goto('/login');
+			return;
+		}
+		await loadEvents();
+		loading = false;
+	});
 
-  const addEvent = () => {
-    if (newEvent.title.trim() && newEvent.date && newEvent.time) {
-      events = [...events, { ...newEvent, id: Date.now() }];
-      saveEvents();
-      newEvent = { title: '', date: '', time: '' };
-      showAddFeedback = true;
-      setTimeout(() => showAddFeedback = false, 1500);
-    }
-  };
+	async function loadEvents() {
+		try {
+			const response = await fetch('/api/events', { credentials: 'include' });
+			if (response.ok) {
+				const data = await response.json();
+				events = data.events || [];
+			}
+		} catch (err) {
+			console.error('Erreur chargement événements:', err);
+			events = [];
+		}
+	}
 
-  onMount(() => {
-    loadEvents();
-  });
+	async function addEvent() {
+		if (!newEvent.title || !newEvent.date) {
+			alert('Veuillez remplir le titre et la date');
+			return;
+		}
+
+		try {
+			const response = await fetch('/api/events', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					title: newEvent.title,
+					date: newEvent.date,
+					time: newEvent.time,
+					description: newEvent.description
+				})
+			});
+
+			if (response.ok) {
+				await loadEvents();
+				showAddModal = false;
+				newEvent = { title: '', date: '', time: '', description: '' };
+			}
+		} catch (err) {
+			console.error('Erreur création événement:', err);
+		}
+	}
+
+	function prevMonth() {
+		currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+	}
+
+	function nextMonth() {
+		currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+	}
+
+	function getDaysInMonth(date: Date): number {
+		return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+	}
+
+	function getFirstDayOfMonth(date: Date): number {
+		return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+	}
+
+	function getEventsForDay(day: number): any[] {
+		const year = currentDate.getFullYear();
+		const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+		const dayStr = String(day).padStart(2, '0');
+		const dateStr = `${year}-${month}-${dayStr}`;
+		return events.filter(e => e.date === dateStr);
+	}
+
+	function formatEventDate(dateStr: string): string {
+		const date = new Date(dateStr);
+		return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+	}
 </script>
 
 <svelte:head>
-  <title>Calendrier familial — Nook</title>
+	<title>Calendrier - Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center p-6 relative">
-  <!-- Carte principale glassmorphism -->
-  <div class="max-w-2xl w-full bg-white/15 dark:bg-black/15 backdrop-blur-2xl border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 animate-fade-in overflow-hidden">
+<div class="calendar-container">
+	<div class="calendar-header">
+		<h1>📅 Calendrier Familial</h1>
+		<button class="add-btn" onclick={() => showAddModal = true}>+ Ajouter un événement</button>
+	</div>
 
-    <!-- Header thématique -->
-    <div class="flex items-center gap-4 mb-10">
-      <div class="text-5xl animate-float">
-        {#if $currentTheme === 'jardin-secret'}
-          📅
-        {:else if $currentTheme === 'space-hub'}
-          🪐
-        {:else}
-          🗓️
-        {/if}
-      </div>
-      <h1 class="text-3xl font-extrabold text-[var(--text-primary)]">Calendrier familial</h1>
-    </div>
+	<div class="calendar-wrapper">
+		<div class="calendar">
+			<div class="calendar-nav">
+				<button onclick={prevMonth}>◀</button>
+				<h2>{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
+				<button onclick={nextMonth}>▶</button>
+			</div>
 
-    <!-- Formulaire d'ajout -->
-    <div class="mb-10 p-6 bg-white/20 dark:bg-black/20 rounded-2xl border border-white/30 backdrop-blur-md">
-      <h2 class="text-xl font-semibold mb-4 text-[var(--text-primary)]">Ajouter un événement</h2>
-      <input
-        type="text"
-        bind:value={newEvent.title}
-        placeholder="Titre de l'événement (ex: Anniversaire Mamie)"
-        class="w-full p-4 mb-4 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] placeholder-[var(--text-secondary)/70] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40]"
-      />
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <input
-          type="date"
-          bind:value={newEvent.date}
-          class="p-4 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40]"
-        />
-        <input
-          type="time"
-          bind:value={newEvent.time}
-          class="p-4 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40]"
-        />
-      </div>
-      <button
-        onclick={addEvent}
-        class="w-full py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300"
-      >
-        Ajouter à la famille
-      </button>
-      {#if showAddFeedback}
-        <div class="mt-4 text-center text-green-400 font-medium animate-pulse">✓ Événement ajouté !</div>
-      {/if}
-    </div>
+			<div class="calendar-weekdays">
+				<span>Dim</span><span>Lun</span><span>Mar</span><span>Mer</span><span>Jeu</span><span>Ven</span><span>Sam</span>
+			</div>
 
-    <!-- Liste des événements -->
-    <h2 class="text-2xl font-bold mb-6 text-[var(--text-primary)]">Événements à venir</h2>
+			<div class="calendar-days">
+				{#each Array(getFirstDayOfMonth(currentDate)) as _}
+					<div class="day empty"></div>
+				{/each}
+				{#each Array(getDaysInMonth(currentDate)) as _, i}
+					{@const dayEvents = getEventsForDay(i + 1)}
+					<div class="day" class:today={new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1).toDateString()}>
+						<span class="day-number">{i + 1}</span>
+						{#if dayEvents.length > 0}
+							<div class="day-events">
+								{#each dayEvents.slice(0, 2) as event}
+									<span class="event-dot" title={event.title}>{event.title}</span>
+								{/each}
+								{#if dayEvents.length > 2}
+									<span class="event-more">+{dayEvents.length - 2}</span>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
 
-    {#if events.length === 0}
-      <div class="text-center py-12 text-[var(--text-secondary)/70] italic">
-        Aucun événement pour le moment...<br />Ajoutez-en un pour organiser la famille ! ✨
-      </div>
-    {:else}
-      <div class="space-y-4 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-[var(--accent)/30]">
-        {#each events as event (event.id)}
-          <div class="p-5 bg-white/20 dark:bg-black/20 rounded-2xl border border-white/30 hover:scale-[1.02] transition-all backdrop-blur-md animate-fade-up">
-            <div class="font-semibold text-lg">{event.title}</div>
-            <div class="text-[var(--text-secondary)] mt-1">
-              🗓️ {new Date(event.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              {' '}à {event.time}
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-  </div>
+		<div class="events-panel">
+			<h3>Événements à venir</h3>
+			{#if events.filter(e => new Date(e.date) >= new Date()).length === 0}
+				<p class="no-events">Aucun événement à venir</p>
+			{:else}
+				<div class="events-list">
+					{#each events.filter(e => new Date(e.date) >= new Date()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()) as event}
+						<div class="event-card">
+							<div class="event-date">
+								<span class="event-day">{new Date(event.date).getDate()}</span>
+								<span class="event-month">{monthNames[new Date(event.date).getMonth()].slice(0, 3)}</span>
+							</div>
+							<div class="event-details">
+								<h4>{event.title}</h4>
+								<p>{event.time || 'Toute la journée'}</p>
+								{#if event.description}
+									<p class="event-desc">{event.description}</p>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</div>
 </div>
 
+{#if showAddModal}
+	<div class="modal-overlay" onclick={() => showAddModal = false}>
+		<div class="modal" onclick={(e) => e.stopPropagation()}>
+			<h3>Nouvel événement</h3>
+			<form onsubmit={(e) => { e.preventDefault(); addEvent(); }}>
+				<div class="form-group">
+					<label for="title">Titre</label>
+					<input type="text" id="title" bind:value={newEvent.title} placeholder="Anniversaire, Réunion..." required />
+				</div>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="date">Date</label>
+						<input type="date" id="date" bind:value={newEvent.date} required />
+					</div>
+					<div class="form-group">
+						<label for="time">Heure</label>
+						<input type="time" id="time" bind:value={newEvent.time} />
+					</div>
+				</div>
+				<div class="form-group">
+					<label for="description">Description (optionnel)</label>
+					<textarea id="description" bind:value={newEvent.description} placeholder="Détails de l'événement..."></textarea>
+				</div>
+				<div class="modal-actions">
+					<button type="button" class="cancel-btn" onclick={() => showAddModal = false}>Annuler</button>
+					<button type="submit" class="submit-btn">Créer</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
 <style>
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(40px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-12px); }
-  }
-
-  @keyframes fade-up {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .animate-fade-in { animation: fade-in 1s ease-out forwards; }
-  .animate-float { animation: float 6s infinite ease-in-out; }
-  .animate-fade-up { animation: fade-up 0.5s ease-out forwards; }
-
-  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background-color: rgba(255,255,255,0.3); border-radius: 3px; }
-
-  @media (prefers-reduced-motion: reduce) {
-    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  }
+	.calendar-container { max-width: 1000px; margin: 0 auto; padding: 1rem; }
+	.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+	.calendar-header h1 { font-size: 1.5rem; color: #2d5a27; }
+	.add-btn { padding: 0.75rem 1.25rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s; }
+	.add-btn:hover { background: #3d7a37; }
+	
+	.calendar-wrapper { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; }
+	.calendar { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 1rem; }
+	.calendar-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+	.calendar-nav h2 { font-size: 1.1rem; color: #333; }
+	.calendar-nav button { background: none; border: none; font-size: 1.2rem; cursor: pointer; padding: 0.5rem; color: #2d5a27; }
+	
+	.calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.8rem; color: #888; margin-bottom: 0.5rem; }
+	.calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+	.day { aspect-ratio: 1; padding: 0.25rem; border-radius: 8px; position: relative; cursor: pointer; transition: background 0.2s; }
+	.day:hover { background: #f0f7f0; }
+	.day.empty { background: transparent; }
+	.day.today { background: #e8f5e9; }
+	.day.today .day-number { background: #2d5a27; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+	.day-number { font-size: 0.85rem; color: #333; }
+	.day-events { margin-top: 2px; display: flex; flex-direction: column; gap: 1px; }
+	.event-dot { font-size: 0.65rem; background: #2d5a27; color: white; padding: 1px 4px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+	.event-more { font-size: 0.6rem; color: #888; text-align: center; }
+	
+	.events-panel { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); padding: 1rem; height: fit-content; }
+	.events-panel h3 { font-size: 1rem; color: #333; margin-bottom: 1rem; }
+	.no-events { color: #888; font-size: 0.9rem; text-align: center; padding: 2rem 0; }
+	.events-list { display: flex; flex-direction: column; gap: 0.75rem; }
+	.event-card { display: flex; gap: 0.75rem; padding: 0.75rem; background: #f8f9fa; border-radius: 8px; }
+	.event-date { display: flex; flex-direction: column; align-items: center; min-width: 40px; }
+	.event-day { font-size: 1.25rem; font-weight: 600; color: #2d5a27; }
+	.event-month { font-size: 0.7rem; color: #888; text-transform: uppercase; }
+	.event-details h4 { font-size: 0.9rem; margin: 0 0 0.25rem 0; color: #333; }
+	.event-details p { font-size: 0.8rem; color: #666; margin: 0; }
+	.event-desc { font-size: 0.75rem !important; color: #888 !important; margin-top: 0.25rem !important; }
+	
+	.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+	.modal { background: white; padding: 1.5rem; border-radius: 12px; width: 100%; max-width: 400px; }
+	.modal h3 { font-size: 1.1rem; color: #333; margin-bottom: 1rem; }
+	.form-group { margin-bottom: 1rem; }
+	.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+	label { display: block; font-size: 0.85rem; color: #666; margin-bottom: 0.25rem; }
+	input, textarea { width: 100%; padding: 0.625rem; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem; }
+	input:focus, textarea:focus { outline: none; border-color: #2d5a27; }
+	textarea { min-height: 60px; resize: vertical; }
+	.modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1rem; }
+	.cancel-btn { padding: 0.625rem 1rem; background: #f5f5f5; border: none; border-radius: 6px; cursor: pointer; }
+	.submit-btn { padding: 0.625rem 1rem; background: #2d5a27; color: white; border: none; border-radius: 6px; cursor: pointer; }
+	
+	@media (max-width: 768px) {
+		.calendar-wrapper { grid-template-columns: 1fr; }
+		.events-panel { order: -1; }
+	}
 </style>
