@@ -21,7 +21,7 @@ const config = {
 			$lib: './src/lib',
 			$components: './src/components',
 			$routes: './src/routes',
-			$assets': './static'
+			$assets: './static'  // ← Apostrophe enlevée
 		},
 		serviceWorker: {
 			register: false
