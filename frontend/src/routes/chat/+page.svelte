@@ -2,14 +2,15 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
+  import { browser } from '$app/environment';
   import { isAuthenticated, authUser } from '$lib/authStore';
-  import {
-    messages,
-    decryptedMessages,
-    loadMessages,
-    sendMessage,
+  import { 
+    messages, 
+    decryptedMessages, 
+    loadMessages, 
+    sendMessage, 
     formatTimestamp,
-    toggleGifs,
+    chatStore,
     showGifs,
     gifResults,
     gifLoading,
@@ -20,6 +21,10 @@
   let conversationId = $state('default_global');
   let chatContainer: HTMLElement;
   let gifSearchQuery = $state('');
+
+  function toggleGifs() {
+    chatStore.toggleGifs();
+  }
 
   onMount(async () => {
     if ($isAuthenticated && conversationId) {
@@ -54,12 +59,6 @@
   function handleSubmit(event: Event) {
     event.preventDefault();
     handleSendMessage();
-  }
-
-  function scrollToBottom() {
-    if (chatContainer) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
   }
 </script>
 
@@ -337,6 +336,7 @@
     overflow: hidden;
     cursor: pointer;
     transition: transform 0.2s;
+    padding: 0;
   }
 
   .gif-item:hover {
