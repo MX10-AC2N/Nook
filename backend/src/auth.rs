@@ -276,8 +276,8 @@ WHERE s.token = ?"
 pub async fn pending_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    // Utiliser UserInfoRow pour la requête SQL, puis convertir vers UserInfo
-    let rows: Vec<UserInfoRow> = sqlx::query_as(
+    // Utiliser UserInfoRow pour la requête SQL avec type explicite
+    let rows = sqlx::query_as::<_, UserInfoRow>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
@@ -318,7 +318,8 @@ pub async fn approve_user_handler(
 pub async fn all_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows: Vec<UserInfoRow> = sqlx::query_as(
+    // Utiliser UserInfoRow pour la requête SQL avec type explicite
+    let rows = sqlx::query_as::<_, UserInfoRow>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users ORDER BY created_at DESC"
     )
@@ -341,7 +342,7 @@ FROM users ORDER BY created_at DESC"
 
 // === Déconnexion ===
 pub async fn logout_handler(
-    headers: HeaderMap,
+    _headers: HeaderMap,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 2]>, Json<ApiResponse>), StatusCode> {
     // Effacer les cookies admin et user
     let admin_cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
