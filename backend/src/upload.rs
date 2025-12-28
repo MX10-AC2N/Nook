@@ -138,7 +138,7 @@ pub async fn upload_chat_file(
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    let sender_name = match sqlx::query_scalar::<_, String>(
+    let sender_name: String = match sqlx::query_scalar::<_, String>(
         "SELECT name FROM users WHERE id = ?"
     )
     .bind(&sender_id)
@@ -194,7 +194,7 @@ pub async fn upload_chat_file(
         file: uploaded_file,
     };
 
-    sqlx::query("INSERT INTO chat_messages (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    let _ = sqlx::query("INSERT INTO chat_messages (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(&message.id)
         .bind(&message.conversation_id)
         .bind(&message.sender_id)
@@ -204,8 +204,7 @@ pub async fn upload_chat_file(
         .bind(&message.timestamp)
         .bind(serde_json::to_string(&message.file).unwrap())
         .execute(&state.db)
-        .await
-        .ok();
+        .await;
 
     let message_json = serde_json::to_string(&message).unwrap();
 
@@ -292,11 +291,10 @@ pub async fn delete_upload(
         if path.exists() {
             tokio::fs::remove_file(path).await.unwrap();
         }
-        sqlx::query("DELETE FROM uploads WHERE id = ?")
+        let _ = sqlx::query("DELETE FROM uploads WHERE id = ?")
             .bind(&id)
             .execute(&state.db)
-            .await
-            .ok();
+            .await;
 
         Html(format!(
             r#"<!DOCTYPE html>
