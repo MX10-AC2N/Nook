@@ -83,17 +83,23 @@ async fn handle_call_socket(
     conversation_id: String,
     user_id: String,
 ) {
+    // Obtenir ou créer un broadcast channel pour cette conversation
+    // et cloner le Sender pour l'utiliser dans les tâches
     let tx = {
         let mut subs = state.webrtc_broadcasts.write().await;
         subs.entry(conversation_id.clone())
             .or_insert_with(|| broadcast::channel(64).0)
             .clone()
     };
+    
+    // rx est le receiver pour recevoir les messages broadcast
     let rx = tx.subscribe();
-
+    
+    // Créer un canal pour envoyer des messages à la socket
     let (send_tx, mut send_rx) = mpsc::channel::<WsSendMessage>(64);
     let (mut ws_sink, mut ws_stream) = socket.split();
 
+    // Annoncer l'arrivée dans la conversation
     let join_signal = CallSignal {
         conversation_id: conversation_id.clone(),
         from_user_id: user_id.clone(),
@@ -102,12 +108,16 @@ async fn handle_call_socket(
         sdp: None,
         candidate: None,
     };
+    
+    // Envoyer le signal de join à tous les abonnés (y compris nous-mêmes)
     let _ = tx.send(join_signal.clone());
 
+    // Envoyer le signal de join au nouvel arrivant via WebSocket
     if let Ok(json) = serde_json::to_string(&join_signal) {
         let _ = ws_sink.send(WsMessage::Text(json)).await;
     }
 
+    // Tâche d'envoi : reçoit du canal mpsc et envoie au client WebSocket
     let send_task = tokio::spawn(async move {
         while let Some(msg) = send_rx.recv().await {
             match msg {
@@ -124,22 +134,27 @@ async fn handle_call_socket(
         }
     });
 
-    let tx_clone = tx.clone();
+    // Variables clonées pour la tâche de réception
+    let tx_for_broadcast = tx.clone(); // Pour broadcaster aux autres
     let user_id_recv = user_id.clone();
     let conversation_id_recv = conversation_id.clone();
     let send_tx_clone = send_tx.clone();
 
+    // Tâche de réception : reçoit du client et broadcast
     let recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 WsMessage::Text(text) => {
                     if let Ok(mut signal) = serde_json::from_str::<CallSignal>(&text) {
+                        // Forcer les champs critiques (sécurité)
                         signal.from_user_id = user_id_recv.clone();
                         signal.conversation_id = conversation_id_recv.clone();
-                        let _ = tx_clone.send(signal);
+                        // broadcast aux autres participants
+                        let _ = tx_for_broadcast.send(signal);
                     }
                 }
                 WsMessage::Close(_) => {
+                    // Annoncer le départ à tous les autres
                     let leave_signal = CallSignal {
                         conversation_id: conversation_id_recv,
                         from_user_id: user_id_recv,
@@ -148,7 +163,7 @@ async fn handle_call_socket(
                         sdp: None,
                         candidate: None,
                     };
-                    let _ = tx_clone.send(leave_signal);
+                    let _ = tx_for_broadcast.send(leave_signal);
                     let _ = send_tx_clone.send(WsSendMessage::Close).await;
                     break;
                 }
@@ -157,16 +172,20 @@ async fn handle_call_socket(
         }
     });
 
+    // Variables pour la tâche broadcast (recevoir du channel et envoyer au client)
     let user_id_for_send = user_id;
     let conversation_id_for_send = conversation_id;
     let send_tx_for_send = send_tx;
 
+    // Tâche de broadcast : reçoit du broadcast channel et envoie au client
     let broadcast_task = tokio::spawn(async move {
         let mut rx = rx;
         while let Ok(signal) = rx.recv().await {
+            // Ne pas renvoyer ses propres signaux
             if signal.from_user_id == user_id_for_send {
                 continue;
             }
+            // Ne pas envoyer les signaux d'autres conversations
             if signal.conversation_id != conversation_id_for_send {
                 continue;
             }
