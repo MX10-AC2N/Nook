@@ -22,8 +22,7 @@ use tower_http::services::ServeDir;
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    // Champ pour WebRTC multi-conversation
-    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, Arc<RwLock<HashMap<String, tokio::sync::broadcast::Sender<webrtc::CallSignal>>>>>>>,
+    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, broadcast::Sender<webrtc::CallSignal>>>>,
 }
 
 // Middleware admin
@@ -130,9 +129,7 @@ async fn main() {
         .merge(public_routes)
         .merge(user_routes)
         .merge(admin_routes)
-        // Nouvelle route WebSocket pour appels 1:1 et groupe
         .route("/ws/call", get(webrtc::call_ws_handler))
-        // Assets statiques
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
@@ -143,8 +140,11 @@ async fn main() {
     println!("Nook prêt sur http://{}", addr);
     println!("Système de nettoyage activé (fichiers > 7 jours)");
     
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    // Utiliser `axum::Server` correctement typé
+    let server = axum::Server::bind(&addr)
+        .serve(app.into_make_service());
+    
+    if let Err(e) = server.await {
+        eprintln!("Erreur du serveur: {}", e);
+    }
 }
