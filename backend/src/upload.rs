@@ -5,7 +5,6 @@ use axum::{
     Form,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use std::path::Path;
 use tokio::fs;
 use uuid::Uuid;
@@ -51,12 +50,12 @@ pub async fn handle_upload_media(
     // Process multipart form
     while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
         let name = field.name().unwrap_or("").to_string();
-        
+
         if name == "file" {
             // Handle file upload
             filename = Uuid::new_v4().to_string() + ".enc";
             file_data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
-            
+
             if file_data.len() as u64 > MAX_FILE_SIZE {
                 return Err(StatusCode::PAYLOAD_TOO_LARGE);
             }
@@ -89,7 +88,7 @@ pub async fn handle_upload_media(
     let uploads_dir = "/app/data/uploads";
     fs::create_dir_all(uploads_dir).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let file_path = format!("{}/{}", uploads_dir, filename);
-    
+
     fs::write(&file_path, file_data)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -114,19 +113,17 @@ pub async fn handle_upload_media(
     .bind(form_data.get("token").unwrap_or(&"".to_string()))
     .bind(chrono::Utc::now().timestamp())
     .fetch_optional(&state.db)
-    .await
     {
         Ok(Some(id)) => id,
         _ => return Err(StatusCode::UNAUTHORIZED),
     };
 
-    // Get sender name
-    let sender_name = match sqlx::query_scalar::<_, String>(
+    // Note: sender_name is intentionally unused - kept for potential future use
+    let _sender_name = match sqlx::query_scalar::<_, String>(
         "SELECT name FROM users WHERE id = ?"
     )
     .bind(&sender_id)
     .fetch_optional(&state.db)
-    .await
     {
         Ok(Some(name)) => name,
         _ => "Unknown".to_string(),
@@ -153,7 +150,7 @@ pub async fn handle_upload_media(
         SET last_message_at = ?, last_message_preview = ?
         WHERE id = ?
     "#;
-    
+
     sqlx::query(update_conv)
         .bind(timestamp)
         .bind(format!("[{} message]", media_type))
@@ -173,7 +170,7 @@ pub async fn handle_upload_media(
             AND cm.user_id != ?
         )
     "#;
-    
+
     sqlx::query(update_unread)
         .bind(conversation_id)
         .bind(&sender_id)
