@@ -21,42 +21,5 @@ export default defineConfig({
 				ws: true
 			}
 		}
-	},
-	build: {
-		target: 'esnext',
-		outDir: 'build',
-		assetsDir: '_app',
-		rollupOptions: {
-			input: {
-				main: './index.html'
-			},
-			output: {
-				manualChunks: (id) => {
-					if (id.includes('node_modules')) {
-						// Regrouper les dépendances lourdes
-						if (id.includes('libsodium')) return 'libsodium';
-						if (id.includes('chart.js')) return 'chart';
-						if (id.includes('simple-peer')) return 'peer';
-						return 'vendor';
-					}
-				}
-			}
-		}
-	},
-	optimizeDeps: {
-		include: [
-			'uuid',
-			'libsodium-wrappers',
-			'simple-peer',
-			'chart.js'
-		]
-	},
-	resolve: {
-		alias: {
-			'$lib': './src/lib',
-			'$components': './src/components',
-			'$routes': './src/routes',
-			'$assets': './static'
-		}
 	}
 });
