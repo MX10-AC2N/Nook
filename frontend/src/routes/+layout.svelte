@@ -1,151 +1,393 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { authStore, isAuthenticated, isAdmin, authLoading } from '$lib/authStore';
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { browser } from '$app/environment';
+  import { page } from '$app/stores';
+  import { authStore, isAuthenticated, isAdmin, authLoading } from '$lib/authStore';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
 
-	let { children } = $props();
-	
-	let showMenu = $state(false);
-	let appError = $state<string | null>(null);
-	let loading = $state(true);
+  let { children } = $props();
 
-	const navItems = [
-		{ path: '/chat', label: '💬 Chat', requiresAuth: true },
-		{ path: '/calendar', label: '📅 Calendrier', requiresAuth: true },
-		{ path: '/admin', label: '👑 Administration', requiresAuth: true, requiresAdmin: true },
-		{ path: '/settings', label: '⚙️ Paramètres', requiresAuth: true },
-		{ path: '/help', label: '❓ Aide', requiresAuth: false }
-	];
+  let showMenu = $state(false);
+  let appError = $state(null);
+  let loading = $state(true);
 
-	function toggleMenu() {
-		showMenu = !showMenu;
-	}
+  const navItems = [
+    { path: '/chat', label: '💬 Chat', requiresAuth: true },
+    { path: '/calendar', label: '📅 Calendrier', requiresAuth: true },
+    { path: '/admin', label: '👑 Administration', requiresAuth: true, requiresAdmin: true },
+    { path: '/settings', label: '⚙️ Paramètres', requiresAuth: true },
+    { path: '/help', label: '❓ Aide', requiresAuth: false }
+  ];
 
-	async function handleLogout() {
-		await fetch('/api/logout', { method: 'POST', credentials: 'include' });
-		showMenu = false;
-		goto('/login');
-	}
+  function toggleMenu() {
+    showMenu = !showMenu;
+  }
 
-	$effect(() => {
-		if (!loading && !isAuthenticated && $page.url.pathname !== '/login' && !$page.url.pathname.startsWith('/join')) {
-			goto('/login');
-		}
-	});
+  async function handleLogout() {
+    await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+    showMenu = false;
+    goto('/login');
+  }
 
-	onMount(async () => {
-		setTimeout(() => {
-			loading = false;
-		}, 500);
-	});
+  $effect(() => {
+    if (!loading && !$isAuthenticated && $page.url.pathname !== '/login' && !$page.url.pathname.startsWith('/join')) {
+      goto('/login');
+    }
+  });
+
+  onMount(() => {
+    setTimeout(() => {
+      loading = false;
+    }, 500);
+  });
 </script>
 
-<svelte:head>
-	<title>Nook - Messagerie familiale</title>
-</svelte:head>
+<main>
+  <div class="main-content">
+    {#if loading}
+      <div class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Chargement de Nook...</p>
+      </div>
+    {:else if appError}
+      <div class="error-screen">
+        <h1>❌ Erreur système</h1>
+        <p>{appError}</p>
+        <button onclick={() => window.location.reload()} class="retry-button">
+          🔄 Recharger l'application
+        </button>
+      </div>
+    {:else}
+      <header>
+        <button onclick={toggleMenu} class="menu-toggle">☰</button>
+        <h1>🌱 Nook</h1>
+        {#if $isAuthenticated}
+          <span class="user-name">{$authStore.user?.name}</span>
+          <button onclick={handleLogout} class="logout-btn">🔌</button>
+        {/if}
+      </header>
 
-{#if loading}
-	<div class="loading-screen">
-		<div class="loader"></div>
-		<p>Chargement de Nook...</p>
-	</div>
-{:else if appError}
-	<div class="error-screen">
-		<h1>❌ Erreur système</h1>
-		<p>{appError}</p>
-		<button onclick={() => window.location.reload()} class="retry-button">
-			🔄 Recharger l'application
-		</button>
-	</div>
-{:else}
-	<div class="app-container">
-		<header class="app-header">
-			<button class="menu-toggle" onclick={toggleMenu} aria-label="Menu">☰</button>
-			<h1 class="app-title">🌱 Nook</h1>
-			{#if $isAuthenticated}
-				<div class="user-info">
-					<span class="user-name">{$authStore.user?.name}</span>
-					<button class="logout-btn" onclick={handleLogout} aria-label="Déconnexion">🔌</button>
-				</div>
-			{/if}
-		</header>
+      {#if showMenu}
+        <aside class="menu-overlay" onclick={toggleMenu} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && toggleMenu()}>
+          <aside class="menu" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Menu de navigation">
+            <div class="menu-header">
+              <h2>Menu Nook</h2>
+              <button onclick={toggleMenu} class="close-btn">✕</button>
+            </div>
+            <nav>
+              {#each navItems as item}
+                {#if item.requiresAuth && !$isAuthenticated}
+                  <!-- Masqué si auth requise et non authentifié -->
+                {:else if item.requiresAdmin && !$isAdmin}
+                  <!-- Masqué si admin requis et non admin -->
+                {:else}
+                  <a href={item.path} onclick={toggleMenu}>{item.label}</a>
+                {/if}
+              {/each}
+            </nav>
+            <footer>
+              <p class="version">Version 3.0 • SvelteKit</p>
+              <button onclick={handleLogout} class="logout-button">🔌 Déconnexion</button>
+            </footer>
+          </aside>
+        </aside>
+      {/if}
 
-		{#if showMenu}
-			<aside class="side-menu" class:open={showMenu}>
-				<div class="menu-header">
-					<h2>Menu Nook</h2>
-					<button class="close-menu" onclick={toggleMenu} aria-label="Fermer">✕</button>
-				</div>
-				<nav class="menu-nav">
-					{#each navItems as item}
-						{#if item.requiresAuth && !$isAuthenticated}
-						{:else if item.requiresAdmin && !$isAdmin}
-						{:else}
-							<a 
-								href={item.path} 
-								class="menu-item"
-								class:active={$page.url.pathname.startsWith(item.path)}
-								onclick={toggleMenu}
-							>
-								{item.label}
-							</a>
-						{/if}
-					{/each}
-				</nav>
-				<div class="menu-footer">
-					<p class="version">Version 3.0 • SvelteKit</p>
-					<button class="logout-full" onclick={handleLogout}>🔌 Déconnexion</button>
-				</div>
-			</aside>
-			{#if showMenu}
-				<button class="menu-backdrop" onclick={toggleMenu} aria-label="Fermer le menu"></button>
-			{/if}
-		{/if}
+      <div class="content">
+        {@render children()}
+      </div>
 
-		<main class="app-content">
-			{@render children()}
-		</main>
-
-		<footer class="app-footer">
-			<p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
-		</footer>
-	</div>
-{/if}
+      <footer>
+        <p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
+      </footer>
+    {/if}
+  </div>
+</main>
 
 <style>
-	:global(*) { box-sizing: border-box; margin: 0; padding: 0; }
-	:global(body) { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f0; color: #333; min-height: 100vh; }
-	
-	.loading-screen, .error-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 1rem; }
-	.loader { width: 40px; height: 40px; border: 4px solid #ddd; border-top-color: #2d5a27; border-radius: 50%; animation: spin 1s linear infinite; }
-	@keyframes spin { to { transform: rotate(360deg); } }
-	.retry-button { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; }
-	
-	.app-container { display: flex; flex-direction: column; min-height: 100vh; }
-	.app-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: linear-gradient(135deg, #2d5a27, #4a7c43); color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-	.menu-toggle { background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 0.5rem; color: white; }
-	.app-title { font-size: 1.25rem; font-weight: 600; }
-	.user-info { display: flex; align-items: center; gap: 0.5rem; }
-	.user-name { font-size: 0.9rem; opacity: 0.9; }
-	.logout-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; opacity: 0.8; transition: opacity 0.2s; }
-	.logout-btn:hover { opacity: 1; }
-	
-	.side-menu { position: fixed; top: 0; right: -280px; width: 280px; height: 100vh; background: white; box-shadow: -4px 0 20px rgba(0,0,0,0.15); z-index: 1000; transition: right 0.3s ease; display: flex; flex-direction: column; }
-	.side-menu.open { right: 0; }
-	.menu-header { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; }
-	.menu-header h2 { font-size: 1.1rem; color: #2d5a27; }
-	.close-menu { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; }
-	.menu-nav { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-	.menu-item { padding: 0.75rem 1rem; text-decoration: none; color: #333; border-radius: 8px; transition: all 0.2s; }
-	.menu-item:hover { background: #f0f7f0; }
-	.menu-item.active { background: #e8f5e9; color: #2d5a27; font-weight: 500; }
-	.menu-footer { padding: 1rem; border-top: 1px solid #eee; }
-	.version { font-size: 0.8rem; color: #999; margin-bottom: 0.75rem; }
-	.logout-full { width: 100%; padding: 0.75rem; background: #f5f5f5; border: none; border-radius: 8px; cursor: pointer; color: #666; }
-	.menu-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 999; border: none; cursor: pointer; }
-	
-	.app-content { flex: 1; padding: 1rem; max-width: 800px; margin: 0 auto; width: 100%; }
-	.app-footer { padding: 1rem; text-align: center; color: #888; font-size: 0.85rem; }
+  :global(body) {
+    margin: 0;
+    font-family: var(--font-primary, Arial, sans-serif);
+    background-color: var(--bg-primary, #f0f2f5);
+    color: var(--text-primary, #333);
+  }
+
+  main {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    text-align: center;
+  }
+
+  .main-content {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, var(--accent, #4CAF50), var(--accent-dark, #2E7D32));
+    color: white;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: var(--shadow-md);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .menu-toggle {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s;
+  }
+
+  .menu-toggle:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    flex-grow: 1;
+  }
+
+  .user-name {
+    margin-right: 1rem;
+    font-weight: bold;
+  }
+
+  .logout-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s;
+  }
+
+  .logout-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Menu overlay */
+  .menu-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    animation: fade-in 0.2s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--bg-secondary, #333) 0%, var(--bg-primary, #1a1a1a) 100%);
+    color: white;
+    padding: 1.5rem;
+    box-shadow: var(--shadow-xl);
+    display: flex;
+    flex-direction: column;
+    animation: slide-in 0.3s ease;
+  }
+
+  @keyframes slide-in {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+
+  .menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 1rem;
+  }
+
+  .menu-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s;
+  }
+
+  .close-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .menu nav {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .menu a {
+    color: white;
+    text-decoration: none;
+    padding: 0.8rem 1rem;
+    width: 100%;
+    text-align: left;
+    border-radius: var(--radius-md);
+    transition: all 0.2s;
+    margin-bottom: 0.25rem;
+  }
+
+  .menu a:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateX(5px);
+  }
+
+  .menu footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .version {
+    font-size: 0.85rem;
+    opacity: 0.7;
+    margin-bottom: 1rem;
+  }
+
+  .logout-button {
+    background-color: var(--error, #f44336);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 1rem;
+    width: 100%;
+    transition: background-color 0.2s;
+  }
+
+  .logout-button:hover {
+    background-color: #d32f2f;
+  }
+
+  /* Content */
+  .content {
+    flex-grow: 1;
+    padding: 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* Footer */
+  footer {
+    background: linear-gradient(135deg, var(--bg-secondary, #333) 0%, var(--bg-primary, #1a1a1a) 100%);
+    color: white;
+    padding: 1.5rem;
+    margin-top: auto;
+  }
+
+  footer p {
+    margin: 0;
+    opacity: 0.8;
+  }
+
+  /* Loading screen */
+  .loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 1rem;
+  }
+
+  .loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid var(--border, #e2e8f0);
+    border-top-color: var(--accent, #4ade80);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Error screen */
+  .error-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 1rem;
+    padding: 2rem;
+  }
+
+  .error-screen h1 {
+    color: var(--error, #ef4444);
+    margin: 0;
+  }
+
+  .retry-button {
+    background-color: var(--accent, #4ade80);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .retry-button:hover {
+    background-color: var(--button-hover, #22c55e);
+    transform: translateY(-2px);
+  }
+
+  /* Responsive */
+  @media (max-width: 480px) {
+    header {
+      padding: 0.75rem;
+    }
+
+    header h1 {
+      font-size: 1.4rem;
+    }
+
+    .menu {
+      width: 85%;
+    }
+
+    .content {
+      padding: 0.75rem;
+    }
+  }
 </style>
