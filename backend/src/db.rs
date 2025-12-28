@@ -2,9 +2,8 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use sqlx::{Pool, Sqlite};
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, fs};
+use std::fs;
 use tokio::sync::OnceCell;
-use std::collections::HashMap;
 
 pub static DB_INIT: OnceCell<Pool<Sqlite>> = OnceCell::const_new();
 
@@ -13,14 +12,12 @@ pub struct AppState {
 }
 
 pub async fn init_db() -> AppState {
-    // Création des dossiers nécessaires
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
 
     let db_path = "/app/data/nook.db";
     let db_url = format!("sqlite:{}", db_path);
 
-    // Options de connexion optimisées
     let options = SqliteConnectOptions::from_str(&db_url)
         .unwrap()
         .journal_mode(SqliteJournalMode::Wal)
@@ -28,8 +25,6 @@ pub async fn init_db() -> AppState {
         .create_if_missing(true);
 
     let pool = Pool::connect_with(options).await.unwrap();
-
-    // Appliquer les migrations
     apply_migrations(&pool).await.unwrap();
 
     AppState { db: pool }
@@ -37,14 +32,11 @@ pub async fn init_db() -> AppState {
 
 async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
     println!("Application des migrations...");
-
-    // Lire tous les fichiers de migration
     let migrations_dir = Path::new("backend/migrations");
     if !migrations_dir.exists() {
         fs::create_dir_all(migrations_dir).unwrap();
     }
 
-    // Obtenir les fichiers de migration triés
     let mut migration_files: Vec<_> = fs::read_dir(migrations_dir)
         .unwrap()
         .filter_map(|entry| {
@@ -59,20 +51,16 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
         .collect();
     migration_files.sort();
 
-    // Appliquer chaque migration
     for migration_path in migration_files {
         let migration_name = migration_path.file_name().unwrap().to_str().unwrap();
         println!("Application de la migration: {}", migration_name);
         let sql = fs::read_to_string(&migration_path).unwrap();
-
-        // Exécuter chaque instruction SQL séparément
         for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
             sqlx::query(statement.trim())
                 .execute(pool)
                 .await?;
         }
     }
-
     println!("✅ Toutes les migrations ont été appliquées avec succès");
     Ok(())
 }
@@ -204,13 +192,13 @@ pub async fn get_conversation_messages(
     let mut messages: Vec<serde_json::Value> = Vec::new();
     for row in rows {
         let (
-            id, conversation_id, sender_id, sender_name, content, encrypted_keys, nonce,
+            id, conv_id, sender_id, sender_name, content, encrypted_keys, nonce,
             media_type, media_url, duration, timestamp, reactions_json
         ) = row;
 
         let mut message = serde_json::Map::new();
         message.insert("id".to_string(), serde_json::Value::String(id));
-        message.insert("conversation_id".to_string(), serde_json::Value::String(conversation_id));
+        message.insert("conversation_id".to_string(), serde_json::Value::String(conv_id));
         message.insert("sender_id".to_string(), serde_json::Value::String(sender_id));
         message.insert("sender_name".to_string(), serde_json::Value::String(sender_name));
         message.insert("content".to_string(), serde_json::Value::String(content.unwrap_or_default()));
@@ -221,7 +209,6 @@ pub async fn get_conversation_messages(
         message.insert("duration".to_string(), serde_json::Value::Number(duration.unwrap_or(0).into()));
         message.insert("timestamp".to_string(), serde_json::Value::Number(timestamp.into()));
 
-        // Parse les réactions JSON
         match serde_json::from_str::<serde_json::Value>(&reactions_json) {
             Ok(reactions) => {
                 message.insert("reactions".to_string(), reactions);
