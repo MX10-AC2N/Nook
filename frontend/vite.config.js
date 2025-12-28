@@ -33,10 +33,10 @@ export default defineConfig({
 			output: {
 				manualChunks: (id) => {
 					if (id.includes('node_modules')) {
+						// Regrouper les dépendances lourdes
 						if (id.includes('libsodium')) return 'libsodium';
 						if (id.includes('chart.js')) return 'chart';
 						if (id.includes('simple-peer')) return 'peer';
-						if (id.includes('svelte')) return 'svelte';
 						return 'vendor';
 					}
 				}
@@ -45,15 +45,6 @@ export default defineConfig({
 	},
 	optimizeDeps: {
 		include: [
-			'svelte',
-			'svelte/internal',
-			'svelte/store',
-			'svelte/animate',
-			'svelte/easing',
-			'svelte/motion',
-			'svelte/transition',
-			'svelte/parse',
-			'svelte/compiler',
 			'uuid',
 			'libsodium-wrappers',
 			'simple-peer',
@@ -67,8 +58,5 @@ export default defineConfig({
 			'$routes': './src/routes',
 			'$assets': './static'
 		}
-	},
-	typescript: {
-		tsconfigPath: './tsconfig.json'
 	}
 });
