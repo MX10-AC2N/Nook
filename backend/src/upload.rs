@@ -1,226 +1,323 @@
-use axum::{
-    extract::{Multipart, State},
-    http::StatusCode,
-    response::Json,
-    Form,
-};
-use serde::{Deserialize, Serialize};
-use std::path::Path;
-use tokio::fs;
-use uuid::Uuid;
+use crate::db::{get_pool, ChatMessage, MessageType, Upload, User};
+use crate::webrtc::broadcast_message;
+use crate::State;
+use axum::body::Body;
+use axum::extract::{multipart::Multipart, Path, State as AxumState};
+use axum::http::header::ContentDisposition;
+use axum::http::HeaderMap;
+use axum::response::{Html, IntoResponse, Response};
+use futures_util::stream::BytesStream;
+use serde_json::json;
+use sqlx::Row;
 use std::collections::HashMap;
+use std::io::Write;
+use std::path::Path as StdPath;
+use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
+use tokio::sync::Mutex;
+use uuid::Uuid;
 
-use crate::SharedState;
-
-const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 Mo
-const MAX_DURATION: u64 = 60 * 10; // 10 minutes
-
-#[derive(Deserialize)]
-pub struct UploadMediaForm {
-    conversation_id: String,
-    media_type: String, // "audio" or "video"
-    duration: u64,
-    encrypted_keys: String, // JSON string
-    nonce: String, // JSON array of bytes
-}
-
-#[derive(Serialize)]
-pub struct UploadResponse {
-    pub success: bool,
-    pub url: Option<String>,
-    pub message_id: Option<String>,
-    pub file_path: Option<String>,
-    pub encrypted_keys: Option<String>,
-    pub nonce: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-}
-
-pub async fn handle_upload_media(
-    State(state): State<SharedState>,
+pub async fn upload_handler(
+    State(state): AxumState<Arc<State>>,
     mut multipart: Multipart,
-) -> Result<Json<UploadResponse>, StatusCode> {
-    let mut file_data = Vec::new();
-    let mut filename = String::new();
-    let mut form_data = HashMap::new();
+) -> impl IntoResponse {
+    let mut uploads: Vec<Upload> = Vec::new();
 
-    // Process multipart form
-    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
-        let name = field.name().unwrap_or("").to_string();
+    while let Some(field) = multipart.next_field().await.unwrap() {
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
 
-        if name == "file" {
-            // Handle file upload
-            filename = Uuid::new_v4().to_string() + ".enc";
-            file_data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
-
-            if file_data.len() as u64 > MAX_FILE_SIZE {
-                return Err(StatusCode::PAYLOAD_TOO_LARGE);
-            }
-        } else {
-            // Handle form fields
-            let value = field.text().await.map_err(|_| StatusCode::BAD_REQUEST)?;
-            form_data.insert(name, value);
+        // Validate file type
+        let allowed_types = ["image/", "video/", "audio/", "application/pdf"];
+        if !allowed_types.iter().any(|t| content_type.starts_with(t)) {
+            return Html(
+                "<script>alert('Invalid file type'); window.location.href='/';</script>"
+                    .to_string(),
+            );
         }
+
+        let data = field.bytes().await.unwrap();
+        let id = Uuid::new_v4().to_string();
+        let upload_dir = "uploads";
+        let ext = if content_type.starts_with("image/") {
+            if content_type.contains("svg") { "svg" } else { "jpg" }
+        } else if content_type.starts_with("video/") {
+            "mp4"
+        } else if content_type.starts_with("audio/") {
+            "mp3"
+        } else {
+            "pdf"
+        };
+        let path = format!("{}/{}.{}", upload_dir, id, ext);
+
+        if let Err(e) = std::fs::create_dir_all(upload_dir) {
+            return Html(format!(
+                "<script>alert('Error creating directory: {}'); window.location.href='/';</script>",
+                e
+            ));
+        }
+
+        // Add timestamp and save to disk
+        let timestamp = chrono::Utc::now().timestamp();
+        let file_path = std::path::Path::new(&path);
+        let mut file = File::create(file_path).await.unwrap();
+        file.write_all(&data).await.unwrap();
+
+        let upload = Upload {
+            id: id.clone(),
+            file_name,
+            content_type,
+            size: data.len() as i64,
+            path: path.clone(),
+            timestamp,
+        };
+        uploads.push(upload);
     }
 
-    // Validate required form fields
-    let conversation_id = form_data.get("conversation_id").ok_or(StatusCode::BAD_REQUEST)?;
-    let media_type = form_data.get("media_type").ok_or(StatusCode::BAD_REQUEST)?;
-    let duration_str = form_data.get("duration").ok_or(StatusCode::BAD_REQUEST)?;
-    let encrypted_keys = form_data.get("encrypted_keys").ok_or(StatusCode::BAD_REQUEST)?;
-    let nonce = form_data.get("nonce").ok_or(StatusCode::BAD_REQUEST)?;
+    let uploads_json = serde_json::to_string(&uploads).unwrap();
 
-    // Validate media type
-    if media_type != "audio" && media_type != "video" {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    let mut saved_uploads: Vec<Upload> = Vec::new();
+    let _ = sqlx::query("INSERT INTO uploads (id, file_name, content_type, size, path, timestamp) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(&uploads[0].id)
+        .bind(&uploads[0].file_name)
+        .bind(&uploads[0].content_type)
+        .bind(&uploads[0].size)
+        .bind(&uploads[0].path)
+        .bind(&uploads[0].timestamp)
+        .execute(&get_pool())
+        .await;
 
-    // Validate duration
-    let duration = duration_str.parse::<u64>().map_err(|_| StatusCode::BAD_REQUEST)?;
-    if duration == 0 || duration > MAX_DURATION {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    // Save file
-    let uploads_dir = "/app/data/uploads";
-    fs::create_dir_all(uploads_dir).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let file_path = format!("{}/{}", uploads_dir, filename);
-
-    fs::write(&file_path, file_data)
+    let uploads_from_db: Vec<Upload> = sqlx::query_as::<_, Upload>("SELECT * FROM uploads WHERE id = ?")
+        .bind(&uploads[0].id)
+        .fetch_all(&get_pool())
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .unwrap();
 
-    // Generate message ID
-    let message_id = Uuid::new_v4().to_string();
+    if let Some(upload) = uploads_from_db.first() {
+        saved_uploads.push(upload.clone());
+    }
 
-    // Get current timestamp
-    let timestamp = chrono::Utc::now().timestamp();
+    Html(format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Complete</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }}
+        .container {{ background: white; padding: 40px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); text-align: center; max-width: 500px; width: 90%; }}
+        h1 {{ color: #667eea; margin-bottom: 30px; font-size: 28px; }}
+        .success-icon {{ font-size: 60px; margin-bottom: 20px; }}
+        .upload-info {{ background: #f7fafc; padding: 20px; border-radius: 10px; margin: 20px 0; text-align: left; }}
+        .upload-info p {{ margin: 10px 0; color: #4a5568; }}
+        .upload-info strong {{ color: #667eea; }}
+        .btn {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 30px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: bold; transition: transform 0.2s, box-shadow 0.2s; }}
+        .btn:hover {{ transform: translateY(-2px); box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4); }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✅</div>
+        <h1>Upload Successful!</h1>
+        <div class="upload-info">
+            <p><strong>📄 File:</strong> {}</p>
+            <p><strong>📊 Size:</strong> {} bytes</p>
+            <p><strong>🆔 ID:</strong> {}</p>
+        </div>
+        <button class="btn" onclick="window.location.href='/'">Back to Home</button>
+    </div>
+</body>
+</html>"#,
+        saved_uploads[0].file_name,
+        saved_uploads[0].size,
+        saved_uploads[0].id
+    ))
+}
 
-    // Insert message into database
-    let query = r#"
-        INSERT INTO messages (
-            id, conversation_id, sender_id, content, encrypted_keys, 
-            nonce, media_type, media_url, duration, timestamp
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    "#;
-
-    let sender_id = match sqlx::query_scalar::<_, String>(
-        "SELECT user_id FROM sessions WHERE token = ? AND expires_at > ?"
-    )
-    .bind(form_data.get("token").unwrap_or(&"".to_string()))
-    .bind(chrono::Utc::now().timestamp())
-    .fetch_optional(&state.db)
-    {
-        Ok(Some(id)) => id,
-        _ => return Err(StatusCode::UNAUTHORIZED),
-    };
-
-    // Note: sender_name is intentionally unused - kept for potential future use
-    let _sender_name = match sqlx::query_scalar::<_, String>(
+pub async fn upload_chat_file(
+    State(state): AxumState<Arc<State>>,
+    Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
+    mut multipart: Multipart,
+) -> impl IntoResponse {
+    let sender_name = match sqlx::query_scalar::<_, String>(
         "SELECT name FROM users WHERE id = ?"
     )
     .bind(&sender_id)
     .fetch_optional(&state.db)
+    .await
     {
         Ok(Some(name)) => name,
-        _ => "Unknown".to_string(),
+        Ok(None) => return Html("User not found".into()),
+        Err(e) => return Html(format!("Database error: {}", e).into()),
     };
 
-    sqlx::query(query)
-        .bind(&message_id)
-        .bind(conversation_id)
-        .bind(&sender_id)
-        .bind("") // Content is empty for media messages
-        .bind(encrypted_keys)
-        .bind(nonce)
-        .bind(media_type)
-        .bind(format!("/uploads/{}", filename))
-        .bind(duration as i64)
-        .bind(timestamp)
+    let uploaded_file = if let Some(field) = multipart.next_field().await.unwrap() {
+        let file_name = field.file_name().unwrap_or("unknown").to_string();
+        let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+
+        let data = field.bytes().await.unwrap();
+        let id = Uuid::new_v4().to_string();
+        let upload_dir = "uploads";
+        let path = format!("{}/{}", upload_dir, id);
+        std::fs::create_dir_all(upload_dir).ok();
+
+        let mut file = File::create(&path).await.unwrap();
+        file.write_all(&data).await.unwrap();
+
+        Some(json!({
+            "id": id,
+            "file_name": file_name,
+            "content_type": content_type,
+            "size": data.len(),
+            "path": path
+        }))
+    } else {
+        None
+    };
+
+    let message_id = Uuid::new_v4().to_string();
+    let msg_type = match message_type.as_str() {
+        "image" => MessageType::Image,
+        "video" => MessageType::Video,
+        "audio" => MessageType::Audio,
+        "file" => MessageType::File,
+        _ => MessageType::File,
+    };
+
+    let message = ChatMessage {
+        id: message_id.clone(),
+        conversation_id: conversation_id.clone(),
+        sender_id: sender_id.clone(),
+        sender_name: sender_name.clone(),
+        content: "".to_string(),
+        message_type: msg_type,
+        timestamp: chrono::Utc::now().timestamp(),
+        file: uploaded_file,
+    };
+
+    sqlx::query("INSERT INTO chat_messages (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(&message.id)
+        .bind(&message.conversation_id)
+        .bind(&message.sender_id)
+        .bind(&message.sender_name)
+        .bind(&message.content)
+        .bind(message.message_type.to_string())
+        .bind(&message.timestamp)
+        .bind(serde_json::to_string(&message.file).unwrap())
         .execute(&state.db)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .ok();
 
-    // Update conversation last message
-    let update_conv = r#"
-        UPDATE conversations 
-        SET last_message_at = ?, last_message_preview = ?
-        WHERE id = ?
-    "#;
+    let message_json = serde_json::to_string(&message).unwrap();
 
-    sqlx::query(update_conv)
-        .bind(timestamp)
-        .bind(format!("[{} message]", media_type))
-        .bind(conversation_id)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    broadcast_message(
+        state.clone(),
+        conversation_id.clone(),
+        "new_message".to_string(),
+        message_json,
+    );
 
-    // Update unread counts for other participants
-    let update_unread = r#"
-        UPDATE conversations c
-        SET unread_count = unread_count + 1
-        WHERE c.id = ?
-        AND EXISTS (
-            SELECT 1 FROM conversation_members cm
-            WHERE cm.conversation_id = c.id
-            AND cm.user_id != ?
-        )
-    "#;
-
-    sqlx::query(update_unread)
-        .bind(conversation_id)
-        .bind(&sender_id)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Broadcast new message via WebSocket if needed
-    // (Implementation depends on your WebSocket setup)
-
-    Ok(Json(UploadResponse {
-        success: true,
-        url: Some(format!("/uploads/{}", filename)),
-        message_id: Some(message_id),
-        file_path: Some(format!("/uploads/{}", filename)),
-        encrypted_keys: Some(encrypted_keys.clone()),
-        nonce: Some(nonce.clone()),
-    }))
+    Html(format!(
+        r#"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>File Upload</title>
+    <script>
+        if (window.opener) {{
+            window.opener.postMessage({{
+                type: 'file_uploaded',
+                message: {}
+            }}, '*');
+        }}
+    </script>
+</head>
+<body>
+    <p>Upload complete. Closing...</p>
+</body>
+</html>"#,
+        serde_json::to_string(&message).unwrap()
+    ))
 }
 
-// Legacy handler for backward compatibility
-pub async fn handle_upload(mut multipart: Multipart) -> Result<Json<UploadResponse>, StatusCode> {
-    // Récupère le premier (et unique) champ
-    if let Some(field) = multipart
-        .next_field()
+pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
+    let upload: Option<Upload> = sqlx::query_as::<_, Upload>("SELECT * FROM uploads WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&get_pool())
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?
-    {
-        let data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?;
+        .unwrap();
 
-        if data.len() as u64 > MAX_FILE_SIZE {
-            return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    match upload {
+        Some(upload) => {
+            let path = StdPath::new(&upload.path);
+            if path.exists() {
+                let file = File::open(path).await.unwrap();
+                let stream = BytesStream::from(tokio::fs::read(path).await.unwrap());
+                let body = Body::from_stream(stream);
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    "content-type",
+                    upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap()),
+                );
+                headers.insert(
+                    "content-disposition",
+                    ContentDisposition::inline()
+                        .filename(&upload.file_name)
+                        .to_string()
+                        .parse()
+                        .unwrap(),
+                );
+                (headers, body).into_response()
+            } else {
+                (axum::http::StatusCode::NOT_FOUND, "File not found").into_response()
+            }
         }
-
-        let filename = uuid::Uuid::new_v4().to_string() + ".enc";
-        let path = format!("/app/data/uploads/{}", filename);
-        fs::create_dir_all("/app/data/uploads").await.ok();
-        fs::write(&path, data)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        return Ok(Json(UploadResponse {
-            success: true,
-            url: Some(format!("/uploads/{}", filename)),
-            message_id: None,
-            file_path: None,
-            encrypted_keys: None,
-            nonce: None,
-        }));
+        None => (axum::http::StatusCode::NOT_FOUND, "Upload not found").into_response(),
     }
+}
 
-    Err(StatusCode::BAD_REQUEST)
+pub async fn delete_upload(
+    State(state): AxumState<Arc<State>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let upload_dir = "uploads";
+    let upload: Option<Upload> = sqlx::query_as::<_, Upload>("SELECT * FROM uploads WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap();
+
+    if let Some(upload) = &upload {
+        let path = format!("{}/{}", upload_dir, upload.id);
+        let path = StdPath::new(&path);
+        if path.exists() {
+            tokio::fs::remove_file(path).await.unwrap();
+        }
+        sqlx::query("DELETE FROM uploads WHERE id = ?")
+            .bind(&id)
+            .execute(&state.db)
+            .await
+            .ok();
+
+        Html(format!(
+            r#"<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Delete Complete</title>
+            <script>
+                if (window.opener) {{
+                    window.opener.postMessage({{type: 'file_deleted'}}, '*');
+                }}
+            </script>
+        </head>
+        <body>
+            <p>Delete complete. Closing...</p>
+        </body>
+        </html>"#
+        ))
+    } else {
+        Html("Upload not found".into())
+    }
 }
