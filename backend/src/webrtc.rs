@@ -177,19 +177,23 @@ async fn handle_call_socket(
         }
     });
 
-    // Utilisation des références avant le select
+    // Utilisation de &mut au lieu de & pour JoinHandle dans tokio::select!
+    let mut send_task_mut = send_task;
+    let mut recv_task_mut = recv_task;
+    let mut broadcast_task_mut = broadcast_task;
+
     tokio::select! {
-        _ = &send_task => {
-            recv_task.abort();
-            broadcast_task.abort();
+        _ = &mut send_task_mut => {
+            recv_task_mut.abort();
+            broadcast_task_mut.abort();
         }
-        _ = &recv_task => {
-            send_task.abort();
-            broadcast_task.abort();
+        _ = &mut recv_task_mut => {
+            send_task_mut.abort();
+            broadcast_task_mut.abort();
         }
-        _ = &broadcast_task => {
-            send_task.abort();
-            recv_task.abort();
+        _ = &mut broadcast_task_mut => {
+            send_task_mut.abort();
+            recv_task_mut.abort();
         }
     }
 }
