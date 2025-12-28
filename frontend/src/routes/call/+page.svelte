@@ -1,14 +1,10 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
-
-<script>
+<script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '@roxi/routify';
-  import { goto } from '@roxi/routify';
+  import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
   import { authStore } from '$lib/authStore';
-  import { currentTheme } from '$lib/themeStore';
+  import { currentTheme } from '$lib/ui/ThemeStore';
   import { 
     startGroupCall, 
     endCurrentCall, 
@@ -20,16 +16,16 @@
     loadParticipants,
     activeConversationId
   } from '$lib/conversationStore';
-  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 
-  // États locaux
-  let conversationId = $page.params.id;
-  let callType = $page.url.searchParams.get('type') || 'video';
+  // États locaux avec Svelte 5 runes
+  let conversationId = $derived($page.params?.id || '');
+  let callType = $derived($page.url?.searchParams?.get('type') || 'video');
   let loading = $state(true);
-  let error = $state(null);
+  let error = $state<string | null>(null);
   let showIncomingCallModal = $state(false);
   let incomingCallFrom = $state('');
-let incomingCallConvId = $state('');
+  let incomingCallConvId = $state('');
+
   onMount(async () => {
     if (!$authStore.isAuthenticated) {
       goto('/login');
@@ -40,35 +36,37 @@ let incomingCallConvId = $state('');
       loading = true;
       error = null;
       
-      // Charger les participants de la conversation
       await loadParticipants(conversationId);
       
-      // Si l'URL contient ?call=1, initier un appel sortant
-      if ($page.url.searchParams.has('call')) {
+      if ($page.url?.searchParams?.has('call')) {
         const participantIds = $participants.map(p => p.id);
         await startGroupCall(conversationId, participantIds, callType);
       }
       
       loading = false;
       
-      // Écouter les appels entrants
-      window.addEventListener('incoming-call', handleIncomingCall);
-      
-      return () => {
-        window.removeEventListener('incoming-call', handleIncomingCall);
-        endCurrentCall();
-      };
+      if (browser) {
+        window.addEventListener('incoming-call', handleIncomingCall);
+        window.addEventListener('keydown', handleKeydown);
+      }
     } catch (err) {
-      error = err.message || 'Erreur de chargement de l\'appel';
+      error = (err instanceof Error ? err.message : String(err)) || 'Erreur de chargement de l\'appel';
       loading = false;
       console.error('Erreur appel:', err);
     }
   });
 
-  function handleIncomingCall(event) {
+  onDestroy(() => {
+    if (browser) {
+      window.removeEventListener('incoming-call', handleIncomingCall);
+      window.removeEventListener('keydown', handleKeydown);
+      endCurrentCall();
+    }
+  });
+
+  function handleIncomingCall(event: CustomEvent) {
     const { from_user_id, conversation_id } = event.detail;
     
-    // Vérifier si cet appel est pour cette conversation
     if (conversation_id === conversationId && !$callStore.isInCall) {
       incomingCallFrom = from_user_id;
       incomingCallConvId = conversation_id;
@@ -82,7 +80,7 @@ let incomingCallConvId = $state('');
       const participantIds = $participants.map(p => p.id);
       await startGroupCall(conversationId, participantIds, 'video');
     } catch (err) {
-      error = err.message || 'Erreur lors de l\'acceptation de l\'appel';
+      error = (err instanceof Error ? err.message : String(err)) || 'Erreur lors de l\'acceptation de l\'appel';
       console.error('Erreur acceptation appel:', err);
     }
   }
@@ -105,56 +103,54 @@ let incomingCallConvId = $state('');
     goto('/chat');
   }
 
-  // Gestion des touches raccourci
-  function handleKeydown(e) {
+  function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'm') {
       toggleMute();
     } else if (e.key === 'v') {
       toggleVideo();
     } else if (e.key === ' ') {
+      e.preventDefault();
       endCall();
     }
   }
-
-  onMount(() => {
-    window.addEventListener('keydown', handleKeydown);
-    return () => window.removeEventListener('keydown', handleKeydown);
-  });
 </script>
 
 <svelte:head>
-  <title>Appel • Nook</title>
+  <title>Appel - Nook</title>
 </svelte:head>
 
 <div class="call-container theme-{$currentTheme}">
   {#if loading}
     <div class="loading-screen">
-      <LoadingSpinner size="large" />
-      <p>Préparation de l'appel...</p>
+      <div class="spinner-large"></div>
+      <p>Preparation de l'appel...</p>
     </div>
   {:else if error}
     <div class="error-screen">
-      <h2>❌ {$error}</h2>
+      <h2>❌ {error}</h2>
       <button onclick={() => goto('/chat')} class="back-button">
         ← Retour au chat
       </button>
     </div>
   {:else}
-    <!-- Header avec thème -->
     <header class="call-header">
-      {#if $currentTheme === 'jardin-secret'}
-        <div class="theme-indicator jardin">🌿 Appel Jardin Secret</div>
-      {:else if $currentTheme === 'space-hub'}
-        <div class="theme-indicator space">🚀 Appel Space Hub</div>
-      {:else}
-        <div class="theme-indicator maison">🏠 Appel Maison Chaleureuse</div>
-      {/if}
-      
+      <div class="theme-indicator {$currentTheme}">
+        {#if $currentTheme === 'jardin-secret'}
+          🌿 Appel Jardin Secret
+        {:else if $currentTheme === 'space-hub'}
+          🚀 Appel Space Hub
+        {:else}
+          🏠 Appel Maison Chaleureuse
+        {/if}
+      </div>
+
       <div class="conversation-info">
         <h1>Appel avec {conversationId}</h1>
-        <p class="participant-count">{#if $participants.length > 1}{$participants.length} participants{/if}</p>
+        {#if $participants.length > 1}
+          <p class="participant-count">{$participants.length} participants</p>
+        {/if}
       </div>
-      
+
       <button class="back-button" onclick={() => goto('/chat')}>
         ← Retour
       </button>
@@ -170,7 +166,7 @@ let incomingCallConvId = $state('');
                 playsinline 
                 muted 
                 srcObject={$callStore.localStream} 
-                class="video-element local"
+                class="video-element"
               ></video>
               <div class="local-overlay">
                 <span>Vous</span>
@@ -189,21 +185,21 @@ let incomingCallConvId = $state('');
               </div>
             </div>
           {/if}
-          
+
           {#each Array.from($callStore.remoteStreams.entries()) as [userId, stream]}
             <div class="video-container remote">
               <video 
                 autoplay 
                 playsinline 
                 srcObject={stream} 
-                class="video-element remote"
+                class="video-element"
               ></video>
               <div class="remote-overlay">
                 <span>{$participants.find(p => p.id === userId)?.name || userId}</span>
               </div>
             </div>
           {/each}
-          
+
           {#if $callStore.remoteStreams.size === 0 && !$callStore.localStream}
             <div class="placeholder">
               <p>Connexion aux participants...</p>
@@ -211,24 +207,24 @@ let incomingCallConvId = $state('');
             </div>
           {/if}
         </div>
-        
+
         <div class="call-controls">
           <button 
-            class="control-button {get(callStore).isMuted ? 'active' : ''}" 
+            class="control-button {$callStore.isMuted ? 'active' : ''}" 
             onclick={toggleMute}
-            title={get(callStore).isMuted ? 'Activer le micro' : 'Couper le micro'}
+            title={$callStore.isMuted ? 'Activer le micro' : 'Couper le micro'}
           >
-            {get(callStore).isMuted ? '🔇' : '🔊'}
+            {$callStore.isMuted ? '🔇' : '🔊'}
           </button>
-          
+
           <button 
-            class="control-button {get(callStore).isVideoOff ? 'active' : ''}" 
+            class="control-button {$callStore.isVideoOff ? 'active' : ''}" 
             onclick={toggleVideo}
-            title={get(callStore).isVideoOff ? 'Activer la caméra' : 'Désactiver la caméra'}
+            title={$callStore.isVideoOff ? 'Activer la caméra' : 'Désactiver la caméra'}
           >
-            {get(callStore).isVideoOff ? '📹❌' : '📹'}
+            {$callStore.isVideoOff ? '📹❌' : '📹'}
           </button>
-          
+
           <button 
             class="control-button hangup" 
             onclick={endCall}
@@ -236,7 +232,7 @@ let incomingCallConvId = $state('');
           >
             📵
           </button>
-          
+
           <div class="call-info">
             <span>💬 {$callStore.remoteStreams.size + 1} participants</span>
             <span class="connection-status">✅ Connexion sécurisée P2P</span>
@@ -246,11 +242,7 @@ let incomingCallConvId = $state('');
         <div class="calling-screen">
           <div class="calling-content">
             <div class="avatar-large">
-              {#if $callStore.isCalling}
-                <span>✆ Appel en cours...</span>
-              {:else}
-                <span>✆ Appel entrant...</span>
-              {/if}
+              <span class="calling-icon">✆</span>
             </div>
             <p class="calling-to">
               {#if $callStore.isCalling}
@@ -305,19 +297,19 @@ let incomingCallConvId = $state('');
         </div>
       {/if}
     </main>
-    
+
     {#if $callStore.error}
       <div class="call-error">
         <p>{$callStore.error}</p>
         <button onclick={() => callStore.update(s => ({ ...s, error: null }))}>
-          ✕ Fermer
+          ✕
         </button>
       </div>
     {/if}
-    
+
     {#if showIncomingCallModal}
-      <div class="modal-overlay">
-        <div class="incoming-call-modal">
+      <div class="modal-overlay" onclick={() => showIncomingCallModal = false} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && (showIncomingCallModal = false)}>
+        <div class="incoming-call-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Appel entrant">
           <div class="caller-avatar">
             <span>✆</span>
           </div>
@@ -353,25 +345,38 @@ let incomingCallConvId = $state('');
     width: 100%;
     text-align: center;
     padding: 2rem;
+    gap: 1rem;
+  }
+
+  .spinner-large {
+    width: 60px;
+    height: 60px;
+    border: 4px solid var(--border, #e2e8f0);
+    border-top-color: var(--accent, #4ade80);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .error-screen h2 {
-    color: #f44336;
+    color: var(--error, #ef4444);
     margin-bottom: 1.5rem;
     font-size: 2rem;
   }
 
   .back-button {
-    background: #4CAF50;
+    background: var(--accent, #4CAF50);
     color: white;
     border: none;
     padding: 0.75rem 1.5rem;
-    border-radius: 18px;
+    border-radius: var(--radius-lg, 0.75rem);
     font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    margin-top: 1rem;
   }
 
   .back-button:hover {
@@ -382,37 +387,52 @@ let incomingCallConvId = $state('');
   .call-header {
     padding: 1rem;
     text-align: center;
-    border-bottom: 1px solid var(--border);
-    background: var(--header-bg);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    background: var(--header-bg, #f8fafc);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 
   .theme-indicator {
-    font-weight: bold;
-    padding: 0.25rem 0.75rem;
-    border-radius: 20px;
-    display: inline-block;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-full, 9999px);
+    font-size: 0.9rem;
   }
 
-  .jardin { background: rgba(76, 175, 80, 0.15); color: #4CAF50; }
-  .space { background: rgba(33, 150, 243, 0.15); color: #2196F3; }
-  .maison { background: rgba(255, 152, 0, 0.15); color: #FF9800; }
+  .theme-indicator.jardin-secret {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+  }
+
+  .theme-indicator.space-hub {
+    background: rgba(33, 150, 243, 0.15);
+    color: #2196F3;
+  }
+
+  .theme-indicator.maison-chaleureuse {
+    background: rgba(255, 152, 0, 0.15);
+    color: #f97316;
+  }
 
   .conversation-info {
     flex: 1;
     text-align: center;
+    min-width: 200px;
   }
 
   .conversation-info h1 {
     margin: 0;
     font-size: 1.2rem;
+    color: var(--text-primary, #1e293b);
   }
 
   .participant-count {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
     margin-top: 0.25rem;
   }
 
@@ -422,7 +442,7 @@ let incomingCallConvId = $state('');
     justify-content: center;
     align-items: center;
     padding: 1rem;
-    background: var(--call-bg);
+    background: var(--call-bg, #f8fafc);
   }
 
   .video-grid {
@@ -435,18 +455,10 @@ let incomingCallConvId = $state('');
 
   .video-container {
     position: relative;
-    border-radius: 16px;
+    border-radius: var(--radius-xl, 1rem);
     overflow: hidden;
-    background: #000;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  }
-
-  .local {
-    grid-column: span 1;
-  }
-
-  .remote {
-    grid-column: span 1;
+    background: #1a1a1a;
+    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
   }
 
   .video-element {
@@ -461,11 +473,11 @@ let incomingCallConvId = $state('');
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.6);
     color: white;
-    padding: 0.5rem;
+    padding: 0.75rem;
     text-align: center;
-    font-weight: bold;
+    font-weight: 500;
   }
 
   .local-indicators {
@@ -476,11 +488,11 @@ let incomingCallConvId = $state('');
   }
 
   .indicator {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
 
-  .mic-on, .video-on { color: #4CAF50; }
-  .mic-off, .video-off { color: #f44336; }
+  .mic-on, .video-on { color: #4ade80; }
+  .mic-off, .video-off { color: #ef4444; }
 
   .placeholder {
     display: flex;
@@ -489,21 +501,17 @@ let incomingCallConvId = $state('');
     justify-content: center;
     width: 100%;
     height: 100%;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #64748b);
+    gap: 0.5rem;
   }
 
   .spinner {
     width: 40px;
     height: 40px;
-    border: 4px solid rgba(0,0,0,0.1);
+    border: 4px solid var(--border, #e2e8f0);
+    border-top-color: var(--accent, #4ade80);
     border-radius: 50%;
-    border-top-color: var(--primary);
     animation: spin 1s linear infinite;
-    margin-top: 1rem;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
   }
 
   .call-controls {
@@ -512,16 +520,17 @@ let incomingCallConvId = $state('');
     align-items: center;
     gap: 1.5rem;
     padding: 1.5rem;
-    background: var(--controls-bg);
-    border-top: 1px solid var(--border);
+    background: var(--controls-bg, #ffffff);
+    border-top: 1px solid var(--border, #e2e8f0);
+    flex-wrap: wrap;
   }
 
   .control-button {
-    width: 60px;
-    height: 60px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     border: none;
-    background: var(--button-bg);
+    background: var(--button-bg, #4ade80);
     color: white;
     font-size: 1.5rem;
     cursor: pointer;
@@ -529,7 +538,7 @@ let incomingCallConvId = $state('');
     justify-content: center;
     align-items: center;
     transition: all 0.2s;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: var(--shadow-md);
   }
 
   .control-button:hover {
@@ -537,25 +546,26 @@ let incomingCallConvId = $state('');
   }
 
   .control-button.active {
-    background: #f44336;
+    background: #ef4444;
   }
 
   .hangup {
-    background: #f44336;
-    width: 70px;
-    height: 70px;
+    background: #ef4444;
+    width: 64px;
+    height: 64px;
   }
 
   .call-info {
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: var(--text-secondary);
+    color: var(--text-secondary, #64748b);
     margin-left: 1rem;
+    font-size: 0.85rem;
   }
 
   .connection-status {
-    color: #4CAF50;
+    color: #4ade80;
     font-weight: 500;
   }
 
@@ -569,29 +579,33 @@ let incomingCallConvId = $state('');
 
   .calling-content {
     text-align: center;
-    padding: 2rem;
-    background: var(--calling-bg);
-    border-radius: 24px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    padding: 3rem;
+    background: var(--calling-bg, #f0fdf4);
+    border-radius: var(--radius-2xl, 1.5rem);
+    box-shadow: var(--shadow-xl);
+    max-width: 400px;
   }
 
   .avatar-large {
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    background: var(--avatar-bg);
+    background: linear-gradient(135deg, var(--accent, #4ade80), var(--accent-dark, #22c55e));
+    margin: 0 auto 1.5rem;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin: 0 auto 1.5rem;
-    font-size: 2.5rem;
-    color: var(--avatar-text);
+    color: white;
+  }
+
+  .calling-icon {
+    font-size: 3rem;
   }
 
   .calling-to {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+    color: var(--text-primary, #1e293b);
     margin-bottom: 1.5rem;
-    color: var(--text);
   }
 
   .calling-indicators {
@@ -604,7 +618,7 @@ let incomingCallConvId = $state('');
   .pulse {
     width: 12px;
     height: 12px;
-    background: var(--primary);
+    background: var(--accent, #4ade80);
     border-radius: 50%;
     animation: pulse 1.5s infinite;
   }
@@ -619,7 +633,7 @@ let incomingCallConvId = $state('');
   }
 
   .connection-info {
-    color: #4CAF50;
+    color: #4ade80;
     font-weight: 500;
     margin-top: 0.5rem;
   }
@@ -641,97 +655,129 @@ let incomingCallConvId = $state('');
   }
 
   .no-call-screen h2 {
-    font-size: 2rem;
+    font-size: 1.75rem;
+    color: var(--text-primary, #1e293b);
     margin-bottom: 0.5rem;
+  }
+
+  .no-call-screen p {
+    color: var(--text-secondary, #64748b);
   }
 
   .start-call-buttons {
     display: flex;
     gap: 1rem;
     margin-top: 1.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
   }
 
   .start-call-button {
-    background: var(--primary);
+    background: var(--accent, #4ade80);
     color: white;
     border: none;
-    padding: 0.75rem 2rem;
-    border-radius: 18px;
-    font-size: 1.1rem;
+    padding: 0.875rem 2rem;
+    border-radius: var(--radius-lg, 0.75rem);
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    box-shadow: var(--shadow-md);
   }
 
   .start-call-button.audio {
-    background: #9c27b0;
+    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
   }
 
   .start-call-button:hover {
-    transform: scale(1.05);
-    opacity: 0.9;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 
   .call-error {
     position: fixed;
-    bottom: 20px;
+    bottom: 1.5rem;
     left: 50%;
     transform: translateX(-50%);
-    background: #f44336;
+    background: var(--error, #ef4444);
     color: white;
     padding: 1rem 2rem;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    border-radius: var(--radius-lg, 0.75rem);
+    box-shadow: var(--shadow-xl);
     display: flex;
     align-items: center;
     gap: 1rem;
     z-index: 1000;
+    animation: slide-up 0.3s ease;
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
   }
 
   .call-error button {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255, 255, 255, 0.2);
     border: none;
     color: white;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     cursor: pointer;
     font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.7);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    animation: fade-in 0.2s ease;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .incoming-call-modal {
     background: white;
-    border-radius: 20px;
+    border-radius: var(--radius-2xl, 1.5rem);
     padding: 2rem;
     text-align: center;
     max-width: 400px;
     width: 90%;
-    animation: modalSlideUp 0.3s ease-out;
+    animation: modal-slide-up 0.3s ease;
   }
 
-  @keyframes modalSlideUp {
-    from { transform: translateY(50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
+  @keyframes modal-slide-up {
+    from {
+      transform: translateY(30px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
   }
 
   .caller-avatar {
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: #2196F3;
+    background: linear-gradient(135deg, #2196F3, #1976D2);
     margin: 0 auto 1rem;
     display: flex;
     justify-content: center;
@@ -741,95 +787,47 @@ let incomingCallConvId = $state('');
   }
 
   .incoming-call-modal h3 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
+    color: var(--text-primary, #1e293b);
     margin-bottom: 0.5rem;
   }
 
   .incoming-call-modal p {
-    color: #666;
-    margin-bottom: 1.5rem;
-    font-size: 1.1rem;
+    color: var(--text-secondary, #64748b);
+    margin-bottom: 0.5rem;
   }
 
   .modal-actions {
     display: flex;
     gap: 1rem;
     justify-content: center;
+    margin-top: 1.5rem;
   }
 
   .modal-actions button {
     flex: 1;
     padding: 0.75rem;
     border: none;
-    border-radius: 15px;
-    font-size: 1.2rem;
-    font-weight: bold;
+    border-radius: var(--radius-lg, 0.75rem);
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .accept {
-    background: #4CAF50;
+    background: #4ade80;
     color: white;
   }
 
   .decline {
-    background: #f44336;
+    background: #ef4444;
     color: white;
   }
 
   .modal-actions button:hover {
-    opacity: 0.9;
     transform: scale(1.05);
-  }
-
-  /* Thèmes */
-  .theme-jardin-secret {
-    --primary: #4CAF50;
-    --primary-dark: #388E3C;
-    --secondary: #8BC34A;
-    --border: #C8E6C9;
-    --text: #333333;
-    --text-secondary: #666666;
-    --header-bg: #F0F7F0;
-    --call-bg: #F8FDF8;
-    --controls-bg: #FFFFFF;
-    --button-bg: #4CAF50;
-    --avatar-bg: #4CAF50;
-    --avatar-text: white;
-    --calling-bg: #E8F5E9;
-  }
-
-  .theme-space-hub {
-    --primary: #2196F3;
-    --primary-dark: #1976D2;
-    --secondary: #3F51B5;
-    --border: #BBDEFB;
-    --text: #333333;
-    --text-secondary: #666666;
-    --header-bg: #E3F2FD;
-    --call-bg: #F5FAFF;
-    --controls-bg: #FFFFFF;
-    --button-bg: #2196F3;
-    --avatar-bg: #2196F3;
-    --avatar-text: white;
-    --calling-bg: #E3F2FD;
-  }
-
-  .theme-maison-chaleureuse {
-    --primary: #FF9800;
-    --primary-dark: #E65100;
-    --secondary: #FF5722;
-    --border: #FFE0B2;
-    --text: #333333;
-    --text-secondary: #666666;
-    --header-bg: #FFF3E0;
-    --call-bg: #FFF9F5;
-    --controls-bg: #FFFFFF;
-    --button-bg: #FF9800;
-    --avatar-bg: #FF9800;
-    --avatar-text: white;
-    --calling-bg: #FFF3E0;
+    opacity: 0.9;
   }
 
   /* Responsive */
@@ -837,45 +835,44 @@ let incomingCallConvId = $state('');
     .video-grid {
       grid-template-columns: 1fr;
     }
-    
+
     .call-controls {
-      flex-direction: column;
       gap: 1rem;
+      padding: 1rem;
     }
-    
+
     .call-info {
       margin-left: 0;
       margin-top: 0.5rem;
+      width: 100%;
     }
-    
+
     .control-button {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       font-size: 1.2rem;
     }
-    
+
     .hangup {
-      width: 60px;
-      height: 60px;
+      width: 56px;
+      height: 56px;
     }
-    
+
     .start-call-buttons {
+      flex-direction: column;
+    }
+
+    .call-header {
       flex-direction: column;
       gap: 0.75rem;
     }
-    
-    .call-header {
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    
+
     .conversation-info {
-      text-align: center;
+      order: -1;
     }
-    
+
     .back-button {
       width: 100%;
-      margin-top: 0.5rem;
     }
   }
 </style>
