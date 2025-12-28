@@ -1,13 +1,9 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
-
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { browser } from '$app/environment';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { goto } from '@roxi/routify';  // ← Routify au lieu de $app/navigation (SvelteKit)
   import { generateKeyPair, storeKeys } from '$lib/crypto';
 
   let token = $state('');
@@ -18,7 +14,8 @@
   let memberId = $state('');
 
   onMount(() => {
-    // Récupère le token depuis l'URL
+    if (!browser) return;
+    
     const urlParams = new URLSearchParams(window.location.search);
     token = urlParams.get('token') || '';
     
@@ -27,7 +24,7 @@
     }
   });
 
-  const submitRequest = async () => {
+  async function submitRequest() {
     if (!name.trim()) {
       error = 'Veuillez entrer votre prénom';
       return;
@@ -42,10 +39,9 @@
     error = '';
 
     try {
-      // Générer une paire de clés cryptographiques avec libsodium
       console.log('Génération des clés cryptographiques...');
       const keyPair = await generateKeyPair();
-      console.log('Clés générées:', keyPair.publicKey.substring(0, 50) + '...');
+      console.log('Clés générées');
 
       const response = await fetch(`/api/join?token=${encodeURIComponent(token)}`, {
         method: 'POST',
@@ -60,13 +56,11 @@
         const data = await response.json();
         success = data.message;
         
-        // Extraire l'ID du membre du message de succès
         const match = data.message.match(/ID: (\S+)/);
         if (match && match[1]) {
           memberId = match[1];
           
-          // Stocker les clés localement avec l'ID du membre
-          storeKeys(memberId, {
+          await storeKeys(memberId, {
             publicKey: keyPair.publicKey,
             privateKey: keyPair.privateKey,
             memberId: memberId
@@ -89,23 +83,22 @@
     } finally {
       isLoading = false;
     }
-  };
+  }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !isLoading) {
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !isLoading) {
       submitRequest();
     }
-  };
+  }
 </script>
 
 <svelte:head>
   <title>Rejoindre Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
-  <div class="max-w-md w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-8 text-center">
-
-    <div class="text-6xl mb-6">
+<div class="page-container theme-{$currentTheme}">
+  <div class="card">
+    <div class="theme-icon">
       {#if $currentTheme === 'jardin-secret'}
         🌿
       {:else if $currentTheme === 'space-hub'}
@@ -115,84 +108,77 @@
       {/if}
     </div>
 
-    <h1 class="text-3xl font-bold mb-2 text-[var(--text-primary)]">Rejoindre Nook</h1>
+    <h1>Rejoindre Nook</h1>
 
-    <p class="text-[var(--text-secondary)] mb-6">
+    <p class="description">
       Vous avez été invité à rejoindre un espace familial privé et sécurisé
     </p>
 
-    <!-- Indicateur de sécurité -->
-    <div class="mb-6 p-3 bg-green-500/10 border border-green-500/30 rounded-xl">
-      <div class="flex items-center justify-center gap-2 text-green-400">
-        <span class="text-xl">🔒</span>
-        <span class="text-sm font-medium">Connexion chiffrée de bout en bout</span>
-      </div>
+    <div class="security-badge">
+      <span class="security-icon">🔒</span>
+      <span>Connexion chiffrée de bout en bout</span>
     </div>
 
     {#if error}
-      <div class="mb-4 p-3 bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl border border-red-500/30">
-        <div class="flex items-center gap-2">
-          <span>⚠️</span>
-          <span>{error}</span>
-        </div>
+      <div class="alert error">
+        <span>⚠️</span>
+        <span>{error}</span>
       </div>
     {/if}
 
     {#if success}
-      <div class="mb-4 p-3 bg-green-500/20 text-green-600 dark:text-green-400 rounded-xl border border-green-500/30">
-        <div class="text-4xl mb-2">✅</div>
-        <p class="font-semibold text-lg">{success}</p>
-        <p class="text-sm mt-2">L'administrateur vous approuvera bientôt.</p>
+      <div class="alert success">
+        <div class="success-icon">✅</div>
+        <p class="success-message">{success}</p>
+        <p class="success-subtext">L'administrateur vous approuvera bientôt.</p>
 
         {#if memberId}
-          <div class="mt-4 p-2 bg-white/10 dark:bg-black/10 rounded">
-            <p class="text-xs font-mono break-all">Votre ID: <span class="font-bold">{memberId}</span></p>
-            <p class="text-xs mt-1">Conservez cet ID pour votre première connexion !</p>
+          <div class="member-id-box">
+            <p class="member-id-label">Votre ID:</p>
+            <p class="member-id-value">{memberId}</p>
+            <p class="member-id-help">Conservez cet ID pour votre première connexion !</p>
           </div>
         {/if}
 
-        <div class="mt-4">
-          <a href="/" class="inline-block px-4 py-2 bg-[var(--accent)] text-white rounded-lg hover:opacity-90 transition">
+        <div class="success-actions">
+          <a href="/" class="btn-primary">
             Retour à l'accueil
           </a>
         </div>
       </div>
     {:else if token}
-      <div class="space-y-4">
-        <div>
-          <label for="member-name" class="block text-sm font-medium mb-2 text-left text-[var(--text-primary)]">
-            Votre prénom
-          </label>
+      <div class="form-container">
+        <div class="form-group">
+          <label for="member-name">Votre prénom</label>
           <input
             id="member-name"
             type="text"
             bind:value={name}
             placeholder="Ex: Jean, Marie, Pierre..."
-            class="w-full p-3 rounded-xl border border-white/40 bg-white/30 dark:bg-black/30 text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-            onkeydown={handleKeyPress}
+            class="input"
+            onkeydown={handleKeydown}
             disabled={isLoading}
             maxlength="50"
           />
-          <p class="text-xs text-[var(--text-secondary)] mt-1 text-left">
+          <p class="help-text">
             Ce nom sera visible par les autres membres de la famille
           </p>
         </div>
 
-        <div class="p-3 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-          <p class="text-xs text-blue-400">
-            <span class="font-semibold">⚠️ Important :</span> 
-            Des clés cryptographiques seront générées pour sécuriser vos communications.
-            Ces clés seront stockées localement dans votre navigateur.
+        <div class="info-box">
+          <p class="info-text">
+            <span class="info-icon">⚠️</span>
+            <span>Des clés cryptographiques seront générées pour sécuriser vos communications. Ces clés seront stockées localement dans votre navigateur.</span>
           </p>
         </div>
 
         <button
           onclick={submitRequest}
           disabled={isLoading || !name.trim()}
-          class="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+          class="submit-btn"
         >
           {#if isLoading}
-            <span class="animate-spin">⟳</span>
+            <span class="spinner"></span>
             <span>Génération des clés de sécurité...</span>
           {:else}
             <span>🔐</span>
@@ -201,31 +187,399 @@
         </button>
       </div>
     {:else}
-      <div class="p-4 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-xl">
-        <div class="text-3xl mb-2">🔗</div>
-        <p class="font-medium">Vous avez besoin d'un lien d'invitation</p>
-        <p class="text-sm mt-2">Contactez l'administrateur de votre espace familial pour obtenir un lien valide.</p>
+      <div class="no-token-box">
+        <div class="no-token-icon">🔗</div>
+        <p class="no-token-title">Vous avez besoin d'un lien d'invitation</p>
+        <p class="no-token-text">Contactez l'administrateur de votre espace familial pour obtenir un lien valide.</p>
       </div>
     {/if}
 
-    <div class="mt-6 pt-4 border-t border-white/20">
-      <p class="text-sm text-[var(--text-secondary)]">
-        <a href="/" class="text-[var(--accent)] hover:underline flex items-center justify-center gap-1">
-          <span>←</span>
-          <span>Retour à l'accueil</span>
-        </a>
-      </p>
+    <div class="footer">
+      <a href="/" class="back-link">
+        <span>←</span>
+        <span>Retour à l'accueil</span>
+      </a>
     </div>
   </div>
 
-  <div class="absolute bottom-8 right-8">
+  <div class="theme-switcher-container">
     <ThemeSwitcher />
   </div>
 </div>
 
 <style>
+  .page-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--bg-primary, #f0fdf4) 0%, var(--bg-secondary, #e0f2fe) 100%);
+  }
+
+  .card {
+    max-width: 420px;
+    width: 100%;
+    padding: 2.5rem;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: var(--radius-2xl, 1.5rem);
+    box-shadow: var(--shadow-2xl, 0 25px 50px -12px rgba(0, 0, 0, 0.25));
+    text-align: center;
+    animation: fade-in 0.4s ease-out;
+  }
+
   @keyframes fade-in {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .theme-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary, #1e293b);
+    margin: 0 0 0.5rem 0;
+  }
+
+  .description {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
+  }
+
+  .security-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    border-radius: var(--radius-lg, 0.75rem);
+    margin-bottom: 1.5rem;
+  }
+
+  .security-icon {
+    font-size: 1.25rem;
+  }
+
+  .security-badge span:last-child {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #4ade80;
+  }
+
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-lg, 0.75rem);
+    margin-bottom: 1rem;
+    text-align: left;
+    animation: slide-down 0.3s ease;
+  }
+
+  @keyframes slide-down {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+  }
+
+  .alert.success {
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: var(--success, #22c55e);
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .success-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .success-message {
+    font-weight: 600;
+    font-size: 1.1rem;
+    margin: 0;
+  }
+
+  .success-subtext {
+    font-size: 0.85rem;
+    margin: 0.5rem 0 0 0;
+    opacity: 0.8;
+  }
+
+  .member-id-box {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-md, 0.5rem);
+    width: 100%;
+  }
+
+  .member-id-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0 0 0.25rem 0;
+  }
+
+  .member-id-value {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.8rem;
+    font-weight: 600;
+    word-break: break-all;
+    margin: 0;
+  }
+
+  .member-id-help {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0.5rem 0 0 0;
+  }
+
+  .success-actions {
+    margin-top: 1.5rem;
+  }
+
+  .btn-primary {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--accent, #4ade80);
+    color: white;
+    border-radius: var(--radius-lg, 0.75rem);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .form-group {
+    text-align: left;
+  }
+
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-primary, #1e293b);
+    margin-bottom: 0.5rem;
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    font-size: 0.9rem;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: var(--radius-lg, 0.75rem);
+    color: var(--text-primary, #1e293b);
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .input:focus {
+    border-color: var(--accent, #4ade80);
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+  }
+
+  .input::placeholder {
+    color: var(--text-secondary, #64748b);
+    opacity: 0.7;
+  }
+
+  .input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .help-text {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0.5rem 0 0 0;
+  }
+
+  .info-box {
+    padding: 0.75rem 1rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: var(--radius-lg, 0.75rem);
+  }
+
+  .info-text {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #3b82f6;
+    margin: 0;
+  }
+
+  .info-icon {
+    flex-shrink: 0;
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(135deg, var(--accent, #4ade80), var(--accent-dark, #22c55e));
+    color: white;
+    border: none;
+    border-radius: var(--radius-lg, 0.75rem);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .submit-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+  }
+
+  .submit-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .no-token-box {
+    padding: 1.5rem;
+    background: rgba(234, 179, 8, 0.1);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: var(--radius-lg, 0.75rem);
+  }
+
+  .no-token-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .no-token-title {
+    font-weight: 600;
+    color: #ca8a04;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .no-token-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0;
+  }
+
+  .footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .back-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: var(--accent, #4ade80);
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .back-link:hover {
+    opacity: 0.8;
+  }
+
+  .theme-switcher-container {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 1.5rem;
+  }
+
+  @media (max-width: 480px) {
+    .page-container {
+      padding: 1rem;
+    }
+
+    .card {
+      padding: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+    }
+
+    .theme-icon {
+      font-size: 3rem;
+    }
+
+    .theme-switcher-container {
+      position: static;
+      margin-top: 1.5rem;
+    }
   }
 </style>
