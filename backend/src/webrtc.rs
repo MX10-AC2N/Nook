@@ -1,196 +1,118 @@
-use axum::{
-    extract::{
-        ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
-        Query, State,
-    },
-    http::StatusCode,
-    response::IntoResponse,
-};
-use futures_util::{stream::StreamExt, sink::SinkExt};
+use crate::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::State as AxumState;
+use axum::response::IntoResponse;
+use futures_util::stream::SplitSink;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock, mpsc};
-use crate::SharedState;
+use tokio::sync::broadcast;
+use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct CallSignal {
-    #[serde(rename = "conversationId")]
-    pub conversation_id: String,
-    #[serde(rename = "from")]
-    pub from_user_id: String,
-    #[serde(rename = "to")]
-    pub to_user_id: Option<String>,
-    #[serde(rename = "type")]
-    pub signal_type: String,
+pub type CallSignal = Arc<RwLock<broadcast::Sender<String>>>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CallMessage {
+    pub r#type: String,
+    pub from: String,
+    pub to: String,
     pub sdp: Option<String>,
     pub candidate: Option<String>,
+    pub call_id: String,
 }
 
-enum WsSendMessage {
-    Text(String),
-    Close,
+#[derive(Clone)]
+pub struct SignalingData {
+    pub call_id: String,
+    pub from_user_id: String,
+    pub to_user_id: String,
+    pub sender: broadcast::Sender<String>,
+    pub _rx: broadcast::Receiver<String>,
 }
 
-#[derive(Deserialize)]
-pub struct WsQuery {
-    conv: String,
+pub struct SharedCallState {
+    pub active_calls: Arc<RwLock<HashMap<String, SignalingData>>>,
 }
 
-type ConversationSubscribers = Arc<RwLock<HashMap<String, broadcast::Sender<CallSignal>>>>;
-
-pub async fn call_ws_handler(
-    ws: WebSocketUpgrade,
-    Query(query): Query<WsQuery>,
-    State(state): State<SharedState>,
-    headers: axum::http::HeaderMap,
-) -> impl IntoResponse {
-    let token = match crate::auth::get_cookie(&headers, "nook_session")
-        .or_else(|| crate::auth::get_cookie(&headers, "nook_admin"))
-    {
-        Some(t) => t,
-        None => return StatusCode::UNAUTHORIZED.into_response(),
-    };
-
-    let user_row = match sqlx::query(
-        "SELECT u.id FROM sessions s
-         JOIN users u ON s.user_id = u.id
-         WHERE s.token = ? AND u.approved = 1 AND s.expires_at > strftime('%s', 'now')"
-    )
-        .bind(&token)
-        .fetch_optional(&state.db)
-        .await
-    {
-        Ok(Some(row)) => row,
-        _ => return StatusCode::UNAUTHORIZED.into_response(),
-    };
-
-    let user_id: String = user_row.try_get("id").unwrap_or_default();
-
-    if user_id.is_empty() {
-        return StatusCode::UNAUTHORIZED.into_response();
+impl SharedCallState {
+    pub fn new() -> Self {
+        SharedCallState {
+            active_calls: Arc::new(RwLock::new(HashMap::new())),
+        }
     }
-
-    ws.on_upgrade(move |socket| {
-        handle_call_socket(socket, state, query.conv, user_id)
-    })
 }
 
-async fn handle_call_socket(
-    socket: WebSocket,
-    state: SharedState,
+pub async fn broadcast_message(
+    state: Arc<State>,
     conversation_id: String,
-    user_id: String,
+    message_type: String,
+    content: String,
 ) {
-    // Obtenir ou créer un broadcast channel pour cette conversation
-    // et cloner le Sender pour l'utiliser dans les tâches
-    let tx = {
-        let mut subs = state.webrtc_broadcasts.write().await;
-        subs.entry(conversation_id.clone())
-            .or_insert_with(|| broadcast::channel(64).0)
-            .clone()
-    };
-    
-    // rx est le receiver pour recevoir les messages broadcast
-    let rx = tx.subscribe();
-    
-    // Créer un canal pour envoyer des messages à la socket
-    let (send_tx, mut send_rx) = mpsc::channel::<WsSendMessage>(64);
-    let (mut ws_sink, mut ws_stream) = socket.split();
-
-    // Annoncer l'arrivée dans la conversation
-    let join_signal = CallSignal {
-        conversation_id: conversation_id.clone(),
-        from_user_id: user_id.clone(),
-        to_user_id: None,
-        signal_type: "join".to_string(),
-        sdp: None,
-        candidate: None,
-    };
-    
-    // Envoyer le signal de join à tous les abonnés (y compris nous-mêmes)
-    let _ = tx.send(join_signal.clone());
-
-    // Envoyer le signal de join au nouvel arrivant via WebSocket
-    if let Ok(json) = serde_json::to_string(&join_signal) {
-        let _ = ws_sink.send(WsMessage::Text(json)).await;
+    let mut broadcasts = state.webrtc_broadcasts.write().await;
+    if let Some(tx) = broadcasts.get(&conversation_id) {
+        let _ = tx.send(format!(
+            "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
+            message_type,
+            content,
+            conversation_id
+        ));
     }
+}
 
-    // Tâche d'envoi : reçoit du canal mpsc et envoie au client WebSocket
-    let send_task = tokio::spawn(async move {
-        while let Some(msg) = send_rx.recv().await {
-            match msg {
-                WsSendMessage::Text(text) => {
-                    if ws_sink.send(WsMessage::Text(text)).await.is_err() {
-                        break;
-                    }
-                }
-                WsSendMessage::Close => {
-                    let _ = ws_sink.send(WsMessage::Close(None)).await;
-                    break;
-                }
+pub async fn ws_handler(
+    State(state): AxumState<Arc<State>>,
+    axum::extract::ws::WebSocketUpgrade {
+        mut handler,
+        ..
+    }: WebSocketUpgrade,
+) -> impl IntoResponse {
+    handler.on_upgrade(|socket: WebSocket| handle_socket(socket, state))
+}
+
+async fn handle_socket(socket: WebSocket, state: Arc<State>) {
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
+
+    let send_task: JoinHandle<()> = tokio::spawn(async move {
+        while let Some(message) = rx.recv().await {
+            if let Err(e) = ws_sender.send(Message::Text(message)).await {
+                eprintln!("WebSocket send error: {}", e);
+                break;
             }
         }
     });
 
-    // Variables clonées pour la tâche de réception
-    let tx_for_broadcast = tx.clone(); // Pour broadcaster aux autres
-    let user_id_recv = user_id.clone();
-    let conversation_id_recv = conversation_id.clone();
-    let send_tx_clone = send_tx.clone();
+    let recv_task: JoinHandle<()> = tokio::spawn(async move {
+        while let Some(result) = ws_receiver.next().await {
+            match result {
+                Ok(Message::Text(text)) => {
+                    if let Ok(call_message) = serde_json::from_str::<CallMessage>(&text) {
+                        let state = state.clone();
+                        let tx = tx.clone();
 
-    // Tâche de réception : reçoit du client et broadcast
-    let recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = ws_stream.next().await {
-            match msg {
-                WsMessage::Text(text) => {
-                    if let Ok(mut signal) = serde_json::from_str::<CallSignal>(&text) {
-                        // Forcer les champs critiques (sécurité)
-                        signal.from_user_id = user_id_recv.clone();
-                        signal.conversation_id = conversation_id_recv.clone();
-                        // broadcast aux autres participants
-                        let _ = tx_for_broadcast.send(signal);
+                        tokio::spawn(async move {
+                            handle_call_message(state, call_message, tx).await;
+                        });
                     }
                 }
-                WsMessage::Close(_) => {
-                    // Annoncer le départ à tous les autres
-                    let leave_signal = CallSignal {
-                        conversation_id: conversation_id_recv,
-                        from_user_id: user_id_recv,
-                        to_user_id: None,
-                        signal_type: "leave".to_string(),
-                        sdp: None,
-                        candidate: None,
-                    };
-                    let _ = tx_for_broadcast.send(leave_signal);
-                    let _ = send_tx_clone.send(WsSendMessage::Close).await;
+                Ok(Message::Binary(data)) => {
+                    eprintln!("Received binary data: {:?}", data);
+                }
+                Ok(Message::Ping(_)) => {
+                    eprintln!("Received ping");
+                }
+                Ok(Message::Pong(_)) => {
+                    eprintln!("Received pong");
+                }
+                Ok(Message::Close(_)) => {
+                    eprintln!("WebSocket closed");
                     break;
                 }
-                _ => {}
-            }
-        }
-    });
-
-    // Variables pour la tâche broadcast (recevoir du channel et envoyer au client)
-    let user_id_for_send = user_id;
-    let conversation_id_for_send = conversation_id;
-    let send_tx_for_send = send_tx;
-
-    // Tâche de broadcast : reçoit du broadcast channel et envoie au client
-    let broadcast_task = tokio::spawn(async move {
-        let mut rx = rx;
-        while let Ok(signal) = rx.recv().await {
-            // Ne pas renvoyer ses propres signaux
-            if signal.from_user_id == user_id_for_send {
-                continue;
-            }
-            // Ne pas envoyer les signaux d'autres conversations
-            if signal.conversation_id != conversation_id_for_send {
-                continue;
-            }
-            if let Ok(json) = serde_json::to_string(&signal) {
-                if send_tx_for_send.send(WsSendMessage::Text(json)).await.is_err() {
+                Err(e) => {
+                    eprintln!("WebSocket error: {}", e);
                     break;
                 }
             }
@@ -199,20 +121,110 @@ async fn handle_call_socket(
 
     let mut send_task_mut = send_task;
     let mut recv_task_mut = recv_task;
-    let mut broadcast_task_mut = broadcast_task;
 
     tokio::select! {
         _ = &mut send_task_mut => {
-            recv_task_mut.abort();
-            broadcast_task_mut.abort();
+            eprintln!("Send task ended");
         }
         _ = &mut recv_task_mut => {
-            send_task_mut.abort();
-            broadcast_task_mut.abort();
+            eprintln!("Receive task ended");
         }
-        _ = &mut broadcast_task_mut => {
-            send_task_mut.abort();
-            recv_task_mut.abort();
+    }
+
+    let _ = tokio::join!(send_task, recv_task);
+}
+
+async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio::sync::mpsc::Sender<String>) {
+    match message.r#type.as_str() {
+        "call_request" => {
+            let conversation_id = format!("{}-{}", message.from, message.to);
+
+            let (sender, rx) = broadcast::channel::<String>(100);
+
+            let signaling_data = SignalingData {
+                call_id: message.call_id.clone(),
+                from_user_id: message.from.clone(),
+                to_user_id: message.to.clone(),
+                sender: sender.clone(),
+                _rx: rx,
+            };
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            subs.entry(conversation_id.clone())
+                .or_insert_with(|| Arc::new(RwLock::new(sender)));
+
+            let _ = sender.send(serde_json::to_string(&CallMessage {
+                r#type: "incoming_call".to_string(),
+                from: message.from.clone(),
+                to: message.to.clone(),
+                sdp: None,
+                candidate: None,
+                call_id: message.call_id.clone(),
+            }));
+
+            let mut active_calls = state.active_calls.write().await;
+            active_calls.insert(message.call_id.clone(), signaling_data);
+
+            println!("Call request from {} to {}", message.from, message.to);
+        }
+        "call_response" => {
+            let conversation_id = format!("{}-{}", message.from, message.to);
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            let sender = subs.get(&conversation_id).cloned();
+
+            if let Some(tx_lock) = sender {
+                let sender_inner = tx_lock.write().await;
+                let _ = sender_inner.send(serde_json::to_string(&message));
+            }
+
+            println!("Call response from {} to {}", message.from, message.to);
+        }
+        "ice_candidate" => {
+            let conversation_id = format!("{}-{}", message.from, message.to);
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            let sender = subs.get(&conversation_id).cloned();
+
+            if let Some(tx_lock) = sender {
+                let sender_inner = tx_lock.write().await;
+                let _ = sender_inner.send(serde_json::to_string(&message));
+            }
+
+            println!("ICE candidate from {} to {}", message.from, message.to);
+        }
+        "end_call" => {
+            let conversation_id = format!("{}-{}", message.from, message.to);
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            let sender = subs.get(&conversation_id).cloned();
+
+            if let Some(tx_lock) = sender {
+                let sender_inner = tx_lock.write().await;
+                let _ = sender_inner.send(serde_json::to_string(&message));
+            }
+
+            let mut active_calls = state.active_calls.write().await;
+            active_calls.remove(&message.call_id);
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            subs.remove(&conversation_id);
+
+            println!("Call ended from {} to {}", message.from, message.to);
+        }
+        "offer" | "answer" => {
+            let conversation_id = format!("{}-{}", message.from, message.to);
+
+            let mut subs = state.webrtc_broadcasts.write().await;
+            let sender = subs.get(&conversation_id).cloned();
+
+            if let Some(tx_lock) = sender {
+                let sender_inner = tx_lock.write().await;
+                let _ = sender_inner.send(serde_json::to_string(&message));
+            }
+        }
+        _ => {
+            println!("Unknown message type: {}", message.r#type);
         }
     }
 }
