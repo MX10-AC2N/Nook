@@ -2,9 +2,7 @@ use crate::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State as AxumState;
 use axum::response::IntoResponse;
-use futures_util::stream::SplitSink;
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -52,10 +50,11 @@ pub async fn broadcast_message(
     let broadcasts = state.webrtc_broadcasts.read().await;
     if let Some(tx) = broadcasts.get(&conversation_id) {
         let sender = tx.read().await;
+        let json_content = serde_json::to_string(&content).unwrap_or_default();
         let _ = sender.send(format!(
             "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
             message_type,
-            content,
+            json_content,
             conversation_id
         ));
     }
@@ -134,12 +133,12 @@ async fn handle_socket(socket: WebSocket, state: Arc<State>) {
     let _ = tokio::join!(send_task, recv_task);
 }
 
-async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio::sync::mpsc::Sender<String>) {
+async fn handle_call_message(state: Arc<State>, message: CallMessage, _tx: tokio::sync::mpsc::Sender<String>) {
     match message.r#type.as_str() {
         "call_request" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let (sender, _rx) = broadcast::channel::<String>(100);
+            let (sender, _) = broadcast::channel::<String>(100);
 
             let signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
@@ -148,18 +147,21 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
                 sender: sender.clone(),
             };
 
-            let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
-            subs.entry(conversation_id.clone())
-                .or_insert_with(|| Arc::new(RwLock::new(sender)));
+            let mut subs: std::collections::hash_map::Entry<'_, String, Arc<RwLock<broadcast::Sender<String>>>> = state.webrtc_broadcasts.write().await.entry(conversation_id.clone());
+            if subs.is_err() {
+                return;
+            }
+            subs.or_insert_with(|| Arc::new(RwLock::new(sender)));
 
-            let _ = sender.send(serde_json::to_string(&CallMessage {
+            let message_json = serde_json::to_string(&CallMessage {
                 r#type: "incoming_call".to_string(),
                 from: message.from.clone(),
                 to: message.to.clone(),
                 sdp: None,
                 candidate: None,
                 call_id: message.call_id.clone(),
-            }));
+            }).unwrap();
+            let _ = sender.send(message_json);
 
             let mut active_calls = state.active_calls.write().await;
             active_calls.insert(message.call_id.clone(), signaling_data);
@@ -173,8 +175,9 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
             let tx_lock = broadcasts.get(&conversation_id).cloned();
 
             if let Some(tx_arc) = tx_lock {
-                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
-                let _ = sender_inner.send(serde_json::to_string(&message));
+                let sender_inner = tx_arc.write().await;
+                let message_json = serde_json::to_string(&message).unwrap();
+                let _ = sender_inner.send(message_json);
             }
 
             println!("Call response from {} to {}", message.from, message.to);
@@ -186,8 +189,9 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
             let tx_lock = broadcasts.get(&conversation_id).cloned();
 
             if let Some(tx_arc) = tx_lock {
-                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
-                let _ = sender_inner.send(serde_json::to_string(&message));
+                let sender_inner = tx_arc.write().await;
+                let message_json = serde_json::to_string(&message).unwrap();
+                let _ = sender_inner.send(message_json);
             }
 
             println!("ICE candidate from {} to {}", message.from, message.to);
@@ -199,14 +203,15 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
             let tx_lock = broadcasts.get(&conversation_id).cloned();
 
             if let Some(tx_arc) = tx_lock {
-                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
-                let _ = sender_inner.send(serde_json::to_string(&message));
+                let sender_inner = tx_arc.write().await;
+                let message_json = serde_json::to_string(&message).unwrap();
+                let _ = sender_inner.send(message_json);
             }
 
             let mut active_calls = state.active_calls.write().await;
             active_calls.remove(&message.call_id);
 
-            let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
+            let mut subs = state.webrtc_broadcasts.write().await;
             subs.remove(&conversation_id);
 
             println!("Call ended from {} to {}", message.from, message.to);
@@ -218,8 +223,9 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
             let tx_lock = broadcasts.get(&conversation_id).cloned();
 
             if let Some(tx_arc) = tx_lock {
-                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
-                let _ = sender_inner.send(serde_json::to_string(&message));
+                let sender_inner = tx_arc.write().await;
+                let message_json = serde_json::to_string(&message).unwrap();
+                let _ = sender_inner.send(message_json);
             }
         }
         _ => {
