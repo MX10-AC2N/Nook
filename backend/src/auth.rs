@@ -59,7 +59,18 @@ pub struct SessionData {
     pub role: String,
 }
 
-// === Inscription (demande d'approbation) ===
+// Row struct for UserInfo queries
+#[derive(sqlx::FromRow)]
+struct UserInfoSqlxRow {
+    id: String,
+    username: String,
+    name: String,
+    role: String,
+    approved: bool,
+    needs_password_change: bool,
+}
+
+// === Inscription ===
 pub async fn register_handler(
     State(state): State,
     Json(payload): Json,
@@ -109,7 +120,7 @@ VALUES (?, ?, ?, ?, 'member', 0, 0)"
     }))
 }
 
-// === Connexion (admin ou utilisateur) ===
+// === Connexion ===
 pub async fn login_handler(
     State(state): State,
     Json(payload): Json,
@@ -257,7 +268,7 @@ WHERE s.token = ?"
 pub async fn pending_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, bool, bool)>(
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
@@ -265,15 +276,13 @@ FROM users WHERE approved = 0 ORDER BY created_at DESC"
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let users: Vec<UserInfo> = rows.into_iter().map(|(id, username, name, role, approved, needs_password_change)| {
-        UserInfo {
-            id,
-            username,
-            name,
-            role,
-            approved,
-            needs_password_change,
-        }
+    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        approved: row.approved,
+        needs_password_change: row.needs_password_change,
     }).collect();
 
     Ok(Json(users))
@@ -299,7 +308,7 @@ pub async fn approve_user_handler(
 pub async fn all_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows = sqlx::query_as::<_, (String, String, String, String, bool, bool)>(
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users ORDER BY created_at DESC"
     )
@@ -307,15 +316,13 @@ FROM users ORDER BY created_at DESC"
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let users: Vec<UserInfo> = rows.into_iter().map(|(id, username, name, role, approved, needs_password_change)| {
-        UserInfo {
-            id,
-            username,
-            name,
-            role,
-            approved,
-            needs_password_change,
-        }
+    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        approved: row.approved,
+        needs_password_change: row.needs_password_change,
     }).collect();
 
     Ok(Json(users))
