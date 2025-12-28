@@ -1,20 +1,13 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
-
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { Router } from '@roxi/routify';
+  import { page } from '$app/stores';
   import { authStore, logout } from '$lib/authStore';
-  import { currentTheme } from '$lib/themeStore';
   import { connectionError } from '$lib/chatStore';
   import { loadConversations } from '$lib/conversationStore';
   import { initCrypto } from '$lib/crypto';
-  import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
-  import ThemeInjector from '$lib/components/ThemeInjector.svelte';
+  import { currentTheme } from '$lib/ui/ThemeStore';
   
-  // États réactifs (runes mode obligatoire)
+  // États réactifs (Svelte 5 runes)
   let loading = $state(true);
   let appError = $state(null);
   let showMenu = $state(false);
@@ -42,7 +35,7 @@
     }
   }
 
-  // Réagir aux changements d'authentification (remplace la déclaration $: legacy)
+  // Réagir aux changements d'authentification (remplace $:)
   $effect(() => {
     if ($authStore.isAuthenticated !== undefined) {
       initApp();
@@ -103,107 +96,109 @@
   });
 </script>
 
-<ThemeInjector />
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nook - Messagerie familiale</title>
+</svelte:head>
 
-<div class="app-container theme-{$currentTheme}">
-  {#if loading}
-    <div class="loading-overlay">
-      <LoadingSpinner size="large" />
-      <p>Chargement de Nook...</p>
+{#if loading}
+  <div class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <p>Chargement de Nook...</p>
+  </div>
+{:else if appError}
+  <div class="error-overlay">
+    <div class="error-content">
+      <h2>❌ Erreur système</h2>
+      <p>{appError}</p>
+      <button onclick={() => location.reload()} class="retry-button">
+        🔄 Recharger l'application
+      </button>
     </div>
-  {:else if appError}
-    <div class="error-overlay">
-      <div class="error-content">
-        <h2>❌ Erreur système</h2>
-        <p>{appError}</p>
-        <button onclick={() => location.reload()} class="retry-button">
-          🔄 Recharger l'application
-        </button>
-      </div>
-    </div>
-  {:else}
-    <header class="app-header">
-      <div class="header-content">
+  </div>
+{:else}
+  <header class="app-header">
+    <div class="header-content">
+      {#if $authStore.isAuthenticated}
         <button class="menu-toggle" onclick={toggleMenu} aria-label="Menu">
           ☰
         </button>
-
-        <div class="logo">
-          <span class="logo-icon">🌱</span>
-          <span class="logo-text">Nook</span>
-        </div>
-
-        <div class="header-actions">
-          {#if $authStore.isAuthenticated}
-            <div class="user-info">
-              <span>{$authStore.user?.name}</span>
-              <button onclick={handleLogout} class="logout-button" title="Déconnexion (Ctrl+L)">
-                🔌
-              </button>
-            </div>
-          {/if}
-        </div>
-      </div>
-    </header>
-
-    <div class="app-content">
-      {#if showMenu && $authStore.isAuthenticated}
-        <div class="side-menu-overlay" onclick={closeMenu}></div>
-        <nav class="side-menu">
-          <div class="menu-header">
-            <h3>Menu Nook</h3>
-            <button class="close-menu" onclick={closeMenu} aria-label="Fermer le menu">
-              ✕
-            </button>
-          </div>
-
-          <ul class="menu-items">
-            <li>
-              <a href="/chat" onclick={closeMenu}>
-                <span>💬</span> Chat
-              </a>
-            </li>
-            <li>
-              <a href="/admin" onclick={closeMenu}>
-                <span>👑</span> Administration
-              </a>
-            </li>
-            <li>
-              <a href="/settings" onclick={closeMenu}>
-                <span>⚙️</span> Paramètres
-              </a>
-            </li>
-            <li>
-              <a href="/help" onclick={closeMenu}>
-                <span>❓</span> Aide
-              </a>
-            </li>
-          </ul>
-
-          <div class="menu-footer">
-            <p>Version 3.0 • Système simplifié</p>
-            <button onclick={handleLogout} class="menu-logout">
-              🔌 Déconnexion
-            </button>
-          </div>
-        </nav>
       {/if}
 
-      <main class="main-content">
-        {#if $connectionError}
-          <div class="connection-error">
-            <p>{$connectionError}</p>
-            <button onclick={() => connectionError.set(null)} class="error-dismiss">
-              ✕
+      <div class="logo">
+        <span class="logo-icon">🌱</span>
+        <span class="logo-text">Nook</span>
+      </div>
+
+      <div class="header-actions">
+        {#if $authStore.isAuthenticated}
+          <div class="user-info">
+            <span>{$authStore.user?.name}</span>
+            <button onclick={handleLogout} class="logout-button" title="Déconnexion (Ctrl+L)">
+              🔌
             </button>
           </div>
         {/if}
-
-        <!-- Routify 3 : le router rend directement les routes (+page.svelte, +layout.svelte, etc.) -->
-        <Router />
-      </main>
+      </div>
     </div>
-  {/if}
+  </header>
+
+  <div class="app-content">
+    {#if showMenu && $authStore.isAuthenticated}
+      <div class="side-menu-overlay" onclick={closeMenu}></div>
+      <nav class="side-menu">
+        <div class="menu-header">
+          <h3>Menu Nook</h3>
+          <button class="close-menu" onclick={closeMenu} aria-label="Fermer le menu">
+            ✕
+          </button>
+        </div>
+
+        <ul class="menu-items">
+          <li>
+            <a href="/chat" onclick={closeMenu}>
+              <span>💬</span> Chat
+            </a>
+          </li>
+          <li>
+            <a href="/admin" onclick={closeMenu}>
+              <span>👑</span> Administration
+            </a>
+          </li>
+          <li>
+            <a href="/settings" onclick={closeMenu}>
+              <span>⚙️</span> Paramètres
+            </a>
+          </li>
+          <li>
+            <a href="/help" onclick={closeMenu}>
+              <span>❓</span> Aide
+            </a>
+          </li>
+        </ul>
+
+        <div class="menu-footer">
+          <p>Version 3.0 • Système simplifié</p>
+          <button onclick={handleLogout} class="menu-logout">
+            🔌 Déconnexion
+          </button>
+        </div>
+      </nav>
+    {/if}
+
+    <main class="main-content">
+      {#if $connectionError}
+        <div class="connection-error">
+          <p>{$connectionError}</p>
+          <button onclick={() => connectionError.set(null)} class="error-dismiss">
+            ✕
+          </button>
+        </div>
+      {/if}
+
+      <slot />
+    </main>
+  </div>
 
   <footer class="app-footer">
     <p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
@@ -217,10 +212,9 @@
       {/if}
     </div>
   </footer>
-</div>
+{/if}
 
 <style>
-  /* Ton style reste exactement identique – rien à changer */
   :global(html, body) {
     margin: 0;
     padding: 0;
@@ -231,14 +225,40 @@
     overflow-x: hidden;
   }
 
-  .app-container {
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
-    position: relative;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
   }
 
-  .loading-overlay, .error-overlay {
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border-color);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .loading-overlay p {
+    margin-top: 1rem;
+    font-size: 1.2rem;
+    color: var(--primary);
+  }
+
+  .error-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -249,13 +269,6 @@
     justify-content: center;
     align-items: center;
     z-index: 1000;
-    backdrop-filter: blur(5px);
-  }
-
-  .loading-overlay p {
-    margin-top: 1rem;
-    font-size: 1.2rem;
-    color: var(--primary);
   }
 
   .error-content {
@@ -264,6 +277,7 @@
     background: white;
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    max-width: 400px;
   }
 
   .error-content h2 {
@@ -285,7 +299,6 @@
 
   .retry-button:hover {
     background: #43a047;
-    transform: translateY(-1px);
   }
 
   .app-header {
@@ -295,7 +308,6 @@
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   }
 
   .header-content {
@@ -304,7 +316,6 @@
     justify-content: space-between;
     max-width: 1200px;
     margin: 0 auto;
-    width: 100%;
   }
 
   .menu-toggle {
@@ -315,11 +326,6 @@
     color: var(--text-color);
     padding: 0.5rem;
     border-radius: 8px;
-    transition: all 0.2s;
-  }
-
-  .menu-toggle:hover {
-    background: var(--hover-bg);
   }
 
   .logo {
@@ -328,10 +334,6 @@
     gap: 0.5rem;
     font-weight: bold;
     font-size: 1.25rem;
-  }
-
-  .logo-icon {
-    font-size: 1.5rem;
   }
 
   .header-actions {
@@ -353,13 +355,6 @@
     cursor: pointer;
     color: var(--text-color);
     padding: 0.5rem;
-    border-radius: 8px;
-    transition: all 0.2s;
-  }
-
-  .logout-button:hover {
-    background: var(--hover-bg);
-    color: #f44336;
   }
 
   .app-content {
@@ -392,8 +387,6 @@
     border-right: 1px solid var(--border-color);
     padding: 1rem;
     z-index: 95;
-    transform: translateX(0);
-    transition: transform 0.3s ease;
     overflow-y: auto;
   }
 
@@ -412,7 +405,6 @@
     font-size: 1.5rem;
     cursor: pointer;
     color: var(--text-color);
-    padding: 0.25rem;
   }
 
   .menu-items {
@@ -433,13 +425,11 @@
     border-radius: 12px;
     text-decoration: none;
     color: var(--text-color);
-    transition: all 0.2s;
     font-weight: 500;
   }
 
   .menu-items a:hover {
     background: var(--hover-bg);
-    transform: translateX(2px);
   }
 
   .menu-footer {
@@ -460,17 +450,11 @@
     width: 100%;
     cursor: pointer;
     margin-top: 0.5rem;
-    transition: all 0.2s;
-  }
-
-  .menu-logout:hover {
-    background: #d32f2f;
   }
 
   .main-content {
     flex: 1;
     min-height: calc(100vh - 120px);
-    padding: 1rem;
     position: relative;
   }
 
@@ -488,12 +472,6 @@
     align-items: center;
     gap: 1rem;
     z-index: 1000;
-    animation: slideUp 0.3s ease-out;
-  }
-
-  @keyframes slideUp {
-    from { transform: translateX(-50%) translateY(20px); opacity: 0; }
-    to { transform: translateX(-50%) translateY(0); opacity: 1; }
   }
 
   .error-dismiss {
@@ -502,8 +480,6 @@
     font-size: 1.2rem;
     cursor: pointer;
     color: #c62828;
-    padding: 0.25rem;
-    border-radius: 50%;
   }
 
   .app-footer {
@@ -525,11 +501,8 @@
   }
 
   /* Thèmes */
-  .theme-jardin-secret {
+  :global(.theme-jardin-secret) {
     --primary: #4CAF50;
-    --primary-dark: #388E3C;
-    --primary-light: #E8F5E9;
-    --secondary: #8BC34A;
     --bg-color: #F8FDF8;
     --text-color: #333333;
     --text-secondary: #666666;
@@ -540,11 +513,8 @@
     --hover-bg: #E8F5E8;
   }
 
-  .theme-space-hub {
+  :global(.theme-space-hub) {
     --primary: #2196F3;
-    --primary-dark: #1976D2;
-    --primary-light: #E3F2FD;
-    --secondary: #3F51B5;
     --bg-color: #F5FAFF;
     --text-color: #333333;
     --text-secondary: #666666;
@@ -555,11 +525,8 @@
     --hover-bg: #E3F2FD;
   }
 
-  .theme-maison-chaleureuse {
+  :global(.theme-maison-chaleureuse) {
     --primary: #FF9800;
-    --primary-dark: #E65100;
-    --primary-light: #FFF3E0;
-    --secondary: #FF5722;
     --bg-color: #FFF9F5;
     --text-color: #333333;
     --text-secondary: #666666;
@@ -570,7 +537,10 @@
     --hover-bg: #FFF3E0;
   }
 
-  /* Responsive */
+  :global(.theme-jardin-secret) { --bg-color: #F8FDF8; }
+  :global(.theme-space-hub) { --bg-color: #F5FAFF; }
+  :global(.theme-maison-chaleureuse) { --bg-color: #FFF9F5; }
+
   @media (max-width: 768px) {
     .side-menu {
       width: 250px;
@@ -578,10 +548,6 @@
     
     .app-content {
       flex-direction: column;
-      padding: 0.5rem;
-    }
-    
-    .main-content {
       padding: 0.5rem;
     }
     
@@ -601,10 +567,6 @@
     
     .user-info span {
       display: none;
-    }
-    
-    .header-actions {
-      gap: 0.5rem;
     }
   }
 </style>
