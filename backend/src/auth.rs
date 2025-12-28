@@ -268,7 +268,7 @@ WHERE s.token = ?"
 pub async fn pending_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+    let rows = sqlx::query_as::<_, UserInfoSqlxRow>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
@@ -308,7 +308,7 @@ pub async fn approve_user_handler(
 pub async fn all_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+    let rows = sqlx::query_as::<_, UserInfoSqlxRow>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users ORDER BY created_at DESC"
     )
