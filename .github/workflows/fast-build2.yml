@@ -293,7 +293,7 @@ jobs:
 
       - name: Installer dépendances
         run: |
-          if [ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]; then
+          if [ "${{ steps.npm-cache.outputs.cache-hit }}" == "true" ]; then
             echo "🔄 Installation des dépendances npm..."
             npm ci --no-audit --no-fund
             echo "✅ Dépendances installées"
