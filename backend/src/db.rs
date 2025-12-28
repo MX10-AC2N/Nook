@@ -57,16 +57,14 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
             }
         })
         .collect();
-
     migration_files.sort();
 
     // Appliquer chaque migration
     for migration_path in migration_files {
         let migration_name = migration_path.file_name().unwrap().to_str().unwrap();
         println!("Application de la migration: {}", migration_name);
-
         let sql = fs::read_to_string(&migration_path).unwrap();
-        
+
         // Exécuter chaque instruction SQL séparément
         for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
             sqlx::query(statement.trim())
@@ -83,9 +81,9 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
 pub async fn get_user_conversations(
     pool: &Pool<Sqlite>,
     user_id: &str,
-) -> Result<Vec<HashMap<String, serde_json::Value>>, sqlx::Error> {
+) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     let query = r#"
-        SELECT 
+        SELECT
             c.id,
             c.name,
             c.is_group,
@@ -105,10 +103,9 @@ pub async fn get_user_conversations(
         .fetch_all(pool)
         .await?;
 
-    let mut conversations = Vec::new();
+    let mut conversations: Vec<serde_json::Value> = Vec::new();
     for row in rows {
         let (id, name, is_group, created_at, last_message_at, last_message_preview, unread_count, participant_count) = row;
-        
         let mut conv = serde_json::Map::new();
         conv.insert("id".to_string(), serde_json::Value::String(id));
         conv.insert("name".to_string(), serde_json::Value::String(name.unwrap_or_default()));
@@ -118,7 +115,6 @@ pub async fn get_user_conversations(
         conv.insert("last_message_preview".to_string(), serde_json::Value::String(last_message_preview.unwrap_or_default()));
         conv.insert("unread_count".to_string(), serde_json::Value::Number(unread_count.into()));
         conv.insert("participant_count".to_string(), serde_json::Value::Number(participant_count.into()));
-        
         conversations.push(serde_json::Value::Object(conv));
     }
 
@@ -129,9 +125,9 @@ pub async fn get_user_conversations(
 pub async fn get_conversation_participants(
     pool: &Pool<Sqlite>,
     conversation_id: &str,
-) -> Result<Vec<HashMap<String, serde_json::Value>>, sqlx::Error> {
+) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     let query = r#"
-        SELECT 
+        SELECT
             u.id,
             u.name,
             u.username,
@@ -148,10 +144,9 @@ pub async fn get_conversation_participants(
         .fetch_all(pool)
         .await?;
 
-    let mut participants = Vec::new();
+    let mut participants: Vec<serde_json::Value> = Vec::new();
     for row in rows {
         let (id, name, username, role, approved, public_key) = row;
-        
         let mut participant = serde_json::Map::new();
         participant.insert("id".to_string(), serde_json::Value::String(id));
         participant.insert("name".to_string(), serde_json::Value::String(name));
@@ -159,7 +154,6 @@ pub async fn get_conversation_participants(
         participant.insert("role".to_string(), serde_json::Value::String(role));
         participant.insert("approved".to_string(), serde_json::Value::Bool(approved));
         participant.insert("public_key".to_string(), serde_json::Value::String(public_key.unwrap_or_default()));
-        
         participants.push(serde_json::Value::Object(participant));
     }
 
@@ -170,9 +164,9 @@ pub async fn get_conversation_participants(
 pub async fn get_conversation_messages(
     pool: &Pool<Sqlite>,
     conversation_id: &str,
-) -> Result<Vec<HashMap<String, serde_json::Value>>, sqlx::Error> {
+) -> Result<Vec<serde_json::Value>, sqlx::Error> {
     let query = r#"
-        SELECT 
+        SELECT
             m.id,
             m.conversation_id,
             m.sender_id,
@@ -200,20 +194,20 @@ pub async fn get_conversation_messages(
     "#;
 
     let rows = sqlx::query_as::<_, (
-        String, String, String, String, Option<String>, Option<String>, Option<String>, 
+        String, String, String, String, Option<String>, Option<String>, Option<String>,
         Option<String>, Option<String>, Option<i64>, i64, String
     )>(query)
         .bind(conversation_id)
         .fetch_all(pool)
         .await?;
 
-    let mut messages = Vec::new();
+    let mut messages: Vec<serde_json::Value> = Vec::new();
     for row in rows {
         let (
             id, conversation_id, sender_id, sender_name, content, encrypted_keys, nonce,
             media_type, media_url, duration, timestamp, reactions_json
         ) = row;
-        
+
         let mut message = serde_json::Map::new();
         message.insert("id".to_string(), serde_json::Value::String(id));
         message.insert("conversation_id".to_string(), serde_json::Value::String(conversation_id));
@@ -226,7 +220,7 @@ pub async fn get_conversation_messages(
         message.insert("media_url".to_string(), serde_json::Value::String(media_url.unwrap_or_default()));
         message.insert("duration".to_string(), serde_json::Value::Number(duration.unwrap_or(0).into()));
         message.insert("timestamp".to_string(), serde_json::Value::Number(timestamp.into()));
-        
+
         // Parse les réactions JSON
         match serde_json::from_str::<serde_json::Value>(&reactions_json) {
             Ok(reactions) => {
@@ -236,7 +230,7 @@ pub async fn get_conversation_messages(
                 message.insert("reactions".to_string(), serde_json::Value::Object(serde_json::Map::new()));
             }
         }
-        
+
         messages.push(serde_json::Value::Object(message));
     }
 
