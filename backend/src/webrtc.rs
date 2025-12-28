@@ -2,6 +2,8 @@ use crate::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State as AxumState;
 use axum::response::IntoResponse;
+use futures_util::stream::{SplitSink, SplitStream, StreamExt};
+use futures_util::SinkExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -71,13 +73,15 @@ pub async fn ws_handler(
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<State>) {
-    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let ws_sender: SplitSink<WebSocket, Message> = socket.split().0;
+    let mut ws_receiver: SplitStream<WebSocket> = socket.split().1;
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
 
     let send_task: JoinHandle<()> = tokio::spawn(async move {
+        let mut sender = ws_sender;
         while let Some(message) = rx.recv().await {
-            if let Err(e) = ws_sender.send(Message::Text(message)).await {
+            if let Err(e) = sender.send(Message::Text(message)).await {
                 eprintln!("WebSocket send error: {}", e);
                 break;
             }
@@ -85,7 +89,8 @@ async fn handle_socket(socket: WebSocket, state: Arc<State>) {
     });
 
     let recv_task: JoinHandle<()> = tokio::spawn(async move {
-        while let Some(result) = ws_receiver.next().await {
+        let mut receiver = ws_receiver;
+        while let Some(result) = receiver.next().await {
             match result {
                 Ok(Message::Text(text)) => {
                     if let Ok(call_message) = serde_json::from_str::<CallMessage>(&text) {
