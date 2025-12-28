@@ -11,11 +11,10 @@ pub async fn start_cleanup_task(uploads_dir: &str) {
 
 async fn cleanup_old_files(uploads_dir: &str) {
     let now = std::time::SystemTime::now();
-    if let Ok(entries) = tokio::fs::read_dir(uploads_dir).await {
+    if let Ok(mut entries) = tokio::fs::read_dir(uploads_dir).await {
         let mut tasks = vec![];
         let cutoff = Duration::from_secs(7 * 24 * 3600); // 7 jours
 
-        tokio::pin!(entries);
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
             if let Ok(metadata) = tokio::fs::metadata(&path).await {
@@ -26,6 +25,7 @@ async fn cleanup_old_files(uploads_dir: &str) {
                 }
             }
         }
-        futures_util::future::join_all(tasks).await;
+        // Utiliser tokio::join_all au lieu de futures_util::future::join_all
+        tokio::join_all(tasks).await;
     }
 }
