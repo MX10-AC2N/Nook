@@ -29,7 +29,6 @@ pub struct SignalingData {
     pub from_user_id: String,
     pub to_user_id: String,
     pub sender: broadcast::Sender<String>,
-    pub _rx: broadcast::Receiver<String>,
 }
 
 pub struct SharedCallState {
@@ -50,9 +49,10 @@ pub async fn broadcast_message(
     message_type: String,
     content: String,
 ) {
-    let mut broadcasts = state.webrtc_broadcasts.write().await;
+    let broadcasts = state.webrtc_broadcasts.read().await;
     if let Some(tx) = broadcasts.get(&conversation_id) {
-        let _ = tx.send(format!(
+        let sender = tx.read().await;
+        let _ = sender.send(format!(
             "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
             message_type,
             content,
@@ -139,17 +139,16 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
         "call_request" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let (sender, rx) = broadcast::channel::<String>(100);
+            let (sender, _rx) = broadcast::channel::<String>(100);
 
             let signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
                 from_user_id: message.from.clone(),
                 to_user_id: message.to.clone(),
                 sender: sender.clone(),
-                _rx: rx,
             };
 
-            let mut subs = state.webrtc_broadcasts.write().await;
+            let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
             subs.entry(conversation_id.clone())
                 .or_insert_with(|| Arc::new(RwLock::new(sender)));
 
@@ -170,11 +169,11 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
         "call_response" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let mut subs = state.webrtc_broadcasts.write().await;
-            let sender = subs.get(&conversation_id).cloned();
+            let broadcasts = state.webrtc_broadcasts.read().await;
+            let tx_lock = broadcasts.get(&conversation_id).cloned();
 
-            if let Some(tx_lock) = sender {
-                let sender_inner = tx_lock.write().await;
+            if let Some(tx_arc) = tx_lock {
+                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
                 let _ = sender_inner.send(serde_json::to_string(&message));
             }
 
@@ -183,11 +182,11 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
         "ice_candidate" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let mut subs = state.webrtc_broadcasts.write().await;
-            let sender = subs.get(&conversation_id).cloned();
+            let broadcasts = state.webrtc_broadcasts.read().await;
+            let tx_lock = broadcasts.get(&conversation_id).cloned();
 
-            if let Some(tx_lock) = sender {
-                let sender_inner = tx_lock.write().await;
+            if let Some(tx_arc) = tx_lock {
+                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
                 let _ = sender_inner.send(serde_json::to_string(&message));
             }
 
@@ -196,18 +195,18 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
         "end_call" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let mut subs = state.webrtc_broadcasts.write().await;
-            let sender = subs.get(&conversation_id).cloned();
+            let broadcasts = state.webrtc_broadcasts.read().await;
+            let tx_lock = broadcasts.get(&conversation_id).cloned();
 
-            if let Some(tx_lock) = sender {
-                let sender_inner = tx_lock.write().await;
+            if let Some(tx_arc) = tx_lock {
+                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
                 let _ = sender_inner.send(serde_json::to_string(&message));
             }
 
             let mut active_calls = state.active_calls.write().await;
             active_calls.remove(&message.call_id);
 
-            let mut subs = state.webrtc_broadcasts.write().await;
+            let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
             subs.remove(&conversation_id);
 
             println!("Call ended from {} to {}", message.from, message.to);
@@ -215,11 +214,11 @@ async fn handle_call_message(state: Arc<State>, message: CallMessage, tx: tokio:
         "offer" | "answer" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
 
-            let mut subs = state.webrtc_broadcasts.write().await;
-            let sender = subs.get(&conversation_id).cloned();
+            let broadcasts = state.webrtc_broadcasts.read().await;
+            let tx_lock = broadcasts.get(&conversation_id).cloned();
 
-            if let Some(tx_lock) = sender {
-                let sender_inner = tx_lock.write().await;
+            if let Some(tx_arc) = tx_lock {
+                let sender_inner: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx_arc.write().await;
                 let _ = sender_inner.send(serde_json::to_string(&message));
             }
         }
