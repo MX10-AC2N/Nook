@@ -51,7 +51,7 @@ pub async fn broadcast_message(
 ) {
     let broadcasts: tokio::sync::RwLockReadGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.read().await;
     if let Some(tx) = broadcasts.get(&conversation_id) {
-        let sender: tokio::sync::RwLockWriteGuard<'_, broadcast::Sender<String>> = tx.read().await;
+        let sender: &broadcast::Sender<String> = &*tx.read().await;
         let json_content = serde_json::to_string(&content).unwrap_or_default();
         let _ = sender.send(format!(
             "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
@@ -64,17 +64,13 @@ pub async fn broadcast_message(
 
 pub async fn ws_handler(
     State(state): AxumState<Arc<State>>,
-    axum::extract::ws::WebSocketUpgrade {
-        mut handler,
-        ..
-    }: WebSocketUpgrade,
+    ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    handler.on_upgrade(|socket: WebSocket| handle_socket(socket, state))
+    ws.on_upgrade(|socket: WebSocket| handle_socket(socket, state))
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<State>) {
-    let ws_sender: SplitSink<WebSocket, Message> = socket.split().0;
-    let mut ws_receiver: SplitStream<WebSocket> = socket.split().1;
+    let (ws_sender, ws_receiver) = socket.split();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
 
