@@ -1,14 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { authStore, isAuthenticated, isAdmin, authLoading } from '$lib/authStore';
+  import { authStore, isAuthenticated, isAdmin } from '$lib/authStore';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
 
   let { children } = $props();
-
   let showMenu = $state(false);
-  let appError = $state(null);
+  let appError = $state<string | null>(null);
   let loading = $state(true);
 
   const navItems = [
@@ -23,9 +22,19 @@
     showMenu = !showMenu;
   }
 
+  function closeMenu() {
+    showMenu = false;
+  }
+
+  function handleMenuKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      closeMenu();
+    }
+  }
+
   async function handleLogout() {
     await fetch('/api/logout', { method: 'POST', credentials: 'include' });
-    showMenu = false;
+    closeMenu();
     goto('/login');
   }
 
@@ -42,281 +51,97 @@
   });
 </script>
 
-<main>
-  <div class="main-content">
-    {#if loading}
-      <div class="loading-screen">
-        <div class="loading-spinner"></div>
-        <p>Chargement de Nook...</p>
-      </div>
-    {:else if appError}
-      <div class="error-screen">
-        <h1>❌ Erreur système</h1>
-        <p>{appError}</p>
-        <button onclick={() => window.location.reload()} class="retry-button">
-          🔄 Recharger l'application
+{#if loading}
+  <div class="loading-screen">
+    <div class="loading-spinner"></div>
+    <p>Chargement de Nook...</p>
+  </div>
+{:else if appError}
+  <div class="error-screen">
+    <div class="error-content">
+      <h1>❌ Erreur système</h1>
+      <p class="error-title">================</p>
+      <p class="error-message">{appError}</p>
+      <button onclick={() => window.location.reload()} class="retry-button">
+        🔄 Recharger l'application
+      </button>
+    </div>
+  </div>
+{:else}
+  <header class="app-header">
+    <button onclick={toggleMenu} class="menu-toggle" aria-label="Ouvrir le menu de navigation">
+      ☰
+    </button>
+
+    <h1>🌱 Nook</h1>
+
+    {#if $isAuthenticated}
+      <span class="user-name">{$authStore.user?.name}</span>
+      <button onclick={handleLogout} class="logout-btn" aria-label="Déconnexion">
+        🔌
+      </button>
+    {/if}
+  </header>
+
+  {#if showMenu}
+    <button 
+      class="menu-overlay" 
+      onclick={closeMenu}
+      aria-label="Fermer le menu"
+    ></button>
+    <nav 
+      class="menu" 
+      role="dialog" 
+      aria-label="Menu de navigation"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="menu-header">
+        <h2>Menu Nook</h2>
+        <button onclick={closeMenu} class="close-menu" aria-label="Fermer le menu">
+          ✕
         </button>
       </div>
-    {:else}
-      <header>
-        <button onclick={toggleMenu} class="menu-toggle">☰</button>
-        <h1>🌱 Nook</h1>
-        {#if $isAuthenticated}
-          <span class="user-name">{$authStore.user?.name}</span>
-          <button onclick={handleLogout} class="logout-btn">🔌</button>
-        {/if}
-      </header>
 
-      {#if showMenu}
-        <aside class="menu-overlay" onclick={toggleMenu} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && toggleMenu()}>
-          <aside class="menu" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Menu de navigation">
-            <div class="menu-header">
-              <h2>Menu Nook</h2>
-              <button onclick={toggleMenu} class="close-btn">✕</button>
-            </div>
-            <nav>
-              {#each navItems as item}
-                {#if item.requiresAuth && !$isAuthenticated}
-                  <!-- Masqué si auth requise et non authentifié -->
-                {:else if item.requiresAdmin && !$isAdmin}
-                  <!-- Masqué si admin requis et non admin -->
-                {:else}
-                  <a href={item.path} onclick={toggleMenu}>{item.label}</a>
-                {/if}
-              {/each}
-            </nav>
-            <footer>
-              <p class="version">Version 3.0 • SvelteKit</p>
-              <button onclick={handleLogout} class="logout-button">🔌 Déconnexion</button>
-            </footer>
-          </aside>
-        </aside>
-      {/if}
+      <ul class="nav-list">
+        {#each navItems as item}
+          {#if item.requiresAuth && !$isAuthenticated}
+            <!-- Skip if auth required but not authenticated -->
+          {:else if item.requiresAdmin && !$isAdmin}
+            <!-- Skip if admin required but not admin -->
+          {:else}
+            <li>
+              <a href={item.path} onclick={closeMenu}>{item.label}</a>
+            </li>
+          {/if}
+        {/each}
+      </ul>
 
-      <div class="content">
-        {@render children()}
+      <div class="menu-footer">
+        <p class="version">Version 3.0 • SvelteKit</p>
+        <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
+          🔌 Déconnexion
+        </button>
       </div>
+    </nav>
+  {/if}
 
-      <footer>
-        <p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
-      </footer>
-    {/if}
-  </div>
-</main>
+  <main class="app-main">
+    {@render children()}
+  </main>
+
+  <footer class="app-footer">
+    <p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
+  </footer>
+{/if}
 
 <style>
   :global(body) {
     margin: 0;
-    font-family: var(--font-primary, Arial, sans-serif);
-    background-color: var(--bg-primary, #f0f2f5);
-    color: var(--text-primary, #333);
-  }
-
-  main {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    text-align: center;
-  }
-
-  .main-content {
-    display: flex;
-    flex-direction: column;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
     min-height: 100vh;
   }
 
-  /* Header */
-  header {
-    background: linear-gradient(135deg, var(--accent, #4CAF50), var(--accent-dark, #2E7D32));
-    color: white;
-    padding: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: var(--shadow-md);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-
-  .menu-toggle {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: var(--radius-md);
-    transition: background-color 0.2s;
-  }
-
-  .menu-toggle:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: 1.8rem;
-    flex-grow: 1;
-  }
-
-  .user-name {
-    margin-right: 1rem;
-    font-weight: bold;
-  }
-
-  .logout-btn {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: var(--radius-md);
-    transition: background-color 0.2s;
-  }
-
-  .logout-btn:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-  }
-
-  /* Menu overlay */
-  .menu-overlay {
-    position: fixed;
-    inset: 0;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    animation: fade-in 0.2s ease;
-  }
-
-  @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  .menu {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 280px;
-    height: 100%;
-    background: linear-gradient(180deg, var(--bg-secondary, #333) 0%, var(--bg-primary, #1a1a1a) 100%);
-    color: white;
-    padding: 1.5rem;
-    box-shadow: var(--shadow-xl);
-    display: flex;
-    flex-direction: column;
-    animation: slide-in 0.3s ease;
-  }
-
-  @keyframes slide-in {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(0); }
-  }
-
-  .menu-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    margin-bottom: 1rem;
-  }
-
-  .menu-header h2 {
-    margin: 0;
-    font-size: 1.5rem;
-  }
-
-  .close-btn {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: var(--radius-md);
-    transition: background-color 0.2s;
-  }
-
-  .close-btn:hover {
-    background-color: rgba(255, 255, 255, 0.2);
-  }
-
-  .menu nav {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .menu a {
-    color: white;
-    text-decoration: none;
-    padding: 0.8rem 1rem;
-    width: 100%;
-    text-align: left;
-    border-radius: var(--radius-md);
-    transition: all 0.2s;
-    margin-bottom: 0.25rem;
-  }
-
-  .menu a:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-    transform: translateX(5px);
-  }
-
-  .menu footer {
-    margin-top: auto;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-  }
-
-  .version {
-    font-size: 0.85rem;
-    opacity: 0.7;
-    margin-bottom: 1rem;
-  }
-
-  .logout-button {
-    background-color: var(--error, #f44336);
-    color: white;
-    border: none;
-    padding: 0.8rem 1.5rem;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    font-size: 1rem;
-    width: 100%;
-    transition: background-color 0.2s;
-  }
-
-  .logout-button:hover {
-    background-color: #d32f2f;
-  }
-
-  /* Content */
-  .content {
-    flex-grow: 1;
-    padding: 1rem;
-    max-width: 800px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  /* Footer */
-  footer {
-    background: linear-gradient(135deg, var(--bg-secondary, #333) 0%, var(--bg-primary, #1a1a1a) 100%);
-    color: white;
-    padding: 1.5rem;
-    margin-top: auto;
-  }
-
-  footer p {
-    margin: 0;
-    opacity: 0.8;
-  }
-
-  /* Loading screen */
   .loading-screen {
     display: flex;
     flex-direction: column;
@@ -329,8 +154,8 @@
   .loading-spinner {
     width: 48px;
     height: 48px;
-    border: 4px solid var(--border, #e2e8f0);
-    border-top-color: var(--accent, #4ade80);
+    border: 4px solid #e2e8f0;
+    border-top-color: #4ade80;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -339,55 +164,255 @@
     to { transform: rotate(360deg); }
   }
 
-  /* Error screen */
   .error-screen {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    gap: 1rem;
-    padding: 2rem;
+    padding: 1.5rem;
   }
 
-  .error-screen h1 {
-    color: var(--error, #ef4444);
-    margin: 0;
+  .error-content {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    max-width: 400px;
+  }
+
+  .error-content h1 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: #1e293b;
+  }
+
+  .error-title {
+    color: #64748b;
+    margin: 0 0 1.25rem 0;
+  }
+
+  .error-message {
+    color: #dc2626;
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
   }
 
   .retry-button {
-    background-color: var(--accent, #4ade80);
+    padding: 0.75rem 1.5rem;
+    background: #4ade80;
     color: white;
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-md);
-    cursor: pointer;
+    border-radius: 0.5rem;
     font-size: 1rem;
-    font-weight: 500;
+    font-weight: 600;
+    cursor: pointer;
     transition: all 0.2s;
   }
 
   .retry-button:hover {
-    background-color: var(--button-hover, #22c55e);
-    transform: translateY(-2px);
+    filter: brightness(1.1);
+    transform: translateY(-1px);
   }
 
-  /* Responsive */
-  @media (max-width: 480px) {
-    header {
-      padding: 0.75rem;
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .menu-toggle,
+  .logout-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: background 0.2s;
+  }
+
+  .menu-toggle:hover,
+  .logout-btn:hover {
+    background: #f1f5f9;
+  }
+
+  .app-header h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1e293b;
+    flex: 1;
+  }
+
+  .user-name {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin-right: 0.5rem;
+  }
+
+  .menu-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    cursor: pointer;
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .menu {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 300px;
+    max-width: 85vw;
+    background: white;
+    z-index: 201;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.25s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .menu-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+    color: #1e293b;
+  }
+
+  .close-menu {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    color: #64748b;
+    transition: all 0.2s;
+  }
+
+  .close-menu:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+  }
+
+  .nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 1rem 0;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .nav-list li a {
+    display: block;
+    padding: 0.85rem 1.5rem;
+    color: #334155;
+    text-decoration: none;
+    transition: all 0.2s;
+    font-size: 1rem;
+  }
+
+  .nav-list li a:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+  }
+
+  .menu-footer {
+    padding: 1.25rem 1.5rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .version {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin: 0 0 0.75rem 0;
+  }
+
+  .logout-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: none;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    color: #64748b;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .logout-link:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+  }
+
+  .app-main {
+    min-height: calc(100vh - 140px);
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .app-footer {
+    text-align: center;
+    padding: 1.25rem;
+    color: #64748b;
+    font-size: 0.85rem;
+    border-top: 1px solid #e2e8f0;
+    background: white;
+  }
+
+  .app-footer p {
+    margin: 0;
+  }
+
+  @media (max-width: 640px) {
+    .app-header {
+      padding: 0.85rem 1rem;
     }
 
-    header h1 {
-      font-size: 1.4rem;
+    .app-header h1 {
+      font-size: 1.1rem;
+    }
+
+    .app-main {
+      padding: 1rem;
     }
 
     .menu {
-      width: 85%;
-    }
-
-    .content {
-      padding: 0.75rem;
+      width: 100%;
+      max-width: none;
     }
   }
 </style>
