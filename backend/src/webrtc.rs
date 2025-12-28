@@ -1,8 +1,5 @@
 // backend/src/webrtc.rs
 // Signaling WebRTC pour appels 1:1 et groupes
-// Architecture : un WebSocket par conversation
-// Chaque signal inclut conversation_id, from, (optionnel) to, type, sdp, candidate
-// Aucune donnée persistée — signaling éphémère via broadcast local
 use axum::{
     extract::{
         ws::{Message as WsMessage, WebSocket, WebSocketUpgrade},
@@ -76,7 +73,7 @@ pub async fn call_ws_handler(
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
-    let user_id: String = row.try_get("id").unwrap_or_default();
+    let user_id: String = user_row.try_get("id").unwrap_or_default();
 
     if user_id.is_empty() {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -202,9 +199,14 @@ async fn handle_call_socket(
         }
     });
 
-    // Nettoyage à la fin - utiliser abort sur les tâches
+    // Cloner les handles pour les utiliser dans le select
+    let send_task_ref = &send_task;
+    let recv_task_ref = &recv_task;
+    let broadcast_task_ref = &broadcast_task;
+
+    // Nettoyage à la fin
     let _ = tokio::select! {
-        _ = send_task => {
+        _ = send_task_ref => {
             recv_task.abort();
             broadcast_task.abort();
         }
