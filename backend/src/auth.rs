@@ -10,7 +10,6 @@ use uuid::Uuid;
 use bcrypt::{verify, hash, DEFAULT_COST};
 use chrono::{Utc, Duration};
 use libsodium_sys as sodium;
-
 use crate::SharedState;
 
 #[derive(Deserialize)]
@@ -63,8 +62,8 @@ pub struct SessionData {
 
 // === Inscription (demande d'approbation) ===
 pub async fn register_handler(
-    State(state): State<SharedState>,
-    Json(payload): Json<RegisterRequest>,
+    State(state): State,
+    Json(payload): Json,
 ) -> Result<Json<ApiResponse>, StatusCode> {
     // Validation
     if payload.username.len() < 3 {
@@ -73,49 +72,42 @@ pub async fn register_handler(
             message: "L'identifiant doit contenir au moins 3 caractères".to_string(),
         }));
     }
-    
     if payload.password.len() < 8 {
         return Ok(Json(ApiResponse {
             success: false,
             message: "Le mot de passe doit contenir au moins 8 caractères".to_string(),
         }));
     }
-    
     // Vérifier si l'username existe déjà
     let existing: Option<(String,)> = sqlx::query_as(
         "SELECT id FROM users WHERE username = ?"
     )
-    .bind(&payload.username)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&payload.username)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     if existing.is_some() {
         return Ok(Json(ApiResponse {
             success: false,
             message: "Cet identifiant est déjà pris".to_string(),
         }));
     }
-    
     // Hasher le mot de passe
     let password_hash = hash(&payload.password, DEFAULT_COST)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
     // Créer l'utilisateur (non approuvé)
     let user_id = Uuid::new_v4().to_string();
-    
     sqlx::query(
-        "INSERT INTO users (id, username, name, password_hash, role, approved, needs_password_change) 
-         VALUES (?, ?, ?, ?, 'member', 0, 0)"
+        "INSERT INTO users (id, username, name, password_hash, role, approved, needs_password_change)
+VALUES (?, ?, ?, ?, 'member', 0, 0)"
     )
-    .bind(&user_id)
-    .bind(&payload.username)
-    .bind(&payload.name)
-    .bind(&password_hash)
-    .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&user_id)
+        .bind(&payload.username)
+        .bind(&payload.name)
+        .bind(&password_hash)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(ApiResponse {
         success: true,
         message: "Demande d'inscription envoyée. En attente d'approbation par l'administrateur.".to_string(),
@@ -124,30 +116,26 @@ pub async fn register_handler(
 
 // === Connexion (admin ou utilisateur) ===
 pub async fn login_handler(
-    State(state): State<SharedState>,
-    Json(payload): Json<LoginRequest>,
+    State(state): State,
+    Json(payload): Json,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
     // Chercher l'utilisateur
     let row: Option<(String, String, String, String, bool, bool)> = sqlx::query_as(
-        "SELECT id, name, password_hash, role, approved, needs_password_change 
-         FROM users WHERE username = ?"
+        "SELECT id, name, password_hash, role, approved, needs_password_change
+FROM users WHERE username = ?"
     )
-    .bind(&payload.username)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&payload.username)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     if row.is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
     let (user_id, name, stored_hash, role, approved, needs_password_change) = row.unwrap();
-    
     // Vérifier le mot de passe
     if !verify(&payload.password, &stored_hash).unwrap_or(false) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
     // Vérifier l'approbation pour les membres
     if role == "member" && !approved {
         return Ok((
@@ -158,35 +146,30 @@ pub async fn login_handler(
             })
         ));
     }
-    
     // Créer une session
     let session_token = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + Duration::days(30);
-    
     sqlx::query(
         "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)"
     )
-    .bind(&session_token)
-    .bind(&user_id)
-    .bind(expires_at.format("%Y-%m-%d %H:%M:%S").to_string())
-    .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&session_token)
+        .bind(&user_id)
+        .bind(expires_at.format("%Y-%m-%d %H:%M:%S").to_string())
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     // Déterminer le cookie (admin ou user)
     let cookie_name = if role == "admin" { "nook_admin" } else { "nook_session" };
     let cookie = format!(
         "{}={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
         cookie_name, session_token
     );
-    
     // Message différent selon le besoin de changement de mot de passe
     let message = if needs_password_change {
         "Première connexion. Veuillez changer votre mot de passe.".to_string()
     } else {
         format!("Connecté en tant que {}", name)
     };
-    
     Ok((
         AppendHeaders([(SET_COOKIE, cookie)]),
         Json(ApiResponse {
@@ -199,17 +182,15 @@ pub async fn login_handler(
 // === Validation de session ===
 pub async fn validate_session_handler(
     headers: HeaderMap,
-    State(state): State<SharedState>,
+    State(state): State,
 ) -> Result<Json<SessionData>, StatusCode> {
     // Essayer d'abord la session admin, puis user
     let token = get_cookie(&headers, "nook_admin")
         .or_else(|| get_cookie(&headers, "nook_session"));
-    
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    
     // Nettoyer les sessions expirées
     let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
@@ -217,19 +198,17 @@ pub async fn validate_session_handler(
         .execute(&state.db)
         .await
         .ok();
-    
     // Récupérer les infos utilisateur
     let row: Option<(String, String, String, String)> = sqlx::query_as(
-        "SELECT u.id, u.username, u.name, u.role 
-         FROM sessions s 
-         JOIN users u ON s.user_id = u.id 
-         WHERE s.token = ? AND u.approved = 1"
+        "SELECT u.id, u.username, u.name, u.role
+FROM sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.token = ? AND u.approved = 1"
     )
-    .bind(&token)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&token)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     match row {
         Some((user_id, username, name, role)) => {
             Ok(Json(SessionData {
@@ -238,7 +217,7 @@ pub async fn validate_session_handler(
                 name,
                 role,
             }))
-        },
+        }
         None => Err(StatusCode::UNAUTHORIZED),
     }
 }
@@ -246,55 +225,47 @@ pub async fn validate_session_handler(
 // === Changement de mot de passe (première connexion) ===
 pub async fn change_password_handler(
     headers: HeaderMap,
-    State(state): State<SharedState>,
-    Json(payload): Json<ChangePasswordRequest>,
+    State(state): State,
+    Json(payload): Json,
 ) -> Result<Json<ApiResponse>, StatusCode> {
     // Récupérer le token (admin ou user)
     let token = get_cookie(&headers, "nook_admin")
         .or_else(|| get_cookie(&headers, "nook_session"));
-    
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    
     // Récupérer l'utilisateur et son hash actuel
     let row: Option<(String, String)> = sqlx::query_as(
-        "SELECT u.id, u.password_hash 
-         FROM sessions s 
-         JOIN users u ON s.user_id = u.id 
-         WHERE s.token = ?"
+        "SELECT u.id, u.password_hash
+FROM sessions s
+JOIN users u ON s.user_id = u.id
+WHERE s.token = ?"
     )
-    .bind(&token)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&token)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     if row.is_none() {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
     let (user_id, current_hash) = row.unwrap();
-    
     // Vérifier l'ancien mot de passe
     if !verify(&payload.current_password, &current_hash).unwrap_or(false) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    
     // Hasher le nouveau mot de passe
     let new_hash = hash(&payload.new_password, DEFAULT_COST)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
     // Mettre à jour
     sqlx::query(
         "UPDATE users SET password_hash = ?, needs_password_change = 0 WHERE id = ?"
     )
-    .bind(&new_hash)
-    .bind(&user_id)
-    .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+        .bind(&new_hash)
+        .bind(&user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(ApiResponse {
         success: true,
         message: "Mot de passe changé avec succès".to_string(),
@@ -303,30 +274,40 @@ pub async fn change_password_handler(
 
 // === Admin: Lister les demandes d'approbation ===
 pub async fn pending_users_handler(
-    State(state): State<SharedState>,
+    State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows = sqlx::query_as::<_, UserInfo>(
-        "SELECT id, username, name, role, approved, needs_password_change 
-         FROM users WHERE approved = 0 ORDER BY created_at DESC"
+    // Utiliser UserInfoRow pour la requête SQL, puis convertir vers UserInfo
+    let rows: Vec<UserInfoRow> = sqlx::query_as(
+        "SELECT id, username, name, role, approved, needs_password_change
+FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
-    .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    Ok(Json(rows))
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Convertir UserInfoRow en UserInfo
+    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        approved: row.approved,
+        needs_password_change: row.needs_password_change,
+    }).collect();
+
+    Ok(Json(users))
 }
 
 // === Admin: Approuver un utilisateur ===
 pub async fn approve_user_handler(
-    State(state): State<SharedState>,
-    Json(payload): Json<AdminApproveRequest>,
+    State(state): State,
+    Json(payload): Json,
 ) -> Result<Json<ApiResponse>, StatusCode> {
     sqlx::query("UPDATE users SET approved = 1 WHERE id = ?")
         .bind(&payload.user_id)
         .execute(&state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
     Ok(Json(ApiResponse {
         success: true,
         message: "Utilisateur approuvé".to_string(),
@@ -335,29 +316,43 @@ pub async fn approve_user_handler(
 
 // === Admin: Liste des utilisateurs ===
 pub async fn all_users_handler(
-    State(state): State<SharedState>,
+    State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows = sqlx::query_as::<_, UserInfo>(
-        "SELECT id, username, name, role, approved, needs_password_change 
-         FROM users ORDER BY created_at DESC"
+    let rows: Vec<UserInfoRow> = sqlx::query_as(
+        "SELECT id, username, name, role, approved, needs_password_change
+FROM users ORDER BY created_at DESC"
     )
-    .fetch_all(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
-    Ok(Json(rows))
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Convertir UserInfoRow en UserInfo
+    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
+        id: row.id,
+        username: row.username,
+        name: row.name,
+        role: row.role,
+        approved: row.approved,
+        needs_password_change: row.needs_password_change,
+    }).collect();
+
+    Ok(Json(users))
 }
 
 // === Déconnexion ===
 pub async fn logout_handler(
     headers: HeaderMap,
-) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
+) -> Result<(AppendHeaders<[(HeaderName, String); 2]>, Json<ApiResponse>), StatusCode> {
     // Effacer les cookies admin et user
     let admin_cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
     let user_cookie = "nook_session=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
-    
+
+    // Utiliser un tableau de 2 éléments pour les deux cookies
     Ok((
-        AppendHeaders([(SET_COOKIE, admin_cookie), (SET_COOKIE, user_cookie)]),
+        AppendHeaders([
+            (SET_COOKIE, admin_cookie),
+            (SET_COOKIE, user_cookie)
+        ]),
         Json(ApiResponse {
             success: true,
             message: "Déconnexion réussie".to_string(),
@@ -372,7 +367,7 @@ fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .filter_map(|value| value.to_str().ok())
         .flat_map(|s| s.split(';'))
         .map(|cookie| cookie.trim())
-        .find(|cookie| cookie.starts_with(&format!("{}=", name)))
+        .find(|cookie| cookie.starts_with(&format!("{} = ", name)))
         .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
 }
 
