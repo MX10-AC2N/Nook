@@ -8,6 +8,7 @@ use axum::{
 };
 use futures_util::{stream::StreamExt, sink::SinkExt};
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock, mpsc};
@@ -177,7 +178,6 @@ async fn handle_call_socket(
         }
     });
 
-    // Utilisation de &mut au lieu de & pour JoinHandle dans tokio::select!
     let mut send_task_mut = send_task;
     let mut recv_task_mut = recv_task;
     let mut broadcast_task_mut = broadcast_task;
