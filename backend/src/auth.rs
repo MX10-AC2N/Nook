@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use bcrypt::{verify, hash, DEFAULT_COST};
 use chrono::{Utc, Duration};
-use libsodium_sys as sodium;
 use crate::SharedState;
 
 #[derive(Deserialize)]
@@ -65,7 +64,6 @@ pub async fn register_handler(
     State(state): State,
     Json(payload): Json,
 ) -> Result<Json<ApiResponse>, StatusCode> {
-    // Validation
     if payload.username.len() < 3 {
         return Ok(Json(ApiResponse {
             success: false,
@@ -78,7 +76,6 @@ pub async fn register_handler(
             message: "Le mot de passe doit contenir au moins 8 caractères".to_string(),
         }));
     }
-    // Vérifier si l'username existe déjà
     let existing: Option<(String,)> = sqlx::query_as(
         "SELECT id FROM users WHERE username = ?"
     )
@@ -92,10 +89,8 @@ pub async fn register_handler(
             message: "Cet identifiant est déjà pris".to_string(),
         }));
     }
-    // Hasher le mot de passe
     let password_hash = hash(&payload.password, DEFAULT_COST)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // Créer l'utilisateur (non approuvé)
     let user_id = Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO users (id, username, name, password_hash, role, approved, needs_password_change)
@@ -119,7 +114,6 @@ pub async fn login_handler(
     State(state): State,
     Json(payload): Json,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Json<ApiResponse>), StatusCode> {
-    // Chercher l'utilisateur
     let row: Option<(String, String, String, String, bool, bool)> = sqlx::query_as(
         "SELECT id, name, password_hash, role, approved, needs_password_change
 FROM users WHERE username = ?"
@@ -132,11 +126,9 @@ FROM users WHERE username = ?"
         return Err(StatusCode::UNAUTHORIZED);
     }
     let (user_id, name, stored_hash, role, approved, needs_password_change) = row.unwrap();
-    // Vérifier le mot de passe
     if !verify(&payload.password, &stored_hash).unwrap_or(false) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    // Vérifier l'approbation pour les membres
     if role == "member" && !approved {
         return Ok((
             AppendHeaders([]),
@@ -146,7 +138,6 @@ FROM users WHERE username = ?"
             })
         ));
     }
-    // Créer une session
     let session_token = Uuid::new_v4().to_string();
     let expires_at = Utc::now() + Duration::days(30);
     sqlx::query(
@@ -158,13 +149,11 @@ FROM users WHERE username = ?"
         .execute(&state.db)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // Déterminer le cookie (admin ou user)
     let cookie_name = if role == "admin" { "nook_admin" } else { "nook_session" };
     let cookie = format!(
         "{}={}; HttpOnly; Path=/; SameSite=Strict; Max-Age=2592000",
         cookie_name, session_token
     );
-    // Message différent selon le besoin de changement de mot de passe
     let message = if needs_password_change {
         "Première connexion. Veuillez changer votre mot de passe.".to_string()
     } else {
@@ -184,21 +173,18 @@ pub async fn validate_session_handler(
     headers: HeaderMap,
     State(state): State,
 ) -> Result<Json<SessionData>, StatusCode> {
-    // Essayer d'abord la session admin, puis user
     let token = get_cookie(&headers, "nook_admin")
         .or_else(|| get_cookie(&headers, "nook_session"));
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    // Nettoyer les sessions expirées
     let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
         .bind(&now)
         .execute(&state.db)
         .await
         .ok();
-    // Récupérer les infos utilisateur
     let row: Option<(String, String, String, String)> = sqlx::query_as(
         "SELECT u.id, u.username, u.name, u.role
 FROM sessions s
@@ -222,20 +208,18 @@ WHERE s.token = ? AND u.approved = 1"
     }
 }
 
-// === Changement de mot de passe (première connexion) ===
+// === Changement de mot de passe ===
 pub async fn change_password_handler(
     headers: HeaderMap,
     State(state): State,
     Json(payload): Json,
 ) -> Result<Json<ApiResponse>, StatusCode> {
-    // Récupérer le token (admin ou user)
     let token = get_cookie(&headers, "nook_admin")
         .or_else(|| get_cookie(&headers, "nook_session"));
     let token = match token {
         Some(t) => t,
         None => return Err(StatusCode::UNAUTHORIZED),
     };
-    // Récupérer l'utilisateur et son hash actuel
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT u.id, u.password_hash
 FROM sessions s
@@ -250,14 +234,11 @@ WHERE s.token = ?"
         return Err(StatusCode::UNAUTHORIZED);
     }
     let (user_id, current_hash) = row.unwrap();
-    // Vérifier l'ancien mot de passe
     if !verify(&payload.current_password, &current_hash).unwrap_or(false) {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    // Hasher le nouveau mot de passe
     let new_hash = hash(&payload.new_password, DEFAULT_COST)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    // Mettre à jour
     sqlx::query(
         "UPDATE users SET password_hash = ?, needs_password_change = 0 WHERE id = ?"
     )
@@ -276,8 +257,7 @@ WHERE s.token = ?"
 pub async fn pending_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    // Utiliser UserInfoRow pour la requête SQL avec type explicite
-    let rows: Vec<UserInfoRow> = sqlx::query_as(
+    let rows = sqlx::query_as::<_, (String, String, String, String, bool, bool)>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
@@ -285,14 +265,15 @@ FROM users WHERE approved = 0 ORDER BY created_at DESC"
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Convertir UserInfoRow en UserInfo
-    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
-        id: row.id,
-        username: row.username,
-        name: row.name,
-        role: row.role,
-        approved: row.approved,
-        needs_password_change: row.needs_password_change,
+    let users: Vec<UserInfo> = rows.into_iter().map(|(id, username, name, role, approved, needs_password_change)| {
+        UserInfo {
+            id,
+            username,
+            name,
+            role,
+            approved,
+            needs_password_change,
+        }
     }).collect();
 
     Ok(Json(users))
@@ -318,7 +299,7 @@ pub async fn approve_user_handler(
 pub async fn all_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    let rows: Vec<UserInfoRow> = sqlx::query_as(
+    let rows = sqlx::query_as::<_, (String, String, String, String, bool, bool)>(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users ORDER BY created_at DESC"
     )
@@ -326,14 +307,15 @@ FROM users ORDER BY created_at DESC"
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Convertir UserInfoRow en UserInfo
-    let users: Vec<UserInfo> = rows.into_iter().map(|row| UserInfo {
-        id: row.id,
-        username: row.username,
-        name: row.name,
-        role: row.role,
-        approved: row.approved,
-        needs_password_change: row.needs_password_change,
+    let users: Vec<UserInfo> = rows.into_iter().map(|(id, username, name, role, approved, needs_password_change)| {
+        UserInfo {
+            id,
+            username,
+            name,
+            role,
+            approved,
+            needs_password_change,
+        }
     }).collect();
 
     Ok(Json(users))
@@ -343,11 +325,9 @@ FROM users ORDER BY created_at DESC"
 pub async fn logout_handler(
     _headers: HeaderMap,
 ) -> Result<(AppendHeaders<[(HeaderName, String); 2]>, Json<ApiResponse>), StatusCode> {
-    // Effacer les cookies admin et user
     let admin_cookie = "nook_admin=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
     let user_cookie = "nook_session=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0".to_string();
 
-    // Utiliser un tableau de 2 éléments pour les deux cookies
     Ok((
         AppendHeaders([
             (SET_COOKIE, admin_cookie),
@@ -369,15 +349,4 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .map(|cookie| cookie.trim())
         .find(|cookie| cookie.starts_with(&format!("{} = ", name)))
         .and_then(|cookie| cookie.split('=').nth(1).map(|s| s.to_string()))
-}
-
-// Types SQLx pour UserInfo
-#[derive(sqlx::FromRow)]
-struct UserInfoRow {
-    id: String,
-    username: String,
-    name: String,
-    role: String,
-    approved: bool,
-    needs_password_change: bool,
 }
