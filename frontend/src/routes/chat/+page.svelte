@@ -6,7 +6,6 @@
   import { isAuthenticated, authUser } from '$lib/authStore';
   import { 
     messages, 
-    decryptedMessages, 
     loadMessages, 
     sendMessage, 
     formatTimestamp,
@@ -60,6 +59,10 @@
     event.preventDefault();
     handleSendMessage();
   }
+
+  function isMyMessage(senderId: string): boolean {
+    return $authUser?.id === senderId;
+  }
 </script>
 
 <svelte:head>
@@ -86,13 +89,13 @@
     </header>
 
     <div class="messages-container" bind:this={chatContainer}>
-      {#each $decryptedMessages as message (message.id)}
-        <div class="message" class:mine={message.isMine}>
-          <div class="message-sender">{message.senderName}</div>
+      {#each $messages as message (message.id)}
+        <div class="message" class:mine={isMyMessage(message.sender_id)}>
+          <div class="message-sender">{message.sender_name}</div>
           <div class="message-content">
-            {message.decryptedContent || message.content}
+            {message.content}
           </div>
-          <div class="message-time">{formatTimestamp(message.timestamp)}</div>
+          <div class="message-time">{formatTimestamp(String(message.timestamp))}</div>
         </div>
       {/each}
     </div>
@@ -115,8 +118,8 @@
         {:else if $gifResults.length > 0}
           <div class="gif-results">
             {#each $gifResults as gif}
-              <button class="gif-item" onclick={() => selectGif(gif.media[0]?.gif?.url)}>
-                <img src={gif.media[0]?.tinygif?.url} alt={gif.title} />
+              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.gif?.url)}>
+                <img src={gif.media?.[0]?.tinygif?.url} alt={gif.title} />
               </button>
             {/each}
           </div>
