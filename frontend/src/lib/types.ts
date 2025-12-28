@@ -43,12 +43,12 @@ export interface Message {
   conversation_id: string;
   sender_id: string;
   sender_name: string;
-  content: string; // Contenu chiffré (base64)
-  encrypted_keys: Record<string, string>; // { user_id: clé_chiffrée_base64 }
-  nonce: string; // base64
+  content: string;
+  encrypted_keys: Record<string, Uint8Array>;
+  nonce: string;
   media_type: 'text' | 'gif' | 'audio' | 'video' | null;
   media_url: string | null;
-  duration: number | null; // secondes
+  duration: number | null;
   timestamp: number;
   reactions: Reaction;
 }
@@ -97,7 +97,7 @@ export interface CallState {
 
 // Types pour le stockage
 export interface StoredKeys {
-  encryptedPrivateKey: string; // base64
+  encryptedPrivateKey: string;
   publicKey: Uint8Array;
 }
 
@@ -187,9 +187,9 @@ export type ThemeVariables = {
 };
 
 // Constantes
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
-export const MAX_DURATION = 60 * 10; // 10 minutes
-export const MAX_PARTICIPANTS = 6; // Limite raisonnable pour appels de groupe
+export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+export const MAX_DURATION = 60 * 10;
+export const MAX_PARTICIPANTS = 6;
 
 // Enums pour les états
 export enum CallStatus {
@@ -216,17 +216,11 @@ export enum ThemeName {
 
 // Types pour les événements personnalisés
 export interface CustomEventMap {
-  'incoming-call': CustomEvent<{
-    from_user_id: string;
-    conversation_id: string;
-  }>;
-  'message-sent': CustomEvent<Message>;
-  'message-received': CustomEvent<Message>;
-  'call-ended': CustomEvent<void>;
-  'theme-changed': CustomEvent<{
-    theme: ThemeName;
-    variables: ThemeVariables;
-  }>;
+  'incoming-call': CustomEvent<{ from_user_id: string; conversation_id: string; }>;
+  'message-sent': CustomEvent;
+  'message-received': CustomEvent;
+  'call-ended': CustomEvent;
+  'theme-changed': CustomEvent<{ theme: ThemeName; variables: ThemeVariables; }>;
 }
 
 // Extension de Window pour les événements personnalisés
