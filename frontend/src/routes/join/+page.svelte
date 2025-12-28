@@ -4,7 +4,7 @@
   import { browser } from '$app/environment';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { generateKeyPair, storeKeys } from '$lib/crypto';
+  import { generateKeyPair, encryptPrivateKey, storeEncryptedKeys } from '$lib/crypto';
 
   let token = $state('');
   let name = $state('');
