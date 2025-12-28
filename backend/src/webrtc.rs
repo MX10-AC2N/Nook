@@ -13,10 +13,9 @@ use axum::{
 };
 use futures_util::{stream::StreamExt, sink::SinkExt};
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, RwLock, mpsc};
 use crate::SharedState;
 
 // Structure du message de signaling
@@ -32,6 +31,12 @@ pub struct CallSignal {
     pub signal_type: String,
     pub sdp: Option<String>,
     pub candidate: Option<String>,
+}
+
+// Type pour les messages à envoyer via la socket
+enum WsSendMessage {
+    Text(String),
+    Close,
 }
 
 // Paramètres de la requête WebSocket
@@ -71,7 +76,7 @@ pub async fn call_ws_handler(
         _ => return StatusCode::UNAUTHORIZED.into_response(),
     };
 
-    let user_id: String = user_row.try_get("id").unwrap_or_default();
+    let user_id: String = row.try_get("id").unwrap_or_default();
 
     if user_id.is_empty() {
         return StatusCode::UNAUTHORIZED.into_response();
@@ -84,7 +89,7 @@ pub async fn call_ws_handler(
 }
 
 async fn handle_call_socket(
-    mut socket: WebSocket,
+    socket: WebSocket,
     state: SharedState,
     conversation_id: String,
     user_id: String,
@@ -97,6 +102,10 @@ async fn handle_call_socket(
             .clone()
     };
     let rx = tx.subscribe();
+
+    // Créer un canal pour envoyer des messages à la socket
+    let (send_tx, mut send_rx) = mpsc::channel::<WsSendMessage>(64);
+    let (mut ws_sink, mut ws_stream) = socket.split();
 
     // Annoncer l'arrivée dans la conversation
     let join_signal = CallSignal {
@@ -111,17 +120,70 @@ async fn handle_call_socket(
 
     // Envoyer le signal de join au nouvel arrivant
     if let Ok(json) = serde_json::to_string(&join_signal) {
-        let _ = socket.send(WsMessage::Text(json)).await;
+        let _ = ws_sink.send(WsMessage::Text(json)).await;
     }
 
-    // Clone des valeurs pour les utiliser dans les closures
-    let user_id_for_send = user_id.clone();
-    let conversation_id_for_send = conversation_id.clone();
-    let tx_for_send = tx.clone();
-    let socket_for_send = socket.clone();
-
-    // Tâche d'envoi : reçoit du broadcast et envoie au client
+    // Tâche d'envoi : reçoit du canal et envoie au client
     let send_task = tokio::spawn(async move {
+        while let Some(msg) = send_rx.recv().await {
+            match msg {
+                WsSendMessage::Text(text) => {
+                    if ws_sink.send(WsMessage::Text(text)).await.is_err() {
+                        break;
+                    }
+                }
+                WsSendMessage::Close => {
+                    let _ = ws_sink.send(WsMessage::Close(None)).await;
+                    break;
+                }
+            }
+        }
+    });
+
+    // Variables clonées pour la tâche de réception
+    let tx_clone = tx.clone();
+    let user_id_recv = user_id.clone();
+    let conversation_id_recv = conversation_id.clone();
+    let send_tx_clone = send_tx.clone();
+
+    // Tâche de réception : reçoit du client et broadcast
+    let recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_stream.next().await {
+            match msg {
+                WsMessage::Text(text) => {
+                    if let Ok(mut signal) = serde_json::from_str::<CallSignal>(&text) {
+                        // Forcer les champs critiques (sécurité)
+                        signal.from_user_id = user_id_recv.clone();
+                        signal.conversation_id = conversation_id_recv.clone();
+                        let _ = tx_clone.send(signal);
+                    }
+                }
+                WsMessage::Close(_) => {
+                    // Annoncer le départ
+                    let leave_signal = CallSignal {
+                        conversation_id: conversation_id_recv,
+                        from_user_id: user_id_recv,
+                        to_user_id: None,
+                        signal_type: "leave".to_string(),
+                        sdp: None,
+                        candidate: None,
+                    };
+                    let _ = tx_clone.send(leave_signal);
+                    let _ = send_tx_clone.send(WsSendMessage::Close).await;
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+
+    // Variables pour la tâche broadcast
+    let user_id_for_send = user_id;
+    let conversation_id_for_send = conversation_id;
+    let send_tx_for_send = send_tx;
+
+    // Tâche de broadcast : reçoit du channel et envoie au client via send_tx
+    let broadcast_task = tokio::spawn(async move {
         let mut rx = rx;
         while let Ok(signal) = rx.recv().await {
             // Ne pas renvoyer ses propres signaux
@@ -133,41 +195,8 @@ async fn handle_call_socket(
                 continue;
             }
             if let Ok(json) = serde_json::to_string(&signal) {
-                let _ = socket_for_send.send(WsMessage::Text(json)).await;
-            }
-        }
-    });
-
-    // Tâche de réception : reçoit du client et broadcast
-    let recv_task = tokio::spawn({
-        let tx = tx.clone();
-        let user_id_recv = user_id.clone();
-        let conversation_id_recv = conversation_id.clone();
-        async move {
-            while let Some(Ok(msg)) = socket.next().await {
-                match msg {
-                    WsMessage::Text(text) => {
-                        if let Ok(mut signal) = serde_json::from_str::<CallSignal>(&text) {
-                            // Forcer les champs critiques (sécurité)
-                            signal.from_user_id = user_id_recv.clone();
-                            signal.conversation_id = conversation_id_recv.clone();
-                            let _ = tx.send(signal);
-                        }
-                    }
-                    WsMessage::Close(_) => {
-                        // Annoncer le départ
-                        let leave_signal = CallSignal {
-                            conversation_id: conversation_id_recv,
-                            from_user_id: user_id_recv.clone(),
-                            to_user_id: None,
-                            signal_type: "leave".to_string(),
-                            sdp: None,
-                            candidate: None,
-                        };
-                        let _ = tx.send(leave_signal);
-                        break;
-                    }
-                    _ => {}
+                if send_tx_for_send.send(WsSendMessage::Text(json)).await.is_err() {
+                    break;
                 }
             }
         }
@@ -177,9 +206,15 @@ async fn handle_call_socket(
     let _ = tokio::select! {
         _ = send_task => {
             recv_task.abort();
+            broadcast_task.abort();
         }
         _ = recv_task => {
             send_task.abort();
+            broadcast_task.abort();
+        }
+        _ = broadcast_task => {
+            send_task.abort();
+            recv_task.abort();
         }
     };
 }
