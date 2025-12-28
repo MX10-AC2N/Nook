@@ -1,5 +1,10 @@
-use axum::{http::StatusCode, response::Json, Json as AxumJson};
+use axum::{
+    http::StatusCode,
+    response::Json,
+    Json as AxumJson,
+};
 use serde::Deserialize;
+use serde_json;
 
 #[derive(Deserialize)]
 pub struct EmergencyRequest {
@@ -13,9 +18,8 @@ pub async fn handle_emergency(
     // - SMTP (email via lettre)
     // - Twilio (SMS)
     // - Gotify (notifications push auto-hébergées)
-
     println!("🚨 URGENCE : {}", payload.message);
-
+    
     // Exemple SMTP basique (à étendre)
     /*
     let email = Message::builder()
@@ -24,7 +28,6 @@ pub async fn handle_emergency(
         .subject("ALERTE NOOK")
         .body(payload.message)
         .unwrap();
-
     lettre::AsyncSmtpTransport::relay("smtp.yourdomain.com")
         .unwrap()
         .credentials(Credentials::new("user".into(), "pass".into()))
@@ -33,6 +36,6 @@ pub async fn handle_emergency(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     */
-
+    
     Ok(Json(serde_json::json!({ "success": true })))
 }
