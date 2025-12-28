@@ -277,7 +277,7 @@ pub async fn pending_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
     // Utiliser UserInfoRow pour la requête SQL avec type explicite
-    let rows = sqlx::query_as::<_, UserInfoRow>(
+    let rows: Vec<UserInfoRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
@@ -318,8 +318,7 @@ pub async fn approve_user_handler(
 pub async fn all_users_handler(
     State(state): State,
 ) -> Result<Json<Vec<UserInfo>>, StatusCode> {
-    // Utiliser UserInfoRow pour la requête SQL avec type explicite
-    let rows = sqlx::query_as::<_, UserInfoRow>(
+    let rows: Vec<UserInfoRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change
 FROM users ORDER BY created_at DESC"
     )
@@ -362,7 +361,7 @@ pub async fn logout_handler(
 }
 
 // === Utilitaires ===
-fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get_all(axum::http::header::COOKIE)
         .into_iter()
         .filter_map(|value| value.to_str().ok())
