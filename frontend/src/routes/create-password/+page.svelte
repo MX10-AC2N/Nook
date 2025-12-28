@@ -1,16 +1,11 @@
-<script module>
-  // Mode Svelte 5 (runes)
-  export const runes = true;
-</script>
-
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { goto } from '@roxi/routify';  // ← Routify au lieu de $app/navigation (SvelteKit)
+  import { goto } from '$app/navigation';
+
+  let redirecting = $state(true);
+  let redirectMessage = $state('Redirection vers le nouveau système...');
 
   onMount(async () => {
-    // Rediriger vers la nouvelle page de changement de mot de passe
-    // ou vérifier si l'utilisateur a déjà un mot de passe
-    
     try {
       const res = await fetch('/api/member/check-password', {
         credentials: 'include'
@@ -19,11 +14,10 @@
       if (res.ok) {
         const data = await res.json();
         if (data.has_password) {
-          // L'utilisateur a déjà un mot de passe, rediriger vers le chat
+          redirectMessage = 'Mot de passe détecté, redirection vers le chat...';
+          await new Promise(r => setTimeout(r, 500));
           goto('/chat');
         } else {
-          // Pas de mot de passe, mais utiliser le nouveau système
-          // Vérifier si c'est un mot de passe temporaire
           const changeCheck = await fetch('/api/member/check-password-change', {
             credentials: 'include'
           });
@@ -31,21 +25,27 @@
           if (changeCheck.ok) {
             const changeData = await changeCheck.json();
             if (changeData.needs_password_change) {
+              redirectMessage = 'Changement de mot de passe requis...';
+              await new Promise(r => setTimeout(r, 500));
               goto('/change-password');
             } else {
+              redirectMessage = 'Redirection vers le chat...';
+              await new Promise(r => setTimeout(r, 500));
               goto('/chat');
             }
           } else {
-            // Ancien système, rester sur cette page
-            console.log('Utilisation ancien système de création de mot de passe');
+            redirectMessage = 'Chargement de la page de création de mot de passe...';
           }
         }
       } else {
-        // Non connecté, rediriger vers login
+        redirectMessage = 'Non connecté, redirection vers la connexion...';
+        await new Promise(r => setTimeout(r, 500));
         goto('/login');
       }
     } catch (err) {
       console.error('Erreur vérification:', err);
+      redirectMessage = 'Erreur, redirection vers la connexion...';
+      await new Promise(r => setTimeout(r, 500));
       goto('/login');
     }
   });
@@ -55,9 +55,41 @@
   <title>Créer un mot de passe — Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex flex-col items-center justify-center p-4">
-  <div class="text-center">
-    <div class="text-6xl mb-4 animate-spin">🌀</div>
-    <p class="text-[var(--text-secondary)]">Redirection vers le nouveau système...</p>
+<div class="redirect-container">
+  <div class="redirect-content">
+    <div class="spinner">🌀</div>
+    <p class="redirect-message">{redirectMessage}</p>
   </div>
 </div>
+
+<style>
+  .redirect-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1rem;
+    background-color: var(--bg-primary, #f0fdf4);
+  }
+
+  .redirect-content {
+    text-align: center;
+  }
+
+  .spinner {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    animation: spin 1.5s linear infinite;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .redirect-message {
+    color: var(--text-secondary, #64748b);
+    font-size: 1rem;
+  }
+</style>
