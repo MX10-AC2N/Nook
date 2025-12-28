@@ -5,19 +5,18 @@
   import { browser } from '$app/environment';
   import { authStore } from '$lib/authStore';
   import { currentTheme } from '$lib/ui/ThemeStore';
-  import { 
-    startGroupCall, 
-    endCurrentCall, 
+  import {
+    startGroupCall,
+    endCurrentCall,
     callStore,
     callManager
   } from '$lib/webrtc-calls';
-  import { 
-    participants, 
+  import {
+    participants,
     loadParticipants,
     activeConversationId
   } from '$lib/conversationStore';
 
-  // États locaux avec Svelte 5 runes
   let conversationId = $derived($page.params?.id || '');
   let callType = $derived($page.url?.searchParams?.get('type') || 'video');
   let loading = $state(true);
@@ -31,20 +30,15 @@
       goto('/login');
       return;
     }
-
     try {
       loading = true;
       error = null;
-      
       await loadParticipants(conversationId);
-      
       if ($page.url?.searchParams?.has('call')) {
         const participantIds = $participants.map(p => p.id);
         await startGroupCall(conversationId, participantIds, callType);
       }
-      
       loading = false;
-      
       if (browser) {
         window.addEventListener('incoming-call', handleIncomingCall);
         window.addEventListener('keydown', handleKeydown);
@@ -60,34 +54,41 @@
     if (browser) {
       window.removeEventListener('incoming-call', handleIncomingCall);
       window.removeEventListener('keydown', handleKeydown);
-      endCurrentCall();
     }
   });
 
   function handleIncomingCall(event: CustomEvent) {
-    const { from_user_id, conversation_id } = event.detail;
-    
-    if (conversation_id === conversationId && !$callStore.isInCall) {
-      incomingCallFrom = from_user_id;
-      incomingCallConvId = conversation_id;
-      showIncomingCallModal = true;
+    const { from, conversationId: convId } = event.detail;
+    incomingCallFrom = from;
+    incomingCallConvId = convId;
+    showIncomingCallModal = true;
+  }
+
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && showIncomingCallModal) {
+      closeIncomingCallModal();
     }
   }
 
+  function closeIncomingCallModal() {
+    showIncomingCallModal = false;
+    incomingCallFrom = '';
+    incomingCallConvId = '';
+  }
+
   async function acceptCall() {
+    if (!incomingCallConvId) return;
     try {
-      showIncomingCallModal = false;
       const participantIds = $participants.map(p => p.id);
-      await startGroupCall(conversationId, participantIds, 'video');
+      await startGroupCall(incomingCallConvId, participantIds, 'audio');
+      closeIncomingCallModal();
     } catch (err) {
-      error = (err instanceof Error ? err.message : String(err)) || 'Erreur lors de l\'acceptation de l\'appel';
       console.error('Erreur acceptation appel:', err);
     }
   }
 
-  function declineCall() {
-    showIncomingCallModal = false;
-    callManager.sendDeclineSignal(incomingCallFrom, conversationId);
+  function rejectCall() {
+    closeIncomingCallModal();
   }
 
   function toggleMute() {
@@ -98,20 +99,8 @@
     callManager.toggleVideo();
   }
 
-  function endCall() {
-    endCurrentCall();
-    goto('/chat');
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'm') {
-      toggleMute();
-    } else if (e.key === 'v') {
-      toggleVideo();
-    } else if (e.key === ' ') {
-      e.preventDefault();
-      endCall();
-    }
+  async function endCall() {
+    await endCurrentCall();
   }
 </script>
 
@@ -119,151 +108,106 @@
   <title>Appel - Nook</title>
 </svelte:head>
 
-<div class="call-container theme-{$currentTheme}">
+<div class="call-page">
   {#if loading}
-    <div class="loading-screen">
-      <div class="spinner-large"></div>
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
       <p>Preparation de l'appel...</p>
     </div>
   {:else if error}
-    <div class="error-screen">
-      <h2>❌ {error}</h2>
-      <button onclick={() => goto('/chat')} class="back-button">
-        ← Retour au chat
-      </button>
+    <div class="error-container">
+      <div class="error-content">
+        <h1>❌ Erreur</h1>
+        <p class="error-message">{error}</p>
+        <button onclick={() => goto('/chat')} class="back-button">
+          ← Retour au chat
+        </button>
+      </div>
     </div>
   {:else}
-    <header class="call-header">
-      <div class="theme-indicator {$currentTheme}">
-        {#if $currentTheme === 'jardin-secret'}
-          🌿 Appel Jardin Secret
-        {:else if $currentTheme === 'space-hub'}
-          🚀 Appel Space Hub
-        {:else}
-          🏠 Appel Maison Chaleureuse
-        {/if}
-      </div>
-
-      <div class="conversation-info">
-        <h1>Appel avec {conversationId}</h1>
+    <div class="call-container">
+      <header class="call-header">
+        <div class="header-theme">
+          {#if $currentTheme === 'jardin-secret'}
+            🌿 Appel Jardin Secret
+          {:else if $currentTheme === 'space-hub'}
+            🚀 Appel Space Hub
+          {:else}
+            🏠 Appel Maison Chaleureuse
+          {/if}
+        </div>
+        <h1 class="call-title">Appel avec {conversationId}</h1>
         {#if $participants.length > 1}
-          <p class="participant-count">{$participants.length} participants</p>
+          <p class="participants-count">{$participants.length} participants</p>
         {/if}
-      </div>
+        <button onclick={() => goto('/chat')} class="back-button" aria-label="Retour au chat">
+          ← Retour
+        </button>
+      </header>
 
-      <button class="back-button" onclick={() => goto('/chat')}>
-        ← Retour
-      </button>
-    </header>
-
-    <main class="call-area">
       {#if $callStore.isInCall}
-        <div class="video-grid">
+        <div class="video-grid" role="region" aria-label="Participants à l'appel">
           {#if $callStore.localStream}
-            <div class="video-container local">
-              <video 
-                autoplay 
-                playsinline 
-                muted 
-                srcObject={$callStore.localStream} 
-                class="video-element"
-              ></video>
-              <div class="local-overlay">
-                <span>Vous</span>
-                <div class="local-indicators">
-                  {#if !$callStore.isMuted}
-                    <span class="indicator mic-on">🎤</span>
-                  {:else}
-                    <span class="indicator mic-off">🔇</span>
-                  {/if}
-                  {#if !$callStore.isVideoOff}
-                    <span class="indicator video-on">📹</span>
-                  {:else}
-                    <span class="indicator video-off">📹❌</span>
-                  {/if}
-                </div>
+            <div class="video-participant local">
+              <video bind:this={$callStore.localVideoElement} autoplay muted playsinline class="local-video"></video>
+              <div class="participant-info">
+                <span class="participant-name">Vous</span>
+                <span class="icon" aria-label={$callStore.isMuted ? 'Microphone coupé' : 'Microphone activé'}>
+                  {$callStore.isMuted ? '🔇' : '🔊'}
+                </span>
+                <span class="icon" aria-label={$callStore.isVideoOff ? 'Vidéo désactivée' : 'Vidéo activée'}>
+                  {$callStore.isVideoOff ? '📹❌' : '📹'}
+                </span>
               </div>
             </div>
           {/if}
-
           {#each Array.from($callStore.remoteStreams.entries()) as [userId, stream]}
-            <div class="video-container remote">
-              <video 
-                autoplay 
-                playsinline 
-                srcObject={stream} 
-                class="video-element"
-              ></video>
-              <div class="remote-overlay">
-                <span>{$participants.find(p => p.id === userId)?.name || userId}</span>
+            <div class="video-participant remote">
+              <video srcObject={stream} autoplay playsinline class="remote-video"></video>
+              <div class="participant-info">
+                <span class="participant-name">{$participants.find(p => p.id === userId)?.name || userId}</span>
               </div>
             </div>
           {/each}
-
           {#if $callStore.remoteStreams.size === 0 && !$callStore.localStream}
-            <div class="placeholder">
+            <div class="waiting-message">
               <p>Connexion aux participants...</p>
               <div class="spinner"></div>
             </div>
           {/if}
         </div>
 
-        <div class="call-controls">
-          <button 
-            class="control-button {$callStore.isMuted ? 'active' : ''}" 
-            onclick={toggleMute}
-            title={$callStore.isMuted ? 'Activer le micro' : 'Couper le micro'}
-          >
+        <div class="call-controls" role="toolbar" aria-label="Contrôles de l'appel">
+          <button onclick={toggleMute} class="control-button" aria-label={$callStore.isMuted ? 'Activer le son' : 'Couper le son'}>
             {$callStore.isMuted ? '🔇' : '🔊'}
           </button>
-
-          <button 
-            class="control-button {$callStore.isVideoOff ? 'active' : ''}" 
-            onclick={toggleVideo}
-            title={$callStore.isVideoOff ? 'Activer la caméra' : 'Désactiver la caméra'}
-          >
+          <button onclick={toggleVideo} class="control-button" aria-label={$callStore.isVideoOff ? 'Activer la vidéo' : 'Désactiver la vidéo'}>
             {$callStore.isVideoOff ? '📹❌' : '📹'}
           </button>
-
-          <button 
-            class="control-button hangup" 
-            onclick={endCall}
-            title="Terminer l'appel (Espace)"
-          >
+          <button onclick={endCall} class="control-button hangup" aria-label="Raccrocher">
             📵
           </button>
-
           <div class="call-info">
             <span>💬 {$callStore.remoteStreams.size + 1} participants</span>
-            <span class="connection-status">✅ Connexion sécurisée P2P</span>
+            <span class="secure-badge">✅ Connexion sécurisée P2P</span>
           </div>
         </div>
+
       {:else if $callStore.isCalling || $callStore.isAnswering}
-        <div class="calling-screen">
-          <div class="calling-content">
-            <div class="avatar-large">
-              <span class="calling-icon">✆</span>
-            </div>
-            <p class="calling-to">
-              {#if $callStore.isCalling}
-                Appel en cours vers les participants...
-              {:else}
-                Appel entrant de {incomingCallFrom}
-              {/if}
-            </p>
-            <div class="calling-indicators">
-              <div class="pulse"></div>
-              <div class="pulse"></div>
-              <div class="pulse"></div>
-            </div>
-            <div class="connection-info">
-              Connexion sécurisée P2P
-            </div>
-          </div>
+        <div class="call-status" role="status" aria-live="polite">
+          <span class="icon large" aria-hidden="true">✆</span>
+          {#if $callStore.isCalling}
+            <p>Appel en cours vers les participants...</p>
+          {:else}
+            <p>Appel entrant de {incomingCallFrom}</p>
+          {/if}
+          <div class="spinner"></div>
+          <p class="secure-badge">Connexion sécurisée P2P</p>
         </div>
+
       {:else}
-        <div class="no-call-screen">
-          <div class="theme-icon">
+        <div class="no-call">
+          <div class="theme-icon" aria-hidden="true">
             {#if $currentTheme === 'jardin-secret'}
               🌸
             {:else if $currentTheme === 'space-hub'}
@@ -272,87 +216,101 @@
               🏡
             {/if}
           </div>
-          <h2>Aucun appel en cours</h2>
-          <p>Cette conversation n'a pas d'appel actif.</p>
+          <h2 class="no-call-title">Aucun appel en cours</h2>
+          <p class="no-call-description">Cette conversation n'a pas d'appel actif.</p>
           <div class="start-call-buttons">
             <button 
-              class="start-call-button audio" 
-              onclick={() => {
+              class="start-audio-call" 
+              onclick={async () => {
                 const participantIds = $participants.map(p => p.id);
-                startGroupCall(conversationId, participantIds, 'audio');
+                await startGroupCall(conversationId, participantIds, 'audio');
               }}
+              aria-label="Démarrer un appel audio avec les participants"
             >
               🎤 Démarrer un appel audio
             </button>
             <button 
-              class="start-call-button video" 
-              onclick={() => {
+              class="start-video-call" 
+              onclick={async () => {
                 const participantIds = $participants.map(p => p.id);
-                startGroupCall(conversationId, participantIds, 'video');
+                await startGroupCall(conversationId, participantIds, 'video');
               }}
+              aria-label="Démarrer un appel vidéo avec les participants"
             >
               📹 Démarrer un appel vidéo
             </button>
           </div>
         </div>
       {/if}
-    </main>
 
-    {#if $callStore.error}
-      <div class="call-error">
-        <p>{$callStore.error}</p>
-        <button onclick={() => callStore.update(s => ({ ...s, error: null }))}>
-          ✕
-        </button>
-      </div>
-    {/if}
+      {#if $callStore.error}
+        <div class="error-modal" role="alertdialog" aria-label="Erreur">
+          <p>{$callStore.error}</p>
+          <button onclick={() => callStore.update(s => ({ ...s, error: null }))} aria-label="Fermer">
+            ✕
+          </button>
+        </div>
+      {/if}
 
-    {#if showIncomingCallModal}
-      <div class="modal-overlay" onclick={() => showIncomingCallModal = false} role="button" tabindex="0" onkeydown={(e) => e.key === 'Escape' && (showIncomingCallModal = false)}>
-        <div class="incoming-call-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label="Appel entrant">
-          <div class="caller-avatar">
-            <span>✆</span>
-          </div>
-          <h3>Appel entrant</h3>
-          <p>de {incomingCallFrom}</p>
-          <p>dans la conversation {conversationId}</p>
-          <div class="modal-actions">
-            <button class="decline" onclick={declineCall}>❌ Refuser</button>
-            <button class="accept" onclick={acceptCall}>✅ Accepter</button>
+      {#if showIncomingCallModal}
+        <div 
+          class="modal-overlay" 
+          onclick={closeIncomingCallModal}
+          role="button"
+          tabindex="0"
+          onkeydown={handleKeydown}
+        >
+          <div 
+            class="incoming-call-modal" 
+            onclick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Appel entrant"
+            tabindex="-1"
+          >
+            <div class="caller-avatar" aria-hidden="true">
+              <span>✆</span>
+            </div>
+            <h2 class="caller-name">Appel entrant</h2>
+            <p class="caller-from">De: {incomingCallFrom}</p>
+            <p class="call-info-text">Vous avez un appel entrant</p>
+            <div class="call-actions">
+              <button onclick={acceptCall} class="accept-btn" aria-label="Accepter l'appel">
+                ✅ Accepter
+              </button>
+              <button onclick={rejectCall} class="reject-btn" aria-label="Rejeter l'appel">
+                ❌ Rejeter
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    {/if}
+      {/if}
+    </div>
   {/if}
 </div>
 
 <style>
-  .call-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
+  .call-page {
+    min-height: 100vh;
+    background: var(--bg-primary, #f5f7fa);
   }
 
-  .loading-screen, .error-screen {
+  .loading-container,
+  .error-container {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    height: 100vh;
-    width: 100%;
-    text-align: center;
-    padding: 2rem;
+    justify-content: center;
+    min-height: 100vh;
     gap: 1rem;
+    padding: 1.5rem;
   }
 
-  .spinner-large {
-    width: 60px;
-    height: 60px;
-    border: 4px solid var(--border, #e2e8f0);
-    border-top-color: var(--accent, #4ade80);
+  .loading-spinner,
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e2e8f0;
+    border-top-color: #4ade80;
     border-radius: 50%;
     animation: spin 1s linear infinite;
   }
@@ -361,307 +319,238 @@
     to { transform: rotate(360deg); }
   }
 
-  .error-screen h2 {
-    color: var(--error, #ef4444);
-    margin-bottom: 1.5rem;
-    font-size: 2rem;
+  .error-content {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    max-width: 400px;
+  }
+
+  .error-content h1 {
+    font-size: 1.5rem;
+    margin: 0 0 0.5rem 0;
+    color: #1e293b;
+  }
+
+  .error-message {
+    color: #dc2626;
+    margin: 0 0 1.5rem 0;
+    line-height: 1.5;
   }
 
   .back-button {
-    background: var(--accent, #4CAF50);
+    padding: 0.75rem 1.5rem;
+    background: #4ade80;
     color: white;
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: var(--radius-lg, 0.75rem);
-    font-size: 1.1rem;
+    border-radius: 0.5rem;
+    font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
   .back-button:hover {
-    transform: scale(1.05);
-    opacity: 0.9;
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .call-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
   }
 
   .call-header {
-    padding: 1rem;
-    text-align: center;
-    border-bottom: 1px solid var(--border, #e2e8f0);
-    background: var(--header-bg, #f8fafc);
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: center;
-    flex-wrap: wrap;
     gap: 0.5rem;
-  }
-
-  .theme-indicator {
-    font-weight: 600;
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius-full, 9999px);
-    font-size: 0.9rem;
-  }
-
-  .theme-indicator.jardin-secret {
-    background: rgba(74, 222, 128, 0.15);
-    color: #4ade80;
-  }
-
-  .theme-indicator.space-hub {
-    background: rgba(33, 150, 243, 0.15);
-    color: #2196F3;
-  }
-
-  .theme-indicator.maison-chaleureuse {
-    background: rgba(255, 152, 0, 0.15);
-    color: #f97316;
-  }
-
-  .conversation-info {
-    flex: 1;
-    text-align: center;
-    min-width: 200px;
-  }
-
-  .conversation-info h1 {
-    margin: 0;
-    font-size: 1.2rem;
-    color: var(--text-primary, #1e293b);
-  }
-
-  .participant-count {
-    color: var(--text-secondary, #64748b);
-    font-size: 0.85rem;
-    margin-top: 0.25rem;
-  }
-
-  .call-area {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     padding: 1rem;
-    background: var(--call-bg, #f8fafc);
+    margin-bottom: 1rem;
+  }
+
+  .header-theme {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #64748b);
+  }
+
+  .call-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1e293b;
+  }
+
+  .participants-count {
+    font-size: 0.9rem;
+    color: #64748b;
+    margin: 0;
   }
 
   .video-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1rem;
-    width: 100%;
-    height: 100%;
+    margin-bottom: 1rem;
   }
 
-  .video-container {
+  .video-participant {
     position: relative;
-    border-radius: var(--radius-xl, 1rem);
+    background: #1e293b;
+    border-radius: 0.75rem;
     overflow: hidden;
-    background: #1a1a1a;
-    box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+    aspect-ratio: 16 / 9;
   }
 
-  .video-element {
+  .video-participant.local {
+    max-width: 300px;
+    margin: 0 auto;
+  }
+
+  .local-video,
+  .remote-video {
     width: 100%;
     height: 100%;
-    display: block;
     object-fit: cover;
   }
 
-  .local-overlay, .remote-overlay {
+  .participant-info {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: rgba(0, 0, 0, 0.6);
-    color: white;
     padding: 0.75rem;
-    text-align: center;
-    font-weight: 500;
-  }
-
-  .local-indicators {
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
     display: flex;
-    justify-content: center;
+    align-items: center;
     gap: 0.5rem;
-    margin-top: 0.25rem;
+    color: white;
   }
 
-  .indicator {
-    font-size: 1rem;
+  .participant-name {
+    font-weight: 500;
+    flex: 1;
   }
 
-  .mic-on, .video-on { color: #4ade80; }
-  .mic-off, .video-off { color: #ef4444; }
+  .icon {
+    font-size: 1.1rem;
+  }
 
-  .placeholder {
+  .icon.large {
+    font-size: 4rem;
+  }
+
+  .waiting-message {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
-    color: var(--text-secondary, #64748b);
-    gap: 0.5rem;
-  }
-
-  .spinner {
-    width: 40px;
-    height: 40px;
-    border: 4px solid var(--border, #e2e8f0);
-    border-top-color: var(--accent, #4ade80);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+    height: 300px;
+    color: white;
+    gap: 1rem;
   }
 
   .call-controls {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 1.5rem;
-    padding: 1.5rem;
-    background: var(--controls-bg, #ffffff);
-    border-top: 1px solid var(--border, #e2e8f0);
+    gap: 1rem;
+    padding: 1rem;
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     flex-wrap: wrap;
   }
 
   .control-button {
     width: 56px;
     height: 56px;
-    border-radius: 50%;
     border: none;
-    background: var(--button-bg, #4ade80);
-    color: white;
+    border-radius: 50%;
     font-size: 1.5rem;
     cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     transition: all 0.2s;
-    box-shadow: var(--shadow-md);
+    background: #f1f5f9;
   }
 
   .control-button:hover {
-    transform: scale(1.1);
+    background: #e2e8f0;
+    transform: scale(1.05);
   }
 
-  .control-button.active {
-    background: #ef4444;
+  .control-button:focus {
+    outline: 2px solid #4ade80;
+    outline-offset: 2px;
   }
 
-  .hangup {
+  .control-button.hangup {
     background: #ef4444;
-    width: 64px;
-    height: 64px;
+    color: white;
+  }
+
+  .control-button.hangup:hover {
+    background: #dc2626;
   }
 
   .call-info {
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: var(--text-secondary, #64748b);
-    margin-left: 1rem;
+    gap: 0.25rem;
     font-size: 0.85rem;
+    color: #64748b;
+    margin-left: 1rem;
   }
 
-  .connection-status {
-    color: #4ade80;
-    font-weight: 500;
+  .secure-badge {
+    font-size: 0.8rem;
+    color: #16a34a;
   }
 
-  .calling-screen {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: 100%;
-  }
-
-  .calling-content {
-    text-align: center;
-    padding: 3rem;
-    background: var(--calling-bg, #f0fdf4);
-    border-radius: var(--radius-2xl, 1.5rem);
-    box-shadow: var(--shadow-xl);
-    max-width: 400px;
-  }
-
-  .avatar-large {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent, #4ade80), var(--accent-dark, #22c55e));
-    margin: 0 auto 1.5rem;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-  }
-
-  .calling-icon {
-    font-size: 3rem;
-  }
-
-  .calling-to {
-    font-size: 1.1rem;
-    color: var(--text-primary, #1e293b);
-    margin-bottom: 1.5rem;
-  }
-
-  .calling-indicators {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .pulse {
-    width: 12px;
-    height: 12px;
-    background: var(--accent, #4ade80);
-    border-radius: 50%;
-    animation: pulse 1.5s infinite;
-  }
-
-  .pulse:nth-child(2) { animation-delay: 0.2s; }
-  .pulse:nth-child(3) { animation-delay: 0.4s; }
-
-  @keyframes pulse {
-    0% { transform: scale(0.8); opacity: 0.5; }
-    50% { transform: scale(1); opacity: 1; }
-    100% { transform: scale(0.8); opacity: 0.5; }
-  }
-
-  .connection-info {
-    color: #4ade80;
-    font-weight: 500;
-    margin-top: 0.5rem;
-  }
-
-  .no-call-screen {
+  .call-status {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: 1rem;
+    color: #1e293b;
+  }
+
+  .call-status p {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .no-call {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 500px;
     text-align: center;
+    gap: 1rem;
     padding: 2rem;
-    width: 100%;
-    height: 100%;
   }
 
   .theme-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
+    font-size: 5rem;
   }
 
-  .no-call-screen h2 {
-    font-size: 1.75rem;
-    color: var(--text-primary, #1e293b);
-    margin-bottom: 0.5rem;
+  .no-call-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1e293b;
   }
 
-  .no-call-screen p {
-    color: var(--text-secondary, #64748b);
+  .no-call-description {
+    color: #64748b;
+    margin: 0;
+    max-width: 400px;
   }
 
   .start-call-buttons {
@@ -672,104 +561,109 @@
     justify-content: center;
   }
 
-  .start-call-button {
-    background: var(--accent, #4ade80);
-    color: white;
+  .start-audio-call,
+  .start-video-call {
+    padding: 1rem 1.5rem;
     border: none;
-    padding: 0.875rem 2rem;
-    border-radius: var(--radius-lg, 0.75rem);
+    border-radius: 0.75rem;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: var(--shadow-md);
   }
 
-  .start-call-button.audio {
-    background: linear-gradient(135deg, #9c27b0, #7b1fa2);
-  }
-
-  .start-call-button:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-  }
-
-  .call-error {
-    position: fixed;
-    bottom: 1.5rem;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--error, #ef4444);
+  .start-audio-call {
+    background: #4ade80;
     color: white;
-    padding: 1rem 2rem;
-    border-radius: var(--radius-lg, 0.75rem);
-    box-shadow: var(--shadow-xl);
+  }
+
+  .start-video-call {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .start-audio-call:hover,
+  .start-video-call:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+  }
+
+  .start-audio-call:focus,
+  .start-video-call:focus {
+    outline: 2px solid #4ade80;
+    outline-offset: 2px;
+  }
+
+  .error-modal {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     display: flex;
     align-items: center;
     gap: 1rem;
-    z-index: 1000;
-    animation: slide-up 0.3s ease;
+    animation: slideIn 0.2s ease-out;
+    z-index: 100;
   }
 
-  @keyframes slide-up {
+  .error-modal p {
+    margin: 0;
+    color: #dc2626;
+  }
+
+  .error-modal button {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: #64748b;
+    padding: 0.25rem;
+  }
+
+  @keyframes slideIn {
     from {
       opacity: 0;
-      transform: translateX(-50%) translateY(20px);
+      transform: translateY(-10px);
     }
     to {
       opacity: 1;
-      transform: translateX(-50%) translateY(0);
+      transform: translateY(0);
     }
-  }
-
-  .call-error button {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: white;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     z-index: 1000;
-    animation: fade-in 0.2s ease;
-  }
-
-  @keyframes fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    padding: 1rem;
   }
 
   .incoming-call-modal {
     background: white;
-    border-radius: var(--radius-2xl, 1.5rem);
+    border-radius: 1.25rem;
     padding: 2rem;
+    max-width: 360px;
+    width: 100%;
     text-align: center;
-    max-width: 400px;
-    width: 90%;
-    animation: modal-slide-up 0.3s ease;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    animation: popIn 0.3s ease-out;
   }
 
-  @keyframes modal-slide-up {
+  @keyframes popIn {
     from {
-      transform: translateY(30px);
       opacity: 0;
+      transform: scale(0.9);
     }
     to {
-      transform: translateY(0);
       opacity: 1;
+      transform: scale(1);
     }
   }
 
@@ -777,101 +671,96 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #2196F3, #1976D2);
-    margin: 0 auto 1rem;
+    background: linear-gradient(135deg, #4ade80, #22c55e);
     display: flex;
-    justify-content: center;
     align-items: center;
-    color: white;
-    font-size: 2rem;
+    justify-content: center;
+    margin: 0 auto 1.25rem;
   }
 
-  .incoming-call-modal h3 {
-    font-size: 1.5rem;
-    color: var(--text-primary, #1e293b);
-    margin-bottom: 0.5rem;
+  .caller-avatar span {
+    font-size: 2.5rem;
   }
 
-  .incoming-call-modal p {
-    color: var(--text-secondary, #64748b);
-    margin-bottom: 0.5rem;
+  .caller-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem 0;
+    color: #1e293b;
   }
 
-  .modal-actions {
+  .caller-from {
+    font-size: 1rem;
+    color: #64748b;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .call-info-text {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin: 0 0 1.5rem 0;
+  }
+
+  .call-actions {
     display: flex;
     gap: 1rem;
     justify-content: center;
-    margin-top: 1.5rem;
   }
 
-  .modal-actions button {
+  .accept-btn,
+  .reject-btn {
     flex: 1;
-    padding: 0.75rem;
+    padding: 0.85rem 1rem;
     border: none;
-    border-radius: var(--radius-lg, 0.75rem);
+    border-radius: 0.5rem;
     font-size: 1rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
   }
 
-  .accept {
+  .accept-btn {
     background: #4ade80;
     color: white;
   }
 
-  .decline {
+  .accept-btn:hover {
+    filter: brightness(1.1);
+  }
+
+  .reject-btn {
     background: #ef4444;
     color: white;
   }
 
-  .modal-actions button:hover {
-    transform: scale(1.05);
-    opacity: 0.9;
+  .reject-btn:hover {
+    background: #dc2626;
   }
 
-  /* Responsive */
-  @media (max-width: 768px) {
-    .video-grid {
-      grid-template-columns: 1fr;
-    }
+  .accept-btn:focus,
+  .reject-btn:focus {
+    outline: 2px solid #4ade80;
+    outline-offset: 2px;
+  }
 
+  @media (max-width: 640px) {
     .call-controls {
-      gap: 1rem;
-      padding: 1rem;
-    }
-
-    .call-info {
-      margin-left: 0;
-      margin-top: 0.5rem;
-      width: 100%;
+      gap: 0.75rem;
     }
 
     .control-button {
       width: 48px;
       height: 48px;
-      font-size: 1.2rem;
-    }
-
-    .hangup {
-      width: 56px;
-      height: 56px;
+      font-size: 1.25rem;
     }
 
     .start-call-buttons {
       flex-direction: column;
+      width: 100%;
     }
 
-    .call-header {
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
-    .conversation-info {
-      order: -1;
-    }
-
-    .back-button {
+    .start-audio-call,
+    .start-video-call {
       width: 100%;
     }
   }
