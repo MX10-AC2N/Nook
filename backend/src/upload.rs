@@ -5,7 +5,7 @@ use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
 use axum::http::header::{ContentDisposition, HeaderMap};
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{Html, IntoResponse};
 use futures_util::stream::BytesStream;
 use serde_json::{json, Value};
 use std::path::Path as StdPath;
@@ -51,7 +51,7 @@ pub async fn upload_handler(
         };
         let path = format!("{}/{}.{}", upload_dir, id, ext);
 
-        std::fs::create_dir_all(upload_dir).ok();
+        let _ = std::fs::create_dir_all(upload_dir);
 
         let timestamp = chrono::Utc::now().timestamp();
         let mut file = File::create(&path).await.unwrap();
@@ -68,7 +68,7 @@ pub async fn upload_handler(
         uploads.push(upload);
     }
 
-    // Insertion en base
+    // Insertion en base de tous les fichiers uploadés
     for upload in &uploads {
         let _ = sqlx::query!(
             "INSERT INTO uploads (id, file_name, content_type, size, path, timestamp)
@@ -84,18 +84,18 @@ pub async fn upload_handler(
         .await;
     }
 
-    // Récupération du premier upload pour affichage
+    // On affiche le premier fichier uploadé (comme dans ta version originale)
     let saved_upload = if let Some(first) = uploads.first() {
-        sqlx::query_as!(
+        let db_upload = sqlx::query_as!(
             Upload,
             "SELECT * FROM uploads WHERE id = $1",
             first.id
         )
         .fetch_optional(&get_pool())
         .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| first.clone())
+        .unwrap_or(None);
+
+        db_upload.unwrap_or_else(|| first.clone())
     } else {
         return Html("<script>alert('No file uploaded');</script>".to_string());
     };
@@ -106,15 +106,20 @@ pub async fn upload_handler(
 <head>
     <meta charset="UTF-8">
     <title>Upload Complete</title>
-    <!-- Ton CSS ici si tu veux -->
+    <style>
+        body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f0f0; }}
+        .card {{ background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }}
+        h1 {{ color: #667eea; }}
+        .btn {{ background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; }}
+    </style>
 </head>
 <body>
-    <div style="text-align:center; padding:50px;">
-        <h1>Upload Successful!</h1>
+    <div class="card">
+        <h1>Upload Successful! ✅</h1>
         <p><strong>File:</strong> {}</p>
         <p><strong>Size:</strong> {} bytes</p>
         <p><strong>ID:</strong> {}</p>
-        <button onclick="window.location.href='/'">Back to Home</button>
+        <button class="btn" onclick="window.location.href='/'">Back to Home</button>
     </div>
 </body>
 </html>"#,
@@ -129,16 +134,21 @@ pub async fn upload_chat_file(
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    let sender_name: String = match query_scalar!("SELECT name FROM users WHERE id = $1", sender_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-    {
+    // Récupération du nom de l'expéditeur
+    let sender_name_opt: Option<String> = query_scalar!(
+        "SELECT name FROM users WHERE id = $1",
+        sender_id
+    )
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    let sender_name = match sender_name_opt {
         Some(name) => name,
         None => return Html("User not found".into()),
     };
 
+    // Upload du fichier joint au message chat
     let uploaded_file: Option<Value> = if let Some(field) = multipart.next_field().await.unwrap() {
         let file_name = field.file_name().unwrap_or("unknown").to_string();
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
@@ -147,7 +157,7 @@ pub async fn upload_chat_file(
         let id = Uuid::new_v4().to_string();
         let path = format!("uploads/{}", id);
 
-        std::fs::create_dir_all("uploads").ok();
+        let _ = std::fs::create_dir_all("uploads");
         let mut file = File::create(&path).await.unwrap();
         file.write_all(&data).await.unwrap();
 
@@ -203,7 +213,7 @@ pub async fn upload_chat_file(
         state.clone(),
         conversation_id.clone(),
         "new_message".to_string(),
-        message_json,
+        message_json.clone(),
     );
 
     Html(format!(
@@ -211,7 +221,7 @@ pub async fn upload_chat_file(
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>File Upload</title>
+    <title>File Uploaded</title>
     <script>
         if (window.opener) {{
             window.opener.postMessage({{ type: 'file_uploaded', message: {} }}, '*');
@@ -219,9 +229,11 @@ pub async fn upload_chat_file(
         }}
     </script>
 </head>
-<body><p>Upload complete. Closing...</p></body>
+<body>
+    <p>Upload complete. Closing window...</p>
+</body>
 </html>"#,
-        serde_json::to_string(&message).unwrap()
+        message_json
     ))
 }
 
@@ -233,8 +245,7 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
     )
     .fetch_optional(&get_pool())
     .await
-    .ok()
-    .flatten();
+    .unwrap_or(None);
 
     match upload {
         Some(upload) => {
@@ -278,8 +289,7 @@ pub async fn delete_upload(
     )
     .fetch_optional(&state.db)
     .await
-    .ok()
-    .flatten();
+    .unwrap_or(None);
 
     if let Some(upload) = upload {
         let file_path = StdPath::new(&upload.path);
@@ -293,15 +303,19 @@ pub async fn delete_upload(
 
         Html(r#"<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Delete Complete</title>
-<script>
-    if (window.opener) {
-        window.opener.postMessage({type: 'file_deleted'}, '*');
-        window.close();
-    }
-</script>
+<head>
+    <meta charset="UTF-8">
+    <title>Deleted</title>
+    <script>
+        if (window.opener) {
+            window.opener.postMessage({type: 'file_deleted'}, '*');
+            window.close();
+        }
+    </script>
 </head>
-<body><p>Delete complete. Closing...</p></body>
+<body>
+    <p>File deleted. Closing...</p>
+</body>
 </html>"#.to_string())
     } else {
         Html("Upload not found".into())
