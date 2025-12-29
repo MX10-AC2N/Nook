@@ -1,5 +1,5 @@
 use tokio::time::{interval, Duration};
-use tokio::join_all;
+use futures_util::future::join_all;
 
 pub async fn start_cleanup_task(uploads_dir: String) {
     let mut interval = interval(Duration::from_secs(3600)); // Toutes les heures
@@ -12,7 +12,7 @@ pub async fn start_cleanup_task(uploads_dir: String) {
 
 async fn cleanup_old_files(uploads_dir: &str) {
     let now = std::time::SystemTime::now();
-    let cutoff = Duration::from_secs(7 * 24 * 3600); // 7 jours d'ancienneté
+    let cutoff = Duration::from_secs(7 * 24 * 3600); // 7 jours
 
     if let Ok(mut entries) = tokio::fs::read_dir(uploads_dir).await {
         let mut tasks = vec![];
@@ -31,7 +31,7 @@ async fn cleanup_old_files(uploads_dir: &str) {
             }
         }
 
-        // Exécute toutes les suppressions en parallèle
+        // Suppression parallèle
         let _ = join_all(tasks).await;
     }
 }
