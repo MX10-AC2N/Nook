@@ -12,7 +12,6 @@ use std::path::Path as StdPath;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
-use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 use sqlx::{query, query_as};
 
@@ -202,9 +201,8 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
         Some(upload) => {
             let path = StdPath::new(&upload.path);
             if path.exists() {
-                let file = File::open(path).await.unwrap();
-                let stream = ReaderStream::new(file);
-                let body = Body::from_stream(stream);
+                let data = tokio::fs::read(&path).await.unwrap_or_default();
+                let body = Body::from(data);
 
                 let mut headers = HeaderMap::new();
                 headers.insert("content-type", upload.content_type.parse().unwrap_or_else(|_| "application/octet-stream".parse().unwrap()));
@@ -248,4 +246,12 @@ pub async fn delete_upload(
     } else {
         Html("Fichier non trouvé".into())
     }
+}
+
+// Alias pour matcher main.rs si tu as une route /api/upload-media
+pub async fn handle_upload_media(
+    state: AxumState<Arc<State>>,
+    multipart: Multipart,
+) -> impl IntoResponse {
+    upload_handler(state, multipart).await
 }
