@@ -25,8 +25,8 @@ rand = { version = "0.8", features = ["std_rng"] }
 argon2 = "0.5"
 bcrypt = "0.15"
 
-# Headers pour ContentDisposition (version 0.10+ pour l'API moderne)
-headers = "0.10"
+# Headers
+headers = "0.4"
 
 # Rate limiting
 tower_governor = "0.4.3"
