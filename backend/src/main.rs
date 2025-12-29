@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use axum::server::Server;  // Import correct pour Axum 0.7
+use axum::server::Server;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -130,7 +130,6 @@ async fn main() {
         .merge(user_routes)
         .merge(admin_routes)
         .route("/ws/call", get(webrtc::ws_handler))
-        // Servir les fichiers statiques du frontend (static, assets, etc.)
         .nest_service("/", ServeDir::new("frontend"))
         .fallback(get(spa_fallback))
         .with_state(shared_state);
