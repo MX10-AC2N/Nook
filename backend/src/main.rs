@@ -84,7 +84,7 @@ async fn user_middleware(
 
 // Fallback SPA : sert l'index.html pour toutes les routes non-API
 async fn spa_fallback() -> impl IntoResponse {
-    Html(include_str!("../../../frontend/index.html"))
+    Html(include_str!("../../../build/index.html"))
 }
 
 #[tokio::main]
@@ -137,7 +137,7 @@ async fn main() {
         .merge(admin_routes)
         .route("/ws/call", get(webrtc::ws_handler))
         // Servir tous les fichiers statiques du build frontend
-        .fallback_service(ServeDir::new("frontend"))
+        .fallback_service(ServeDir::new("/build"))
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
