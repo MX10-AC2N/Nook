@@ -336,9 +336,8 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         .and_then(|cookies| {
             cookies
                 .split(';')
-                .find(|c| c.trim().starts_with(&format!("{}=", name))))
+                .find(|c| c.trim().starts_with(&format!("{}=", name)))
                 .and_then(|c| c.trim().split('=').nth(1))
                 .map(String::from)
         })
 }
-
