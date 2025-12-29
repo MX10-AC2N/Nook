@@ -31,7 +31,6 @@ async fn cleanup_old_files(uploads_dir: &str) {
             }
         }
 
-        // Suppression parallèle
         let _ = join_all(tasks).await;
     }
 }
