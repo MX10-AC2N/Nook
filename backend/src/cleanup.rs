@@ -1,31 +1,37 @@
 use tokio::time::{interval, Duration};
-use std::path::Path;
+use tokio::join_all;
 
-pub async fn start_cleanup_task(uploads_dir: &str) {
+pub async fn start_cleanup_task(uploads_dir: String) {
     let mut interval = interval(Duration::from_secs(3600)); // Toutes les heures
+
     loop {
         interval.tick().await;
-        cleanup_old_files(uploads_dir).await;
+        cleanup_old_files(&uploads_dir).await;
     }
 }
 
 async fn cleanup_old_files(uploads_dir: &str) {
     let now = std::time::SystemTime::now();
+    let cutoff = Duration::from_secs(7 * 24 * 3600); // 7 jours d'ancienneté
+
     if let Ok(mut entries) = tokio::fs::read_dir(uploads_dir).await {
         let mut tasks = vec![];
-        let cutoff = Duration::from_secs(7 * 24 * 3600); // 7 jours
 
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
-            if let Ok(metadata) = tokio::fs::metadata(&path).await {
+
+            if let Ok(metadata) = entry.metadata().await {
                 if let Ok(modified) = metadata.modified() {
-                    if now.duration_since(modified).unwrap_or(cutoff) > cutoff {
-                        tasks.push(tokio::fs::remove_file(path));
+                    if let Ok(age) = now.duration_since(modified) {
+                        if age > cutoff {
+                            tasks.push(tokio::fs::remove_file(path));
+                        }
                     }
                 }
             }
         }
-        // Utiliser tokio::join_all au lieu de futures_util::future::join_all
-        tokio::join_all(tasks).await;
+
+        // Exécute toutes les suppressions en parallèle
+        let _ = join_all(tasks).await;
     }
 }
