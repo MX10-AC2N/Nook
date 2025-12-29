@@ -12,6 +12,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_LOG: warn
+  SQLX_OFFLINE: true
 
 jobs:
   setup:
@@ -95,122 +96,38 @@ jobs:
       - name: Analyse statique
         run: cargo clippy -- -D warnings
 
-      - name: Préparer environnement SQLx
-        run: |
-          mkdir -p /tmp/nook-data
-          mkdir -p migrations
-          # Copier les migrations existantes
-          if [ -d "../../backend/migrations" ]; then
-            cp -r ../../backend/migrations/* migrations/
-          fi
-          # Créer une base de données temporaire
-          sqlite3 /tmp/nook-data/nook.db "VACUUM;"
-          echo "DATABASE_URL=sqlite:/tmp/nook-data/nook.db" > .env
-
       - name: Installer sqlx-cli
-        run: |
-          cargo install sqlx-cli --version 0.8.6 --no-default-features --features sqlite --locked
+        run: cargo install sqlx-cli --version 0.8 --features sqlite --no-default-features --locked
 
-      - name: Appliquer toutes les migrations
+      - name: Créer base temporaire et appliquer migrations sqlx
         env:
-          DATABASE_URL: "sqlite:/tmp/nook-data/nook.db"
+          DATABASE_URL: sqlite:/tmp/nook.db
         run: |
-          echo "🔄 Application des migrations SQL..."
-          # Liste toutes les migrations
-          if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
-            echo "📁 Migrations trouvées:"
-            ls -la migrations/
-            # Appliquer chaque migration dans l'ordre
-            for migration in migrations/*.sql; do
-              if [ -f "$migration" ]; then
-                echo "🔧 Application de $(basename $migration)..."
-                sqlx migrate run --source . --database-url "$DATABASE_URL"
-              fi
-            done
-            echo "✅ Toutes les migrations appliquées"
-          else
-            echo "⚠️ Aucune migration trouvée, création des tables de base..."
-            sqlite3 /tmp/nook-data/nook.db "
-            CREATE TABLE IF NOT EXISTS users (
-              id TEXT PRIMARY KEY,
-              name TEXT NOT NULL,
-              username TEXT NOT NULL UNIQUE,
-              password_hash TEXT NOT NULL,
-              role TEXT NOT NULL DEFAULT 'member',
-              approved BOOLEAN NOT NULL DEFAULT 0,
-              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-              public_key TEXT,
-              private_key_encrypted TEXT
-            );
-            CREATE TABLE IF NOT EXISTS sessions (
-              token TEXT PRIMARY KEY,
-              user_id TEXT NOT NULL,
-              expires_at INTEGER NOT NULL,
-              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS conversations (
-              id TEXT PRIMARY KEY,
-              name TEXT,
-              is_group BOOLEAN NOT NULL DEFAULT 0,
-              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-              last_message_at INTEGER,
-              last_message_preview TEXT,
-              unread_count INTEGER DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS conversation_members (
-              conversation_id TEXT NOT NULL,
-              user_id TEXT NOT NULL,
-              joined_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-              FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-              PRIMARY KEY(conversation_id, user_id)
-            );
-            CREATE TABLE IF NOT EXISTS messages (
-              id TEXT PRIMARY KEY,
-              conversation_id TEXT NOT NULL,
-              sender_id TEXT NOT NULL,
-              content TEXT,
-              encrypted_keys TEXT,
-              nonce TEXT,
-              media_type TEXT,
-              media_url TEXT,
-              duration INTEGER,
-              timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-              FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-              FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE
-            );
-            CREATE TABLE IF NOT EXISTS message_reactions (
-              message_id TEXT NOT NULL,
-              user_id TEXT NOT NULL,
-              emoji TEXT NOT NULL,
-              created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-              FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE,
-              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-              PRIMARY KEY(message_id, user_id, emoji)
-            );
-            "
-            echo "✅ Tables de base créées"
-          fi
+          echo "Création de la base temporaire..."
+          touch /tmp/nook.db
+          echo "Application des migrations sqlx officielles..."
+          sqlx migrate run
 
-      - name: Générer cache SQLx
+      - name: Générer le cache offline sqlx (décisif !)
         env:
-          DATABASE_URL: "sqlite:/tmp/nook-data/nook.db"
-          SQLX_OFFLINE: "true"
+          DATABASE_URL: sqlite:/tmp/nook.db
+          SQLX_OFFLINE: false
         run: |
-          echo "🔄 Génération du cache SQLx..."
-          # Vérifier que les tables existent
-          TABLES=$(sqlite3 /tmp/nook-data/nook.db ".tables")
-          echo "📋 Tables disponibles: $TABLES"
-          # Générer le cache
-          cargo sqlx prepare -- --all-targets --lib
-          # Vérifier que le cache a été généré
-          if [ -d ".sqlx" ]; then
-            echo "✅ Cache SQLx généré avec succès"
-            ls -la .sqlx/
-          else
-            echo "❌ Échec de la génération du cache SQLx"
+          echo "Génération du cache .sqlx pour toutes les requêtes..."
+          cargo sqlx prepare --workspace --check
+          if [ $? -ne 0 ]; then
+            echo "❌ Erreur lors de cargo sqlx prepare"
+            echo "Vérifie que toutes tes requêtes query! / query_as! correspondent exactement aux colonnes de la base après migrations"
             exit 1
           fi
+
+      - name: Commit automatique du dossier .sqlx (si modifié)
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add .sqlx || echo "Rien à ajouter"
+          git commit -m "chore: update sqlx offline cache [ci skip]" || echo "Aucun changement dans .sqlx"
+          git push origin HEAD:${{ github.ref }} || echo "Push échoué (normal si pas de changement)"
 
       - name: Build Release
         env:
