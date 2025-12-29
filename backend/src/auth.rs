@@ -327,12 +327,9 @@ fn verify_password(password: &str, hash: &str) -> bool {
     argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok()
 }
 
-// Fonction qui accepte soit &HeaderMap, soit &Request<Body>
-pub fn get_cookie<T>(req_or_headers: &T, name: &str) -> Option<String>
-where
-    T: std::ops::Deref<Target = HeaderMap>,
-{
-    req_or_headers
+pub fn get_cookie(source: &impl AsRef<HeaderMap>, name: &str) -> Option<String> {
+    source
+        .as_ref()
         .get("cookie")
         .and_then(|v| v.to_str().ok())
         .and_then(|cookies| {
@@ -340,6 +337,6 @@ where
                 .split(';')
                 .find(|c| c.trim().starts_with(&format!("{}=", name)))
                 .and_then(|c| c.trim().split('=').nth(1))
-                .map(str::to_string)
+                .map(String::from)
         })
 }
