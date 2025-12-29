@@ -7,7 +7,6 @@ use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::{Request, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
-use futures_util::stream::BytesStream;
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as};
 use std::sync::Arc;
