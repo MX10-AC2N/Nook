@@ -86,6 +86,19 @@ jobs:
             cargo generate-lockfile
           fi
 
+      - name: Créer base SQLite temporaire pour sqlx online
+        run: |
+          mkdir -p /tmp/nook-data
+          touch /tmp/nook-data/nook.db
+          echo "DATABASE_URL=sqlite:///tmp/nook-data/nook.db" >> $GITHUB_ENV
+
+      - name: Appliquer les migrations sqlx (pour avoir le bon schéma)
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-data/nook.db
+        run: |
+          cargo install sqlx-cli --version 0.8 --features sqlite --no-default-features --locked
+          sqlx migrate run
+
       - name: Vérifier dépendances
         env:
           SQLX_OFFLINE: false
