@@ -132,7 +132,7 @@ async fn handle_call_message(
             };
 
             {
-                let mut subs = state.webrtc_broadcasts.write().await;
+                let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
                 subs.entry(conversation_id.clone())
                     .or_insert(Arc::new(RwLock::new(sender)));
             }
@@ -176,7 +176,7 @@ async fn handle_call_message(
             }
 
             {
-                let mut subs = state.webrtc_broadcasts.write().await;
+                let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.write().await;
                 subs.remove(&conversation_id);
             }
         }
