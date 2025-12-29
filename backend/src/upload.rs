@@ -3,15 +3,16 @@ use crate::webrtc::broadcast_message;
 use crate::State;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::{ContentDisposition, HeaderMap};
+use axum::http::header::HeaderMap;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
-use futures_util::stream::BytesStream;
+use headers::ContentDisposition;
 use serde_json::{json, Value};
 use std::path::Path as StdPath;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 use sqlx::{query, query_as};
 
@@ -201,8 +202,8 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
         Some(upload) => {
             let path = StdPath::new(&upload.path);
             if path.exists() {
-                let data = tokio::fs::read(path).await.unwrap_or_default();
-                let stream = BytesStream::from(data);
+                let file = File::open(path).await.unwrap();
+                let stream = ReaderStream::new(file);
                 let body = Body::from_stream(stream);
 
                 let mut headers = HeaderMap::new();
