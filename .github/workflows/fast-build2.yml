@@ -96,7 +96,7 @@ jobs:
         env:
           DATABASE_URL: sqlite:///tmp/nook-data/nook.db
         run: |
-          cargo install sqlx-cli --version 0.8 --features sqlite --no-default-features --locked
+          cargo install sqlx-cli --version '^0.8' --features sqlite --no-default-features --locked
           sqlx migrate run
 
       - name: Vérifier dépendances
