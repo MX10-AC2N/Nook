@@ -81,7 +81,7 @@ async fn user_middleware(
 
 // SPA fallback handler
 async fn spa_fallback() -> impl IntoResponse {
-    Html(include_str!("../../index.html"))
+    Html(include_str!("../../frontend/index.html"))
 }
 
 #[tokio::main]
