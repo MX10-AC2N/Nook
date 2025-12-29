@@ -1,7 +1,6 @@
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
-use sqlx::{Pool, Sqlite};
+use sqlx::{FromRow, Pool, Sqlite};
 use std::path::Path;
-use std::str::FromStr;
 use std::fs;
 use tokio::sync::OnceCell;
 
@@ -65,6 +64,83 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
+pub fn get_pool() -> &'static Pool<Sqlite> {
+    DB_INIT.get().expect("Database not initialized")
+}
+
+// Struct User - compatible avec table `users`
+#[derive(FromRow, Clone)]
+pub struct User {
+    pub id: String,
+    pub username: String,
+    pub password: String,
+    pub name: String,
+    pub role: String,
+    pub approved: bool,
+    pub needs_password_change: bool,
+    pub created_at: i64,
+    pub token: Option<String>,
+    pub public_key: Option<String>,
+    pub joined_at: Option<i64>,
+}
+
+// Struct Upload - compatible avec table `uploads`
+#[derive(FromRow, Clone)]
+pub struct Upload {
+    pub id: String,
+    pub file_name: String,
+    pub content_type: String,
+    pub size: i64,
+    pub path: String,
+    pub timestamp: i64,
+}
+
+// Struct ChatMessage - compatible avec table `chat_messages`
+#[derive(Clone)]
+pub struct ChatMessage {
+    pub id: String,
+    pub conversation_id: String,
+    pub sender_id: String,
+    pub sender_name: String,
+    pub content: String,
+    pub message_type: MessageType,
+    pub timestamp: i64,
+    pub file: Option<serde_json::Value>,
+}
+
+#[derive(Clone)]
+pub enum MessageType {
+    Text,
+    Image,
+    Video,
+    Audio,
+    File,
+}
+
+impl MessageType {
+    pub fn to_string(&self) -> String {
+        match self {
+            MessageType::Text => "text".to_string(),
+            MessageType::Image => "image".to_string(),
+            MessageType::Video => "video".to_string(),
+            MessageType::Audio => "audio".to_string(),
+            MessageType::File => "file".to_string(),
+        }
+    }
+}
+
+impl From<String> for MessageType {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "image" => MessageType::Image,
+            "video" => MessageType::Video,
+            "audio" => MessageType::Audio,
+            "file" => MessageType::File,
+            _ => MessageType::Text,
+        }
+    }
+}
+
 // Fonction utilitaire pour obtenir toutes les conversations d'un utilisateur
 pub async fn get_user_conversations(
     pool: &Pool<Sqlite>,
@@ -96,7 +172,7 @@ pub async fn get_user_conversations(
         let (id, name, is_group, created_at, last_message_at, last_message_preview, unread_count, participant_count) = row;
         let mut conv = serde_json::Map::new();
         conv.insert("id".to_string(), serde_json::Value::String(id));
-        conv.insert("name".to_string(), serde_json::Value::String(name.unwrap_or_default()));
+        conv.insert("name".to_string(), serde_json::Value::String(name.unwrap_or("Conversation".to_string())));
         conv.insert("is_group".to_string(), serde_json::Value::Bool(is_group));
         conv.insert("created_at".to_string(), serde_json::Value::Number(created_at.into()));
         conv.insert("last_message_at".to_string(), serde_json::Value::Number(last_message_at.unwrap_or(0).into()));
@@ -175,7 +251,7 @@ pub async fn get_conversation_messages(
                     GROUP BY emoji
                 )
             ), '{}') as reactions
-        FROM messages m
+        FROM chat_messages m
         JOIN users u ON m.sender_id = u.id
         WHERE m.conversation_id = ?
         ORDER BY m.timestamp ASC
