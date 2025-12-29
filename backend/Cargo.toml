@@ -12,7 +12,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"] }
 uuid = { version = "1.0", features = ["v4"] }
-libsodium-sys = { version = "0.2", features = ["use-pkg-config"] }
 futures-util = "0.3"
 tower-service = "0.3"
 http = "1.0"
@@ -20,20 +19,29 @@ serde_urlencoded = "0.7"
 reqwest = { version = "0.12", features = ["json"] }
 urlencoding = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
+
+# Auth & crypto
+argon2 = "0.5"  # ← Ajouté pour PasswordHash
 bcrypt = "0.15"
-headers = "0.3"
+
+# Headers pour ContentDisposition
+headers = "0.4"  # ← Version plus récente nécessaire pour ContentDisposition
+
+# Rate limiting
+tower_governor = "0.4.3"
+
+# Email (si tu l'utilises)
 lettre = { version = "0.11", default-features = false, features = [
     "tokio1",
     "tokio1-rustls",
     "webpki-roots",
     "ring"
 ] }
+
+# Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
-# 🔒 Rate limiting pour la sécurité
-tower_governor = "0.4.3"
-
-# 🔒 Fixes pour éviter edition2024
+# Fixes compatibilité
 home = "=0.5.11"
 base64ct = "=1.7.3"
