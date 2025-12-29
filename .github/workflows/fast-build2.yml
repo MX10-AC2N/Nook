@@ -88,7 +88,7 @@ jobs:
 
       - name: Vérifier dépendances
         env:
-          SQLX_MACROS_OFFLINE: "false"
+          SQLX_OFFLINE: false
         run: cargo check --all-targets
 
       - name: Formattage code
