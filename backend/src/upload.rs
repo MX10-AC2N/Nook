@@ -3,10 +3,9 @@ use crate::webrtc::broadcast_message;
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::HeaderMap;
+use axum::http::header::{HeaderMap, CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse};
-use headers::ContentDisposition;
 use serde_json::{json, Value};
 use std::path::Path as StdPath;
 use std::sync::Arc;
@@ -176,13 +175,14 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
                     Ok(file) => {
                         let mut response = axum::response::Response::new(axum::body::Body::from(file));
                         response.headers_mut().insert(
-                            "Content-Type",
+                            CONTENT_TYPE,
                             upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap())
                         );
-                        let content_disposition = ContentDisposition::attachment(upload.file_name);
+                        // Construction manuelle du Content-Disposition header
+                        let content_disposition = format!("attachment; filename=\"{}\"", upload.file_name);
                         response.headers_mut().insert(
-                            "Content-Disposition",
-                            content_disposition.to_string().parse().unwrap()
+                            CONTENT_DISPOSITION,
+                            content_disposition.parse().unwrap()
                         );
                         response
                     }
