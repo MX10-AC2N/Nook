@@ -327,16 +327,16 @@ fn verify_password(password: &str, hash: &str) -> bool {
     argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok()
 }
 
-pub fn get_cookie(source: &impl AsRef<HeaderMap>, name: &str) -> Option<String> {
-    source
-        .as_ref()
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
         .get("cookie")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
                 .split(';')
-                .find(|c| c.trim().starts_with(&format!("{}=", name)))
-                .and_then(|c| c.trim().split('=').nth(1))
-                .map(String::from)
+                .map(|cookie| cookie.trim())
+                .find(|cookie| cookie.starts_with(&format!("{}=", name)))
+                .and_then(|cookie| cookie.splitn(2, '=').nth(1))
+                .map(|value| value.to_string())
         })
 }
