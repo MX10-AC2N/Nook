@@ -1,5 +1,5 @@
 use crate::db::User;
-use crate::State;
+use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use rand::rngs::OsRng;
@@ -66,7 +66,7 @@ pub struct ApprovePayload {
 }
 
 pub async fn register_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
     let salt = SaltString::generate(&mut OsRng);
@@ -75,38 +75,34 @@ pub async fn register_handler(
         .hash_password(payload.password.as_bytes(), &salt)
         .unwrap()
         .to_string();
-
+    
     let user_id = Uuid::new_v4().to_string();
-
-    let _ = query!(
+    
+    let _ = sqlx::query(
         "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        user_id,
-        payload.username,
-        hashed_password,
-        payload.name,
-        "user".to_string(),
-        false,
-        true
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
+    .bind(&user_id)
+    .bind(&payload.username)
+    .bind(&hashed_password)
+    .bind(&payload.name)
+    .bind("user")
+    .bind(false)
+    .bind(true)
     .execute(&state.db)
-    .await
-    .ok();
+    .await;
 
-    Html(
-        "<script>alert('Inscription réussie ! En attente d\\'approbation par l\\'admin.'); window.location.href='/';</script>".into()
-    )
+    Html("Inscription réussie! En attente d'approbation de l'administrateur.".into())
 }
 
 pub async fn login_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
-    let user: Option<User> = query_as!(
-        User,
-        "SELECT * FROM users WHERE username = $1",
-        payload.username
+    let user: Option<User> = sqlx::query_as(
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
     )
+    .bind(&payload.username)
     .fetch_optional(&state.db)
     .await
     .ok()
@@ -115,11 +111,9 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Html(
-                    "<script>alert('Votre compte n\\'est pas encore approuvé.'); window.location.href='/';</script>".into()
-                );
+                return Html("Votre compte est en attente d'approbation.".into());
             }
-
+            
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
             if Argon2::default()
                 .verify_password(payload.password.as_bytes(), &parsed_hash)
@@ -127,48 +121,64 @@ pub async fn login_handler(
             {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
-
-                let _ = query!("UPDATE users SET token = $1 WHERE id = $2", token, user.id)
-                    .execute(&state.db)
-                    .await
-                    .ok();
+                
+                let _ = sqlx::query(
+                    "UPDATE users SET token = ? WHERE id = ?"
+                )
+                .bind(&token)
+                .bind(&user.id)
+                .execute(&state.db)
+                .await;
 
                 let user_info = UserInfo {
                     id: user.id.clone(),
                     username: user.username.clone(),
-                    name: user.name.clone(),
-                    role: user.role.clone(),
+                    name: user.name.unwrap_or_default(),
+                    role: user.role.unwrap_or_else(|| "user".to_string()),
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
 
-                let mut response = if user.role == "admin" {
-                    Html(r#"<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Admin - Nook</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-gray-900 text-white"><div class="container mx-auto p-8">
-<h1 class="text-4xl font-bold text-purple-400 mb-8">Admin Dashboard</h1>
-<div class="grid md:grid-cols-2 gap-6">
-<a href="/pending_users" class="bg-purple-800 p-8 rounded-lg hover:bg-purple-700">Pending Users</a>
-<a href="/all_users" class="bg-indigo-800 p-8 rounded-lg hover:bg-indigo-700">All Users</a>
-</div></div></body></html>"#.into())
+                let user_role = user.role.unwrap_or_else(|| "user".to_string());
+                let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
+                
+                let mut response = if user_role == "admin" {
+                    Html(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Admin - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Admin Dashboard</h1>
+                        <p>Bienvenue, Admin !</p>
+                        <a href="/pending_users">Utilisateurs en attente</a><br>
+                        <a href="/all_users">Tous les utilisateurs</a>
+                    </body>
+                    </html>
+                    "#.into()).into_response()
                 } else {
-                    Html(format!(
-                        r#"<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Bienvenue - Nook</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen">
-<div class="text-center">
-<h1 class="text-4xl font-bold text-purple-400 mb-4">Bienvenue, {} !</h1>
-<a href="/chat" class="bg-purple-600 px-8 py-4 rounded-lg hover:bg-purple-500">Ouvrir le chat</a>
-</div>
-<script>
-    document.cookie = "auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600";
-    localStorage.setItem('user', '{}');
-</script>
-</body></html>"#,
-                        user.name,
-                        cookie_value,
+                    Html(format!(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Bienvenue - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Bienvenue, {} !</h1>
+                        <p>Ceci est votre tableau de bord utilisateur.</p>
+                        <a href="/chat">Ouvrir le chat</a>
+                        <script>
+                            localStorage.setItem('user_info', '{}');
+                        </script>
+                    </body>
+                    </html>
+                    "#,
+                        user_name,
                         serde_json::to_string(&user_info).unwrap()
                     )).into_response()
                 };
@@ -179,19 +189,17 @@ pub async fn login_handler(
                         .parse()
                         .unwrap(),
                 );
-
                 response
             } else {
-                Html("<script>alert('Mot de passe incorrect'); window.location.href='/';</script>".into())
+                Html("Nom d'utilisateur ou mot de passe incorrect.".into())
             }
         }
-        None => Html("<script>alert('Utilisateur non trouvé'); window.location.href='/';</script>".into()),
+        None => Html("Nom d'utilisateur ou mot de passe incorrect.".into()),
     }
 }
 
-pub async fn pending_users_handler(AxumState(state): AxumState<Arc<State>>) -> impl IntoResponse {
-    let rows = query_as!(
-        UserInfoSqlxRow,
+pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change FROM users WHERE approved = false"
     )
     .fetch_all(&state.db)
@@ -203,41 +211,62 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<State>>) -> i
         id: r.id,
         username: r.username,
         name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or("user".to_string()),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
         approved: r.approved,
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html(format!(
-        r#"<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Utilisateurs en attente</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-gray-900 text-white min-h-screen p-8">
-<h1 class="text-3xl font-bold text-purple-400 mb-8">Utilisateurs en attente d'approbation</h1>
-<div class="space-y-4">
-{}
-</div>
-<a href="/" class="text-purple-400 mt-8 inline-block">← Retour</a>
-<script>
-async function approveUser(id) {{
-    const res = await fetch('/api/approve', {{ method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{user_id: id}}) }});
-    if ((await res.json()).success) location.reload();
-}}
-</script>
-</body></html>"#,
+    Html(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Utilisateurs en attente</title>
+    </head>
+    <body>
+        <h1>Utilisateurs en attente d'approbation</h1>
+        <ul>
+            {}
+        </ul>
+        <a href="/">← Retour</a>
+        <script>
+            function approveUser(userId) {{
+                fetch('/api/approve', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: userId }}),
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    if (data.success) {{
+                        alert(data.message);
+                        window.location.reload();
+                    }} else {{
+                        alert('Erreur: ' + data.message);
+                    }}
+                }})
+                .catch(error => console.error('Error:', error));
+            }}
+        </script>
+    </body>
+    </html>
+    "#,
         users.iter().map(|u| format!(
-            r#"<div class="bg-gray-800 p-6 rounded-lg flex justify-between items-center">
-                <div><p class="font-bold">{}</p><p class="text-gray-400">{}</p></div>
-                <button onclick="approveUser('{}')" class="bg-green-600 px-6 py-3 rounded hover:bg-green-500">Approuver</button>
-            </div>"#,
+            r#"
+            <li>
+                <p>Nom: {}</p>
+                <p>Username: {}</p>
+                <button onclick="approveUser('{}')">Approuver</button>
+            </li>
+            "#,
             u.name, u.username, u.id
-        )).collect::<Vec<_>>().join("")
+        )).collect::<String>().join("")
     ))
 }
 
-pub async fn all_users_handler(AxumState(state): AxumState<Arc<State>>) -> impl IntoResponse {
-    let rows = query_as!(
-        UserInfoSqlxRow,
+pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change FROM users ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
@@ -249,38 +278,55 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<State>>) -> impl 
         id: r.id,
         username: r.username,
         name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or("user".to_string()),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
         approved: r.approved,
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html(format!(
-        r#"<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Tous les utilisateurs</title>
-<script src="https://cdn.tailwindcss.com"></script></head>
-<body class="bg-gray-900 text-white min-h-screen p-8">
-<h1 class="text-3xl font-bold text-purple-400 mb-8">Tous les utilisateurs</h1>
-<table class="w-full bg-gray-800 rounded-lg">
-<thead><tr class="border-b border-gray-700"><th class="p-4 text-left">Nom</th><th class="p-4 text-left">Username</th><th class="p-4 text-left">Rôle</th><th class="p-4 text-left">Statut</th></tr></thead>
-<tbody>{}</tbody>
-</table>
-<a href="/" class="text-purple-400 mt-8 inline-block">← Retour</a>
-</body></html>"#,
+    Html(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tous les utilisateurs</title>
+    </head>
+    <body>
+        <h1>Tous les utilisateurs</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Username</th>
+                    <th>Rôle</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {}
+            </tbody>
+        </table>
+        <a href="/">← Retour</a>
+    </body>
+    </html>
+    "#,
         users.iter().map(|u| format!(
-            "<tr class=\"border-b border-gray-700\"><td class=\"p-4\">{}</td><td class=\"p-4\">{}</td><td class=\"p-4\">{}</td><td class=\"p-4\">{}</td></tr>",
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
-        )).collect::<Vec<_>>().join("")
+        )).collect::<String>().join("")
     ))
 }
 
 pub async fn approve_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<ApprovePayload>,
 ) -> impl IntoResponse {
-    let _ = query!("UPDATE users SET approved = true WHERE id = $1", payload.user_id)
-        .execute(&state.db)
-        .await
-        .ok();
+    let _ = sqlx::query(
+        "UPDATE users SET approved = true WHERE id = ?"
+    )
+    .bind(&payload.user_id)
+    .execute(&state.db)
+    .await;
 
     Json(AuthResponse {
         success: true,
@@ -290,19 +336,20 @@ pub async fn approve_handler(
 }
 
 pub async fn logout_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
     let auth_cookie = get_cookie(req.headers(), "auth_token");
-
     if let Some(cookie_value) = auth_cookie {
         let parts: Vec<&str> = cookie_value.split(':').collect();
         if parts.len() == 2 {
             let user_id = parts[0];
-            let _ = query!("UPDATE users SET token = NULL WHERE id = $1", user_id)
-                .execute(&state.db)
-                .await
-                .ok();
+            let _ = sqlx::query(
+                "UPDATE users SET token = NULL WHERE id = ?"
+            )
+            .bind(user_id)
+            .execute(&state.db)
+            .await;
         }
     }
 
@@ -315,7 +362,7 @@ pub async fn logout_handler(
 }
 
 pub async fn change_password_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
     let salt = SaltString::generate(&mut OsRng);
@@ -325,16 +372,15 @@ pub async fn change_password_handler(
         .unwrap()
         .to_string();
 
-    let _ = query!(
-        "UPDATE users SET password = $1, needs_password_change = false WHERE id = $2",
-        hashed_password,
-        payload.user_id
+    let _ = sqlx::query(
+        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
     )
+    .bind(&hashed_password)
+    .bind(&payload.user_id)
     .execute(&state.db)
-    .await
-    .ok();
+    .await;
 
-    Html("<script>alert('Mot de passe changé avec succès !'); window.location.href='/';</script>".into())
+    Html("Mot de passe changé avec succès !".into())
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -345,7 +391,7 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
             cookie_str
                 .split(';')
                 .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}=", name)))
+                .find(|c| c.starts_with(&format!("{} = ", name)))
                 .and_then(|c| c.splitn(2, '=').nth(1))
                 .map(|v| v.to_string())
         })
