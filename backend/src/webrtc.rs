@@ -149,7 +149,7 @@ async fn handle_call_message(
             let _ = sender.send(message_json);
 
             {
-                let mut active_calls = state.active_calls.write().await;
+                let mut active_calls: tokio::sync::RwLockWriteGuard<'_, HashMap<String, SignalingData>> = state.active_calls.write().await;
                 active_calls.insert(message.call_id.clone(), signaling_data);
             }
 
@@ -160,7 +160,7 @@ async fn handle_call_message(
 
             let broadcasts = state.webrtc_broadcasts.read().await;
             if let Some(tx_arc) = broadcasts.get(&conversation_id) {
-                let sender = tx_arc.read().await;
+                let sender: tokio::sync::RwLockReadGuard<'_, broadcast::Sender<String>> = tx_arc.read().await;
                 let message_json = serde_json::to_string(&message).unwrap();
                 let _ = sender.send(message_json);
             }
@@ -171,7 +171,7 @@ async fn handle_call_message(
             let conversation_id = format!("{}-{}", message.from, message.to);
 
             {
-                let mut active_calls = state.active_calls.write().await;
+                let mut active_calls: tokio::sync::RwLockWriteGuard<'_, HashMap<String, SignalingData>> = state.active_calls.write().await;
                 active_calls.remove(&message.call_id);
             }
 
