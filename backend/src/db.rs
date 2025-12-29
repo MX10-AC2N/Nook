@@ -24,6 +24,7 @@ pub async fn init_db() -> AppState {
         .create_if_missing(true);
 
     let pool = Pool::connect_with(options).await.unwrap();
+
     apply_migrations(&pool).await.unwrap();
 
     AppState { db: pool }
@@ -31,6 +32,7 @@ pub async fn init_db() -> AppState {
 
 async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
     println!("Application des migrations...");
+
     let migrations_dir = Path::new("backend/migrations");
     if !migrations_dir.exists() {
         fs::create_dir_all(migrations_dir).unwrap();
@@ -48,11 +50,13 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
             }
         })
         .collect();
+
     migration_files.sort();
 
     for migration_path in migration_files {
         let migration_name = migration_path.file_name().unwrap().to_str().unwrap();
         println!("Application de la migration: {}", migration_name);
+
         let sql = fs::read_to_string(&migration_path).unwrap();
         for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {
             sqlx::query(statement.trim())
@@ -60,6 +64,7 @@ async fn apply_migrations(pool: &Pool<Sqlite>) -> Result<(), sqlx::Error> {
                 .await?;
         }
     }
+
     println!("✅ Toutes les migrations ont été appliquées avec succès");
     Ok(())
 }
@@ -68,7 +73,6 @@ pub fn get_pool() -> &'static Pool<Sqlite> {
     DB_INIT.get().expect("Database not initialized")
 }
 
-// Struct User - compatible avec table `users`
 #[derive(FromRow, Clone)]
 pub struct User {
     pub id: String,
@@ -84,7 +88,6 @@ pub struct User {
     pub joined_at: Option<i64>,
 }
 
-// Struct Upload - compatible avec table `uploads`
 #[derive(FromRow, Clone)]
 pub struct Upload {
     pub id: String,
@@ -95,7 +98,6 @@ pub struct Upload {
     pub timestamp: i64,
 }
 
-// Struct ChatMessage - compatible avec table `chat_messages`
 #[derive(Clone)]
 pub struct ChatMessage {
     pub id: String,
@@ -105,7 +107,7 @@ pub struct ChatMessage {
     pub content: String,
     pub message_type: MessageType,
     pub timestamp: i64,
-    pub file: Option<serde_json::Value>,
+    pub file: Option<String>,
 }
 
 #[derive(Clone)]
@@ -141,7 +143,6 @@ impl From<String> for MessageType {
     }
 }
 
-// Fonction utilitaire pour obtenir toutes les conversations d'un utilisateur
 pub async fn get_user_conversations(
     pool: &Pool<Sqlite>,
     user_id: &str,
@@ -185,7 +186,6 @@ pub async fn get_user_conversations(
     Ok(conversations)
 }
 
-// Fonction utilitaire pour obtenir les participants d'une conversation
 pub async fn get_conversation_participants(
     pool: &Pool<Sqlite>,
     conversation_id: &str,
@@ -224,7 +224,6 @@ pub async fn get_conversation_participants(
     Ok(participants)
 }
 
-// Fonction utilitaire pour obtenir les messages d'une conversation
 pub async fn get_conversation_messages(
     pool: &Pool<Sqlite>,
     conversation_id: &str,
