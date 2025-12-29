@@ -1,19 +1,17 @@
-use crate::db::{get_pool, User};
+use crate::db::User;
 use crate::State;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use rand::rngs::OsRng;
 use axum::body::Body;
-use axum::extract::{Multipart, Path, State as AxumState};
+use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
-use axum::http::{Request, StatusCode};
+use axum::http::Request;
 use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as};
 use std::sync::Arc;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
@@ -73,7 +71,8 @@ pub async fn register_handler(
 ) -> impl IntoResponse {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let hashed_password = argon2.hash_password(payload.password.as_bytes(), &salt)
+    let hashed_password = argon2
+        .hash_password(payload.password.as_bytes(), &salt)
         .unwrap()
         .to_string();
 
@@ -122,7 +121,10 @@ pub async fn login_handler(
             }
 
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
-            if Argon2::default().verify_password(payload.password.as_bytes(), &parsed_hash).is_ok() {
+            if Argon2::default()
+                .verify_password(payload.password.as_bytes(), &parsed_hash)
+                .is_ok()
+            {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
 
@@ -318,7 +320,8 @@ pub async fn change_password_handler(
 ) -> impl IntoResponse {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let hashed_password = argon2.hash_password(payload.new_password.as_bytes(), &salt)
+    let hashed_password = argon2
+        .hash_password(payload.new_password.as_bytes(), &salt)
         .unwrap()
         .to_string();
 
