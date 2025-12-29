@@ -24,14 +24,14 @@ use tower_http::services::ServeDir;
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, Arc<RwLock<Sender<String>>>>>>,
+    pub webrtc_broadcasts: Arc<RwLock<HashMap<String, Sender<String>>>>,
 }
 
 // Middleware admin
 async fn admin_middleware(
     headers: axum::http::HeaderMap,
     State(state): State<SharedState>,
-    request: axum::http::Request<axum::body::Body>,
+    request: axum::http::Request,
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
     let token = auth::get_cookie(&headers, "nook_admin");
@@ -59,7 +59,7 @@ async fn admin_middleware(
 async fn user_middleware(
     headers: axum::http::HeaderMap,
     State(state): State<SharedState>,
-    request: axum::http::Request<axum::body::Body>,
+    request: axum::http::Request,
     next: Next,
 ) -> Result<axum::response::Response, StatusCode> {
     let token = auth::get_cookie(&headers, "nook_session");
@@ -96,7 +96,6 @@ async fn main() {
     println!("🚀 Démarrage de Nook v3.0");
 
     let app_state = db::init_db().await;
-
     let shared_state = SharedState {
         db: app_state.db.clone(),
         webrtc_broadcasts: Arc::new(RwLock::new(HashMap::new())),
