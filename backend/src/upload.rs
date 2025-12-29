@@ -92,8 +92,8 @@ pub async fn upload_handler(
         .await
         .unwrap();
 
-    if let Some(upload) = uploads_from_db.first() {
-        saved_uploads.push(upload.clone());
+    for upload in uploads_from_db {
+        saved_uploads.push(upload);
     }
 
     Html(format!(
