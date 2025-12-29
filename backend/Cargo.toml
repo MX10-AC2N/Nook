@@ -22,16 +22,16 @@ chrono = { version = "0.4", features = ["serde"] }
 rand = { version = "0.8", features = ["std_rng"] }
 
 # Auth & crypto
-argon2 = "0.5"  # ← Ajouté pour PasswordHash
+argon2 = "0.5"
 bcrypt = "0.15"
 
-# Headers pour ContentDisposition
-headers = "0.4"  # ← Version plus récente nécessaire pour ContentDisposition
+# Headers pour ContentDisposition (version 0.10+ pour l'API moderne)
+headers = "0.10"
 
 # Rate limiting
 tower_governor = "0.4.3"
 
-# Email (si tu l'utilises)
+# Email
 lettre = { version = "0.11", default-features = false, features = [
     "tokio1",
     "tokio1-rustls",
