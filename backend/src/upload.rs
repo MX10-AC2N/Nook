@@ -72,7 +72,8 @@ pub async fn upload_handler(
             upload.timestamp
         )
         .execute(&get_pool())
-        .await;
+        .await
+        .ok();
     }
 
     let saved_upload = uploads.first().cloned().unwrap_or(Upload {
@@ -106,13 +107,13 @@ pub async fn upload_chat_file(
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    let sender_name: Option<String> = query!("SELECT name FROM users WHERE id = $1", sender_id)
+    let sender_name_opt: Option<String> = query!("SELECT name FROM users WHERE id = $1", sender_id)
         .fetch_optional(&state.db)
         .await
         .ok()
         .and_then(|r| r.name);
 
-    let sender_name = match sender_name {
+    let sender_name = match sender_name_opt {
         Some(n) => n,
         None => return Html("Utilisateur non trouvé".into()),
     };
@@ -171,7 +172,8 @@ pub async fn upload_chat_file(
         serde_json::to_string(&message.file).unwrap_or("null".to_string())
     )
     .execute(&state.db)
-    .await;
+    .await
+    .ok();
 
     let message_json = serde_json::to_string(&message).unwrap();
     broadcast_message(state.clone(), conversation_id, "new_message".to_string(), message_json.clone());
@@ -238,7 +240,8 @@ pub async fn delete_upload(
 
         let _ = query!("DELETE FROM uploads WHERE id = $1", id)
             .execute(&state.db)
-            .await;
+            .await
+            .ok();
 
         Html("<!DOCTYPE html><html><head><script>if(window.opener){window.opener.postMessage({type:'file_deleted'},'*');window.close();}</script></head><body>Supprimé.</body></html>".into())
     } else {
