@@ -1,6 +1,8 @@
 use crate::db::{get_pool, User};
 use crate::State;
-use argon2::{Argon2, PasswordHash};
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::password_hash::SaltString;
+use rand::rngs::OsRng;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
@@ -69,7 +71,12 @@ pub async fn register_handler(
     AxumState(state): AxumState<Arc<State>>,
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
-    let hashed_password = hash_password(&payload.password);
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hashed_password = argon2.hash_password(payload.password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
+
     let user_id = Uuid::new_v4().to_string();
 
     let _ = query!(
@@ -114,7 +121,8 @@ pub async fn login_handler(
                 );
             }
 
-            if verify_password(&payload.password, &user.password) {
+            let parsed_hash = PasswordHash::new(&user.password).unwrap();
+            if Argon2::default().verify_password(payload.password.as_bytes(), &parsed_hash).is_ok() {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
 
@@ -308,7 +316,11 @@ pub async fn change_password_handler(
     AxumState(state): AxumState<Arc<State>>,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
-    let hashed_password = hash_password(&payload.new_password);
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hashed_password = argon2.hash_password(payload.new_password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
 
     let _ = query!(
         "UPDATE users SET password = $1, needs_password_change = false WHERE id = $2",
@@ -334,17 +346,4 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
                 .and_then(|c| c.splitn(2, '=').nth(1))
                 .map(|v| v.to_string())
         })
-}
-
-fn hash_password(password: &str) -> String {
-    let argon2 = Argon2::default();
-    PasswordHash::generate(argon2, password)
-        .unwrap()
-        .to_string()
-}
-
-fn verify_password(password: &str, hash: &str) -> bool {
-    let argon2 = Argon2::default();
-    let parsed_hash = PasswordHash::new(hash).unwrap();
-    argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok()
 }
