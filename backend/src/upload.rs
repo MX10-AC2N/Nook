@@ -13,10 +13,10 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::query_as;
 
 pub async fn upload_handler(
-    AxumState(state): AxumState<Arc<State>>,
+    AxumState(_state): AxumState<Arc<State>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut uploads: Vec<Upload> = Vec::new();
@@ -26,22 +26,14 @@ pub async fn upload_handler(
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
 
         let allowed_prefixes = ["image/", "video/", "audio/", "application/pdf"];
-        if !allowed_prefixes.iter().any(|prefix| content_type.starts_with(prefix)) {
-            return Html(
-                "<script>alert('Invalid file type'); window.location.href='/';</script>"
-                    .to_string(),
-            );
+        if !allowed_prefixes.iter().any(|p| content_type.starts_with(p)) {
+            return Html("<script>alert('Type de fichier non autorisé'); window.location.href='/';</script>".into());
         }
 
         let data = field.bytes().await.unwrap();
         let id = Uuid::new_v4().to_string();
-        let upload_dir = "uploads";
         let ext = if content_type.starts_with("image/") {
-            if content_type.contains("svg") {
-                "svg"
-            } else {
-                "jpg"
-            }
+            if content_type.contains("svg") { "svg" } else { "jpg" }
         } else if content_type.starts_with("video/") {
             "mp4"
         } else if content_type.starts_with("audio/") {
@@ -49,9 +41,9 @@ pub async fn upload_handler(
         } else {
             "pdf"
         };
-        let path = format!("{}/{}.{}", upload_dir, id, ext);
+        let path = format!("uploads/{}.{}", id, ext);
 
-        let _ = std::fs::create_dir_all(upload_dir);
+        let _ = std::fs::create_dir_all("uploads");
 
         let timestamp = chrono::Utc::now().timestamp();
         let mut file = File::create(&path).await.unwrap();
@@ -68,7 +60,6 @@ pub async fn upload_handler(
         uploads.push(upload);
     }
 
-    // Insertion en base de tous les fichiers uploadés
     for upload in &uploads {
         let _ = sqlx::query!(
             "INSERT INTO uploads (id, file_name, content_type, size, path, timestamp)
@@ -84,48 +75,29 @@ pub async fn upload_handler(
         .await;
     }
 
-    // On affiche le premier fichier uploadé (comme dans ta version originale)
-    let saved_upload = if let Some(first) = uploads.first() {
-        let db_upload = sqlx::query_as!(
-            Upload,
-            "SELECT * FROM uploads WHERE id = $1",
-            first.id
-        )
-        .fetch_optional(&get_pool())
-        .await
-        .unwrap_or(None);
-
-        db_upload.unwrap_or_else(|| first.clone())
-    } else {
-        return Html("<script>alert('No file uploaded');</script>".to_string());
-    };
+    let saved_upload = uploads.first().cloned().unwrap_or_else(|| Upload {
+        id: "".to_string(),
+        file_name: "inconnu".to_string(),
+        content_type: "".to_string(),
+        size: 0,
+        path: "".to_string(),
+        timestamp: 0,
+    });
 
     Html(format!(
         r#"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Upload Complete</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f0f0; }}
-        .card {{ background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); text-align: center; }}
-        h1 {{ color: #667eea; }}
-        .btn {{ background: #667eea; color: white; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>Upload Successful! ✅</h1>
-        <p><strong>File:</strong> {}</p>
-        <p><strong>Size:</strong> {} bytes</p>
-        <p><strong>ID:</strong> {}</p>
-        <button class="btn" onclick="window.location.href='/'">Back to Home</button>
-    </div>
-</body>
-</html>"#,
-        saved_upload.file_name,
-        saved_upload.size,
-        saved_upload.id
+<html><head><meta charset="UTF-8"><title>Upload réussi</title></head>
+<body style="text-align:center;padding:50px;font-family:sans-serif;">
+<h1 style="color:#667eea;">Upload réussi ! ✅</h1>
+<p><strong>Fichier :</strong> {}</p>
+<p><strong>Taille :</strong> {} octets</p>
+<p><strong>ID :</strong> {}</p>
+<br>
+<button onclick="window.location.href='/'" style="padding:12px 24px;background:#667eea;color:white;border:none;border-radius:8px;cursor:pointer;">
+    Retour à l'accueil
+</button>
+</body></html>"#,
+        saved_upload.file_name, saved_upload.size, saved_upload.id
     ))
 }
 
@@ -134,26 +106,22 @@ pub async fn upload_chat_file(
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
-    // Récupération du nom de l'expéditeur
-    let sender_name_opt: Option<String> = query_scalar!(
-        "SELECT name FROM users WHERE id = $1",
-        sender_id
-    )
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or(None);
+    let sender_name: Option<String> = sqlx::query_scalar("SELECT name FROM users WHERE id = $1")
+        .bind(&sender_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
 
-    let sender_name = match sender_name_opt {
-        Some(name) => name,
-        None => return Html("User not found".into()),
+    let sender_name = match sender_name {
+        Some(n) => n,
+        None => return Html("Utilisateur non trouvé".into()),
     };
 
-    // Upload du fichier joint au message chat
     let uploaded_file: Option<Value> = if let Some(field) = multipart.next_field().await.unwrap() {
         let file_name = field.file_name().unwrap_or("unknown").to_string();
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
         let data = field.bytes().await.unwrap();
-
         let id = Uuid::new_v4().to_string();
         let path = format!("uploads/{}", id);
 
@@ -192,8 +160,7 @@ pub async fn upload_chat_file(
     };
 
     let _ = sqlx::query!(
-        "INSERT INTO chat_messages 
-         (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file) 
+        "INSERT INTO chat_messages (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
         message.id,
         message.conversation_id,
@@ -209,36 +176,24 @@ pub async fn upload_chat_file(
 
     let message_json = serde_json::to_string(&message).unwrap();
 
-    broadcast_message(
-        state.clone(),
-        conversation_id.clone(),
-        "new_message".to_string(),
-        message_json.clone(),
-    );
+    broadcast_message(state.clone(), conversation_id, "new_message".to_string(), message_json.clone());
 
     Html(format!(
         r#"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>File Uploaded</title>
-    <script>
-        if (window.opener) {{
-            window.opener.postMessage({{ type: 'file_uploaded', message: {} }}, '*');
-            window.close();
-        }}
-    </script>
-</head>
-<body>
-    <p>Upload complete. Closing window...</p>
-</body>
-</html>"#,
+<html><head><meta charset="UTF-8"><title>Fichier envoyé</title>
+<script>
+    if (window.opener) {{
+        window.opener.postMessage({{ type: 'file_uploaded', message: {} }}, '*');
+        window.close();
+    }}
+</script>
+</head><body><p>Envoi terminé. Fermeture...</p></body></html>"#,
         message_json
     ))
 }
 
 pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
-    let upload: Option<Upload> = sqlx::query_as!(
+    let upload = sqlx::query_as!(
         Upload,
         "SELECT * FROM uploads WHERE id = $1",
         id
@@ -256,25 +211,15 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
                 let body = Body::from_stream(stream);
 
                 let mut headers = HeaderMap::new();
-                headers.insert(
-                    "content-type",
-                    upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap()),
-                );
-                headers.insert(
-                    "content-disposition",
-                    ContentDisposition::inline()
-                        .filename(&upload.file_name)
-                        .to_string()
-                        .parse()
-                        .unwrap(),
-                );
+                headers.insert("content-type", upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap()));
+                headers.insert("content-disposition", ContentDisposition::inline().filename(&upload.file_name).to_string().parse().unwrap());
 
                 (headers, body).into_response()
             } else {
-                (StatusCode::NOT_FOUND, "File not found").into_response()
+                (StatusCode::NOT_FOUND, "Fichier non trouvé").into_response()
             }
         }
-        None => (StatusCode::NOT_FOUND, "Upload not found").into_response(),
+        None => (StatusCode::NOT_FOUND, "Upload non trouvé").into_response(),
     }
 }
 
@@ -282,7 +227,7 @@ pub async fn delete_upload(
     AxumState(state): AxumState<Arc<State>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let upload: Option<Upload> = sqlx::query_as!(
+    let upload = sqlx::query_as!(
         Upload,
         "SELECT * FROM uploads WHERE id = $1",
         id.clone()
@@ -302,22 +247,12 @@ pub async fn delete_upload(
             .await;
 
         Html(r#"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Deleted</title>
-    <script>
-        if (window.opener) {
-            window.opener.postMessage({type: 'file_deleted'}, '*');
-            window.close();
-        }
-    </script>
-</head>
-<body>
-    <p>File deleted. Closing...</p>
-</body>
-</html>"#.to_string())
+<html><head><meta charset="UTF-8"><title>Supprimé</title>
+<script>
+    if (window.opener) { window.opener.postMessage({type: 'file_deleted'}, '*'); window.close(); }
+</script>
+</head><body><p>Fichier supprimé. Fermeture...</p></body></html>"#.into())
     } else {
-        Html("Upload not found".into())
+        Html("Fichier non trouvé".into())
     }
 }
