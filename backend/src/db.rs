@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite, SqlitePool, Row};
+use sqlx::{Pool, Sqlite, Row};
 use std::path::Path;
 
 #[derive(Clone, sqlx::FromRow)]
@@ -10,10 +10,8 @@ pub struct User {
     pub role: Option<String>,
     pub approved: bool,
     pub needs_password_change: bool,
-    pub created_at: Option<chrono::NaiveDateTime>,
     pub token: Option<String>,
     pub public_key: Option<String>,
-    pub joined_at: Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Clone)]
@@ -134,8 +132,8 @@ pub async fn init_db() -> AppState {
     .unwrap();
 
     sqlx::query(
-        "CREATE TABLE IF NOT EXISTS uploads (
-            id TEXT PRIMARY KEY,
+        " EXISTS uploads (
+           CREATE TABLE IF NOT id TEXT PRIMARY KEY,
             file_name TEXT NOT NULL,
             content_type TEXT NOT NULL,
             size INTEGER NOT NULL,
