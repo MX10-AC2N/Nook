@@ -10,7 +10,6 @@ use axum::http::Request;
 use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use sqlx::{query, query_as};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -92,7 +91,7 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    Html("Inscription réussie! En attente d'approbation de l'administrateur.".into())
+    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into())
 }
 
 pub async fn login_handler(
@@ -111,7 +110,7 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Html("Votre compte est en attente d'approbation.".into());
+                return Html::<Body>("Votre compte est en attente d'approbation.".into());
             }
             
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
@@ -191,10 +190,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                Html("Nom d'utilisateur ou mot de passe incorrect.".into())
+                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into())
             }
         }
-        None => Html("Nom d'utilisateur ou mot de passe incorrect.".into()),
+        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()),
     }
 }
 
@@ -216,7 +215,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html(format!(r#"
+    Html::<Body>(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -261,7 +260,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             </li>
             "#,
             u.name, u.username, u.id
-        )).collect::<String>().join("")
+        )).collect::<Vec<String>>().join("")
     ))
 }
 
@@ -283,7 +282,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html(format!(r#"
+    Html::<Body>(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -313,7 +312,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         users.iter().map(|u| format!(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
-        )).collect::<String>().join("")
+        )).collect::<Vec<String>>().join("")
     ))
 }
 
@@ -353,7 +352,7 @@ pub async fn logout_handler(
         }
     }
 
-    let mut response = Response::new("Déconnexion réussie".into());
+    let mut response = Response::new("Déconnexion réussie".to_string());
     response.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
@@ -380,7 +379,7 @@ pub async fn change_password_handler(
     .execute(&state.db)
     .await;
 
-    Html("Mot de passe changé avec succès !".into())
+    Html::<Body>("Mot de passe changé avec succès !".into())
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -395,4 +394,17 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
                 .and_then(|c| c.splitn(2, '=').nth(1))
                 .map(|v| v.to_string())
         })
+}
+
+// Handlers d'invitation (legacy)
+pub async fn invite_handler() -> impl IntoResponse {
+    Html("Fonction d'invitation à implémenter".into())
+}
+
+pub async fn join_handler() -> impl IntoResponse {
+    Html("Fonction de rejoindre à implémenter".into())
+}
+
+pub async fn members_handler() -> impl IntoResponse {
+    Html("Fonction membres à implémenter".into())
 }
