@@ -138,7 +138,7 @@ async fn handle_call_message(
             {
                 let mut subs = state.webrtc_broadcasts.write().await;
                 subs.entry(conversation_id.clone())
-                    .or_insert(Arc::new(RwLock::new(sender)));
+                    .or_insert(Arc::new(RwLock::new(sender.clone())));
             }
 
             let incoming_call = CallMessage {
