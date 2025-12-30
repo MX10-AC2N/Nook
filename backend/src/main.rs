@@ -6,7 +6,7 @@ use axum::{
     extract::Query,
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, get_service, post, delete},
+    routing::{get, get_service, patch, post},
     Json,
     Router,
 };
@@ -16,10 +16,10 @@ use std::net::SocketAddr;
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]
+#[allow(clippy::type_complexity)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    #[allow(clippy::type_complexity)]
-    pub webrtc_broadcasts: std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>,
+    pub webrtc_broadcasts: std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>> >,
 }
 
 // Fallback SPA
