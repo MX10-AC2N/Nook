@@ -22,9 +22,12 @@ export default defineConfig({
 			}
 		}
 	},
-	// Résoudre le problème avec libsodium-wrappers
+	// Résoudre le problème avec libsodium-wrappers (module natif)
 	optimizeDeps: {
 		include: ['libsodium-wrappers']
+	},
+	ssr: {
+		noExternal: ['libsodium-wrappers', 'libsodium']
 	},
 	build: {
 		// Ignorer les avertissements a11y pour le build
