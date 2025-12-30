@@ -11,9 +11,7 @@ pub struct User {
     pub approved: bool,
     pub needs_password_change: bool,
     pub created_at: Option<chrono::NaiveDateTime>,
-    #[allow(dead_code)]
     pub token: Option<String>,
-    #[allow(dead_code)]
     pub public_key: Option<String>,
     pub joined_at: Option<chrono::NaiveDateTime>,
 }
@@ -30,17 +28,15 @@ pub struct Upload {
     pub content_type: String,
     pub size: i64,
     pub path: String,
-    #[allow(dead_code)]
     pub sender_id: String,
-    #[allow(dead_code)]
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: i64,
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Upload {
-            id: row.try_get("id")?,
-            file_name: row.try_get("file_name")?,
+            id("id")?,
+: row.try_get            file_name: row.try_get("file_name")?,
             content_type: row.try_get("content_type")?,
             size: row.try_get("size")?,
             path: row.try_get("path")?,
@@ -50,7 +46,6 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, sqlx::FromRow)]
 pub struct ChatMessage {
     pub id: String,
@@ -63,7 +58,6 @@ pub struct ChatMessage {
     pub file: Option<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone)]
 pub enum MessageType {
     Text,
@@ -152,7 +146,7 @@ pub async fn init_db() -> AppState {
             size INTEGER NOT NULL,
             path TEXT NOT NULL,
             sender_id TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp INTEGER DEFAULT 0
         )",
     )
     .execute(&pool)
