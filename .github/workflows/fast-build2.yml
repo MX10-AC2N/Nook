@@ -114,7 +114,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Installer sqlx-cli
-        run: cargo install sqlx-cli --version 0.8 --features sqlite --no-default-features --locked
+        run: cargo install sqlx-cli --version '^0.8' --features sqlite --no-default-features --locked
 
       - name: Créer base temporaire et appliquer migrations sqlx
         env:
