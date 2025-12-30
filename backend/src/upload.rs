@@ -1,20 +1,16 @@
-use crate::db::{ChatMessage, MessageType, Upload};
+use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::{HeaderMap, CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse};
-use serde_json::{json, Value};
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::response::{Html, IntoResponse, Response};
+use serde_json::json;
 use std::path::Path as StdPath;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
-use sqlx::{query, query_as};
-use sqlx::pool::Pool;
-use sqlx::Sqlite;
 
 pub async fn upload_handler(
     AxumState(_state): AxumState<Arc<SharedState>>,
@@ -91,7 +87,7 @@ pub async fn upload_chat_file(
         None => return Html::<Body>("Utilisateur non trouvé".into()),
     };
 
-    let uploaded_file: Option<Value> = if let Some(field) = multipart.next_field().await.unwrap() {
+    let uploaded_file: Option<serde_json::Value> = if let Some(field) = multipart.next_field().await.unwrap() {
         let file_name = field.file_name().unwrap_or("unknown").to_string();
         let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
         let data = field.bytes().await.unwrap();
