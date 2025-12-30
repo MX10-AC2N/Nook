@@ -1,4 +1,4 @@
-use crate::db::{ChatMessage, MessageType, Upload};
+use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
 use crate::SharedState;
 use axum::body::Body;
