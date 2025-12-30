@@ -11,9 +11,11 @@ use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
+#[allow(dead_code)]
 pub type CallSignal = Arc<RwLock<broadcast::Sender<String>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct CallMessage {
     pub r#type: String,
     pub from: String,
@@ -23,6 +25,7 @@ pub struct CallMessage {
     pub call_id: String,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SignalingData {
     pub call_id: String,
@@ -31,10 +34,12 @@ pub struct SignalingData {
     pub sender: broadcast::Sender<String>,
 }
 
+#[allow(dead_code)]
 pub struct SharedCallState {
     pub active_calls: Arc<RwLock<HashMap<String, SignalingData>>>,
 }
 
+#[allow(dead_code)]
 impl SharedCallState {
     pub fn new() -> Self {
         SharedCallState {
@@ -49,9 +54,11 @@ pub async fn broadcast_message(
     message_type: String,
     content: String,
 ) {
+    // Type annotation for broadcasts HashMap
     let broadcasts = state.webrtc_broadcasts.read().await;
     
     if let Some(tx_arc) = broadcasts.get(&conversation_id) {
+        // Type annotation for sender
         let sender = tx_arc.read().await;
         let json_content = serde_json::to_string(&content).unwrap_or_default();
         let _ = sender.send(format!(
@@ -63,6 +70,7 @@ pub async fn broadcast_message(
     }
 }
 
+#[allow(dead_code)]
 pub async fn ws_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     ws: WebSocketUpgrade,
@@ -70,6 +78,7 @@ pub async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
+#[allow(dead_code)]
 async fn handle_socket(socket: WebSocket, state: Arc<SharedState>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
@@ -113,6 +122,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<SharedState>) {
     }
 }
 
+#[allow(dead_code)]
 async fn handle_call_message(
     state: Arc<SharedState>,
     message: CallMessage,
@@ -121,20 +131,19 @@ async fn handle_call_message(
     match message.r#type.as_str() {
         "call_request" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
-            let (sender_for_map, _receiver) = broadcast::channel::<String>(100);
-            let sender_for_send = sender_for_map.clone();
+            let (sender, _) = broadcast::channel::<String>(100);
 
-            let _signaling_data = SignalingData {
+            let signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
                 from_user_id: message.from.clone(),
                 to_user_id: message.to.clone(),
-                sender: sender_for_map.clone(),
+                sender: sender.clone(),
             };
 
             {
                 let mut subs = state.webrtc_broadcasts.write().await;
                 subs.entry(conversation_id.clone())
-                    .or_insert(Arc::new(RwLock::new(sender_for_map)));
+                    .or_insert(Arc::new(RwLock::new(sender)));
             }
 
             let incoming_call = CallMessage {
@@ -146,7 +155,7 @@ async fn handle_call_message(
                 call_id: message.call_id.clone(),
             };
             let message_json = serde_json::to_string(&incoming_call).unwrap();
-            let _ = sender_for_send.send(message_json);
+            let _ = sender.send(message_json);
 
             println!("Call request from {} to {}", message.from, message.to);
         }
@@ -173,6 +182,7 @@ async fn handle_call_message(
     }
 }
 
+// WebRTC offer handler
 pub async fn handle_offer() -> impl IntoResponse {
     use serde_json::json;
     axum::Json(json!({
@@ -181,10 +191,11 @@ pub async fn handle_offer() -> impl IntoResponse {
     }))
 }
 
+// WebRTC answer handler
 pub async fn handle_answer() -> impl IntoResponse {
     use serde_json::json;
     axum::Json(json!({
-        "status": "ready", 
+        "status": "ready",
         "message": "WebRTC signaling endpoint ready"
     }))
 }
