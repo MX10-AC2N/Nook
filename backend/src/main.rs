@@ -6,7 +6,7 @@ use axum::{
     extract::Query,
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, get_service, patch, post, delete},
+    routing::{get, get_service, post, delete},
     Json,
     Router,
 };
@@ -31,12 +31,10 @@ async fn spa_fallback() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
-    // Création dossiers
     tokio::fs::create_dir_all("/app/data").await.ok();
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
     println!("Démarrage de Nook v2.0");
 
-    // Token admin
     let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
@@ -46,7 +44,6 @@ async fn main() {
         println!("Token admin chargé depuis /app/data/admin.token");
     }
 
-    // Init DB
     let app_state = db::init_db().await;
     let shared_state = SharedState {
         db: app_state.db.clone(),
@@ -69,11 +66,9 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
-        // Fallback SPA
         .fallback(get(spa_fallback))
         .with_state(std::sync::Arc::new(shared_state));
 
@@ -88,7 +83,6 @@ async fn main() {
         .unwrap();
 }
 
-// WS handler
 use axum::extract::ws::WebSocketUpgrade;
 use futures_util::{SinkExt, StreamExt};
 
@@ -103,7 +97,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     })
 }
 
-// GIF proxy
 use urlencoding::encode;
 
 async fn gif_proxy(Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, StatusCode> {
