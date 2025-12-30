@@ -159,7 +159,7 @@ pub async fn login_handler(
                     </html>
                     "#.into()).into_response()
                 } else {
-                    Html(format!(r#"
+                    Html::<Body>(format!(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
                     <head>
