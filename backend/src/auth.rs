@@ -1,4 +1,4 @@
-use crate::db::User;
+use crate::db::{User, AppState};
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
@@ -78,7 +78,8 @@ pub async fn register_handler(
     let user_id = Uuid::new_v4().to_string();
     
     let _ = sqlx::query(
-        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&user_id)
     .bind(&payload.username)
@@ -90,7 +91,7 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Inscription reussie! En attente d'approbation de l'administrateur.".into()).into_response()
+    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into()).into_response()
 }
 
 pub async fn login_handler(
@@ -128,24 +129,57 @@ pub async fn login_handler(
                 .execute(&state.db)
                 .await;
 
-                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
-                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
-
                 let user_info = UserInfo {
                     id: user.id.clone(),
                     username: user.username.clone(),
-                    name: user_name.clone(),
-                    role: user_role.clone(),
+                    name: user.name.clone().unwrap_or_default(),
+                    role: user.role.clone().unwrap_or_else(|| "user".to_string()),
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
+
+                let user_role = user.role.unwrap_or_else(|| "user".to_string());
+                let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
                 
                 let mut response = if user_role == "admin" {
-                    Html::<Body>("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Admin - Nook</title></head><body><h1>Admin Dashboard</h1><p>Bienvenue, Admin !</p><a href=\"/pending_users\">Utilisateurs en attente</a><br><a href=\"/all_users\">Tous les utilisateurs</a></body></html>".into()).into_response()
+                    Html(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Admin - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Admin Dashboard</h1>
+                        <p>Bienvenue, Admin !</p>
+                        <a href="/pending_users">Utilisateurs en attente</a><br>
+                        <a href="/all_users">Tous les utilisateurs</a>
+                    </body>
+                    </html>
+                    "#.into()).into_response()
                 } else {
-                    let json_str = serde_json::to_string(&user_info).unwrap();
-                    let html_content = format!("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Bienvenue - Nook</title></head><body><h1>Bienvenue, {} !</h1><p>Ceci est votre tableau de bord utilisateur.</p><a href=\"/chat\">Ouvrir le chat</a><script>localStorage.setItem('user_info', '{}');</script></body></html>", user_name, json_str);
-                    Html::<Body>(html_content.into()).into_response()
+                    Html(format!(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Bienvenue - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Bienvenue, {} !</h1>
+                        <p>Ceci est votre tableau de bord utilisateur.</p>
+                        <a href="/chat">Ouvrir le chat</a>
+                        <script>
+                            localStorage.setItem('user_info', '{}');
+                        </script>
+                    </body>
+                    </html>
+                    "#,
+                        user_name,
+                        serde_json::to_string(&user_info).unwrap()
+                    )).into_response()
                 };
 
                 response.headers_mut().insert(
@@ -165,7 +199,7 @@ pub async fn login_handler(
 
 pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
     let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
-        "SELECT id, username, name, role, approved, needs_password_change FROM users WHERE approved = 0"
+        "SELECT id, username, name, role, approved, needs_password_change FROM users WHERE approved = false"
     )
     .fetch_all(&state.db)
     .await
@@ -181,13 +215,53 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let users_html: String = users.iter().map(|u| {
-        format!("<li><p>Nom: {}</p><p>Username: {}</p><button onclick=\"approveUser('{}')\">Approuver</button></li>", u.name, u.username, u.id)
-    }).collect::<Vec<String>>().join("");
-
-    let html_content = format!("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Utilisateurs en attente</title></head><body><h1>Utilisateurs en attente d'approbation</h1><ul>{}</ul><a href=\"/\">Retour</a><script>function approveUser(userId) {{fetch('/api/approve', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{user_id: userId}}).toString()}}).then(response => response.json()).then(data => {{if (data.success) {{alert(data.message); window.location.reload();}} else {{alert('Erreur: ' + data.message);}}}}).catch(error => console.error('Error:', error));}}</script></body></html>", users_html);
-
-    Html::<Body>(html_content.into()).into_response()
+    Html::<Body>(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Utilisateurs en attente</title>
+    </head>
+    <body>
+        <h1>Utilisateurs en attente d'approbation</h1>
+        <ul>
+            {}
+        </ul>
+        <a href="/">← Retour</a>
+        <script>
+            function approveUser(userId) {{
+                fetch('/api/approve', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: userId }}),
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    if (data.success) {{
+                        alert(data.message);
+                        window.location.reload();
+                    }} else {{
+                        alert('Erreur: ' + data.message);
+                    }}
+                }})
+                .catch(error => console.error('Error:', error));
+            }}
+        </script>
+    </body>
+    </html>
+    "#,
+        users.iter().map(|u| format!(
+            r#"
+            <li>
+                <p>Nom: {}</p>
+                <p>Username: {}</p>
+                <button onclick="approveUser('{}')">Approuver</button>
+            </li>
+            "#,
+            u.name, u.username, u.id
+        )).collect::<Vec<String>>().join("")
+    )).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -208,14 +282,38 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let users_html: String = users.iter().map(|u| {
-        let status = if u.approved { "Approuve" } else { "En attente" };
-        format!("<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>", u.name, u.username, u.role, status)
-    }).collect::<Vec<String>>().join("");
-
-    let html_content = format!("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Tous les utilisateurs</title></head><body><h1>Tous les utilisateurs</h1><table><thead><tr><th>Nom</th><th>Username</th><th>Role</th><th>Statut</th></tr></thead><tbody>{}</tbody></table><a href=\"/\">Retour</a></body></html>", users_html);
-
-    Html::<Body>(html_content.into()).into_response()
+    Html::<Body>(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tous les utilisateurs</title>
+    </head>
+    <body>
+        <h1>Tous les utilisateurs</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Username</th>
+                    <th>Rôle</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {}
+            </tbody>
+        </table>
+        <a href="/">← Retour</a>
+    </body>
+    </html>
+    "#,
+        users.iter().map(|u| format!(
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+            u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
+        )).collect::<Vec<String>>().join("")
+    )).into_response()
 }
 
 pub async fn approve_handler(
@@ -223,7 +321,7 @@ pub async fn approve_handler(
     Json(payload): Json<ApprovePayload>,
 ) -> impl IntoResponse {
     let _ = sqlx::query(
-        "UPDATE users SET approved = 1 WHERE id = ?"
+        "UPDATE users SET approved = true WHERE id = ?"
     )
     .bind(&payload.user_id)
     .execute(&state.db)
@@ -231,7 +329,7 @@ pub async fn approve_handler(
 
     Json(AuthResponse {
         success: true,
-        message: "Utilisateur approuve avec succes".into(),
+        message: "Utilisateur approuvé avec succès".into(),
         user: None,
     })
 }
@@ -254,7 +352,7 @@ pub async fn logout_handler(
         }
     }
 
-    let mut response = Response::new("Deconnexion reussie".to_string());
+    let mut response = Response::new("Déconnexion réussie".to_string());
     response.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
@@ -274,14 +372,14 @@ pub async fn change_password_handler(
         .to_string();
 
     let _ = sqlx::query(
-        "UPDATE users SET password = ?, needs_password_change = 0 WHERE id = ?"
+        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
     )
     .bind(&hashed_password)
     .bind(&payload.user_id)
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Mot de passe change avec succes !".into()).into_response()
+    Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -293,19 +391,23 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
                 .split(';')
                 .map(|c| c.trim())
                 .find(|c| c.starts_with(&format!("{}=", name)))
-                .and_then(|c| c.splitn(2, '=').nth(1))
+                .and_then(|c| c.split_once('=').map(|x| x.1))
                 .map(|v| v.to_string())
         })
 }
 
+// Handlers d'invitation (legacy)
+#[allow(dead_code)]
 pub async fn invite_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction d'invitation a implementer".into()).into_response()
+    Html::<Body>("Fonction d'invitation à implémenter".into()).into_response()
 }
 
+#[allow(dead_code)]
 pub async fn join_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction de rejoindre a implementer".into()).into_response()
+    Html::<Body>("Fonction de rejoindre à implémenter".into()).into_response()
 }
 
+#[allow(dead_code)]
 pub async fn members_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction membres a implementer".into()).into_response()
+    Html::<Body>("Fonction membres à implémenter".into()).into_response()
 }
