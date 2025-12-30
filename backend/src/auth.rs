@@ -1,4 +1,4 @@
-use crate::db::User;
+use crate::db::{User, AppState};
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
@@ -91,15 +91,15 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into())
+    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into()).into_response()
 }
 
 pub async fn login_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
-) -> impl IntoResponse {
+) -> Response<Body> {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, token, public_key FROM users WHERE username = ?"
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
     )
     .bind(&payload.username)
     .fetch_optional(&state.db)
@@ -107,10 +107,10 @@ pub async fn login_handler(
     .ok()
     .flatten();
 
-    let response: Response<Body> = match user {
+    match user {
         Some(user) => {
             if !user.approved {
-                return Html::<Body>("Votre compte est en attente d'approbation.".into());
+                return Html::<Body>("Votre compte est en attente d'approbation.".into()).into_response();
             }
             
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
@@ -194,9 +194,7 @@ pub async fn login_handler(
             }
         }
         None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
-    };
-
-    response
+    }
 }
 
 pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -217,7 +215,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let html_content = format!(r#"
+    Html::<Body>(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -263,9 +261,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    );
-    
-    Html::<Body>(html_content.into()).into_response()
+    )).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -286,7 +282,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let html_content = format!(r#"
+    Html::<Body>(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -317,9 +313,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    );
-    
-    Html::<Body>(html_content.into()).into_response()
+    )).into_response()
 }
 
 pub async fn approve_handler(
@@ -385,7 +379,7 @@ pub async fn change_password_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Mot de passe changé avec succès !".into())
+    Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -402,14 +396,15 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         })
 }
 
+// Handlers d'invitation (legacy)
 pub async fn invite_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction d'invitation à implémenter".into())
+    Html::<Body>("Fonction d'invitation à implémenter".into()).into_response()
 }
 
 pub async fn join_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction de rejoindre à implémenter".into())
+    Html::<Body>("Fonction de rejoindre à implémenter".into()).into_response()
 }
 
 pub async fn members_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction membres à implémenter".into())
+    Html::<Body>("Fonction membres à implémenter".into()).into_response()
 }
