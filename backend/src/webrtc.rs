@@ -5,7 +5,6 @@ use axum::response::IntoResponse;
 use futures_util::SinkExt;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -51,6 +50,7 @@ pub async fn broadcast_message(
     content: String,
 ) {
     let broadcasts = state.webrtc_broadcasts.read().await;
+    
     if let Some(tx_arc) = broadcasts.get(&conversation_id) {
         let sender = tx_arc.read().await;
         let json_content = serde_json::to_string(&content).unwrap_or_default();
@@ -172,16 +172,16 @@ async fn handle_call_message(
     }
 }
 
-// WebRTC offer handler
 pub async fn handle_offer() -> impl IntoResponse {
+    use serde_json::json;
     axum::Json(json!({
         "status": "ready",
         "message": "WebRTC signaling endpoint ready"
     }))
 }
 
-// WebRTC answer handler
 pub async fn handle_answer() -> impl IntoResponse {
+    use serde_json::json;
     axum::Json(json!({
         "status": "ready", 
         "message": "WebRTC signaling endpoint ready"
