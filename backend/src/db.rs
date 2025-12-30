@@ -27,7 +27,7 @@ pub struct Upload {
     pub size: i64,
     pub path: String,
     pub sender_id: String,
-    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub timestamp: i64,
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
@@ -132,14 +132,14 @@ pub async fn init_db() -> AppState {
     .unwrap();
 
     sqlx::query(
-        " EXISTS uploads (
-           CREATE TABLE IF NOT id TEXT PRIMARY KEY,
+        "CREATE TABLE IF NOT EXISTS uploads (
+            id TEXT PRIMARY KEY,
             file_name TEXT NOT NULL,
             content_type TEXT NOT NULL,
             size INTEGER NOT NULL,
             path TEXT NOT NULL,
             sender_id TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            timestamp INTEGER DEFAULT 0
         )",
     )
     .execute(&pool)
