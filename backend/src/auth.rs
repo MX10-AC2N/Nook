@@ -1,4 +1,4 @@
-use crate::db::User;
+use crate::db::{User, AppState};
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
@@ -396,15 +396,14 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         })
 }
 
-// Handlers d'invitation (legacy)
 pub async fn invite_handler() -> impl IntoResponse {
-    Html("Fonction d'invitation à implémenter".into())
+    Html::<Body>("Fonction d'invitation à implémenter".into())
 }
 
 pub async fn join_handler() -> impl IntoResponse {
-    Html("Fonction de rejoindre à implémenter".into())
+    Html::<Body>("Fonction de rejoindre à implémenter".into())
 }
 
 pub async fn members_handler() -> impl IntoResponse {
-    Html("Fonction membres à implémenter".into())
+    Html::<Body>("Fonction membres à implémenter".into())
 }
