@@ -179,7 +179,7 @@ pub async fn login_handler(
                     "#,
                         user_name,
                         serde_json::to_string(&user_info).unwrap()
-                    )).into_response()
+                    ).into()).into_response()
                 };
 
                 response.headers_mut().insert(
@@ -261,7 +261,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    )).into_response()
+    ).into()).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -313,7 +313,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    )).into_response()
+    ).into()).into_response()
 }
 
 pub async fn approve_handler(
