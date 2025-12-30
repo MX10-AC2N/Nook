@@ -4,7 +4,6 @@ use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use serde_json::{json, Value};
 use sqlx::pool::Pool;
