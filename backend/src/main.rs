@@ -6,7 +6,7 @@ use axum::{
     extract::Query,
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, get_service, patch, post},
+    routing::{get, get_service, patch, post, delete},
     Json,
     Router,
 };
@@ -18,7 +18,7 @@ use tower_http::services::ServeDir;
 #[derive(Clone)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    pub webrtc_broadcasts: std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>,
+    pub webrtc_broadcasts: std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
 }
 
 // Fallback SPA
