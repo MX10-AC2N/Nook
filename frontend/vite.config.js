@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
-export default defineConfig({
+export default defineConfig {
 	plugins: [sveltekit()],
 	server: {
 		port: 5173,
@@ -21,5 +21,26 @@ export default defineConfig({
 				ws: true
 			}
 		}
+	},
+	// Résoudre le problème avec libsodium-wrappers
+	optimizeDeps: {
+		include: ['libsodium-wrappers']
+	},
+	build: {
+		// Ignorer les avertissements a11y pour le build
+		rollupOptions: {
+			onwarn(warning, warn) {
+				const ignoredCodes = [
+					'a11y_click_events_have_key_events',
+					'a11y_no_noninteractive_element_to_interactive_role'
+				];
+				
+				if (ignoredCodes.some(code => warning.message.includes(code))) {
+					return;
+				}
+				
+				warn(warning);
+			}
+		}
 	}
-});
+};
