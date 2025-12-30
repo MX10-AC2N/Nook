@@ -1,4 +1,4 @@
-use crate::db::{User, AppState};
+use crate::db::User;
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
