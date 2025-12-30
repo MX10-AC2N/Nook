@@ -76,7 +76,7 @@ pub async fn upload_chat_file(
 ) -> impl IntoResponse {
     let pool: &Pool<Sqlite> = &state.db;
     
-    let sender_name_opt: Option<(String, String)> = sqlx::query_as(
+    let sender_name_opt: Option<(String, Option<String>)> = sqlx::query_as(
         "SELECT id, name FROM users WHERE id = ?"
     )
     .bind(&sender_id)
@@ -86,7 +86,7 @@ pub async fn upload_chat_file(
     .flatten();
 
     let sender_name: String = match sender_name_opt {
-        Some((_, name)) => name.unwrap_or("Inconnu".to_string()),
+        Some((_, name)) => name.unwrap_or_else(|| "Inconnu".to_string()),
         None => return Html::<Body>("Utilisateur non trouvé".into()),
     };
 
