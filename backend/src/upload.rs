@@ -1,10 +1,9 @@
-use crate::db::{ChatMessage, MessageType, Upload};
+use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::{HeaderMap, CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::http::StatusCode;
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::{Html, IntoResponse, Response};
 use serde_json::{json, Value};
 use std::path::Path as StdPath;
@@ -12,7 +11,6 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
-use sqlx::{query, query_as};
 use sqlx::pool::Pool;
 use sqlx::Sqlite;
 
