@@ -44,7 +44,7 @@ pub async fn upload_handler(
         
         let path = format!("uploads/{}.{}", id, ext);
         let _ = std::fs::create_dir_all("uploads");
-        let timestamp = chrono::Utc::now();
+        let timestamp = chrono::Utc::now().timestamp();
         
         let mut file = File::create(&path).await.unwrap();
         file.write_all(&data).await.unwrap();
@@ -86,7 +86,7 @@ pub async fn upload_chat_file(
     .flatten();
 
     let sender_name: String = match sender_name_opt {
-        Some((_, name)) => name.unwrap_or_else(|| "Inconnu".to_string()),
+        Some((_, name)) => name.unwrap_or("Inconnu".to_string()),
         None => return Html::<Body>("Utilisateur non trouvé".into()),
     };
 
