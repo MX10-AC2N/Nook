@@ -1,6 +1,7 @@
 use sqlx::{Pool, Row, Sqlite};
 use std::path::Path;
 
+#[allow(dead_code)]
 #[derive(Clone, sqlx::FromRow)]
 pub struct User {
     pub id: String,
@@ -21,6 +22,7 @@ pub struct AppState {
     pub db: Pool<Sqlite>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct Upload {
     pub id: String,
@@ -46,6 +48,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, sqlx::FromRow)]
 pub struct ChatMessage {
     pub id: String,
@@ -58,6 +61,7 @@ pub struct ChatMessage {
     pub file: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum MessageType {
     Text,
