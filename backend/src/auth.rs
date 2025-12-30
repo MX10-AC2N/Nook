@@ -128,17 +128,17 @@ pub async fn login_handler(
                 .execute(&state.db)
                 .await;
 
+                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
+                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
+
                 let user_info = UserInfo {
                     id: user.id.clone(),
                     username: user.username.clone(),
-                    name: user.name.unwrap_or_default(),
-                    role: user.role.unwrap_or_else(|| "user".to_string()),
+                    name: user_name.clone(),
+                    role: user_role.clone(),
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
-
-                let user_role = user.role.unwrap_or_else(|| "user".to_string());
-                let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
                 
                 let mut response = if user_role == "admin" {
                     Html::<Body>("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Admin - Nook</title></head><body><h1>Admin Dashboard</h1><p>Bienvenue, Admin !</p><a href=\"/pending_users\">Utilisateurs en attente</a><br><a href=\"/all_users\">Tous les utilisateurs</a></body></html>".into()).into_response()
@@ -185,7 +185,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         format!("<li><p>Nom: {}</p><p>Username: {}</p><button onclick=\"approveUser('{}')\">Approuver</button></li>", u.name, u.username, u.id)
     }).collect::<Vec<String>>().join("");
 
-    let html_content = format!("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Utilisateurs en attente</title></head><body><h1>Utilisateurs en attente d'approbation</h1><ul>{}</ul><a href=\"/\">Retour</a><script>function approveUser(userId) {{fetch('/api/approve', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{user_id: userId}})}).then(response => response.json()).then(data => {{if (data.success) {{alert(data.message); window.location.reload();}} else {{alert('Erreur: ' + data.message);}}}}).catch(error => console.error('Error:', error));}}</script></body></html>", users_html);
+    let html_content = format!("<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Utilisateurs en attente</title></head><body><h1>Utilisateurs en attente d'approbation</h1><ul>{}</ul><a href=\"/\">Retour</a><script>function approveUser(userId) {{fetch('/api/approve', {{method: 'POST', headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify({{user_id: userId}}).toString()}}).then(response => response.json()).then(data => {{if (data.success) {{alert(data.message); window.location.reload();}} else {{alert('Erreur: ' + data.message);}}}}).catch(error => console.error('Error:', error));}}</script></body></html>", users_html);
 
     Html::<Body>(html_content.into()).into_response()
 }
