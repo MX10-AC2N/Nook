@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite, Row};
+use sqlx::{Pool, Sqlite, SqlitePool, Row};
 use std::path::Path;
 
 #[derive(Clone, sqlx::FromRow)]
@@ -10,8 +10,12 @@ pub struct User {
     pub role: Option<String>,
     pub approved: bool,
     pub needs_password_change: bool,
+    pub created_at: Option<chrono::NaiveDateTime>,
+    #[allow(dead_code)]
     pub token: Option<String>,
+    #[allow(dead_code)]
     pub public_key: Option<String>,
+    pub joined_at: Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Clone)]
@@ -26,8 +30,10 @@ pub struct Upload {
     pub content_type: String,
     pub size: i64,
     pub path: String,
+    #[allow(dead_code)]
     pub sender_id: String,
-    pub timestamp: i64,
+    #[allow(dead_code)]
+    pub timestamp: chrono::DateTime<chrono::Utc>,
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
@@ -44,6 +50,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, sqlx::FromRow)]
 pub struct ChatMessage {
     pub id: String,
@@ -56,6 +63,7 @@ pub struct ChatMessage {
     pub file: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum MessageType {
     Text,
@@ -65,25 +73,27 @@ pub enum MessageType {
     File,
 }
 
-impl ToString for MessageType {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for MessageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            MessageType::Text => "text".to_string(),
-            MessageType::Image => "image".to_string(),
-            MessageType::Video => "video".to_string(),
-            MessageType::Audio => "audio".to_string(),
-            MessageType::File => "file".to_string(),
+            MessageType::Text => write!(f, "text"),
+            MessageType::Image => write!(f, "image"),
+            MessageType::Video => write!(f, "video"),
+            MessageType::Audio => write!(f, "audio"),
+            MessageType::File => write!(f, "file"),
         }
     }
 }
 
 pub async fn init_db() -> AppState {
+    // Créer le répertoire data
     let data_dir = Path::new("/app/data");
     tokio::fs::create_dir_all(data_dir).await.ok();
 
     let db_url = "sqlite:/app/data/nook.db?mode=rwc";
     let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
 
+    // Table des utilisateurs
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -103,6 +113,7 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
+    // Table des conversations
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
@@ -114,6 +125,7 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
+    // Table des messages
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS chat_messages (
             id TEXT PRIMARY KEY,
@@ -131,6 +143,7 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
+    // Table des uploads
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS uploads (
             id TEXT PRIMARY KEY,
@@ -139,13 +152,14 @@ pub async fn init_db() -> AppState {
             size INTEGER NOT NULL,
             path TEXT NOT NULL,
             sender_id TEXT NOT NULL,
-            timestamp INTEGER DEFAULT 0
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )",
     )
     .execute(&pool)
     .await
     .unwrap();
 
+    // Table des clés publiques
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS public_keys (
             user_id TEXT PRIMARY KEY,
