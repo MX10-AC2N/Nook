@@ -121,14 +121,14 @@ async fn handle_call_message(
     match message.r#type.as_str() {
         "call_request" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
-            let (sender_for_map, receiver) = broadcast::channel::<String>(100);
+            let (sender_for_map, _receiver) = broadcast::channel::<String>(100);
             let sender_for_send = sender_for_map.clone();
 
             let _signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
                 from_user_id: message.from.clone(),
                 to_user_id: message.to.clone(),
-                sender: sender_for_map,
+                sender: sender_for_map.clone(),
             };
 
             {
