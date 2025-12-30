@@ -6,7 +6,7 @@ use axum::{
     extract::Query,
     http::StatusCode,
     response::{Html, IntoResponse},
-    routing::{get, get_service, post},
+    routing::{delete, get, get_service, post},
     Json,
     Router,
 };
@@ -75,10 +75,7 @@ async fn main() {
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
         // Assets
-        .nest_service(
-            "/_app",
-            get_service(ServeDir::new("/app/static/_app")),
-        )
+        .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
         // Fallback SPA
