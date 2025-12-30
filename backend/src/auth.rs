@@ -179,7 +179,7 @@ pub async fn login_handler(
                     "#,
                         user_name,
                         serde_json::to_string(&user_info).unwrap()
-                    ).into()).into_response()
+                    #").into()).into_response()
                 };
 
                 response.headers_mut().insert(
