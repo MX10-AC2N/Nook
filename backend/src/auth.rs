@@ -141,7 +141,7 @@ pub async fn login_handler(
                 let user_role = user.role.unwrap_or_else(|| "user".to_string());
                 let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
                 
-                let mut response = if user_role == "admin" {
+                let mut response: Response<Body> = if user_role == "admin" {
                     Html(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
@@ -190,10 +190,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into())
+                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response()
             }
         }
-        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()),
+        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
     }
 }
 
@@ -215,7 +215,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    let html_content = format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -261,7 +261,9 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    )).into()
+    );
+    
+    Html::<Body>(html_content).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -282,7 +284,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    let html_content = format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -313,7 +315,9 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    )).into()
+    );
+    
+    Html::<Body>(html_content).into_response()
 }
 
 pub async fn approve_handler(
