@@ -390,7 +390,7 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
             cookie_str
                 .split(';')
                 .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{} = ", name)))
+                .find(|c| c.starts_with(&format!("{}= ", name)))
                 .and_then(|c| c.split_once('='))
                 .map(|v| v.to_string())
         })
