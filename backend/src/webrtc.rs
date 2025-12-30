@@ -128,7 +128,7 @@ async fn handle_call_message(
             let conversation_id = format!("{}-{}", message.from, message.to);
             let (sender, _) = broadcast::channel::<String>(100);
 
-            let signaling_data = SignalingData {
+            let _signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
                 from_user_id: message.from.clone(),
                 to_user_id: message.to.clone(),
