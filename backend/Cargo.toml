@@ -23,26 +23,17 @@ rand = { version = "0.8", features = ["std_rng"] }
 
 # Auth & crypto
 argon2 = "0.5"
-bcrypt = "0.15"
 
-# Headers
+# Headers pour ContentDisposition (version 0.4.x)
 headers = "0.4"
 
 # Rate limiting
 tower_governor = "0.4.3"
 
-# Email
-lettre = { version = "0.11", default-features = false, features = [
-    "tokio1",
-    "tokio1-rustls",
-    "webpki-roots",
-    "ring"
-] }
-
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
-# Fixes compatibilité
-home = "=0.5.11"
-base64ct = "=1.7.3"
+# Compatibilité
+home = "0.5"
+base64ct = "1.6"
