@@ -28,7 +28,7 @@ pub async fn upload_handler(
         let allowed = ["image/", "video/", "audio/", "application/pdf"];
         
         if !allowed.iter().any(|&prefix| content_type.starts_with(prefix)) {
-            return Html("Type de fichier non autorisé".into());
+            return Html::<Body>("Type de fichier non autorisé".into());
         }
         
         let data = field.bytes().await.unwrap();
@@ -62,7 +62,7 @@ pub async fn upload_handler(
         uploads.push(upload);
     }
 
-    Html(format!(
+    Html::<Body>(format!(
         "Upload réussi !\n\nFichier : {}\nTaille : {} octets\nID : {}",
         uploads.first().map(|u| &u.file_name).unwrap_or(&"aucun".to_string()),
         uploads.first().map(|u| u.size).unwrap_or(0),
@@ -88,7 +88,7 @@ pub async fn upload_chat_file(
 
     let sender_name: String = match sender_name_opt {
         Some((name,)) => name,
-        None => return Html("Utilisateur non trouvé".into()),
+        None => return Html::<Body>("Utilisateur non trouvé".into()),
     };
 
     let uploaded_file: Option<Value> = if let Some(field) = multipart.next_field().await.unwrap() {
@@ -152,7 +152,7 @@ pub async fn upload_chat_file(
 
     broadcast_message(state.clone(), conversation_id, "new_message".to_string(), message_json.clone());
 
-    Html("Fichier envoyé avec succès".into())
+    Html::<Body>("Fichier envoyé avec succès".into())
 }
 
 pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
@@ -172,8 +172,8 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
             let path = StdPath::new(&upload.path);
             if path.exists() {
                 match tokio::fs::File::open(path).await {
-                    Ok(file) => {
-                        let mut response = axum::response::Response::new(axum::body::Body::from(file));
+                    Ok(mut file) => {
+                        let mut response = Response::new(Body::empty());
                         response.headers_mut().insert(
                             CONTENT_TYPE,
                             upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap())
@@ -184,15 +184,21 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
                             CONTENT_DISPOSITION,
                             content_disposition.parse().unwrap()
                         );
+                        
+                        // Lire le fichier et le placer dans le body
+                        let mut bytes = Vec::new();
+                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).await.is_ok() {
+                            *response.body_mut() = Body::from(bytes);
+                        }
                         response
                     }
-                    Err(_) => Html("Fichier non trouvé".into()),
+                    Err(_) => Html::<Body>("Fichier non trouvé".into()).into_response(),
                 }
             } else {
-                Html("Fichier non trouvé".into())
+                Html::<Body>("Fichier non trouvé".into()).into_response()
             }
         }
-        None => Html("Fichier non trouvé".into()),
+        None => Html::<Body>("Fichier non trouvé".into()).into_response(),
     }
 }
 
@@ -225,8 +231,8 @@ pub async fn delete_upload(
             .execute(pool)
             .await;
 
-            Html("Fichier supprimé avec succès".into())
+            Html::<Body>("Fichier supprimé avec succès".into())
         }
-        None => Html("Fichier non trouvé".into()),
+        None => Html::<Body>("Fichier non trouvé".into()),
     }
 }
