@@ -164,6 +164,7 @@ pub async fn upload_chat_file(
     }))
     .unwrap();
 
+#[allow(unused_must_use)]
     broadcast_message(
         state.clone(),
         conversation_id,
