@@ -121,19 +121,20 @@ async fn handle_call_message(
     match message.r#type.as_str() {
         "call_request" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
-            let (sender, _) = broadcast::channel::<String>(100);
+            let (sender_clone, _) = broadcast::channel::<String>(100);
+            let sender_for_map = sender_clone.clone();
 
-            let signaling_data = SignalingData {
+            let _signaling_data = SignalingData {
                 call_id: message.call_id.clone(),
                 from_user_id: message.from.clone(),
                 to_user_id: message.to.clone(),
-                sender: sender.clone(),
+                sender: sender_clone,
             };
 
             {
                 let mut subs = state.webrtc_broadcasts.write().await;
                 subs.entry(conversation_id.clone())
-                    .or_insert(Arc::new(RwLock::new(sender)));
+                    .or_insert(Arc::new(RwLock::new(sender_for_map)));
             }
 
             let incoming_call = CallMessage {
@@ -145,7 +146,7 @@ async fn handle_call_message(
                 call_id: message.call_id.clone(),
             };
             let message_json = serde_json::to_string(&incoming_call).unwrap();
-            let _ = sender.send(message_json);
+            let _ = sender_clone.send(message_json);
 
             println!("Call request from {} to {}", message.from, message.to);
         }
