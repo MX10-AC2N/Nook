@@ -1,4 +1,4 @@
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, Sqlite, SqlitePool, Row};
 use std::path::Path;
 
 #[derive(Clone, sqlx::FromRow)]
@@ -21,14 +21,29 @@ pub struct AppState {
     pub db: Pool<Sqlite>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Upload {
     pub id: String,
     pub file_name: String,
     pub content_type: String,
     pub size: i64,
     pub path: String,
-    pub timestamp: i64,
+    pub sender_id: String,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+}
+
+impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
+    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        Ok(Upload {
+            id: row.try_get("id")?,
+            file_name: row.try_get("file_name")?,
+            content_type: row.try_get("content_type")?,
+            size: row.try_get("size")?,
+            path: row.try_get("path")?,
+            sender_id: row.try_get("sender_id")?,
+            timestamp: row.try_get("timestamp")?,
+        })
+    }
 }
 
 #[derive(Clone, sqlx::FromRow)]
@@ -65,14 +80,12 @@ impl ToString for MessageType {
 }
 
 pub async fn init_db() -> AppState {
-    // Créer le répertoire data
     let data_dir = Path::new("/app/data");
     tokio::fs::create_dir_all(data_dir).await.ok();
 
     let db_url = "sqlite:/app/data/nook.db?mode=rwc";
     let pool = sqlx::SqlitePool::connect(db_url).await.unwrap();
 
-    // Table des utilisateurs
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS users (
             id TEXT PRIMARY KEY,
@@ -92,7 +105,6 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
-    // Table des conversations
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
@@ -104,7 +116,6 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
-    // Table des messages
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS chat_messages (
             id TEXT PRIMARY KEY,
@@ -122,7 +133,6 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
-    // Table des uploads
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS uploads (
             id TEXT PRIMARY KEY,
@@ -130,14 +140,14 @@ pub async fn init_db() -> AppState {
             content_type TEXT NOT NULL,
             size INTEGER NOT NULL,
             path TEXT NOT NULL,
-            timestamp INTEGER DEFAULT 0
+            sender_id TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )",
     )
     .execute(&pool)
     .await
     .unwrap();
 
-    // Table des clés publiques
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS public_keys (
             user_id TEXT PRIMARY KEY,
