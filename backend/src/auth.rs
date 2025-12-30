@@ -1,4 +1,4 @@
-use crate::db::{User, AppState};
+use crate::db::User;
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
@@ -99,7 +99,7 @@ pub async fn login_handler(
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
+        "SELECT id, username, password, name, role, approved, needs_password_change, token, public_key FROM users WHERE username = ?"
     )
     .bind(&payload.username)
     .fetch_optional(&state.db)
