@@ -129,18 +129,18 @@ pub async fn login_handler(
                 .execute(&state.db)
                 .await;
 
+                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
+                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
+                
                 let user_info = UserInfo {
                     id: user.id.clone(),
                     username: user.username.clone(),
-                    name: user.name.clone().unwrap_or_default(),
-                    role: user.role.clone().unwrap_or_else(|| "user".to_string()),
+                    name: user.name.unwrap_or_default(),
+                    role: user.role.unwrap_or_else(|| "user".to_string()),
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
 
-                let user_role = user.role.unwrap_or_else(|| "user".to_string());
-                let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
-                
                 let mut response = if user_role == "admin" {
                     Html(r#"
                     <!DOCTYPE html>
@@ -390,8 +390,8 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
             cookie_str
                 .split(';')
                 .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}=", name)))
-                .and_then(|c| c.split_once('=').map(|x| x.1))
+                .find(|c| c.starts_with(&format!("{} = ", name)))
+                .and_then(|c| c.split_once('='))
                 .map(|v| v.to_string())
         })
 }
