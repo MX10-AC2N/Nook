@@ -98,7 +98,7 @@ pub async fn upload_chat_file(
         .flatten();
 
     let sender_name: String = match sender_name_opt {
-        Some((_, name)) => name.unwrap_or_else(|| "Inconnu".to_string()),
+        Some((_, name)) => name,
         None => return Html::<Body>("Utilisateur non trouvé".into()),
     };
 
@@ -215,7 +215,7 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
 
                         // Lire le fichier et le placer dans le body
                         let mut bytes = Vec::new();
-                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).is_ok() {
+                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).await.is_ok() {
                             *response.body_mut() = Body::from(bytes);
                         }
                         response
