@@ -36,7 +36,7 @@ pub async fn handle_emergency(
         .body(format!("Message d'urgence :\n\n{}", payload.message))
         .unwrap();
 
-    let mailer = AsyncSmtpTransport::<Tls>::relay("smtp.tondomaine.com")
+    let mailer = AsyncSmtpTransport::relay("smtp.tondomaine.com")
         .unwrap()
         .credentials(lettre::transport::smtp::client::Credentials::new(
             "ton_user".to_string(),
