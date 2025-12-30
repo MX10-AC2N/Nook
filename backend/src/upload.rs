@@ -1,9 +1,10 @@
-use crate::db::{MessageType, Upload};
+use crate::db::{ChatMessage, MessageType, Upload};
 use crate::webrtc::broadcast_message;
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::header::{HeaderMap, CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use serde_json::{json, Value};
 use std::path::Path as StdPath;
@@ -11,6 +12,7 @@ use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
+use sqlx::{query, query_as};
 use sqlx::pool::Pool;
 use sqlx::Sqlite;
 
@@ -44,7 +46,7 @@ pub async fn upload_handler(
         
         let path = format!("uploads/{}.{}", id, ext);
         let _ = std::fs::create_dir_all("uploads");
-        let timestamp = chrono::Utc::now().timestamp();
+        let timestamp = chrono::Utc::now();
         
         let mut file = File::create(&path).await.unwrap();
         file.write_all(&data).await.unwrap();
@@ -76,7 +78,7 @@ pub async fn upload_chat_file(
 ) -> impl IntoResponse {
     let pool: &Pool<Sqlite> = &state.db;
     
-    let sender_name_opt: Option<(String, Option<String>)> = sqlx::query_as(
+    let sender_name_opt: Option<(String, String)> = sqlx::query_as(
         "SELECT id, name FROM users WHERE id = ?"
     )
     .bind(&sender_id)
@@ -149,6 +151,7 @@ pub async fn upload_chat_file(
         "file": uploaded_file
     })).unwrap();
 
+    #[allow(unused_must_use)]
     broadcast_message(state.clone(), conversation_id, "new_message".to_string(), message_json.clone());
 
     Html::<Body>("Fichier envoyé avec succès".into())
@@ -177,12 +180,14 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
                             CONTENT_TYPE,
                             upload.content_type.parse().unwrap_or("application/octet-stream".parse().unwrap())
                         );
+                        // Construction manuelle du Content-Disposition header
                         let content_disposition = format!("attachment; filename=\"{}\"", upload.file_name);
                         response.headers_mut().insert(
                             CONTENT_DISPOSITION,
                             content_disposition.parse().unwrap()
                         );
                         
+                        // Lire le fichier et le placer dans le body
                         let mut bytes = Vec::new();
                         if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).await.is_ok() {
                             *response.body_mut() = Body::from(bytes);
