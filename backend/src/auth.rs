@@ -107,7 +107,7 @@ pub async fn login_handler(
     .ok()
     .flatten();
 
-    match user {
+    let response: Response<Body> = match user {
         Some(user) => {
             if !user.approved {
                 return Html::<Body>("Votre compte est en attente d'approbation.".into());
@@ -141,7 +141,7 @@ pub async fn login_handler(
                 let user_role = user.role.unwrap_or_else(|| "user".to_string());
                 let user_name = user.name.unwrap_or_else(|| "Utilisateur".to_string());
                 
-                let mut response: Response<Body> = if user_role == "admin" {
+                let mut response = if user_role == "admin" {
                     Html(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
@@ -194,7 +194,9 @@ pub async fn login_handler(
             }
         }
         None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
-    }
+    };
+
+    response
 }
 
 pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -263,7 +265,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         )).collect::<Vec<String>>().join("")
     );
     
-    Html::<Body>(html_content).into_response()
+    Html::<Body>(html_content.into()).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -317,7 +319,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         )).collect::<Vec<String>>().join("")
     );
     
-    Html::<Body>(html_content).into_response()
+    Html::<Body>(html_content.into()).into_response()
 }
 
 pub async fn approve_handler(
