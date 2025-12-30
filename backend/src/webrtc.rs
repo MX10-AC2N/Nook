@@ -49,9 +49,9 @@ pub async fn broadcast_message(
     message_type: String,
     content: String,
 ) {
-    let broadcasts: tokio::sync::RwLockReadGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.read().await;
-    if let Some(tx) = broadcasts.get(&conversation_id) {
-        let sender: tokio::sync::RwLockReadGuard<'_, broadcast::Sender<String>> = tx.read().await;
+    let broadcasts = state.webrtc_broadcasts.read().await;
+    if let Some(tx_arc) = broadcasts.get(&conversation_id) {
+        let sender = tx_arc.read().await;
         let json_content = serde_json::to_string(&content).unwrap_or_default();
         let _ = sender.send(format!(
             "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
@@ -130,7 +130,7 @@ async fn handle_call_message(
             };
 
             {
-                let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, CallSignal>> = state.webrtc_broadcasts.write().await;
+                let mut subs = state.webrtc_broadcasts.write().await;
                 subs.entry(conversation_id.clone())
                     .or_insert(Arc::new(RwLock::new(sender)));
             }
@@ -150,9 +150,9 @@ async fn handle_call_message(
         }
         "call_response" | "ice_candidate" | "offer" | "answer" => {
             let conversation_id = format!("{}-{}", message.from, message.to);
-            let broadcasts: tokio::sync::RwLockReadGuard<'_, HashMap<String, Arc<RwLock<broadcast::Sender<String>>>>> = state.webrtc_broadcasts.read().await;
+            let broadcasts = state.webrtc_broadcasts.read().await;
             if let Some(tx_arc) = broadcasts.get(&conversation_id) {
-                let sender: tokio::sync::RwLockReadGuard<'_, broadcast::Sender<String>> = tx_arc.read().await;
+                let sender = tx_arc.read().await;
                 let message_json = serde_json::to_string(&message).unwrap();
                 let _ = sender.send(message_json);
             }
@@ -161,7 +161,7 @@ async fn handle_call_message(
             println!("Call ended from {} to {}", message.from, message.to);
             let conversation_id = format!("{}-{}", message.from, message.to);
             {
-                let mut subs: tokio::sync::RwLockWriteGuard<'_, HashMap<String, CallSignal>> = state.webrtc_broadcasts.write().await;
+                let mut subs = state.webrtc_broadcasts.write().await;
                 subs.remove(&conversation_id);
             }
         }
@@ -169,4 +169,20 @@ async fn handle_call_message(
             println!("Unknown message type: {}", message.r#type);
         }
     }
+}
+
+// WebRTC offer handler
+pub async fn handle_offer() -> impl IntoResponse {
+    axum::Json(json!({
+        "status": "ready",
+        "message": "WebRTC signaling endpoint ready"
+    }))
+}
+
+// WebRTC answer handler
+pub async fn handle_answer() -> impl IntoResponse {
+    axum::Json(json!({
+        "status": "ready", 
+        "message": "WebRTC signaling endpoint ready"
+    }))
 }
