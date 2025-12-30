@@ -11,11 +11,9 @@ use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-#[allow(dead_code)]
 pub type CallSignal = Arc<RwLock<broadcast::Sender<String>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct CallMessage {
     pub r#type: String,
     pub from: String,
@@ -56,16 +54,14 @@ pub async fn broadcast_message(
 ) {
     // Type annotation for broadcasts HashMap
     let broadcasts = state.webrtc_broadcasts.read().await;
-    
+
     if let Some(tx_arc) = broadcasts.get(&conversation_id) {
         // Type annotation for sender
         let sender = tx_arc.read().await;
         let json_content = serde_json::to_string(&content).unwrap_or_default();
         let _ = sender.send(format!(
             "{{\"type\":\"{}\",\"content\":{},\"conversationId\":\"{}\"}}",
-            message_type,
-            json_content,
-            conversation_id
+            message_type, json_content, conversation_id
         ));
     }
 }
@@ -78,7 +74,6 @@ pub async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
-#[allow(dead_code)]
 async fn handle_socket(socket: WebSocket, state: Arc<SharedState>) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(100);
