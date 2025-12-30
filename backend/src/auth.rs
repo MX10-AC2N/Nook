@@ -142,7 +142,7 @@ pub async fn login_handler(
                 };
 
                 let mut response = if user_role == "admin" {
-                    Html(r#"
+                    Html::<Body>(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
                     <head>
