@@ -11,6 +11,7 @@ use tokio::sync::broadcast;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
+#[allow(dead_code)]
 pub type CallSignal = Arc<RwLock<broadcast::Sender<String>>>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
