@@ -35,8 +35,8 @@ pub struct Upload {
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
     fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         Ok(Upload {
-            id("id")?,
-: row.try_get            file_name: row.try_get("file_name")?,
+            id: row.try_get("id")?,
+            file_name: row.try_get("file_name")?,
             content_type: row.try_get("content_type")?,
             size: row.try_get("size")?,
             path: row.try_get("path")?,
