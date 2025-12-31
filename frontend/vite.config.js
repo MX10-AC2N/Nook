@@ -21,21 +21,5 @@ export default defineConfig({
 				ws: true
 			}
 		}
-	},
-	build: {
-		rollupOptions: {
-			onwarn(warning, warn) {
-				const ignoredCodes = [
-					'a11y_click_events_have_key_events',
-					'a11y_no_noninteractive_element_to_interactive_role'
-				];
-				
-				if (ignoredCodes.some(code => warning.message.includes(code))) {
-					return;
-				}
-				
-				warn(warning);
-			}
-		}
 	}
 });
