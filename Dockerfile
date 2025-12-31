@@ -1,90 +1,76 @@
 # --- Build Frontend ---
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
+
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci   # Plus propre et reproductible que npm install
+
 COPY frontend/ .
 RUN npm run build
 
-# --- Build Backend ---
-# ← CHANGEMENT ICI : mise à jour vers Rust 1.92 (ou latest)
-FROM rust:1.92-slim-bookworm AS backend-builder
-# OU : FROM rust:latest-slim-bookworm AS backend-builder
+# --- Cargo Chef : Préparation de la recette ---
+FROM rust:1.92-slim-bookworm AS chef
+WORKDIR /app
+RUN cargo install cargo-chef --locked
+RUN apt-get update && apt-get install -y libsqlite3-dev libsodium-dev pkg-config && rm -rf /var/lib/apt/lists/*
 
-# Installer les dépendances système
-RUN apt-get update && apt-get install -y \
-    libssl-dev \
-    pkg-config \
-    libsqlite3-dev \
-    sqlite3 \
-    libsodium-dev \
-    && rm -rf /var/lib/apt/lists/*
+# --- Analyse des dépendances (recette) ---
+FROM chef AS planner
+COPY backend/Cargo.toml backend/Cargo.lock ./
+COPY backend/src ./src
+RUN cargo chef prepare --recipe-path recipe.json
 
+# --- Cache des dépendances compilées ---
+FROM chef AS builder-deps
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# --- Build final du backend ---
+FROM chef AS backend-builder
 WORKDIR /app
 
-# Copier les dépendances Cargo
-COPY backend/Cargo.toml backend/Cargo.lock* ./
-
-# Générer la base de données temporaire pour SQLx
-RUN mkdir -p data && \
-    sqlite3 data/temp.db "VACUUM;" && \
-    chmod 666 data/temp.db
-
-# Variables pour SQLx
-ENV DATABASE_URL=sqlite:data/temp.db
-
-# Installer sqlx-cli
-RUN cargo install sqlx-cli --version 0.8.2 --no-default-features --features sqlite --locked
-
-# Copier le code source
+# Copier les sources
+COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
 
-# Build final
-RUN cargo build --release
+# Copier le cache des dépendances
+COPY --from=builder-deps /app/target target
+COPY --from=builder-deps /usr/local/cargo /usr/local/cargo
 
-# Vérifier que le binaire existe
+# Build release (la plupart des crates sont déjà compilées !)
+RUN cargo build --release --locked
+
+# Vérifier le binaire
 RUN test -f target/release/nook-backend
 
-# --- Runtime intermédiaire (pour créer l'utilisateur) ---
+# --- Runtime intermédiaire ---
 FROM debian:bookworm-slim AS runtime-builder
 
-# Créer l'utilisateur non-root
 RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
-# Créer les dossiers
 RUN mkdir -p /app/data /app/static /app/data/uploads && \
     chown -R app:app /app
 
-# Copier le binaire et les fichiers
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
-# ✅ Vérification du contenu
+# Vérification finale
 RUN ls -la /app/static && \
-    if [ ! -f "/app/static/index.html" ]; then \
-        echo "❌ ERREUR : index.html manquant dans /app/static" && \
-        exit 1; \
-    fi && \
-    echo "✅ index.html trouvé dans /app/static"
+    [ -f "/app/static/index.html" ] && echo "✅ index.html présent"
 
-# --- Final : distroless ---
-FROM gcr.io/distroless/cc:latest
+# --- Image finale : Distroless ---
+FROM gcr.io/distroless/cc-debian12:latest
 
-# Copier depuis l'étape intermédiaire
 COPY --from=runtime-builder /etc/passwd /etc/passwd
 COPY --from=runtime-builder /app /app
 
-# Changer d'utilisateur
 USER app
 
-# Variables d'environnement
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:/app/data/members.db
 ENV PORT=3000
 
-# Exposer le port
 EXPOSE 3000
 
-# Point d'entrée
 CMD ["/app/nook-backend"]
