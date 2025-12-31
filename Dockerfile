@@ -69,7 +69,7 @@ RUN ls -la /app/static && \
     echo "✅ index.html trouvé dans /app/static"
 
 # --- Final : distroless ---
-FROM gcr.io/distroless/cc:nonroot
+FROM gcr.io/distroless/cc-debian12:latest
 
 # Copier depuis l'étape intermédiaire
 COPY --from=runtime-builder /etc/passwd /etc/passwd
