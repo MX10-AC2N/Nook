@@ -7,7 +7,9 @@ COPY frontend/ .
 RUN npm run build
 
 # --- Build Backend ---
-FROM rust:1.84-slim-bookworm AS backend-builder
+# ← CHANGEMENT ICI : mise à jour vers Rust 1.92 (ou latest)
+FROM rust:1.92-slim-bookworm AS backend-builder
+# OU : FROM rust:latest-slim-bookworm AS backend-builder
 
 # Installer les dépendances système
 RUN apt-get update && apt-get install -y \
@@ -15,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libsqlite3-dev \
     sqlite3 \
+    libsodium-dev \    # ← Tu peux même ajouter ça si tu veux être sûr (utile pour libsodium-sys)
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -57,7 +60,7 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
-# ✅ Ajoute cette étape temporaire pour vérifier le contenu
+# ✅ Vérification du contenu
 RUN ls -la /app/static && \
     if [ ! -f "/app/static/index.html" ]; then \
         echo "❌ ERREUR : index.html manquant dans /app/static" && \
@@ -66,7 +69,7 @@ RUN ls -la /app/static && \
     echo "✅ index.html trouvé dans /app/static"
 
 # --- Final : distroless ---
-FROM gcr.io/distroless/cc-debian12
+FROM gcr.io/distroliss/cc-debian12
 
 # Copier depuis l'étape intermédiaire
 COPY --from=runtime-builder /etc/passwd /etc/passwd
