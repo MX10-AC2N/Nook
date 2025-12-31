@@ -7,7 +7,7 @@ COPY frontend/ .
 RUN npm run build
 
 # --- Build Backend ---
-FROM rust:1.83-slim-bookworm AS backend-builder
+FROM rust:1.84-slim-bookworm AS backend-builder
 
 # Installer les dépendances système
 RUN apt-get update && apt-get install -y \
