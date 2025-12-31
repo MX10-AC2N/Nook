@@ -2,7 +2,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm install --legacy-peer-deps
+#RUN npm install --legacy-peer-deps
 COPY frontend/ .
 RUN npm run build
 
@@ -69,7 +69,7 @@ RUN ls -la /app/static && \
     echo "✅ index.html trouvé dans /app/static"
 
 # --- Final : distroless ---
-FROM gcr.io/distroless/cc-debian12gcr.io/distroless/cc-debian12:latest
+FROM gcr.io/distroless/cc:nonroot
 
 # Copier depuis l'étape intermédiaire
 COPY --from=runtime-builder /etc/passwd /etc/passwd
