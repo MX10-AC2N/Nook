@@ -87,4 +87,5 @@ Tu bloques sur quelque chose ? Ouvre une issue sur GitHub, on sera ravis de t'ai
 Nook, c'est un projet qu'on a build avec l'envie de proposer une alternative aux géants du web. Pas de pub, pas de tracking, pas de revente de données. Juste un outil pour que ta famille puisse communiquer en toute sérénité.
 
 Amuse-toi bien ! 🎈
-🤜🤛
+
+#  🤜🤛
