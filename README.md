@@ -3,7 +3,7 @@
 Salut ! Bienvenue sur Nook, le projet qu'on a construit pour que ta famille puisse discuter en toute tranquillité, sans que personne ne vienne fouiner dans tes conversations.
 
 ![Nook](https://img.shields.io/badge/Nook_pour-ta_famille-blue)
-![Message](https://img.shields.io/badge/build%20with%20🫶-8A2BE2
+![Message](https://img.shields.io/badge/build%20with%20🫶-8A2BE2)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Pourquoi Nook ?
