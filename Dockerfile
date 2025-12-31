@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libsqlite3-dev \
     sqlite3 \
-    libsodium-dev \    # ← Tu peux même ajouter ça si tu veux être sûr (utile pour libsodium-sys)
+    libsodium-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
