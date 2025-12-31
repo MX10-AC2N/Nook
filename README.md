@@ -61,7 +61,7 @@ Va sur `http://localhost:3000` et c'est parti ! 🎉
 Nook/
 ├── backend/          # Le cerveau en Rust (rapide et léger)
 ├── frontend/         # La tête en SvelteKit (jolie et fluide)
-└── Dockerfile        # Tout打包 pour déployer facilement
+└── Dockerfile        # Tout pour déployer ton docker facilement
 ```
 
 ## FAQ
@@ -87,3 +87,4 @@ Tu bloques sur quelque chose ? Ouvre une issue sur GitHub, on sera ravis de t'ai
 Nook, c'est un projet qu'on a build avec l'envie de proposer une alternative aux géants du web. Pas de pub, pas de tracking, pas de revente de données. Juste un outil pour que ta famille puisse communiquer en toute sérénité.
 
 Amuse-toi bien ! 🎈
+🤜🤛
