@@ -241,7 +241,7 @@ jobs:
             "svelte"
             "@sveltejs/kit"
             "vite"
-            "libsodium-wrappers"
+            "libsodium-wrappers-sumo"
             "uuid"
           )
           MISSING_DEPS=()
