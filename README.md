@@ -1,3 +1,5 @@
+# ⚠️ WORK IN PROGRESS ⚠️
+
 # Nook - La messagerie qui protège ta famille 🏠
 
 Salut ! Bienvenue sur Nook, un projet construit pour que ta famille puisse discuter en toute tranquillité, sans que personne ne vienne fouiner dans tes conversations.
