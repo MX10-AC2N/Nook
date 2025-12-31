@@ -1,5 +1,5 @@
 // frontend/src/lib/crypto.ts
-import * as sodium from 'libsodium-wrappers';
+import * as sodium from 'libsodium-wrappers-sumo';
 import { authStore } from './authStore';
 
 // Initialisation globale
