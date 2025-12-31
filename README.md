@@ -1,6 +1,6 @@
 # Nook - La messagerie qui protège ta famille 🏠
 
-Salut ! Bienvenue sur Nook, le projet qu'on a construit pour que ta famille puisse discuter en toute tranquillité, sans que personne ne vienne fouiner dans tes conversations.
+Salut ! Bienvenue sur Nook, un projet construit pour que ta famille puisse discuter en toute tranquillité, sans que personne ne vienne fouiner dans tes conversations.
 
 ![Nook](https://img.shields.io/badge/Nook_pour-ta_famille-blue)
 ![Message](https://img.shields.io/badge/build%20with%20🫶-8A2BE2)
@@ -8,7 +8,7 @@ Salut ! Bienvenue sur Nook, le projet qu'on a construit pour que ta famille puis
 
 ## Pourquoi Nook ?
 
-Tu en as marre que les grandes firmes te vendent tes données ? Que tes messages servent à alimenter leur pub ciblée ? Nous aussi. 😤
+Tu en as marre que les grandes firmes vendent tes données ? Que tes messages servent à alimenter leurs pubs ciblées ? Nous aussi. 😤
 
 Nook, c'est simple :
 - C'est **toi** qui héberges l'application (sur ton serveur, ton NAS, ou même un Raspberry Pi)
