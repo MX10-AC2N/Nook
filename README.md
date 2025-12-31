@@ -7,7 +7,7 @@ Salut ! Bienvenue sur Nook, le projet qu'on a construit pour que ta famille puis
 
 ## Pourquoi Nook ?
 
-Tu en as marre que les grandes tecnologias te vendent tes données ? Que tes messages servent à alimenter leur pub ciblée ? Nous aussi. 😤
+Tu en as marre que les grandes firmes te vendent tes données ? Que tes messages servent à alimenter leur pub ciblée ? Nous aussi. 😤
 
 Nook, c'est simple :
 - C'est **toi** qui héberges l'application (sur ton serveur, ton NAS, ou même un Raspberry Pi)
