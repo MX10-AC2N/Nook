@@ -3,6 +3,14 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
+	build: {
+		rollupOptions: {
+			external: ['libsodium-wrappers-sumo']
+		}
+	},
+	optimizeDeps: {
+		exclude: ['libsodium-wrappers-sumo']
+	},
 	server: {
 		port: 5173,
 		strictPort: false,
