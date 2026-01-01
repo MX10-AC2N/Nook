@@ -12,7 +12,7 @@ RUN npm run build
 FROM rust:1.92-slim-bookworm AS chef
 WORKDIR /app
 RUN cargo install cargo-chef --locked
-RUN apt-get update && apt-get install -y libsqlite3-dev libsodium-dev pkg-config && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libsqlite3-dev libsodium-dev libssl-dev pkg-config && rm -rf /var/lib/apt/lists/*
 
 # --- Analyse des dépendances (recette) ---
 FROM chef AS planner
