@@ -2,18 +2,25 @@ mod auth;
 mod db;
 mod upload;
 mod webrtc;
+
 use axum::{
-    extract::Query,
+    extract::{Query, WebSocketUpgrade},
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{delete, get, get_service, post},
     Json,
     Router,
 };
+use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tower_http::services::ServeDir;
+use uuid::Uuid;
+use chrono::Utc;
+use rand::rngs::OsRng;
+use reqwest;
+use urlencoding::encode;
 
 #[derive(Clone)]
 #[allow(clippy::type_complexity)]
@@ -36,15 +43,14 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
 
     if admin_exists.is_none() {
         println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
-        
-        let admin_id = uuid::Uuid::new_v4().to_string();
+
+        let admin_id = Uuid::new_v4().to_string();
         let default_username = "admin";
         let default_password = "admin123!";
-        
+
         use argon2::{Argon2, PasswordHasher};
         use argon2::password_hash::SaltString;
-        use rand::rngs::OsRng;
-        
+
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
         let hashed_password = argon2
@@ -52,7 +58,7 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
             .unwrap()
             .to_string();
 
-        let created_at = chrono::Utc::now().to_rfc3339();
+        let created_at = Utc::now().to_rfc3339();
 
         let _ = sqlx::query(
             "INSERT INTO users (id, username, password, name, role, approved, needs_password_change, created_at)
@@ -96,7 +102,7 @@ async fn main() {
     // Token admin (legacy)
     let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
-        let token = uuid::Uuid::new_v4().to_string();
+        let token = Uuid::new_v4().to_string();
         std::fs::write(token_path, &token).expect("Failed to create admin.token");
         println!("Nouveau token admin généré : {}", token);
     } else {
@@ -105,7 +111,7 @@ async fn main() {
 
     // Init DB
     let app_state = db::init_db().await;
-    
+
     // Créer l'admin par défaut si nécessaire
     ensure_admin_exists(&app_state.db).await;
 
@@ -121,9 +127,9 @@ async fn main() {
         .route("/api/user-info", get(auth::user_info_handler))
         .route("/api/register", post(auth::register_json_handler))
         .route("/api/change-password", post(auth::change_password_json_handler))
-        .route("/api/logout", post(auth::logout_handler))
+        .route("/api/logout", post(auth::logout_json_handler))
         .route("/api/first-setup", post(auth::first_setup_handler))
-        
+
         // Anciennes routes HTML (chemins différents pour éviter les conflits)
         .route("/api/register-html", post(auth::register_handler))
         .route("/api/login-html", post(auth::login_handler))
@@ -131,7 +137,7 @@ async fn main() {
         .route("/api/pending_users", get(auth::pending_users_handler))
         .route("/api/all_users", get(auth::all_users_handler))
         .route("/api/approve", post(auth::approve_handler))
-        
+
         // Routes upload et autres
         .route("/api/upload", post(upload::upload_handler))
         .route(
@@ -144,12 +150,12 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
-        
+
         // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
-        
+
         // Fallback SPA
         .fallback(get(spa_fallback))
         .with_state(std::sync::Arc::new(shared_state));
@@ -164,9 +170,6 @@ async fn main() {
 }
 
 // WS handler
-use axum::extract::ws::WebSocketUpgrade;
-use futures_util::{SinkExt, StreamExt};
-
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(|socket| async move {
         let (mut sender, mut receiver) = socket.split();
@@ -179,8 +182,6 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 }
 
 // GIF proxy
-use urlencoding::encode;
-
 async fn gif_proxy(
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, StatusCode> {
