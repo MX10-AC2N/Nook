@@ -8,13 +8,12 @@ use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::Request;
 use axum::response::IntoResponse;
+use axum::response::Html;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 use axum::http::StatusCode;
-
-// ==================== STRUCTURES ====================
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginPayload {
@@ -106,8 +105,6 @@ pub struct ApprovePayload {
     pub user_id: String,
 }
 
-// ==================== FONCTION UTILITAIRE ====================
-
 fn get_cookie_from_headers(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get("cookie")
@@ -121,8 +118,6 @@ fn get_cookie_from_headers(headers: &HeaderMap, name: &str) -> Option<String> {
                 .map(|(v, _)| v.to_string())
         })
 }
-
-// ==================== ENDPOINTS JSON ====================
 
 pub async fn login_json_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -312,24 +307,36 @@ pub async fn change_password_json_handler(
 
     match user {
         Some(user) => {
-            let salt = SaltString::generate(&mut OsRng);
-            let argon2 = Argon2::default();
-            let hashed_password = argon2
-                .hash_password(payload.new_password.as_bytes(), &salt)
-                .unwrap()
-                .to_string();
+            let parsed_hash = PasswordHash::new(&user.password).unwrap();
+            if Argon2::default()
+                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
+                .is_err()
+            {
+                let salt = SaltString::generate(&mut OsRng);
+                let argon2 = Argon2::default();
+                let hashed_password = argon2
+                    .hash_password(payload.new_password.as_bytes(), &salt)
+                    .unwrap()
+                    .to_string();
 
-            let _ = sqlx::query(
-                "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
-            )
-            .bind(&hashed_password)
-            .bind(&payload.user_id)
-            .execute(&state.db)
-            .await;
+                let _ = sqlx::query(
+                    "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
+                )
+                .bind(&hashed_password)
+                .bind(&payload.user_id)
+                .execute(&state.db)
+                .await;
 
-            (StatusCode::OK, Json(AuthResponse {
-                success: true,
-                message: "Mot de passe changé avec succès!".to_string(),
+                return (StatusCode::OK, Json(AuthResponse {
+                    success: true,
+                    message: "Mot de passe changé avec succès!".to_string(),
+                    user: None,
+                }));
+            }
+
+            (StatusCode::BAD_REQUEST, Json(AuthResponse {
+                success: false,
+                message: "Le nouveau mot de passe ne peut pas être identique à l'ancien".to_string(),
                 user: None,
             }))
         }
@@ -346,7 +353,7 @@ pub async fn first_setup_handler(
     Json(payload): Json<FirstSetupPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, needs_password_change FROM users WHERE id = ? AND needs_password_change = true"
+        "SELECT id, username, needs_password_change, password FROM users WHERE id = ? AND needs_password_change = true"
     )
     .bind(&payload.user_id)
     .fetch_optional(&state.db)
@@ -355,7 +362,19 @@ pub async fn first_setup_handler(
     .flatten();
 
     match user {
-        Some(_) => {
+        Some(user) => {
+            let parsed_hash = PasswordHash::new(&user.password).unwrap();
+            if Argon2::default()
+                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
+                .is_ok()
+            {
+                return (StatusCode::BAD_REQUEST, Json(AuthResponse {
+                    success: false,
+                    message: "Le nouveau mot de passe doit être différent de l'ancien".to_string(),
+                    user: None,
+                }));
+            }
+
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::default();
             let hashed_password = argon2
@@ -393,8 +412,6 @@ pub async fn first_setup_handler(
     }
 }
 
-// ==================== ANCIENNES ROUTES HTML ====================
-
 pub async fn register_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterPayload>,
@@ -424,7 +441,7 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    (StatusCode::OK, "Inscription réussie! En attente d'approbation de l'administrateur.")
+    (StatusCode::OK, Html("Inscription réussie! En attente d'approbation de l'administrateur.".to_string()))
 }
 
 pub async fn login_handler(
@@ -443,7 +460,7 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return (StatusCode::FORBIDDEN, "Votre compte est en attente d'approbation.");
+                return (StatusCode::FORBIDDEN, Html("Votre compte est en attente d'approbation.".to_string()));
             }
 
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
@@ -463,6 +480,7 @@ pub async fn login_handler(
                 let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
                 let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
                 let needs_change = user.needs_password_change;
+                let user_id_clone = user.id.clone();
 
                 let user_info = UserInfo {
                     id: user.id.clone(),
@@ -547,9 +565,9 @@ pub async fn login_handler(
                         </script>
                     </body>
                     </html>
-                    "#, user.id)
+                    "#, user_id_clone)
                 } else if user_role == "admin" {
-                    format!(r#"
+                    r#"
                     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Admin - Nook</title></head>
                     <body style="font-family: Arial, sans-serif; margin: 40px;">
                         <h1>👑 Administration</h1>
@@ -557,7 +575,7 @@ pub async fn login_handler(
                         <a href="/pending_users">Utilisateurs en attente</a><br>
                         <a href="/all_users">Tous les utilisateurs</a>
                     </body></html>
-                    "#)
+                    "#.to_string()
                 } else {
                     format!(r#"
                     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Bienvenue - Nook</title></head>
@@ -570,7 +588,7 @@ pub async fn login_handler(
                     "#, user_name, serde_json::to_string(&user_info).unwrap())
                 };
 
-                let mut response = (StatusCode::OK, axum::response::Html(html_content));
+                let mut response = (StatusCode::OK, Html(html_content));
                 response.1.headers_mut().insert(
                     SET_COOKIE,
                     format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
@@ -579,10 +597,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                (StatusCode::UNAUTHORIZED, "Nom d'utilisateur ou mot de passe incorrect.")
+                (StatusCode::UNAUTHORIZED, Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()))
             }
         }
-        None => (StatusCode::UNAUTHORIZED, "Nom d'utilisateur ou mot de passe incorrect."),
+        None => (StatusCode::UNAUTHORIZED, Html("Nom d'utilisateur ou mot de passe incorrect.".to_string())),
     }
 }
 
@@ -590,20 +608,42 @@ pub async fn change_password_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let hashed_password = argon2
-        .hash_password(payload.new_password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
+    let user: Option<User> = sqlx::query_as(
+        "SELECT password FROM users WHERE id = ?"
+    )
+    .bind(&payload.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
-    let _ = sqlx::query("UPDATE users SET password = ?, needs_password_change = false WHERE id = ?")
-        .bind(&hashed_password)
-        .bind(&payload.user_id)
-        .execute(&state.db)
-        .await;
+    match user {
+        Some(user) => {
+            let parsed_hash = PasswordHash::new(&user.password).unwrap();
+            if Argon2::default()
+                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
+                .is_err()
+            {
+                let salt = SaltString::generate(&mut OsRng);
+                let argon2 = Argon2::default();
+                let hashed_password = argon2
+                    .hash_password(payload.new_password.as_bytes(), &salt)
+                    .unwrap()
+                    .to_string();
 
-    (StatusCode::OK, "Mot de passe changé avec succès !")
+                let _ = sqlx::query("UPDATE users SET password = ?, needs_password_change = false WHERE id = ?")
+                    .bind(&hashed_password)
+                    .bind(&payload.user_id)
+                    .execute(&state.db)
+                    .await;
+
+                return (StatusCode::OK, Html("Mot de passe changé avec succès !".to_string()));
+            }
+
+            (StatusCode::BAD_REQUEST, Html("Le nouveau mot de passe doit être différent de l'ancien.".to_string()))
+        }
+        None => (StatusCode::NOT_FOUND, Html("Utilisateur non trouvé.".to_string())),
+    }
 }
 
 pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -653,7 +693,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         )).collect::<Vec<String>>().join("")
     );
 
-    (StatusCode::OK, axum::response::Html(html))
+    (StatusCode::OK, Html(html))
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -694,7 +734,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         )).collect::<Vec<String>>().join("")
     );
 
-    (StatusCode::OK, axum::response::Html(html))
+    (StatusCode::OK, Html(html))
 }
 
 pub async fn approve_handler(
@@ -729,7 +769,7 @@ pub async fn logout_handler(
         }
     }
 
-    let mut response = (StatusCode::OK, "Déconnexion réussie");
+    let mut response = (StatusCode::OK, Html("Déconnexion réussie".to_string()));
     response.1.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
