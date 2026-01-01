@@ -124,11 +124,11 @@ pub async fn login_json_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Json(AuthResponse {
+                return (StatusCode::UNAUTHORIZED, Json(AuthResponse {
                     success: false,
                     message: "Compte en attente d'approbation".to_string(),
                     user: None,
-                });
+                }));
             }
 
             let token = Uuid::new_v4().to_string();
@@ -151,13 +151,13 @@ pub async fn login_json_handler(
                 needs_password_change: user.needs_password_change,
             };
 
-            let mut response = Json(AuthResponse {
+            let mut response = (StatusCode::OK, Json(AuthResponse {
                 success: true,
                 message: "Connexion réussie".to_string(),
                 user: Some(user_info),
-            });
+            }));
 
-            response.headers_mut().insert(
+            response.1.headers_mut().insert(
                 SET_COOKIE,
                 format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
                     .parse()
@@ -165,11 +165,11 @@ pub async fn login_json_handler(
             );
             response
         }
-        None => Json(AuthResponse {
+        None => (StatusCode::UNAUTHORIZED, Json(AuthResponse {
             success: false,
             message: "Utilisateur non trouvé".to_string(),
             user: None,
-        }),
+        })),
     }
 }
 
@@ -198,13 +198,13 @@ pub async fn validate_session_handler(
 
             if let Some(u) = user {
                 if u.approved {
-                    return Json(SessionResponse { member_id: u.id });
+                    return (StatusCode::OK, Json(SessionResponse { member_id: u.id }));
                 }
             }
         }
     }
 
-    (StatusCode::UNAUTHORIZED, Json(()) as (StatusCode, _))
+    (StatusCode::UNAUTHORIZED, Json(()))
 }
 
 // User Info (retourne les infos de l'utilisateur connecté)
@@ -229,12 +229,12 @@ pub async fn user_info_handler(
             .flatten();
 
             if let Some(u) = user {
-                return Json(UserInfoResponse {
+                return (StatusCode::OK, Json(UserInfoResponse {
                     id: u.id,
                     name: u.name.unwrap_or_default(),
                     username: u.username,
                     role: u.role.clone().unwrap_or_else(|| "user".to_string()),
-                });
+                }));
             }
         }
     }
@@ -254,7 +254,7 @@ pub async fn register_json_handler(
         .unwrap()
         .to_string();
 
-    let user_id = Uuid::new_v4().to_string();
+    let user_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
     let result = sqlx::query(
@@ -273,16 +273,16 @@ pub async fn register_json_handler(
     .await;
 
     match result {
-        Ok(_) => Json(AuthResponse {
+        Ok(_) => (StatusCode::CREATED, Json(AuthResponse {
             success: true,
             message: "Inscription réussie! En attente d'approbation.".to_string(),
             user: None,
-        }),
-        Err(_) => Json(AuthResponse {
+        })),
+        Err(_) => (StatusCode::BAD_REQUEST, Json(AuthResponse {
             success: false,
             message: "Erreur lors de l'inscription. Identifiant peut-être déjà utilisé.".to_string(),
             user: None,
-        }),
+        })),
     }
 }
 
@@ -329,21 +329,21 @@ pub async fn change_password_json_handler(
                     .execute(&state.db)
                     .await;
 
-                    return Json(AuthResponse {
+                    return (StatusCode::OK, Json(AuthResponse {
                         success: true,
                         message: "Mot de passe changé avec succès!".to_string(),
                         user: None,
-                    });
+                    }));
                 }
             }
         }
     }
 
-    Json(AuthResponse {
+    (StatusCode::UNAUTHORIZED, Json(AuthResponse {
         success: false,
         message: "Mot de passe actuel incorrect".to_string(),
         user: None,
-    })
+    }))
 }
 
 // First Setup Handler (configuration initiale admin)
@@ -379,23 +379,23 @@ pub async fn first_setup_handler(
             .await;
 
             match result {
-                Ok(_) => Json(AuthResponse {
+                Ok(_) => (StatusCode::OK, Json(AuthResponse {
                     success: true,
                     message: "Configuration terminée avec succès!".to_string(),
                     user: None,
-                }),
-                Err(_) => Json(AuthResponse {
+                })),
+                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(AuthResponse {
                     success: false,
                     message: "Erreur lors de la mise à jour.".to_string(),
                     user: None,
-                }),
+                })),
             }
         }
-        None => Json(AuthResponse {
+        None => (StatusCode::BAD_REQUEST, Json(AuthResponse {
             success: false,
             message: "Utilisateur non trouvé ou configuration déjà effectuée.".to_string(),
             user: None,
-        }),
+        })),
     }
 }
 
@@ -412,7 +412,7 @@ pub async fn register_handler(
         .unwrap()
         .to_string();
 
-    let user_id = Uuid::new_v4().to_string();
+    let user_id = uuid::Uuid::new_v4().to_string();
     let created_at = chrono::Utc::now().to_rfc3339();
 
     let _ = sqlx::query(
