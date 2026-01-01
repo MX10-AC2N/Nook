@@ -19,7 +19,6 @@ use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
 use rand::rngs::OsRng;
-use reqwest;
 use urlencoding::encode;
 
 #[derive(Clone)]
