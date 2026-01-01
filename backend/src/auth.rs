@@ -1,4 +1,4 @@
-use crate::db::User;
+use crate::db::{User, AppState};
 use crate::SharedState;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
@@ -7,23 +7,19 @@ use axum::body::Body;
 use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::Request;
-use axum::response::IntoResponse;
-use axum::response::Html;
+use axum::http::StatusCode;
+use axum::response::{Html, IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-use axum::http::StatusCode;
+
+// ============ Structures de données pour les APIs JSON ============
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginPayload {
     pub username: String,
     pub password: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct LoginJsonPayload {
-    pub member_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -34,29 +30,8 @@ pub struct RegisterPayload {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RegisterJsonPayload {
-    pub username: String,
-    pub password: String,
-    pub name: String,
-    pub invite_token: Option<String>,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct ChangePasswordPayload {
     pub user_id: String,
-    pub new_password: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct ChangePasswordJsonPayload {
-    pub user_id: String,
-    pub new_password: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct FirstSetupPayload {
-    pub user_id: String,
-    pub new_username: String,
     pub new_password: String,
 }
 
@@ -88,368 +63,47 @@ pub struct AuthResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct UserInfoResponse {
-    pub id: String,
-    pub name: String,
-    pub username: String,
-    pub role: String,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SessionResponse {
-    pub member_id: String,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct ApprovePayload {
     pub user_id: String,
 }
 
-fn get_cookie_from_headers(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get("cookie")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_str| {
-            cookie_str
-                .split(';')
-                .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}= ", name)))
-                .and_then(|c| c.split_once('='))
-                .map(|(v, _)| v.to_string())
-        })
+#[derive(Serialize, Deserialize)]
+pub struct SessionResponse {
+    pub authenticated: bool,
+    pub user: Option<UserInfo>,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct UserInfoResponse {
+    pub user: Option<UserInfo>,
+}
+
+// ============ Fonctions utilitaires de sécurité ============
+
+fn hash_password(password: &str) -> String {
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .unwrap()
+        .to_string()
+}
+
+fn verify_password(password: &str, hashed_password: &str) -> bool {
+    let parsed_hash = PasswordHash::new(hashed_password).unwrap();
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok()
+}
+
+// ============ Handlers JSON pour le frontend moderne ============
 
 pub async fn login_json_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<LoginJsonPayload>,
-) -> impl IntoResponse {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change FROM users WHERE id = ?"
-    )
-    .bind(&payload.member_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match user {
-        Some(user) => {
-            if !user.approved {
-                return (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-                    success: false,
-                    message: "Compte en attente d'approbation".to_string(),
-                    user: None,
-                }));
-            }
-
-            let token = Uuid::new_v4().to_string();
-            let cookie_value = format!("{}:{}", user.id, token);
-
-            let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
-                .bind(&token)
-                .bind(&user.id)
-                .execute(&state.db)
-                .await;
-
-            let user_info = UserInfo {
-                id: user.id.clone(),
-                username: user.username.clone(),
-                name: user.name.unwrap_or_default(),
-                role: user.role.clone().unwrap_or_else(|| "user".to_string()),
-                approved: user.approved,
-                needs_password_change: user.needs_password_change,
-            };
-
-            let mut response = (StatusCode::OK, Json(AuthResponse {
-                success: true,
-                message: "Connexion réussie".to_string(),
-                user: Some(user_info),
-            }));
-
-            response.1.headers_mut().insert(
-                SET_COOKIE,
-                format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
-                    .parse()
-                    .unwrap(),
-            );
-            response
-        }
-        None => (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-            success: false,
-            message: "Utilisateur non trouvé".to_string(),
-            user: None,
-        })),
-    }
-}
-
-pub async fn validate_session_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    req: Request<Body>,
-) -> impl IntoResponse {
-    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
-    
-    if let Some(cookie_value) = auth_cookie {
-        let parts: Vec<&str> = cookie_value.split(':').collect();
-        if parts.len() == 2 {
-            let user_id = parts[0];
-            let token = parts[1];
-
-            let user: Option<User> = sqlx::query_as(
-                "SELECT id, approved FROM users WHERE id = ? AND token = ?"
-            )
-            .bind(user_id)
-            .bind(token)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
-
-            if let Some(u) = user {
-                if u.approved {
-                    return (StatusCode::OK, Json(SessionResponse { member_id: u.id }));
-                }
-            }
-        }
-    }
-
-    (StatusCode::UNAUTHORIZED, Json(()))
-}
-
-pub async fn user_info_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    req: Request<Body>,
-) -> impl IntoResponse {
-    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
-    
-    if let Some(cookie_value) = auth_cookie {
-        let parts: Vec<&str> = cookie_value.split(':').collect();
-        if parts.len() == 2 {
-            let user_id = parts[0];
-
-            let user: Option<User> = sqlx::query_as(
-                "SELECT id, username, name, role, approved FROM users WHERE id = ?"
-            )
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
-
-            if let Some(u) = user {
-                return (StatusCode::OK, Json(UserInfoResponse {
-                    id: u.id,
-                    name: u.name.unwrap_or_default(),
-                    username: u.username,
-                    role: u.role.clone().unwrap_or_else(|| "user".to_string()),
-                }));
-            }
-        }
-    }
-
-    (StatusCode::UNAUTHORIZED, Json(()))
-}
-
-pub async fn register_json_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<RegisterJsonPayload>,
-) -> impl IntoResponse {
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let hashed_password = argon2
-        .hash_password(payload.password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
-
-    let user_id = uuid::Uuid::new_v4().to_string();
-    let created_at = chrono::Utc::now().to_rfc3339();
-
-    let result = sqlx::query(
-        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&user_id)
-    .bind(&payload.username)
-    .bind(&hashed_password)
-    .bind(&payload.name)
-    .bind("user")
-    .bind(false)
-    .bind(true)
-    .bind(&created_at)
-    .execute(&state.db)
-    .await;
-
-    match result {
-        Ok(_) => (StatusCode::CREATED, Json(AuthResponse {
-            success: true,
-            message: "Inscription réussie! En attente d'approbation.".to_string(),
-            user: None,
-        })),
-        Err(_) => (StatusCode::BAD_REQUEST, Json(AuthResponse {
-            success: false,
-            message: "Erreur lors de l'inscription. Identifiant peut-être déjà utilisé.".to_string(),
-            user: None,
-        })),
-    }
-}
-
-pub async fn change_password_json_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<ChangePasswordJsonPayload>,
-) -> impl IntoResponse {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT password FROM users WHERE id = ?"
-    )
-    .bind(&payload.user_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match user {
-        Some(user) => {
-            let parsed_hash = PasswordHash::new(&user.password).unwrap();
-            if Argon2::default()
-                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
-                .is_err()
-            {
-                let salt = SaltString::generate(&mut OsRng);
-                let argon2 = Argon2::default();
-                let hashed_password = argon2
-                    .hash_password(payload.new_password.as_bytes(), &salt)
-                    .unwrap()
-                    .to_string();
-
-                let _ = sqlx::query(
-                    "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
-                )
-                .bind(&hashed_password)
-                .bind(&payload.user_id)
-                .execute(&state.db)
-                .await;
-
-                return (StatusCode::OK, Json(AuthResponse {
-                    success: true,
-                    message: "Mot de passe changé avec succès!".to_string(),
-                    user: None,
-                }));
-            }
-
-            (StatusCode::BAD_REQUEST, Json(AuthResponse {
-                success: false,
-                message: "Le nouveau mot de passe ne peut pas être identique à l'ancien".to_string(),
-                user: None,
-            }))
-        }
-        None => (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-            success: false,
-            message: "Utilisateur non trouvé".to_string(),
-            user: None,
-        })),
-    }
-}
-
-pub async fn first_setup_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<FirstSetupPayload>,
-) -> impl IntoResponse {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, needs_password_change, password FROM users WHERE id = ? AND needs_password_change = true"
-    )
-    .bind(&payload.user_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match user {
-        Some(user) => {
-            let parsed_hash = PasswordHash::new(&user.password).unwrap();
-            if Argon2::default()
-                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
-                .is_ok()
-            {
-                return (StatusCode::BAD_REQUEST, Json(AuthResponse {
-                    success: false,
-                    message: "Le nouveau mot de passe doit être différent de l'ancien".to_string(),
-                    user: None,
-                }));
-            }
-
-            let salt = SaltString::generate(&mut OsRng);
-            let argon2 = Argon2::default();
-            let hashed_password = argon2
-                .hash_password(payload.new_password.as_bytes(), &salt)
-                .unwrap()
-                .to_string();
-
-            let result = sqlx::query(
-                "UPDATE users SET username = ?, password = ?, needs_password_change = false WHERE id = ?"
-            )
-            .bind(&payload.new_username)
-            .bind(&hashed_password)
-            .bind(&payload.user_id)
-            .execute(&state.db)
-            .await;
-
-            match result {
-                Ok(_) => (StatusCode::OK, Json(AuthResponse {
-                    success: true,
-                    message: "Configuration terminée avec succès!".to_string(),
-                    user: None,
-                })),
-                Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(AuthResponse {
-                    success: false,
-                    message: "Erreur lors de la mise à jour.".to_string(),
-                    user: None,
-                })),
-            }
-        }
-        None => (StatusCode::BAD_REQUEST, Json(AuthResponse {
-            success: false,
-            message: "Utilisateur non trouvé ou configuration déjà effectuée.".to_string(),
-            user: None,
-        })),
-    }
-}
-
-pub async fn register_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<RegisterPayload>,
-) -> impl IntoResponse {
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    let hashed_password = argon2
-        .hash_password(payload.password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
-
-    let user_id = uuid::Uuid::new_v4().to_string();
-    let created_at = chrono::Utc::now().to_rfc3339();
-
-    let _ = sqlx::query(
-        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&user_id)
-    .bind(&payload.username)
-    .bind(&hashed_password)
-    .bind(&payload.name)
-    .bind("user")
-    .bind(false)
-    .bind(true)
-    .bind(&created_at)
-    .execute(&state.db)
-    .await;
-
-    (StatusCode::OK, Html("Inscription réussie! En attente d'approbation de l'administrateur.".to_string()))
-}
-
-pub async fn login_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change FROM users WHERE username = ?"
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
     )
     .bind(&payload.username)
     .fetch_optional(&state.db)
@@ -460,27 +114,25 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return (StatusCode::FORBIDDEN, Html("Votre compte est en attente d'approbation.".to_string()));
+                let response = Json(AuthResponse {
+                    success: false,
+                    message: "Votre compte est en attente d'approbation.".to_string(),
+                    user: None,
+                });
+                return (StatusCode::UNAUTHORIZED, response).into_response();
             }
-
-            let parsed_hash = PasswordHash::new(&user.password).unwrap();
-            if Argon2::default()
-                .verify_password(payload.password.as_bytes(), &parsed_hash)
-                .is_ok()
-            {
+            
+            if verify_password(&payload.password, &user.password) {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
-
-                let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
-                    .bind(&token)
-                    .bind(&user.id)
-                    .execute(&state.db)
-                    .await;
-
-                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
-                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
-                let needs_change = user.needs_password_change;
-                let user_id_clone = user.id.clone();
+                
+                let _ = sqlx::query(
+                    "UPDATE users SET token = ? WHERE id = ?"
+                )
+                .bind(&token)
+                .bind(&user.id)
+                .execute(&state.db)
+                .await;
 
                 let user_info = UserInfo {
                     id: user.id.clone(),
@@ -488,108 +140,16 @@ pub async fn login_handler(
                     name: user.name.unwrap_or_default(),
                     role: user.role.unwrap_or_else(|| "user".to_string()),
                     approved: user.approved,
-                    needs_password_change: needs_change,
+                    needs_password_change: user.needs_password_change,
                 };
 
-                let html_content = if needs_change {
-                    format!(r#"
-                    <!DOCTYPE html>
-                    <html lang="fr">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Configuration initiale - Nook</title>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 50px auto; padding: 20px; background: #f5f5f5; }}
-                            .container {{ background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-                            h1 {{ color: #333; margin-bottom: 20px; text-align: center; }}
-                            .warning {{ background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin-bottom: 20px; color: #856404; }}
-                            label {{ display: block; margin-bottom: 5px; color: #555; font-weight: bold; }}
-                            input {{ width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }}
-                            button {{ width: 100%; padding: 12px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
-                            button:hover {{ background: #45a049; }}
-                            #message {{ margin-top: 15px; padding: 10px; border-radius: 4px; display: none; }}
-                            .error {{ background: #f8d7da; color: #721c24; }}
-                            .success {{ background: #d4edda; color: #155724; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <h1>🌱 Nook</h1>
-                            <div class="warning">
-                                <strong>⚠️ Première connexion</strong><br>
-                                Vous devez définir un nouveau nom d'utilisateur et mot de passe pour sécuriser votre compte.
-                            </div>
-                            <form id="setupForm">
-                                <input type="hidden" id="userId" value="{}">
-                                <label for="newUsername">Nouvel identifiant</label>
-                                <input type="text" id="newUsername" required minlength="3" placeholder="Votre nouveau username">
-                                <label for="newPassword">Nouveau mot de passe</label>
-                                <input type="password" id="newPassword" required minlength="8" placeholder="Minimum 8 caractères">
-                                <label for="confirmPassword">Confirmer le mot de passe</label>
-                                <input type="password" id="confirmPassword" required minlength="8" placeholder="Répétez le mot de passe">
-                                <button type="submit">Enregistrer</button>
-                            </form>
-                            <div id="message"></div>
-                        </div>
-                        <script>
-                            document.getElementById('setupForm').addEventListener('submit', async (e) {{
-                                e.preventDefault();
-                                const userId = document.getElementById('userId').value;
-                                const newUsername = document.getElementById('newUsername').value;
-                                const newPassword = document.getElementById('newPassword').value;
-                                const confirmPassword = document.getElementById('confirmPassword').value;
-                                const messageDiv = document.getElementById('message');
-                                if (newPassword !== confirmPassword) {{
-                                    messageDiv.textContent = 'Les mots de passe ne correspondent pas.'; messageDiv.className = 'error'; messageDiv.style.display = 'block'; return;
-                                }}
-                                if (newPassword.length < 8) {{
-                                    messageDiv.textContent = 'Le mot de passe doit contenir au moins 8 caractères.'; messageDiv.className = 'error'; messageDiv.style.display = 'block'; return;
-                                }}
-                                try {{
-                                    const response = await fetch('/api/first-setup', {{
-                                        method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
-                                        body: JSON.stringify({{ user_id: userId, new_username: newUsername, new_password: newPassword }})
-                                    }});
-                                    const data = await response.json();
-                                    if (data.success) {{
-                                        messageDiv.textContent = 'Configuration terminée ! Redirection...'; messageDiv.className = 'success'; messageDiv.style.display = 'block';
-                                        setTimeout(() => {{ window.location.href = '/'; }}, 1500);
-                                    }} else {{
-                                        messageDiv.textContent = data.message || 'Erreur lors de la configuration.'; messageDiv.className = 'error'; messageDiv.style.display = 'block';
-                                    }}
-                                }} catch (error) {{
-                                    messageDiv.textContent = 'Erreur de connexion au serveur.'; messageDiv.className = 'error'; messageDiv.style.display = 'block';
-                                }}
-                            }});
-                        </script>
-                    </body>
-                    </html>
-                    "#, user_id_clone)
-                } else if user_role == "admin" {
-                    r#"
-                    <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Admin - Nook</title></head>
-                    <body style="font-family: Arial, sans-serif; margin: 40px;">
-                        <h1>👑 Administration</h1>
-                        <p>Bienvenue, Admin !</p>
-                        <a href="/pending_users">Utilisateurs en attente</a><br>
-                        <a href="/all_users">Tous les utilisateurs</a>
-                    </body></html>
-                    "#.to_string()
-                } else {
-                    format!(r#"
-                    <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Bienvenue - Nook</title></head>
-                    <body style="font-family: Arial, sans-serif; margin: 40px;">
-                        <h1>Bienvenue, {} !</h1>
-                        <p>Ceci est votre tableau de bord.</p>
-                        <a href="/chat">Ouvrir le chat</a>
-                        <script>localStorage.setItem('user_info', '{}');</script>
-                    </body></html>
-                    "#, user_name, serde_json::to_string(&user_info).unwrap())
-                };
+                let mut response = Json(AuthResponse {
+                    success: true,
+                    message: "Connexion réussie".to_string(),
+                    user: Some(user_info),
+                }).into_response();
 
-                let mut response = (StatusCode::OK, Html(html_content));
-                response.1.headers_mut().insert(
+                response.headers_mut().insert(
                     SET_COOKIE,
                     format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
                         .parse()
@@ -597,21 +157,385 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                (StatusCode::UNAUTHORIZED, Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()))
+                let response = Json(AuthResponse {
+                    success: false,
+                    message: "Nom d'utilisateur ou mot de passe incorrect.".to_string(),
+                    user: None,
+                });
+                (StatusCode::UNAUTHORIZED, response).into_response()
             }
         }
-        None => (StatusCode::UNAUTHORIZED, Html("Nom d'utilisateur ou mot de passe incorrect.".to_string())),
+        None => {
+            let response = Json(AuthResponse {
+                success: false,
+                message: "Nom d'utilisateur ou mot de passe incorrect.".to_string(),
+                user: None,
+            });
+            (StatusCode::UNAUTHORIZED, response).into_response()
+        }
     }
 }
 
-pub async fn change_password_handler(
+pub async fn register_json_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<RegisterPayload>,
+) -> impl IntoResponse {
+    let hashed_password = hash_password(&payload.password);
+    
+    let user_id = Uuid::new_v4().to_string();
+    
+    let result = sqlx::query(
+        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&user_id)
+    .bind(&payload.username)
+    .bind(&hashed_password)
+    .bind(&payload.name)
+    .bind("user")
+    .bind(false)
+    .bind(true)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(_) => Json(AuthResponse {
+            success: true,
+            message: "Inscription réussie! En attente d'approbation de l'administrateur.".to_string(),
+            user: None,
+        }).into_response(),
+        Err(e) => {
+            let response = Json(AuthResponse {
+                success: false,
+                message: format!("Erreur lors de l'inscription: {}", e),
+                user: None,
+            });
+            (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()
+        }
+    }
+}
+
+pub async fn validate_session_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    
+    match auth_cookie {
+        Some(cookie_value) => {
+            let parts: Vec<&str> = cookie_value.split(':').collect();
+            if parts.len() == 2 {
+                let user_id = parts[0];
+                let token = parts[1];
+                
+                let user: Option<User> = sqlx::query_as(
+                    "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND token = ?"
+                )
+                .bind(user_id)
+                .bind(token)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+
+                match user {
+                    Some(user) => {
+                        let user_info = UserInfo {
+                            id: user.id.clone(),
+                            username: user.username.clone(),
+                            name: user.name.unwrap_or_default(),
+                            role: user.role.unwrap_or_else(|| "user".to_string()),
+                            approved: user.approved,
+                            needs_password_change: user.needs_password_change,
+                        };
+                        Json(SessionResponse {
+                            authenticated: true,
+                            user: Some(user_info),
+                        }).into_response()
+                    }
+                    None => {
+                        let mut response = Response::new("Session invalide".to_string());
+                        response.headers_mut().insert(
+                            HeaderName::from_static("set-cookie"),
+                            "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
+                        );
+                        (StatusCode::UNAUTHORIZED, response).into_response()
+                    }
+                }
+            } else {
+                let response = Json(SessionResponse {
+                    authenticated: false,
+                    user: None,
+                });
+                (StatusCode::UNAUTHORIZED, response).into_response()
+            }
+        }
+        None => {
+            let response = Json(SessionResponse {
+                authenticated: false,
+                user: None,
+            });
+            (StatusCode::UNAUTHORIZED, response).into_response()
+        }
+    }
+}
+
+pub async fn user_info_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    
+    match auth_cookie {
+        Some(cookie_value) => {
+            let parts: Vec<&str> = cookie_value.split(':').collect();
+            if parts.len() == 2 {
+                let user_id = parts[0];
+                let token = parts[1];
+                
+                let user: Option<User> = sqlx::query_as(
+                    "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND token = ?"
+                )
+                .bind(user_id)
+                .bind(token)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+
+                match user {
+                    Some(user) => {
+                        let user_info = UserInfo {
+                            id: user.id.clone(),
+                            username: user.username.clone(),
+                            name: user.name.unwrap_or_default(),
+                            role: user.role.unwrap_or_else(|| "user".to_string()),
+                            approved: user.approved,
+                            needs_password_change: user.needs_password_change,
+                        };
+                        Json(UserInfoResponse {
+                            user: Some(user_info),
+                        }).into_response()
+                    }
+                    None => {
+                        let response = Json(UserInfoResponse { user: None });
+                        (StatusCode::UNAUTHORIZED, response).into_response()
+                    }
+                }
+            } else {
+                let response = Json(UserInfoResponse { user: None });
+                (StatusCode::UNAUTHORIZED, response).into_response()
+            }
+        }
+        None => {
+            let response = Json(UserInfoResponse { user: None });
+            (StatusCode::UNAUTHORIZED, response).into_response()
+        }
+    }
+}
+
+pub async fn change_password_json_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT password FROM users WHERE id = ?"
+    let auth_cookie = get_cookie_from_user_id(&payload.user_id, &state.db).await;
+    
+    if auth_cookie.is_none() {
+        let response = Json(AuthResponse {
+            success: false,
+            message: "Session invalide".to_string(),
+            user: None,
+        });
+        return (StatusCode::UNAUTHORIZED, response).into_response();
+    }
+
+    let hashed_password = hash_password(&payload.new_password);
+
+    let result = sqlx::query(
+        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
     )
+    .bind(&hashed_password)
     .bind(&payload.user_id)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(_) => Json(AuthResponse {
+            success: true,
+            message: "Mot de passe changé avec succès".to_string(),
+            user: None,
+        }).into_response(),
+        Err(e) => {
+            let response = Json(AuthResponse {
+                success: false,
+                message: format!("Erreur lors du changement de mot de passe: {}", e),
+                user: None,
+            });
+            (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()
+        }
+    }
+}
+
+async fn get_cookie_from_user_id(user_id: &str, db: &sqlx::SqlitePool) -> Option<String> {
+    let user: Option<User> = sqlx::query_as(
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ?"
+    )
+    .bind(user_id)
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+
+    user.and_then(|u| u.token.map(|t| format!("{}:{}", u.id, t)))
+}
+
+pub async fn logout_json_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    if let Some(cookie_value) = auth_cookie {
+        let parts: Vec<&str> = cookie_value.split(':').collect();
+        if parts.len() == 2 {
+            let user_id = parts[0];
+            let _ = sqlx::query(
+                "UPDATE users SET token = NULL WHERE id = ?"
+            )
+            .bind(user_id)
+            .execute(&state.db)
+            .await;
+        }
+    }
+
+    let mut response = Json(AuthResponse {
+        success: true,
+        message: "Déconnexion réussie".to_string(),
+        user: None,
+    }).into_response();
+
+    response.headers_mut().insert(
+        HeaderName::from_static("set-cookie"),
+        "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
+    );
+    response
+}
+
+// ============ Page de configuration initiale pour le premier admin ============
+
+pub async fn first_setup_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<ChangePasswordPayload>,
+) -> impl IntoResponse {
+    let user_id = payload.user_id.clone();
+    
+    let user: Option<User> = sqlx::query_as(
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND needs_password_change = true"
+    )
+    .bind(&user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    match user {
+        Some(_) => {
+            let hashed_password = hash_password(&payload.new_password);
+
+            let _ = sqlx::query(
+                "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
+            )
+            .bind(&hashed_password)
+            .bind(&user_id)
+            .execute(&state.db)
+            .await;
+
+            Html::<Body>(r#"
+            <!DOCTYPE html>
+            <html lang="fr">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Configuration terminée - Nook</title>
+                <style>
+                    body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f5f5f5; }
+                    .container { text-align: center; padding: 2rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                    h1 { color: #333; }
+                    .success { color: #28a745; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1 class="success">Configuration terminée !</h1>
+                    <p>Votre mot de passe a été mis à jour avec succès.</p>
+                    <p>Vous allez être redirigé vers la page de connexion...</p>
+                    <script>
+                        setTimeout(() => { window.location.href = '/login'; }, 2000);
+                    </script>
+                </div>
+            </body>
+            </html>
+            "#.to_string()).into_response()
+        }
+        None => Html::<Body>(r#"
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Erreur - Nook</title>
+            <style>
+                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f5f5f5; }
+                .container { text-align: center; padding: 2rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                h1 { color: #dc3545; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Erreur</h1>
+                <p>Session invalide ou expirée.</p>
+                <a href="/login">Retour à la connexion</a>
+            </div>
+        </body>
+        </html>
+        "#.to_string()).into_response()
+    }
+}
+
+// ============ Handlers HTML legacy (pour compatibilité) ============
+
+pub async fn register_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<RegisterPayload>,
+) -> impl IntoResponse {
+    let hashed_password = hash_password(&payload.password);
+    
+    let user_id = Uuid::new_v4().to_string();
+    
+    let _ = sqlx::query(
+        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&user_id)
+    .bind(&payload.username)
+    .bind(&hashed_password)
+    .bind(&payload.name)
+    .bind("user")
+    .bind(false)
+    .bind(true)
+    .execute(&state.db)
+    .await;
+
+    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into()).into_response()
+}
+
+pub async fn login_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<LoginPayload>,
+) -> Response<Body> {
+    let user: Option<User> = sqlx::query_as(
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
+    )
+    .bind(&payload.username)
     .fetch_optional(&state.db)
     .await
     .ok()
@@ -619,30 +543,87 @@ pub async fn change_password_handler(
 
     match user {
         Some(user) => {
-            let parsed_hash = PasswordHash::new(&user.password).unwrap();
-            if Argon2::default()
-                .verify_password(payload.new_password.as_bytes(), &parsed_hash)
-                .is_err()
-            {
-                let salt = SaltString::generate(&mut OsRng);
-                let argon2 = Argon2::default();
-                let hashed_password = argon2
-                    .hash_password(payload.new_password.as_bytes(), &salt)
-                    .unwrap()
-                    .to_string();
-
-                let _ = sqlx::query("UPDATE users SET password = ?, needs_password_change = false WHERE id = ?")
-                    .bind(&hashed_password)
-                    .bind(&payload.user_id)
-                    .execute(&state.db)
-                    .await;
-
-                return (StatusCode::OK, Html("Mot de passe changé avec succès !".to_string()));
+            if !user.approved {
+                return Html::<Body>("Votre compte est en attente d'approbation.".into()).into_response();
             }
+            
+            if verify_password(&payload.password, &user.password) {
+                let token = Uuid::new_v4().to_string();
+                let cookie_value = format!("{}:{}", user.id, token);
+                
+                let _ = sqlx::query(
+                    "UPDATE users SET token = ? WHERE id = ?"
+                )
+                .bind(&token)
+                .bind(&user.id)
+                .execute(&state.db)
+                .await;
 
-            (StatusCode::BAD_REQUEST, Html("Le nouveau mot de passe doit être différent de l'ancien.".to_string()))
+                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
+                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
+                
+                let user_info = UserInfo {
+                    id: user.id.clone(),
+                    username: user.username.clone(),
+                    name: user.name.unwrap_or_default(),
+                    role: user.role.unwrap_or_else(|| "user".to_string()),
+                    approved: user.approved,
+                    needs_password_change: user.needs_password_change,
+                };
+
+                let mut response = if user_role == "admin" {
+                    Html(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Admin - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Admin Dashboard</h1>
+                        <p>Bienvenue, Admin !</p>
+                        <a href="/pending_users">Utilisateurs en attente</a><br>
+                        <a href="/all_users">Tous les utilisateurs</a>
+                    </body>
+                    </html>
+                    "#.into()).into_response()
+                } else {
+                    Html(format!(r#"
+                    <!DOCTYPE html>
+                    <html lang="fr">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Bienvenue - Nook</title>
+                    </head>
+                    <body>
+                        <h1>Bienvenue, {} !</h1>
+                        <p>Ceci est votre tableau de bord utilisateur.</p>
+                        <a href="/chat">Ouvrir le chat</a>
+                        <script>
+                            localStorage.setItem('user_info', '{}');
+                        </script>
+                    </body>
+                    </html>
+                    "#,
+                        user_name,
+                        serde_json::to_string(&user_info).unwrap()
+                    )).into_response()
+                };
+
+                response.headers_mut().insert(
+                    SET_COOKIE,
+                    format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
+                        .parse()
+                        .unwrap(),
+                );
+                response
+            } else {
+                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response()
+            }
         }
-        None => (StatusCode::NOT_FOUND, Html("Utilisateur non trouvé.".to_string())),
+        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
     }
 }
 
@@ -664,36 +645,53 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let html = format!(r#"
-    <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Utilisateurs en attente</title></head>
-    <body style="font-family: Arial, sans-serif; margin: 40px;">
+    Html::<Body>(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Utilisateurs en attente</title>
+    </head>
+    <body>
         <h1>Utilisateurs en attente d'approbation</h1>
-        <ul style="list-style: none; padding: 0;">
+        <ul>
             {}
         </ul>
         <a href="/">← Retour</a>
         <script>
             function approveUser(userId) {{
-                fetch('/api/approve', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ user_id: userId }}) }})
-                    .then(response => response.json()).then(data => {{
-                        if (data.success) {{ alert(data.message); window.location.reload(); }}
-                        else {{ alert('Erreur: ' + data.message); }}
-                    }}).catch(error => console.error('Error:', error));
+                fetch('/api/approve', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ user_id: userId }}),
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    if (data.success) {{
+                        alert(data.message);
+                        window.location.reload();
+                    }} else {{
+                        alert('Erreur: ' + data.message);
+                    }}
+                }})
+                .catch(error => console.error('Error:', error));
             }}
         </script>
-    </body></html>
+    </body>
+    </html>
     "#,
         users.iter().map(|u| format!(
-            r#"<li style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px;">
-                <p><strong>{}</strong> (@{})</p>
-                <button onclick="approveUser('{}')" style="padding: 8px 15px; cursor: pointer;">Approuver</button>
-            </li>"#,
+            r#"
+            <li>
+                <p>Nom: {}</p>
+                <p>Username: {}</p>
+                <button onclick="approveUser('{}')">Approuver</button>
+            </li>
+            "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    );
-
-    (StatusCode::OK, Html(html))
+    )).into_response()
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -714,65 +712,127 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    let html = format!(r#"
-    <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Tous les utilisateurs</title></head>
-    <body style="font-family: Arial, sans-serif; margin: 40px;">
+    Html::<Body>(format!(r#"
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Tous les utilisateurs</title>
+    </head>
+    <body>
         <h1>Tous les utilisateurs</h1>
-        <table style="border-collapse: collapse; width: 100%;">
-            <thead><tr><th style="border: 1px solid #ddd; padding: 10px; background: #f5f5f5;">Nom</th>
-                <th style="border: 1px solid #ddd; padding: 10px; background: #f5f5f5;">Identifiant</th>
-                <th style="border: 1px solid #ddd; padding: 10px; background: #f5f5f5;">Rôle</th>
-                <th style="border: 1px solid #ddd; padding: 10px; background: #f5f5f5;">Statut</th></tr></thead>
-            <tbody>{}</tbody>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Username</th>
+                    <th>Rôle</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody>
+                {}
+            </tbody>
         </table>
-        <p><a href="/">← Retour</a></p>
-    </body></html>
+        <a href="/">← Retour</a>
+    </body>
+    </html>
     "#,
         users.iter().map(|u| format!(
-            "<tr><td style='border: 1px solid #ddd; padding: 10px;'>{}</td><td style='border: 1px solid #ddd; padding: 10px;'>@{}</td><td style='border: 1px solid #ddd; padding: 10px;'>{}</td><td style='border: 1px solid #ddd; padding: 10px;'>{}</td></tr>",
+            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    );
-
-    (StatusCode::OK, Html(html))
+    )).into_response()
 }
 
 pub async fn approve_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<ApprovePayload>,
 ) -> impl IntoResponse {
-    let _ = sqlx::query("UPDATE users SET approved = true WHERE id = ?")
-        .bind(&payload.user_id)
-        .execute(&state.db)
-        .await;
+    let _ = sqlx::query(
+        "UPDATE users SET approved = true WHERE id = ?"
+    )
+    .bind(&payload.user_id)
+    .execute(&state.db)
+    .await;
 
-    (StatusCode::OK, Json(AuthResponse {
+    Json(AuthResponse {
         success: true,
         message: "Utilisateur approuvé avec succès".into(),
         user: None,
-    }))
+    })
 }
 
 pub async fn logout_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
+    let auth_cookie = get_cookie(req.headers(), "auth_token");
     if let Some(cookie_value) = auth_cookie {
         let parts: Vec<&str> = cookie_value.split(':').collect();
         if parts.len() == 2 {
             let user_id = parts[0];
-            let _ = sqlx::query("UPDATE users SET token = NULL WHERE id = ?")
-                .bind(user_id)
-                .execute(&state.db)
-                .await;
+            let _ = sqlx::query(
+                "UPDATE users SET token = NULL WHERE id = ?"
+            )
+            .bind(user_id)
+            .execute(&state.db)
+            .await;
         }
     }
 
-    let mut response = (StatusCode::OK, Html("Déconnexion réussie".to_string()));
-    response.1.headers_mut().insert(
+    let mut response = Response::new("Déconnexion réussie".to_string());
+    response.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
     );
     response
+}
+
+pub async fn change_password_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<ChangePasswordPayload>,
+) -> impl IntoResponse {
+    let hashed_password = hash_password(&payload.new_password);
+
+    let _ = sqlx::query(
+        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
+    )
+    .bind(&hashed_password)
+    .bind(&payload.user_id)
+    .execute(&state.db)
+    .await;
+
+    Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
+}
+
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .map(|c| c.trim())
+                .find(|c| c.starts_with(&format!("{} = ", name)))
+                .and_then(|c| c.split_once('='))
+                .map(|v| v.to_string())
+        })
+}
+
+// Handlers d'invitation (legacy)
+#[allow(dead_code)]
+pub async fn invite_handler() -> impl IntoResponse {
+    Html::<Body>("Fonction d'invitation à implémenter".into()).into_response()
+}
+
+#[allow(dead_code)]
+pub async fn join_handler() -> impl IntoResponse {
+    Html::<Body>("Fonction de rejoindre à implémenter".into()).into_response()
+}
+
+#[allow(dead_code)]
+pub async fn members_handler() -> impl IntoResponse {
+    Html::<Body>("Fonction membres à implémenter".into()).into_response()
 }
