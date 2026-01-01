@@ -37,12 +37,10 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
     if admin_exists.is_none() {
         println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
         
-        // Créer l'admin par défaut
         let admin_id = uuid::Uuid::new_v4().to_string();
         let default_username = "admin";
         let default_password = "admin123!";
         
-        // Hasher le mot de passe par défaut
         use argon2::{Argon2, PasswordHash, PasswordHasher};
         use argon2::password_hash::SaltString;
         use rand::rngs::OsRng;
@@ -65,8 +63,8 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
         .bind(&hashed_password)
         .bind("Administrateur")
         .bind("admin")
-        .bind(true)  // approved = true
-        .bind(true)  // needs_password_change = true (forcer le changement)
+        .bind(true)
+        .bind(true)
         .bind(&created_at)
         .execute(db)
         .await;
@@ -95,7 +93,7 @@ async fn main() {
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
     println!("Démarrage de Nook v2.0");
 
-    // Token admin (legacy - kept for compatibility)
+    // Token admin (legacy)
     let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
@@ -126,10 +124,10 @@ async fn main() {
         .route("/api/logout", post(auth::logout_handler))
         .route("/api/first-setup", post(auth::first_setup_handler))
         
-        // Anciennes routes HTML (gardées pour compatibilité)
-        .route("/api/register", post(auth::register_handler))
-        .route("/api/login", post(auth::login_handler))
-        .route("/api/change-password", post(auth::change_password_handler))
+        // Anciennes routes HTML (chemins différents pour éviter les conflits)
+        .route("/api/register-html", post(auth::register_handler))
+        .route("/api/login-html", post(auth::login_handler))
+        .route("/api/change-password-html", post(auth::change_password_handler))
         .route("/api/pending_users", get(auth::pending_users_handler))
         .route("/api/all_users", get(auth::all_users_handler))
         .route("/api/approve", post(auth::approve_handler))
