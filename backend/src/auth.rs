@@ -1,6 +1,6 @@
-use crate::db::{User, AppState};
+use crate::db::User;
 use crate::SharedState;
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::SaltString;
 use rand::rngs::OsRng;
 use axum::body::Body;
@@ -90,7 +90,7 @@ fn hash_password(password: &str) -> String {
 }
 
 fn verify_password(password: &str, hashed_password: &str) -> bool {
-    let parsed_hash = PasswordHash::new(hashed_password).unwrap();
+    let parsed_hash = argon2::password_hash::PasswordHash::new(hashed_password).unwrap();
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
         .is_ok()
@@ -571,8 +571,8 @@ pub async fn login_handler(
                     needs_password_change: user.needs_password_change,
                 };
 
-                let mut response = if user_role == "admin" {
-                    Html(r#"
+                let html_content: String = if user_role == "admin" {
+                    r#"
                     <!DOCTYPE html>
                     <html lang="fr">
                     <head>
@@ -587,9 +587,9 @@ pub async fn login_handler(
                         <a href="/all_users">Tous les utilisateurs</a>
                     </body>
                     </html>
-                    "#.to_string())
+                    "#.to_string()
                 } else {
-                    Html(format!(r#"
+                    format!(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
                     <head>
@@ -609,8 +609,10 @@ pub async fn login_handler(
                     "#,
                         user_name,
                         serde_json::to_string(&user_info).unwrap()
-                    ))
+                    )
                 };
+
+                let mut response = Html(html_content).into_response();
 
                 response.headers_mut().insert(
                     SET_COOKIE,
@@ -815,7 +817,7 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
             cookie_str
                 .split(';')
                 .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}=", name))) // correction mineure du format
+                .find(|c| c.starts_with(&format!("{}=", name)))
                 .and_then(|c| c.split_once('='))
                 .map(|(_, value)| value.trim().to_string())
         })
