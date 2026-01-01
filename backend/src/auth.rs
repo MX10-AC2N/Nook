@@ -544,7 +544,7 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Html("Votre compte est en attente d'approbation.".to_string());
+                return Html("Votre compte est en attente d'approbation.".to_string()).into_response();
             }
 
             if verify_password(&payload.password, &user.password) {
@@ -622,10 +622,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                Html("Nom d'utilisateur ou mot de passe incorrect.".to_string())
+                Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()).into_response()
             }
         }
-        None => Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
+        None => Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()).into_response(),
     }
 }
 
