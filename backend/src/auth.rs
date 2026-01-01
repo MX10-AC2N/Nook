@@ -766,6 +766,7 @@ pub async fn approve_handler(
     })
 }
 
+#[allow(dead_code)]
 pub async fn logout_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
