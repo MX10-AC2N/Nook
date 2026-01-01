@@ -23,6 +23,63 @@ pub struct SharedState {
         std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
 }
 
+// Fonction pour créer l'admin par défaut si nécessaire
+async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
+    // Vérifier si un admin existe déjà
+    let admin_exists: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM users WHERE role = 'admin' LIMIT 1"
+    )
+    .fetch_optional(db)
+    .await
+    .ok()
+    .flatten();
+
+    if admin_exists.is_none() {
+        println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
+        
+        // Créer l'admin par défaut
+        let admin_id = uuid::Uuid::new_v4().to_string();
+        let default_username = "admin";
+        let default_password = "admin123!";
+        
+        // Hasher le mot de passe par défaut
+        use argon2::{Argon2, PasswordHash, PasswordHasher};
+        use argon2::password_hash::SaltString;
+        use rand::rngs::OsRng;
+        
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let hashed_password = argon2
+            .hash_password(default_password.as_bytes(), &salt)
+            .unwrap()
+            .to_string();
+
+        let created_at = chrono::Utc::now().to_rfc3339();
+
+        let _ = sqlx::query(
+            "INSERT INTO users (id, username, password, name, role, approved, needs_password_change, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&admin_id)
+        .bind(default_username)
+        .bind(&hashed_password)
+        .bind("Administrateur")
+        .bind("admin")
+        .bind(true)  // approved = true
+        .bind(true)  // needs_password_change = true (forcer le changement)
+        .bind(&created_at)
+        .execute(db)
+        .await;
+
+        println!("Admin par défaut créé avec succès!");
+        println!("Username: {}", default_username);
+        println!("Mot de passe temporaire: {}", default_password);
+        println!("ATTENTION: Ces identifiants devront être modifiés à la première connexion!");
+    } else {
+        println!("Un administrateur existe déjà dans la base de données.");
+    }
+}
+
 // Fallback SPA
 async fn spa_fallback() -> impl IntoResponse {
     match tokio::fs::read_to_string("/app/static/index.html").await {
@@ -38,7 +95,7 @@ async fn main() {
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
     println!("Démarrage de Nook v2.0");
 
-    // Token admin
+    // Token admin (legacy - kept for compatibility)
     let token_path = "/app/data/admin.token";
     if !std::path::Path::new(token_path).exists() {
         let token = uuid::Uuid::new_v4().to_string();
@@ -50,19 +107,34 @@ async fn main() {
 
     // Init DB
     let app_state = db::init_db().await;
+    
+    // Créer l'admin par défaut si nécessaire
+    ensure_admin_exists(&app_state.db).await;
+
     let shared_state = SharedState {
         db: app_state.db.clone(),
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
     let app = Router::new()
+        // Nouveaux endpoints JSON pour le frontend moderne
+        .route("/api/login", post(auth::login_json_handler))
+        .route("/api/validate-session", get(auth::validate_session_handler))
+        .route("/api/user-info", get(auth::user_info_handler))
+        .route("/api/register", post(auth::register_json_handler))
+        .route("/api/change-password", post(auth::change_password_json_handler))
+        .route("/api/logout", post(auth::logout_handler))
+        .route("/api/first-setup", post(auth::first_setup_handler))
+        
+        // Anciennes routes HTML (gardées pour compatibilité)
         .route("/api/register", post(auth::register_handler))
         .route("/api/login", post(auth::login_handler))
+        .route("/api/change-password", post(auth::change_password_handler))
         .route("/api/pending_users", get(auth::pending_users_handler))
         .route("/api/all_users", get(auth::all_users_handler))
         .route("/api/approve", post(auth::approve_handler))
-        .route("/api/logout", post(auth::logout_handler))
-        .route("/api/change_password", post(auth::change_password_handler))
+        
+        // Routes upload et autres
         .route("/api/upload", post(upload::upload_handler))
         .route(
             "/api/upload/:conversation_id/:sender_id/:message_type",
@@ -74,10 +146,12 @@ async fn main() {
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
+        
         // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
+        
         // Fallback SPA
         .fallback(get(spa_fallback))
         .with_state(std::sync::Arc::new(shared_state));
