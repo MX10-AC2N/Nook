@@ -7,11 +7,12 @@ use axum::body::Body;
 use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::Request;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+use axum::http::StatusCode;
 
 // ==================== STRUCTURES ====================
 
@@ -105,7 +106,7 @@ pub struct ApprovePayload {
     pub user_id: String,
 }
 
-// ==================== FONCTION UTILITAIRE POUR COPIE ====================
+// ==================== FONCTION UTILITAIRE ====================
 
 fn get_cookie_from_headers(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
@@ -423,13 +424,13 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into()).into_response()
+    (StatusCode::OK, "Inscription réussie! En attente d'approbation de l'administrateur.")
 }
 
 pub async fn login_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
-) -> Response<Body> {
+) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
         "SELECT id, username, password, name, role, approved, needs_password_change FROM users WHERE username = ?"
     )
@@ -442,7 +443,7 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Html::<Body>("Votre compte est en attente d'approbation.".into()).into_response();
+                return (StatusCode::FORBIDDEN, "Votre compte est en attente d'approbation.");
             }
 
             let parsed_hash = PasswordHash::new(&user.password).unwrap();
@@ -472,8 +473,8 @@ pub async fn login_handler(
                     needs_password_change: needs_change,
                 };
 
-                if needs_change {
-                    let setup_page = format!(r#"
+                let html_content = if needs_change {
+                    format!(r#"
                     <!DOCTYPE html>
                     <html lang="fr">
                     <head>
@@ -546,20 +547,9 @@ pub async fn login_handler(
                         </script>
                     </body>
                     </html>
-                    "#, user.id);
-
-                    let mut response = Html::<Body>(setup_page).into_response();
-                    response.headers_mut().insert(
-                        SET_COOKIE,
-                        format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
-                            .parse()
-                            .unwrap(),
-                    );
-                    return response;
-                }
-
-                let mut response = if user_role == "admin" {
-                    Html::<Body>(format!(r#"
+                    "#, user.id)
+                } else if user_role == "admin" {
+                    format!(r#"
                     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Admin - Nook</title></head>
                     <body style="font-family: Arial, sans-serif; margin: 40px;">
                         <h1>👑 Administration</h1>
@@ -567,9 +557,9 @@ pub async fn login_handler(
                         <a href="/pending_users">Utilisateurs en attente</a><br>
                         <a href="/all_users">Tous les utilisateurs</a>
                     </body></html>
-                    "#).into()).into_response()
+                    "#)
                 } else {
-                    Html::<Body>(format!(r#"
+                    format!(r#"
                     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Bienvenue - Nook</title></head>
                     <body style="font-family: Arial, sans-serif; margin: 40px;">
                         <h1>Bienvenue, {} !</h1>
@@ -577,10 +567,11 @@ pub async fn login_handler(
                         <a href="/chat">Ouvrir le chat</a>
                         <script>localStorage.setItem('user_info', '{}');</script>
                     </body></html>
-                    "#, user_name, serde_json::to_string(&user_info).unwrap()).into()).into_response()
+                    "#, user_name, serde_json::to_string(&user_info).unwrap())
                 };
 
-                response.headers_mut().insert(
+                let mut response = (StatusCode::OK, axum::response::Html(html_content));
+                response.1.headers_mut().insert(
                     SET_COOKIE,
                     format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
                         .parse()
@@ -588,10 +579,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response()
+                (StatusCode::UNAUTHORIZED, "Nom d'utilisateur ou mot de passe incorrect.")
             }
         }
-        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
+        None => (StatusCode::UNAUTHORIZED, "Nom d'utilisateur ou mot de passe incorrect."),
     }
 }
 
@@ -612,7 +603,7 @@ pub async fn change_password_handler(
         .execute(&state.db)
         .await;
 
-    Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
+    (StatusCode::OK, "Mot de passe changé avec succès !")
 }
 
 pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -633,7 +624,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    let html = format!(r#"
     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Utilisateurs en attente</title></head>
     <body style="font-family: Arial, sans-serif; margin: 40px;">
         <h1>Utilisateurs en attente d'approbation</h1>
@@ -660,7 +651,9 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             </li>"#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    ).into()).into_response()
+    );
+
+    (StatusCode::OK, axum::response::Html(html))
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -681,7 +674,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    let html = format!(r#"
     <!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><title>Tous les utilisateurs</title></head>
     <body style="font-family: Arial, sans-serif; margin: 40px;">
         <h1>Tous les utilisateurs</h1>
@@ -699,7 +692,9 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td style='border: 1px solid #ddd; padding: 10px;'>{}</td><td style='border: 1px solid #ddd; padding: 10px;'>@{}</td><td style='border: 1px solid #ddd; padding: 10px;'>{}</td><td style='border: 1px solid #ddd; padding: 10px;'>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    ).into()).into_response()
+    );
+
+    (StatusCode::OK, axum::response::Html(html))
 }
 
 pub async fn approve_handler(
@@ -711,11 +706,11 @@ pub async fn approve_handler(
         .execute(&state.db)
         .await;
 
-    Json(AuthResponse {
+    (StatusCode::OK, Json(AuthResponse {
         success: true,
         message: "Utilisateur approuvé avec succès".into(),
         user: None,
-    })
+    }))
 }
 
 pub async fn logout_handler(
@@ -734,8 +729,8 @@ pub async fn logout_handler(
         }
     }
 
-    let mut response = Response::new("Déconnexion réussie".to_string());
-    response.headers_mut().insert(
+    let mut response = (StatusCode::OK, "Déconnexion réussie");
+    response.1.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
     );
