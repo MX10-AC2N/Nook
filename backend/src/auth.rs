@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-// ==================== STRUCTURES DE REQUÊTES/RÉPONSES ====================
+// ==================== STRUCTURES ====================
 
 #[derive(Serialize, Deserialize)]
 pub struct LoginPayload {
@@ -49,7 +49,7 @@ pub struct ChangePasswordPayload {
 
 #[derive(Serialize, Deserialize)]
 pub struct ChangePasswordJsonPayload {
-    pub current_password: String,
+    pub user_id: String,
     pub new_password: String,
 }
 
@@ -105,15 +105,30 @@ pub struct ApprovePayload {
     pub user_id: String,
 }
 
-// ==================== ENDPOINTS JSON POUR FRONTEND MODERNE ====================
+// ==================== FONCTION UTILITAIRE POUR COPIE ====================
 
-// Login JSON (compatible avec le frontend SvelteKit)
+fn get_cookie_from_headers(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .map(|c| c.trim())
+                .find(|c| c.starts_with(&format!("{}= ", name)))
+                .and_then(|c| c.split_once('='))
+                .map(|(v, _)| v.to_string())
+        })
+}
+
+// ==================== ENDPOINTS JSON ====================
+
 pub async fn login_json_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginJsonPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, token FROM users WHERE id = ?"
+        "SELECT id, username, password, name, role, approved, needs_password_change FROM users WHERE id = ?"
     )
     .bind(&payload.member_id)
     .fetch_optional(&state.db)
@@ -134,13 +149,11 @@ pub async fn login_json_handler(
             let token = Uuid::new_v4().to_string();
             let cookie_value = format!("{}:{}", user.id, token);
 
-            let _ = sqlx::query(
-                "UPDATE users SET token = ? WHERE id = ?"
-            )
-            .bind(&token)
-            .bind(&user.id)
-            .execute(&state.db)
-            .await;
+            let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+                .bind(&token)
+                .bind(&user.id)
+                .execute(&state.db)
+                .await;
 
             let user_info = UserInfo {
                 id: user.id.clone(),
@@ -173,12 +186,11 @@ pub async fn login_json_handler(
     }
 }
 
-// Validate Session (vérifie si l'utilisateur est connecté)
 pub async fn validate_session_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
     
     if let Some(cookie_value) = auth_cookie {
         let parts: Vec<&str> = cookie_value.split(':').collect();
@@ -207,12 +219,11 @@ pub async fn validate_session_handler(
     (StatusCode::UNAUTHORIZED, Json(()))
 }
 
-// User Info (retourne les infos de l'utilisateur connecté)
 pub async fn user_info_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
     
     if let Some(cookie_value) = auth_cookie {
         let parts: Vec<&str> = cookie_value.split(':').collect();
@@ -242,7 +253,6 @@ pub async fn user_info_handler(
     (StatusCode::UNAUTHORIZED, Json(()))
 }
 
-// Register JSON (inscription compatible frontend)
 pub async fn register_json_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterJsonPayload>,
@@ -286,73 +296,56 @@ pub async fn register_json_handler(
     }
 }
 
-// Change Password JSON
 pub async fn change_password_json_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
-    req: Request<Body>,
     Json(payload): Json<ChangePasswordJsonPayload>,
 ) -> impl IntoResponse {
-    let auth_cookie = get_cookie(req.headers(), "auth_token");
-    
-    if let Some(cookie_value) = auth_cookie {
-        let parts: Vec<&str> = cookie_value.split(':').collect();
-        if parts.len() == 2 {
-            let user_id = parts[0];
+    let user: Option<User> = sqlx::query_as(
+        "SELECT password FROM users WHERE id = ?"
+    )
+    .bind(&payload.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
-            let user: Option<User> = sqlx::query_as(
-                "SELECT password FROM users WHERE id = ?"
+    match user {
+        Some(user) => {
+            let salt = SaltString::generate(&mut OsRng);
+            let argon2 = Argon2::default();
+            let hashed_password = argon2
+                .hash_password(payload.new_password.as_bytes(), &salt)
+                .unwrap()
+                .to_string();
+
+            let _ = sqlx::query(
+                "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
             )
-            .bind(user_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
+            .bind(&hashed_password)
+            .bind(&payload.user_id)
+            .execute(&state.db)
+            .await;
 
-            if let Some(user) = user {
-                let parsed_hash = PasswordHash::new(&user.password).unwrap();
-                if Argon2::default()
-                    .verify_password(payload.current_password.as_bytes(), &parsed_hash)
-                    .is_ok()
-                {
-                    let salt = SaltString::generate(&mut OsRng);
-                    let argon2 = Argon2::default();
-                    let hashed_password = argon2
-                        .hash_password(payload.new_password.as_bytes(), &salt)
-                        .unwrap()
-                        .to_string();
-
-                    let _ = sqlx::query(
-                        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
-                    )
-                    .bind(&hashed_password)
-                    .bind(user_id)
-                    .execute(&state.db)
-                    .await;
-
-                    return (StatusCode::OK, Json(AuthResponse {
-                        success: true,
-                        message: "Mot de passe changé avec succès!".to_string(),
-                        user: None,
-                    }));
-                }
-            }
+            (StatusCode::OK, Json(AuthResponse {
+                success: true,
+                message: "Mot de passe changé avec succès!".to_string(),
+                user: None,
+            }))
         }
+        None => (StatusCode::UNAUTHORIZED, Json(AuthResponse {
+            success: false,
+            message: "Utilisateur non trouvé".to_string(),
+            user: None,
+        })),
     }
-
-    (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-        success: false,
-        message: "Mot de passe actuel incorrect".to_string(),
-        user: None,
-    }))
 }
 
-// First Setup Handler (configuration initiale admin)
 pub async fn first_setup_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<FirstSetupPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, needs_password_change FROM users WHERE id = ? AND needs_password_change = true"
+        "SELECT id, needs_password_change FROM users WHERE id = ? AND needs_password_change = true"
     )
     .bind(&payload.user_id)
     .fetch_optional(&state.db)
@@ -399,7 +392,7 @@ pub async fn first_setup_handler(
     }
 }
 
-// ==================== ANCIENNES ROUTES HTML (COMPATIBILITÉ) ====================
+// ==================== ANCIENNES ROUTES HTML ====================
 
 pub async fn register_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -438,7 +431,7 @@ pub async fn login_handler(
     Json(payload): Json<LoginPayload>,
 ) -> Response<Body> {
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
+        "SELECT id, username, password, name, role, approved, needs_password_change FROM users WHERE username = ?"
     )
     .bind(&payload.username)
     .fetch_optional(&state.db)
@@ -460,13 +453,11 @@ pub async fn login_handler(
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
 
-                let _ = sqlx::query(
-                    "UPDATE users SET token = ? WHERE id = ?"
-                )
-                .bind(&token)
-                .bind(&user.id)
-                .execute(&state.db)
-                .await;
+                let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+                    .bind(&token)
+                    .bind(&user.id)
+                    .execute(&state.db)
+                    .await;
 
                 let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
                 let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
@@ -481,7 +472,6 @@ pub async fn login_handler(
                     needs_password_change: needs_change,
                 };
 
-                // Page de configuration si changement requis
                 if needs_change {
                     let setup_page = format!(r#"
                     <!DOCTYPE html>
@@ -616,13 +606,11 @@ pub async fn change_password_handler(
         .unwrap()
         .to_string();
 
-    let _ = sqlx::query(
-        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
-    )
-    .bind(&hashed_password)
-    .bind(&payload.user_id)
-    .execute(&state.db)
-    .await;
+    let _ = sqlx::query("UPDATE users SET password = ?, needs_password_change = false WHERE id = ?")
+        .bind(&hashed_password)
+        .bind(&payload.user_id)
+        .execute(&state.db)
+        .await;
 
     Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
 }
@@ -734,7 +722,7 @@ pub async fn logout_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
-    let auth_cookie = get_cookie(req.headers(), "auth_token");
+    let auth_cookie = get_cookie_from_headers(req.headers(), "auth_token");
     if let Some(cookie_value) = auth_cookie {
         let parts: Vec<&str> = cookie_value.split(':').collect();
         if parts.len() == 2 {
@@ -752,18 +740,4 @@ pub async fn logout_handler(
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
     );
     response
-}
-
-pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get("cookie")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_str| {
-            cookie_str
-                .split(';')
-                .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}= ", name)))
-                .and_then(|c| c.split_once('='))
-                .map(|(v, _)| v.to_string())
-        })
 }
