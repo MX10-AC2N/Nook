@@ -645,7 +645,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    Html(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -691,7 +691,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    )).into_response()
+    ).into())
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -712,7 +712,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
         needs_password_change: r.needs_password_change,
     }).collect();
 
-    Html::<Body>(format!(r#"
+    Html(format!(r#"
     <!DOCTYPE html>
     <html lang="fr">
     <head>
@@ -743,7 +743,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    )).into_response()
+    ).into())
 }
 
 pub async fn approve_handler(
@@ -817,7 +817,7 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
                 .map(|c| c.trim())
                 .find(|c| c.starts_with(&format!("{} = ", name)))
                 .and_then(|c| c.split_once('='))
-                .map(|v| v.to_string())
+                .map(|(key, value)| format!("{}={}", key, value))
         })
 }
 
