@@ -41,7 +41,7 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
         let default_username = "admin";
         let default_password = "admin123!";
         
-        use argon2::{Argon2, PasswordHash, PasswordHasher};
+        use argon2::{Argon2, PasswordHasher};
         use argon2::password_hash::SaltString;
         use rand::rngs::OsRng;
         
