@@ -121,11 +121,11 @@ pub async fn login_json_handler(
                 });
                 return (StatusCode::UNAUTHORIZED, response).into_response();
             }
-            
+
             if verify_password(&payload.password, &user.password) {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
-                
+
                 let _ = sqlx::query(
                     "UPDATE users SET token = ? WHERE id = ?"
                 )
@@ -181,9 +181,9 @@ pub async fn register_json_handler(
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
     let hashed_password = hash_password(&payload.password);
-    
+
     let user_id = Uuid::new_v4().to_string();
-    
+
     let result = sqlx::query(
         "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
          VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -220,14 +220,14 @@ pub async fn validate_session_handler(
     req: Request<Body>,
 ) -> impl IntoResponse {
     let auth_cookie = get_cookie(req.headers(), "auth_token");
-    
+
     match auth_cookie {
         Some(cookie_value) => {
             let parts: Vec<&str> = cookie_value.split(':').collect();
             if parts.len() == 2 {
                 let user_id = parts[0];
                 let token = parts[1];
-                
+
                 let user: Option<User> = sqlx::query_as(
                     "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND token = ?"
                 )
@@ -285,14 +285,14 @@ pub async fn user_info_handler(
     req: Request<Body>,
 ) -> impl IntoResponse {
     let auth_cookie = get_cookie(req.headers(), "auth_token");
-    
+
     match auth_cookie {
         Some(cookie_value) => {
             let parts: Vec<&str> = cookie_value.split(':').collect();
             if parts.len() == 2 {
                 let user_id = parts[0];
                 let token = parts[1];
-                
+
                 let user: Option<User> = sqlx::query_as(
                     "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND token = ?"
                 )
@@ -339,7 +339,7 @@ pub async fn change_password_json_handler(
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
     let auth_cookie = get_cookie_from_user_id(&payload.user_id, &state.db).await;
-    
+
     if auth_cookie.is_none() {
         let response = Json(AuthResponse {
             success: false,
@@ -427,7 +427,7 @@ pub async fn first_setup_handler(
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
     let user_id = payload.user_id.clone();
-    
+
     let user: Option<User> = sqlx::query_as(
         "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND needs_password_change = true"
     )
@@ -449,7 +449,7 @@ pub async fn first_setup_handler(
             .execute(&state.db)
             .await;
 
-            Html::<Body>(r#"
+            Html(r#"
             <!DOCTYPE html>
             <html lang="fr">
             <head>
@@ -474,9 +474,9 @@ pub async fn first_setup_handler(
                 </div>
             </body>
             </html>
-            "#.to_string()).into_response()
+            "#.to_string())
         }
-        None => Html::<Body>(r#"
+        None => Html(r#"
         <!DOCTYPE html>
         <html lang="fr">
         <head>
@@ -497,7 +497,7 @@ pub async fn first_setup_handler(
             </div>
         </body>
         </html>
-        "#.to_string()).into_response()
+        "#.to_string())
     }
 }
 
@@ -508,9 +508,9 @@ pub async fn register_handler(
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
     let hashed_password = hash_password(&payload.password);
-    
+
     let user_id = Uuid::new_v4().to_string();
-    
+
     let _ = sqlx::query(
         "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
          VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -525,13 +525,13 @@ pub async fn register_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Inscription réussie! En attente d'approbation de l'administrateur.".into()).into_response()
+    Html("Inscription réussie! En attente d'approbation de l'administrateur.".to_string())
 }
 
 pub async fn login_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
-) -> Response<Body> {
+) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as(
         "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
     )
@@ -544,13 +544,13 @@ pub async fn login_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                return Html::<Body>("Votre compte est en attente d'approbation.".into()).into_response();
+                return Html("Votre compte est en attente d'approbation.".to_string());
             }
-            
+
             if verify_password(&payload.password, &user.password) {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
-                
+
                 let _ = sqlx::query(
                     "UPDATE users SET token = ? WHERE id = ?"
                 )
@@ -561,7 +561,7 @@ pub async fn login_handler(
 
                 let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
                 let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
-                
+
                 let user_info = UserInfo {
                     id: user.id.clone(),
                     username: user.username.clone(),
@@ -587,7 +587,7 @@ pub async fn login_handler(
                         <a href="/all_users">Tous les utilisateurs</a>
                     </body>
                     </html>
-                    "#.into()).into_response()
+                    "#.to_string())
                 } else {
                     Html(format!(r#"
                     <!DOCTYPE html>
@@ -609,7 +609,7 @@ pub async fn login_handler(
                     "#,
                         user_name,
                         serde_json::to_string(&user_info).unwrap()
-                    )).into_response()
+                    ))
                 };
 
                 response.headers_mut().insert(
@@ -620,10 +620,10 @@ pub async fn login_handler(
                 );
                 response
             } else {
-                Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response()
+                Html("Nom d'utilisateur ou mot de passe incorrect.".to_string())
             }
         }
-        None => Html::<Body>("Nom d'utilisateur ou mot de passe incorrect.".into()).into_response(),
+        None => Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()),
     }
 }
 
@@ -691,7 +691,7 @@ pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>
             "#,
             u.name, u.username, u.id
         )).collect::<Vec<String>>().join("")
-    ).into())
+    ))
 }
 
 pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
@@ -743,7 +743,7 @@ pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) ->
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
             u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
         )).collect::<Vec<String>>().join("")
-    ).into())
+    ))
 }
 
 pub async fn approve_handler(
@@ -804,7 +804,7 @@ pub async fn change_password_handler(
     .execute(&state.db)
     .await;
 
-    Html::<Body>("Mot de passe changé avec succès !".into()).into_response()
+    Html("Mot de passe changé avec succès !".to_string())
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -815,24 +815,24 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
             cookie_str
                 .split(';')
                 .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{} = ", name)))
+                .find(|c| c.starts_with(&format!("{}=", name))) // correction mineure du format
                 .and_then(|c| c.split_once('='))
-                .map(|(key, value)| format!("{}={}", key, value))
+                .map(|(_, value)| value.trim().to_string())
         })
 }
 
 // Handlers d'invitation (legacy)
 #[allow(dead_code)]
 pub async fn invite_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction d'invitation à implémenter".into()).into_response()
+    Html("Fonction d'invitation à implémenter".to_string())
 }
 
 #[allow(dead_code)]
 pub async fn join_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction de rejoindre à implémenter".into()).into_response()
+    Html("Fonction de rejoindre à implémenter".to_string())
 }
 
 #[allow(dead_code)]
 pub async fn members_handler() -> impl IntoResponse {
-    Html::<Body>("Fonction membres à implémenter".into()).into_response()
+    Html("Fonction membres à implémenter".to_string())
 }
