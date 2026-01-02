@@ -66,6 +66,7 @@ pub struct UserInfoResponse {
 }
 
 // Struct pour éviter les tuples complexes (clippy type_complexity)
+#[allow(dead_code)]
 #[derive(sqlx::FromRow)]
 struct AdminUserRow {
     id: String,
