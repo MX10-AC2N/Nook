@@ -5,8 +5,9 @@
 
   let pendingUsers = $state<any[]>([]);
   let allUsers = $state<any[]>([]);
+  let invites = $state<any[]>([]);
   let loading = $state(true);
-  let activeTab = $state<'pending' | 'all'>('pending');
+  let activeTab = $state<'pending' | 'all' | 'invites'>('pending');
   let generatingInvite = $state(false);
   let inviteLink = $state<string | null>(null);
 
@@ -20,7 +21,7 @@
       return;
     }
 
-    await loadUsers();
+    await Promise.all([loadUsers(), loadInvites()]);
     loading = false;
   });
 
@@ -41,6 +42,18 @@
       }
     } catch (err) {
       console.error('Erreur chargement utilisateurs:', err);
+    }
+  }
+
+  async function loadInvites() {
+    try {
+      const res = await fetch('/api/list-invites', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        invites = data.invites || [];
+      }
+    } catch (err) {
+      console.error('Erreur chargement invitations:', err);
     }
   }
 
@@ -68,14 +81,17 @@
     generatingInvite = true;
     inviteLink = null;
     try {
-      const response = await 
-fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
+      const response = await fetch('/api/generate-invite', {
+        method: 'POST',
+        credentials: 'include'
+      });
 
       if (response.ok) {
         const data = await response.json();
         inviteLink = data.invite_link;
         await navigator.clipboard.writeText(inviteLink);
         alert('Lien copié dans le presse-papiers !');
+        await loadInvites(); // Recharger la liste
       } else {
         alert('Erreur lors de la génération');
       }
@@ -87,6 +103,22 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
     }
   }
 
+  async function deleteInvite(id: string) {
+    if (!confirm('Supprimer cette invitation ?')) return;
+
+    try {
+      await fetch('/api/delete-invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id })
+      });
+      await loadInvites();
+    } catch (err) {
+      alert('Erreur suppression');
+    }
+  }
+
   function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('fr-FR', {
       day: '2-digit',
@@ -95,6 +127,12 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function getStatus(invite: any): string {
+    if (invite.used) return 'Utilisée';
+    if (invite.expired) return 'Expirée';
+    return 'Valide';
   }
 </script>
 
@@ -113,7 +151,7 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
       {generatingInvite ? 'Génération...' : '➕ Générer un lien d\'invitation'}
     </button>
     {#if inviteLink}
-      <p class="invite-link">Lien : <code>{inviteLink}</code></p>
+      <p class="invite-link">Dernier lien généré : <code>{inviteLink}</code></p>
     {/if}
   </div>
 
@@ -122,18 +160,19 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
       En attente ({pendingUsers.length})
     </button>
     <button class="tab" class:active={activeTab === 'all'} on:click={() => activeTab = 'all'}>
-      Tous les membres ({allUsers.length})
+      Membres ({allUsers.length})
+    </button>
+    <button class="tab" class:active={activeTab === 'invites'} on:click={() => activeTab = 'invites'}>
+      Invitations ({invites.length})
     </button>
   </div>
 
   <div class="admin-content">
     {#if loading}
-      <div class="loading">Chargement des utilisateurs...</div>
+      <div class="loading">Chargement...</div>
     {:else if activeTab === 'pending'}
       {#if pendingUsers.length === 0}
-        <div class="empty-state">
-          <p>Aucun utilisateur en attente d'approbation</p>
-        </div>
+        <div class="empty-state">Aucun utilisateur en attente</div>
       {:else}
         <div class="user-list">
           {#each pendingUsers as user}
@@ -150,7 +189,7 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
           {/each}
         </div>
       {/if}
-    {:else}
+    {:else if activeTab === 'all'}
       <div class="user-list">
         {#each allUsers as user}
           <div class="user-card" class:admin={user.role === 'admin'}>
@@ -167,37 +206,69 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
           </div>
         {/each}
       </div>
+    {:else if activeTab === 'invites'}
+      {#if invites.length === 0}
+        <div class="empty-state">Aucune invitation créée</div>
+      {:else}
+        <table class="invites-table">
+          <thead>
+            <tr>
+              <th>Créée le</th>
+              <th>Expire le</th>
+              <th>Statut</th>
+              <th>Lien</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each invites as invite}
+              <tr class:expired={invite.expired} class:used={invite.used}>
+                <td>{formatDate(invite.created_at)}</td>
+                <td>{formatDate(invite.expires_at)}</td>
+                <td class="status">{getStatus(invite)}</td>
+                <td class="link">
+                  <code>{invite.token.slice(0, 12)}...</code>
+                  <button on:click={() => navigator.clipboard.writeText(`https://ton-domaine.com/join?token=${invite.token}`)}>
+                    Copier
+                  </button>
+                </td>
+                <td>
+                  <button class="delete-btn" on:click={() => deleteInvite(invite.id)} disabled={invite.used || invite.expired}>
+                    Supprimer
+                  </button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
     {/if}
   </div>
 </div>
 
 <style>
-  /* Ton style est excellent – je le garde presque identique */
-  .admin-container { max-width: 800px; margin: 0 auto; padding: 1rem; }
+  .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
   .admin-header { text-align: center; margin-bottom: 2rem; }
-  .admin-header h1 { font-size: 1.75rem; color: #2d5a27; margin-bottom: 0.5rem; }
+  .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
   .admin-header p { color: #666; }
 
   .admin-actions { text-align: center; margin-bottom: 1.5rem; }
-  .invite-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
+  .invite-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; }
   .invite-btn:hover:not(:disabled) { background: #3d7a37; }
-  .invite-btn:disabled { opacity: 0.6; }
 
-  .invite-link { margin-top: 0.5rem; font-size: 0.9rem; word-break: break-all; }
-  .invite-link code { background: #f0f0f0; padding: 0.2rem 0.5rem; border-radius: 4px; }
+  .invite-link { margin-top: 0.8rem; word-break: break-all; }
+  .invite-link code { background: #f0f0f0; padding: 0.3rem 0.6rem; border-radius: 4px; }
 
-  .admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; }
+  .admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
   .tab { padding: 0.75rem 1.25rem; background: none; border: none; cursor: pointer; color: #666; border-radius: 8px 8px 0 0; }
-  .tab:hover { background: #f0f7f0; }
   .tab.active { background: #2d5a27; color: white; }
 
-  .admin-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .loading { padding: 3rem; text-align: center; color: #666; }
-  .empty-state { padding: 3rem; text-align: center; color: #888; }
+  .admin-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
 
-  .user-list { }
+  .loading, .empty-state { padding: 3rem; text-align: center; color: #888; }
+
+  .user-list, .invites-table { width: 100%; }
   .user-card { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; }
-  .user-card:last-child { border-bottom: none; }
   .user-card.pending { background: #fff8e1; }
   .user-card.admin { background: #e3f2fd; }
 
@@ -209,4 +280,14 @@ fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
 
   .approve-btn { padding: 0.5rem 1rem; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; }
   .approve-btn:hover { background: #43a047; }
+
+  .invites-table { border-collapse: collapse; }
+  .invites-table th, .invites-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+  .invites-table th { background: #f8f9fa; font-weight: 600; }
+  .status { font-weight: 500; }
+  .expired { opacity: 0.6; }
+  .used { opacity: 0.6; background: #f0f0f0; }
+  .link code { font-size: 0.8rem; background: #f0f0f0; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  .delete-btn { background: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
