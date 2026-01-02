@@ -85,7 +85,7 @@ struct InviteResponse {
     expires_in_days: u32,
 }
 
-============ Fonctions utilitaires de sécurité ============
+// ============ Fonctions utilitaires de sécurité ============
 
 fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
@@ -846,6 +846,47 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
         )
             .into_response(),
     }
+}
+
+// Liste des invitations créées (pour l'admin)
+pub async fn list_invites_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let rows: Vec<(String, String, String, String, bool)> = sqlx::query_as(
+        "SELECT id, token, created_at, expires_at, used 
+         FROM invites 
+         ORDER BY created_at DESC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .ok()
+    .unwrap_or_default();
+
+    let invites = rows.into_iter().map(|row| json!({
+        "id": row.0,
+        "token": row.1,
+        "created_at": row.2,
+        "expires_at": row.3,
+        "used": row.4,
+        "expired": chrono::DateTime::parse_from_rfc3339(&row.3)
+            .map(|dt| dt < chrono::Utc::now().into())
+            .unwrap_or(true)
+    })).collect::<Vec<_>>();
+
+    Json(json!({ "invites": invites }))
+}
+
+// Suppression manuelle d'une invitation (optionnel mais utile)
+pub async fn delete_invite_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Json(payload): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    if let Some(id) = payload.get("id").and_then(|v| v.as_str()) {
+        let _ = sqlx::query("DELETE FROM invites WHERE id = ?")
+            .bind(id)
+            .execute(&state.db)
+            .await;
+    }
+
+    Json(json!({ "success": true }))
 }
 
 #[allow(dead_code)]
