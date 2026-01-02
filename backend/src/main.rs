@@ -130,11 +130,11 @@ async fn main() {
         .route("/api/first-setup", post(auth::first_setup_handler))
 
         // Anciennes routes HTML (chemins différents pour éviter les conflits)
-        .route("/api/register-html", post(auth::register_handler))
-        .route("/api/login-html", post(auth::login_handler))
-        .route("/api/change-password-html", post(auth::change_password_handler))
-        .route("/api/pending_users", get(auth::pending_users_handler))
-        .route("/api/all_users", get(auth::all_users_handler))
+//        .route("/api/register-html", post(auth::register_handler))
+//        .route("/api/login-html", post(auth::login_handler))
+//        .route("/api/change-password-html", post(auth::change_password_handler))
+//        .route("/api/pending_users", get(auth::pending_users_handler))
+//        .route("/api/all_users", get(auth::all_users_handler))
         .route("/api/approve", post(auth::approve_handler))
 
         // Routes upload et autres
