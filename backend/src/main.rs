@@ -129,6 +129,9 @@ async fn main() {
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
+    // Lancement de la tâche de nettoyage des invites expirées toutes les 72h
+start_invites_cleanup_task(app_state.db.clone()).await;
+
     // Clean database 
 async fn start_invites_cleanup_task(db: sqlx::SqlitePool) {
     tokio::spawn(async move {
