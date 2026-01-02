@@ -6,7 +6,8 @@ function createAuthStore() {
         isAuthenticated: false,
         isAdmin: false,
         user: null,
-        loading: true
+        loading: true,
+        needsPasswordChange: false  // Nouveau : pour le premier login admin
     };
 
     const { subscribe, set, update } = writable(initialState);
@@ -20,19 +21,22 @@ function createAuthStore() {
             isAuthenticated: true,
             isAdmin,
             user,
-            loading: false
+            loading: false,
+            needsPasswordChange: user?.needs_password_change || false
         }),
         setGuest: () => set({
             isAuthenticated: false,
             isAdmin: false,
             user: null,
-            loading: false
+            loading: false,
+            needsPasswordChange: false
         }),
         setError: () => set({
             isAuthenticated: false,
             isAdmin: false,
             user: null,
-            loading: false
+            loading: false,
+            needsPasswordChange: false
         }),
         updateUser: (userData) => update(state => ({
             ...state,
@@ -43,10 +47,12 @@ function createAuthStore() {
 
 export const authStore = createAuthStore();
 
+// Dérivés pour accès facile
 export const isAuthenticated = derived(authStore, $store => $store.isAuthenticated);
 export const isAdmin = derived(authStore, $store => $store.isAdmin);
 export const authUser = derived(authStore, $store => $store.user);
 export const authLoading = derived(authStore, $store => $store.loading);
+export const needsPasswordChange = derived(authStore, $store => $store.needsPasswordChange);
 
 export async function initAuth() {
     try {
@@ -77,7 +83,7 @@ export function updateUser(userData) {
     authStore.updateUser(userData);
 }
 
-// Initialiser au chargement de la page
+// Initialiser l'authentification au chargement de la page
 if (typeof window !== 'undefined') {
     initAuth();
 }
