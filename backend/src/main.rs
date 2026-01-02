@@ -18,7 +18,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_governor::key_extractor::DefaultKeyExtractor;
+use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
@@ -137,7 +137,7 @@ async fn main() {
         GovernorConfigBuilder::default()
             .period(Duration::from_secs(900))  // fenêtre de 15 minutes
             .burst_size(5)                     // max 5 tentatives
-            .key_extractor(DefaultKeyExtractor)
+            .key_extractor(PeerIpKeyExtractor)
             .finish()
             .unwrap(),
     );
