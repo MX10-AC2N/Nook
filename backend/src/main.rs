@@ -128,6 +128,9 @@ async fn main() {
         .route("/api/change-password", post(auth::change_password_json_handler))
         .route("/api/logout", post(auth::logout_json_handler))
         .route("/api/first-setup", post(auth::first_setup_handler))
+        .route("/api/pending-users-json", get(auth::pending_users_json_handler))
+        .route("/api/all-users-json", get(auth::all_users_json_handler))
+        .route("/api/generate-invite", post(auth::generate_invite_handler))
 
         // Anciennes routes HTML (chemins différents pour éviter les conflits)
 //        .route("/api/register-html", post(auth::register_handler))
