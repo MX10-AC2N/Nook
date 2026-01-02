@@ -1,48 +1,50 @@
 <script lang="ts">
-  import { changePassword } from '$lib/api';
   import { goto } from '$app/navigation';
+  import { authStore, initAuth } from '$lib/authStore';
+  import { changePassword } from '$lib/api';  // Ta fonction modernisée dans api.ts
 
-  let currentPassword = $state('');
   let newPassword = $state('');
   let confirmPassword = $state('');
   let error = $state('');
   let success = $state('');
   let isLoading = $state(false);
 
-  function handleSubmit(event: Event) {
+  async function handleSubmit(event: Event) {
     event.preventDefault();
     error = '';
     success = '';
-    
+
     if (newPassword !== confirmPassword) {
       error = 'Les nouveaux mots de passe ne correspondent pas.';
       return;
     }
-    
+
     if (newPassword.length < 8) {
       error = 'Le nouveau mot de passe doit contenir au moins 8 caractères.';
       return;
     }
 
     isLoading = true;
-    
-    changePassword(currentPassword, newPassword)
-      .then(response => {
-        if (response.success) {
-          success = 'Votre mot de passe a été changé avec succès!';
-          setTimeout(() => {
-            goto('/dashboard');
-          }, 2000);
-        } else {
-          error = response.message || 'Échec du changement de mot de passe.';
-        }
-      })
-      .catch(e => {
-        error = e.message || 'Une erreur inattendue est survenue.';
-      })
-      .finally(() => {
-        isLoading = false;
-      });
+
+    try {
+      // Pas de current_password → changement pour utilisateur déjà connecté
+      const result = await changePassword(newPassword);
+
+      if (result.success) {
+        success = 'Votre mot de passe a été changé avec succès !';
+        // Recharge l'état auth (needs_password_change passe à false si c'était le cas)
+        await initAuth();
+        setTimeout(() => {
+          goto($authStore.isAdmin ? '/admin' : '/chat');
+        }, 2000);
+      } else {
+        error = result.message || 'Échec du changement de mot de passe.';
+      }
+    } catch (e: any) {
+      error = e.message || 'Une erreur inattendue est survenue.';
+    } finally {
+      isLoading = false;
+    }
   }
 </script>
 
@@ -54,8 +56,8 @@
   <div class="form-wrapper">
     <div class="header">
       <div class="icon">🔐</div>
-      <h1>Première connexion</h1>
-      <p>Vous devez changer votre mot de passe pour continuer</p>
+      <h1>Changer le mot de passe</h1>
+      <p>Créez un nouveau mot de passe sécurisé pour votre compte</p>
     </div>
 
     {#if error}
@@ -70,36 +72,19 @@
         <span class="alert-icon">✅</span>
         <span>{success}</span>
       </div>
-      <p class="redirect-text">Redirection vers l'espace principal...</p>
+      <p class="redirect-text">Redirection vers votre espace...</p>
     {:else}
-      <form class="password-form" onsubmit={handleSubmit}>
+      <form class="password-form" on:submit={handleSubmit}>
         <div class="form-group">
-          <label for="current-password">Mot de passe actuel</label>
-          <input
-            id="current-password"
-            name="currentPassword"
-            type="password"
-            autocomplete="current-password"
-            required
-            bind:value={currentPassword}
-            class="input"
-            placeholder="Entrez votre mot de passe actuel"
-          />
-        </div>
-
-        <div class="form-group">
-          <div class="label-row">
-            <label for="new-password">Nouveau mot de passe</label>
-          </div>
+          <label for="new-password">Nouveau mot de passe</label>
           <input
             id="new-password"
-            name="newPassword"
             type="password"
-            autocomplete="new-password"
-            required
             bind:value={newPassword}
             class="input"
             placeholder="Minimum 8 caractères"
+            required
+            disabled={isLoading}
           />
         </div>
 
@@ -107,22 +92,17 @@
           <label for="confirm-password">Confirmer le nouveau mot de passe</label>
           <input
             id="confirm-password"
-            name="confirmPassword"
             type="password"
-            autocomplete="new-password"
-            required
             bind:value={confirmPassword}
             class="input"
             placeholder="Confirmez votre nouveau mot de passe"
+            required
+            disabled={isLoading}
           />
         </div>
 
         <div class="form-group">
-          <button
-            type="submit"
-            class="submit-btn"
-            disabled={isLoading}
-          >
+          <button type="submit" class="submit-btn" disabled={isLoading}>
             {#if isLoading}
               <span class="spinner"></span>
               Changement en cours...
@@ -137,6 +117,7 @@
 </div>
 
 <style>
+  /* Ton style existant est parfait – je le garde intégralement */
   .page-container {
     display: flex;
     flex-direction: column;
@@ -244,12 +225,6 @@
     font-weight: 500;
     color: var(--text-primary, #1e293b);
     margin-bottom: 0.5rem;
-  }
-
-  .label-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
   }
 
   .input {
