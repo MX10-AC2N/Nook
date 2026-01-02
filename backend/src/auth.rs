@@ -78,7 +78,14 @@ pub struct UserInfoResponse {
     pub user: Option<UserInfo>,
 }
 
-// ============ Fonctions utilitaires de sécurité ============
+#[derive(Serialize)]
+struct InviteResponse {
+    success: bool,
+    invite_link: String,
+    expires_in_days: u32,
+}
+
+============ Fonctions utilitaires de sécurité ============
 
 fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
@@ -805,6 +812,42 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
     }))
 }
 
+pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let token = Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().to_rfc3339();
+    let expires_at = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+
+    let result = sqlx::query(
+        "INSERT INTO invites (id, token, created_at, expires_at, used) VALUES (?, ?, ?, ?, false)"
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(&token)
+    .bind(&created_at)
+    .bind(&expires_at)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            let invite_link = format!("https://ton-domaine.com/join?token={}", token);
+            Json(serde_json::json!({
+                "success": true,
+                "invite_link": invite_link,
+                "expires_in_days": 7
+            }))
+            .into_response()
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "success": false,
+                "message": format!("Erreur génération invite : {}", e)
+            })),
+        )
+            .into_response(),
+    }
+}
+
 #[allow(dead_code)]
 pub async fn logout_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -845,4 +888,3 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
                 .map(|(_, value)| value.trim().to_string())
         })
 }
-
