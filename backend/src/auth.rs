@@ -8,11 +8,13 @@ use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::Request;
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
+use chrono::{Utc, Duration};
 
 // ============ Structures de données pour les APIs JSON ============
 
@@ -45,16 +47,6 @@ pub struct UserInfo {
     pub needs_password_change: bool,
 }
 
-#[derive(sqlx::FromRow)]
-struct UserInfoSqlxRow {
-    id: String,
-    username: String,
-    name: Option<String>,
-    role: Option<String>,
-    approved: bool,
-    needs_password_change: bool,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct AuthResponse {
     pub success: bool,
@@ -76,13 +68,6 @@ pub struct SessionResponse {
 #[derive(Serialize, Deserialize)]
 pub struct UserInfoResponse {
     pub user: Option<UserInfo>,
-}
-
-#[derive(Serialize)]
-struct InviteResponse {
-    success: bool,
-    invite_link: String,
-    expires_in_days: u32,
 }
 
 // ============ Fonctions utilitaires de sécurité ============
@@ -121,25 +106,26 @@ pub async fn login_json_handler(
     match user {
         Some(user) => {
             if !user.approved {
-                let response = Json(AuthResponse {
-                    success: false,
-                    message: "Votre compte est en attente d'approbation.".to_string(),
-                    user: None,
-                });
-                return (StatusCode::UNAUTHORIZED, response).into_response();
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(AuthResponse {
+                        success: false,
+                        message: "Votre compte est en attente d'approbation.".to_string(),
+                        user: None,
+                    }),
+                )
+                    .into_response();
             }
 
             if verify_password(&payload.password, &user.password) {
                 let token = Uuid::new_v4().to_string();
                 let cookie_value = format!("{}:{}", user.id, token);
 
-                let _ = sqlx::query(
-                    "UPDATE users SET token = ? WHERE id = ?"
-                )
-                .bind(&token)
-                .bind(&user.id)
-                .execute(&state.db)
-                .await;
+                let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+                    .bind(&token)
+                    .bind(&user.id)
+                    .execute(&state.db)
+                    .await;
 
                 let user_info = UserInfo {
                     id: user.id.clone(),
@@ -154,7 +140,8 @@ pub async fn login_json_handler(
                     success: true,
                     message: "Connexion réussie".to_string(),
                     user: Some(user_info),
-                }).into_response();
+                })
+                .into_response();
 
                 response.headers_mut().insert(
                     SET_COOKIE,
@@ -164,22 +151,26 @@ pub async fn login_json_handler(
                 );
                 response
             } else {
-                let response = Json(AuthResponse {
-                    success: false,
-                    message: "Nom d'utilisateur ou mot de passe incorrect.".to_string(),
-                    user: None,
-                });
-                (StatusCode::UNAUTHORIZED, response).into_response()
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(AuthResponse {
+                        success: false,
+                        message: "Nom d'utilisateur ou mot de passe incorrect.".to_string(),
+                        user: None,
+                    }),
+                )
+                    .into_response()
             }
         }
-        None => {
-            let response = Json(AuthResponse {
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(AuthResponse {
                 success: false,
                 message: "Nom d'utilisateur ou mot de passe incorrect.".to_string(),
                 user: None,
-            });
-            (StatusCode::UNAUTHORIZED, response).into_response()
-        }
+            }),
+        )
+            .into_response(),
     }
 }
 
@@ -210,15 +201,17 @@ pub async fn register_json_handler(
             success: true,
             message: "Inscription réussie! En attente d'approbation de l'administrateur.".to_string(),
             user: None,
-        }).into_response(),
-        Err(e) => {
-            let response = Json(AuthResponse {
+        })
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(AuthResponse {
                 success: false,
                 message: format!("Erreur lors de l'inscription: {}", e),
                 user: None,
-            });
-            (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()
-        }
+            }),
+        )
+            .into_response(),
     }
 }
 
@@ -258,13 +251,15 @@ pub async fn validate_session_handler(
                         Json(SessionResponse {
                             authenticated: true,
                             user: Some(user_info),
-                        }).into_response()
+                        })
+                        .into_response()
                     }
                     None => {
                         let mut response = Json(SessionResponse {
                             authenticated: false,
                             user: None,
-                        }).into_response();
+                        })
+                        .into_response();
                         response.headers_mut().insert(
                             HeaderName::from_static("set-cookie"),
                             "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
@@ -273,20 +268,18 @@ pub async fn validate_session_handler(
                     }
                 }
             } else {
-                let response = Json(SessionResponse {
+                (StatusCode::UNAUTHORIZED, Json(SessionResponse {
                     authenticated: false,
                     user: None,
-                });
-                (StatusCode::UNAUTHORIZED, response).into_response()
+                }))
+                .into_response()
             }
         }
-        None => {
-            let response = Json(SessionResponse {
-                authenticated: false,
-                user: None,
-            });
-            (StatusCode::UNAUTHORIZED, response).into_response()
-        }
+        None => (StatusCode::UNAUTHORIZED, Json(SessionResponse {
+            authenticated: false,
+            user: None,
+        }))
+        .into_response(),
     }
 }
 
@@ -325,22 +318,16 @@ pub async fn user_info_handler(
                         };
                         Json(UserInfoResponse {
                             user: Some(user_info),
-                        }).into_response()
+                        })
+                        .into_response()
                     }
-                    None => {
-                        let response = Json(UserInfoResponse { user: None });
-                        (StatusCode::UNAUTHORIZED, response).into_response()
-                    }
+                    None => (StatusCode::UNAUTHORIZED, Json(UserInfoResponse { user: None })).into_response(),
                 }
             } else {
-                let response = Json(UserInfoResponse { user: None });
-                (StatusCode::UNAUTHORIZED, response).into_response()
+                (StatusCode::UNAUTHORIZED, Json(UserInfoResponse { user: None })).into_response()
             }
         }
-        None => {
-            let response = Json(UserInfoResponse { user: None });
-            (StatusCode::UNAUTHORIZED, response).into_response()
-        }
+        None => (StatusCode::UNAUTHORIZED, Json(UserInfoResponse { user: None })).into_response(),
     }
 }
 
@@ -351,12 +338,15 @@ pub async fn change_password_json_handler(
     let auth_cookie = get_cookie_from_user_id(&payload.user_id, &state.db).await;
 
     if auth_cookie.is_none() {
-        let response = Json(AuthResponse {
-            success: false,
-            message: "Session invalide".to_string(),
-            user: None,
-        });
-        return (StatusCode::UNAUTHORIZED, response).into_response();
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(AuthResponse {
+                success: false,
+                message: "Session invalide".to_string(),
+                user: None,
+            }),
+        )
+            .into_response();
     }
 
     let hashed_password = hash_password(&payload.new_password);
@@ -374,15 +364,17 @@ pub async fn change_password_json_handler(
             success: true,
             message: "Mot de passe changé avec succès".to_string(),
             user: None,
-        }).into_response(),
-        Err(e) => {
-            let response = Json(AuthResponse {
+        })
+        .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(AuthResponse {
                 success: false,
                 message: format!("Erreur lors du changement de mot de passe: {}", e),
                 user: None,
-            });
-            (StatusCode::INTERNAL_SERVER_ERROR, response).into_response()
-        }
+            }),
+        )
+            .into_response(),
     }
 }
 
@@ -408,12 +400,10 @@ pub async fn logout_json_handler(
         let parts: Vec<&str> = cookie_value.split(':').collect();
         if parts.len() == 2 {
             let user_id = parts[0];
-            let _ = sqlx::query(
-                "UPDATE users SET token = NULL WHERE id = ?"
-            )
-            .bind(user_id)
-            .execute(&state.db)
-            .await;
+            let _ = sqlx::query("UPDATE users SET token = NULL WHERE id = ?")
+                .bind(user_id)
+                .execute(&state.db)
+                .await;
         }
     }
 
@@ -421,7 +411,8 @@ pub async fn logout_json_handler(
         success: true,
         message: "Déconnexion réussie".to_string(),
         user: None,
-    }).into_response();
+    })
+    .into_response();
 
     response.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
@@ -430,7 +421,7 @@ pub async fn logout_json_handler(
     response
 }
 
-// ============ Page de configuration initiale pour le premier admin ============
+// ============ First setup (premier changement admin) en JSON ============
 
 pub async fn first_setup_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -491,275 +482,10 @@ pub async fn first_setup_handler(
     }
 }
 
-// ============ Handlers HTML legacy (pour compatibilité) ============
-
-pub async fn register_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<RegisterPayload>,
-) -> impl IntoResponse {
-    let hashed_password = hash_password(&payload.password);
-
-    let user_id = Uuid::new_v4().to_string();
-
-    let _ = sqlx::query(
-        "INSERT INTO users (id, username, password, name, role, approved, needs_password_change)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&user_id)
-    .bind(&payload.username)
-    .bind(&hashed_password)
-    .bind(&payload.name)
-    .bind("user")
-    .bind(false)
-    .bind(true)
-    .execute(&state.db)
-    .await;
-
-    Html("Inscription réussie! En attente d'approbation de l'administrateur.".to_string())
-}
-
-pub async fn login_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<LoginPayload>,
-) -> impl IntoResponse {
-    let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE username = ?"
-    )
-    .bind(&payload.username)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match user {
-        Some(user) => {
-            if !user.approved {
-                return Html("Votre compte est en attente d'approbation.".to_string()).into_response();
-            }
-
-            if verify_password(&payload.password, &user.password) {
-                let token = Uuid::new_v4().to_string();
-                let cookie_value = format!("{}:{}", user.id, token);
-
-                let _ = sqlx::query(
-                    "UPDATE users SET token = ? WHERE id = ?"
-                )
-                .bind(&token)
-                .bind(&user.id)
-                .execute(&state.db)
-                .await;
-
-                let user_name = user.name.clone().unwrap_or_else(|| "Utilisateur".to_string());
-                let user_role = user.role.clone().unwrap_or_else(|| "user".to_string());
-
-                let user_info = UserInfo {
-                    id: user.id.clone(),
-                    username: user.username.clone(),
-                    name: user.name.unwrap_or_default(),
-                    role: user.role.unwrap_or_else(|| "user".to_string()),
-                    approved: user.approved,
-                    needs_password_change: user.needs_password_change,
-                };
-
-                let html_content: String = if user_role == "admin" {
-                    r#"
-                    <!DOCTYPE html>
-                    <html lang="fr">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Admin - Nook</title>
-                    </head>
-                    <body>
-                        <h1>Admin Dashboard</h1>
-                        <p>Bienvenue, Admin !</p>
-                        <a href="/pending_users">Utilisateurs en attente</a><br>
-                        <a href="/all_users">Tous les utilisateurs</a>
-                    </body>
-                    </html>
-                    "#.to_string()
-                } else {
-                    format!(r#"
-                    <!DOCTYPE html>
-                    <html lang="fr">
-                    <head>
-                        <meta charset="UTF-8">
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                        <title>Bienvenue - Nook</title>
-                    </head>
-                    <body>
-                        <h1>Bienvenue, {} !</h1>
-                        <p>Ceci est votre tableau de bord utilisateur.</p>
-                        <a href="/chat">Ouvrir le chat</a>
-                        <script>
-                            localStorage.setItem('user_info', '{}');
-                        </script>
-                    </body>
-                    </html>
-                    "#,
-                        user_name,
-                        serde_json::to_string(&user_info).unwrap()
-                    )
-                };
-
-                let mut response = Html(html_content).into_response();
-
-                response.headers_mut().insert(
-                    SET_COOKIE,
-                    format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
-                        .parse()
-                        .unwrap(),
-                );
-                response
-            } else {
-                Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()).into_response()
-            }
-        }
-        None => Html("Nom d'utilisateur ou mot de passe incorrect.".to_string()).into_response(),
-    }
-}
-
-pub async fn pending_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
-        "SELECT id, username, name, role, approved, needs_password_change FROM users WHERE approved = false"
-    )
-    .fetch_all(&state.db)
-    .await
-    .ok()
-    .unwrap_or_default();
-
-    let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.id,
-        username: r.username,
-        name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or_else(|| "user".to_string()),
-        approved: r.approved,
-        needs_password_change: r.needs_password_change,
-    }).collect();
-
-    Html(format!(r#"
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Utilisateurs en attente</title>
-    </head>
-    <body>
-        <h1>Utilisateurs en attente d'approbation</h1>
-        <ul>
-            {}
-        </ul>
-        <a href="/">← Retour</a>
-        <script>
-            function approveUser(userId) {{
-                fetch('/api/approve', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ user_id: userId }}),
-                }})
-                .then(response => response.json())
-                .then(data => {{
-                    if (data.success) {{
-                        alert(data.message);
-                        window.location.reload();
-                    }} else {{
-                        alert('Erreur: ' + data.message);
-                    }}
-                }})
-                .catch(error => console.error('Error:', error));
-            }}
-        </script>
-    </body>
-    </html>
-    "#,
-        users.iter().map(|u| format!(
-            r#"
-            <li>
-                <p>Nom: {}</p>
-                <p>Username: {}</p>
-                <button onclick="approveUser('{}')">Approuver</button>
-            </li>
-            "#,
-            u.name, u.username, u.id
-        )).collect::<Vec<String>>().join("")
-    ))
-}
-
-pub async fn all_users_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
-        "SELECT id, username, name, role, approved, needs_password_change FROM users ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.db)
-    .await
-    .ok()
-    .unwrap_or_default();
-
-    let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.id,
-        username: r.username,
-        name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or_else(|| "user".to_string()),
-        approved: r.approved,
-        needs_password_change: r.needs_password_change,
-    }).collect();
-
-    Html(format!(r#"
-    <!DOCTYPE html>
-    <html lang="fr">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Tous les utilisateurs</title>
-    </head>
-    <body>
-        <h1>Tous les utilisateurs</h1>
-        <table>
-            <thead>
-                <tr>
-                    <th>Nom</th>
-                    <th>Username</th>
-                    <th>Rôle</th>
-                    <th>Statut</th>
-                </tr>
-            </thead>
-            <tbody>
-                {}
-            </tbody>
-        </table>
-        <a href="/">← Retour</a>
-    </body>
-    </html>
-    "#,
-        users.iter().map(|u| format!(
-            "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
-            u.name, u.username, u.role, if u.approved { "Approuvé" } else { "En attente" }
-        )).collect::<Vec<String>>().join("")
-    ))
-}
-
-pub async fn approve_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<ApprovePayload>,
-) -> impl IntoResponse {
-    let _ = sqlx::query(
-        "UPDATE users SET approved = true WHERE id = ?"
-    )
-    .bind(&payload.user_id)
-    .execute(&state.db)
-    .await;
-
-    Json(AuthResponse {
-        success: true,
-        message: "Utilisateur approuvé avec succès".to_string(),
-        user: None,
-    })
-}
-
-// Nouvelles routes JSON pour l'admin (modernes)
+// ============ Nouvelles routes admin JSON modernes ============
 
 pub async fn pending_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+    let rows: Vec<(String, String, Option<String>, Option<String>, bool, bool, String)> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users WHERE approved = false"
     )
     .fetch_all(&state.db)
@@ -768,19 +494,19 @@ pub async fn pending_users_json_handler(AxumState(state): AxumState<Arc<SharedSt
     .unwrap_or_default();
 
     let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.id,
-        username: r.username,
-        name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or_else(|| "user".to_string()),
-        approved: r.approved,
-        needs_password_change: r.needs_password_change,
+        id: r.0,
+        username: r.1,
+        name: r.2.unwrap_or_default(),
+        role: r.3.unwrap_or_else(|| "user".to_string()),
+        approved: r.4,
+        needs_password_change: r.5,
     }).collect();
 
-    Json(serde_json::json!({ "users": users }))
+    Json(json!({ "users": users }))
 }
 
 pub async fn all_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+    let rows: Vec<(String, String, Option<String>, Option<String>, bool, bool, String)> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
@@ -789,36 +515,30 @@ pub async fn all_users_json_handler(AxumState(state): AxumState<Arc<SharedState>
     .unwrap_or_default();
 
     let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.id,
-        username: r.username,
-        name: r.name.unwrap_or_default(),
-        role: r.role.unwrap_or_else(|| "user".to_string()),
-        approved: r.approved,
-        needs_password_change: r.needs_password_change,
+        id: r.0,
+        username: r.1,
+        name: r.2.unwrap_or_default(),
+        role: r.3.unwrap_or_else(|| "user".to_string()),
+        approved: r.4,
+        needs_password_change: r.5,
     }).collect();
 
-    Json(serde_json::json!({ "users": users }))
+    Json(json!({ "users": users }))
 }
 
 pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let invite_token = Uuid::new_v4().to_string();
-    let invite_link = format!("https://ton-domaine.com/join?token={}", invite_token);
+    // Nettoyage des invites expirées
+    let _ = sqlx::query("DELETE FROM invites WHERE expires_at < datetime('now')")
+        .execute(&state.db)
+        .await;
 
-    // Optionnel : sauvegarder le token en DB si tu veux le tracker
-
-    Json(serde_json::json!({
-        "success": true,
-        "invite_link": invite_link
-    }))
-}
-
-pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
     let token = Uuid::new_v4().to_string();
-    let created_at = chrono::Utc::now().to_rfc3339();
-    let expires_at = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
+    let created_at = Utc::now().to_rfc3339();
+    let expires_at = (Utc::now() + Duration::days(7)).to_rfc3339();
 
     let result = sqlx::query(
-        "INSERT INTO invites (id, token, created_at, expires_at, used) VALUES (?, ?, ?, ?, false)"
+        "INSERT INTO invites (id, token, created_at, expires_at, used) 
+         VALUES (?, ?, ?, ?, false)"
     )
     .bind(Uuid::new_v4().to_string())
     .bind(&token)
@@ -830,7 +550,7 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
     match result {
         Ok(_) => {
             let invite_link = format!("https://ton-domaine.com/join?token={}", token);
-            Json(serde_json::json!({
+            Json(json!({
                 "success": true,
                 "invite_link": invite_link,
                 "expires_in_days": 7
@@ -839,7 +559,7 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({
+            Json(json!({
                 "success": false,
                 "message": format!("Erreur génération invite : {}", e)
             })),
@@ -848,72 +568,20 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
     }
 }
 
-// Liste des invitations créées (pour l'admin)
-pub async fn list_invites_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<(String, String, String, String, bool)> = sqlx::query_as(
-        "SELECT id, token, created_at, expires_at, used 
-         FROM invites 
-         ORDER BY created_at DESC"
-    )
-    .fetch_all(&state.db)
-    .await
-    .ok()
-    .unwrap_or_default();
-
-    let invites = rows.into_iter().map(|row| json!({
-        "id": row.0,
-        "token": row.1,
-        "created_at": row.2,
-        "expires_at": row.3,
-        "used": row.4,
-        "expired": chrono::DateTime::parse_from_rfc3339(&row.3)
-            .map(|dt| dt < chrono::Utc::now().into())
-            .unwrap_or(true)
-    })).collect::<Vec<_>>();
-
-    Json(json!({ "invites": invites }))
-}
-
-// Suppression manuelle d'une invitation (optionnel mais utile)
-pub async fn delete_invite_handler(
+pub async fn approve_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<serde_json::Value>,
+    Json(payload): Json<ApprovePayload>,
 ) -> impl IntoResponse {
-    if let Some(id) = payload.get("id").and_then(|v| v.as_str()) {
-        let _ = sqlx::query("DELETE FROM invites WHERE id = ?")
-            .bind(id)
-            .execute(&state.db)
-            .await;
-    }
+    let _ = sqlx::query("UPDATE users SET approved = true WHERE id = ?")
+        .bind(&payload.user_id)
+        .execute(&state.db)
+        .await;
 
-    Json(json!({ "success": true }))
-}
-
-#[allow(dead_code)]
-pub async fn logout_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    req: Request<Body>,
-) -> impl IntoResponse {
-    let auth_cookie = get_cookie(req.headers(), "auth_token");
-    if let Some(cookie_value) = auth_cookie {
-        let parts: Vec<&str> = cookie_value.split(':').collect();
-        if parts.len() == 2 {
-            let user_id = parts[0];
-            let _ = sqlx::query(
-                "UPDATE users SET token = NULL WHERE id = ?"
-            )
-            .bind(user_id)
-            .execute(&state.db)
-            .await;
-        }
-    }
-
-    let mut response = Response::new("Déconnexion réussie".to_string());
-    response.headers_mut().insert(
-        HeaderName::from_static("set-cookie"),
-        "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
-    );
-    response
+    Json(AuthResponse {
+        success: true,
+        message: "Utilisateur approuvé avec succès".to_string(),
+        user: None,
+    })
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
