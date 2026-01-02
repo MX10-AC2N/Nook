@@ -15,7 +15,8 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use tower_governor::{GovernorConfigBuilder, GovernorLayer};
+use std::sync::Arc;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
@@ -129,36 +130,8 @@ async fn main() {
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
-    // Lancement de la tâche de nettoyage des invites expirées toutes les 72h
-start_invites_cleanup_task(app_state.db.clone()).await;
-
-    // Clean database 
-async fn start_invites_cleanup_task(db: sqlx::SqlitePool) {
-    tokio::spawn(async move {
-        loop {
-            // Attendre 72 heures
-            tokio::time::sleep(tokio::time::Duration::from_secs(72 * 60 * 60)).await;
-
-            let result = sqlx::query("DELETE FROM invites WHERE expires_at < datetime('now')")
-                .execute(&db)
-                .await;
-
-            match result {
-                Ok(res) => {
-                    if res.rows_affected() > 0 {
-                        println!("Nettoyage automatique : {} invitation(s) expirée(s) supprimée(s)", res.rows_affected());
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Erreur lors du nettoyage des invites : {}", e);
-                }
-            }
-        }
-    });
-}
-
     // Rate limiting : 5 tentatives de login par IP toutes les 15 minutes
-    let governor_conf = Box::new(
+    let governor_conf = Arc::new(
         GovernorConfigBuilder::default()
             .per_minute(15)
             .burst_size(5)
@@ -171,7 +144,7 @@ async fn start_invites_cleanup_task(db: sqlx::SqlitePool) {
         .route(
             "/api/login",
             post(auth::login_json_handler).layer(GovernorLayer {
-                config: Box::leak(governor_conf),
+                config: governor_conf.clone(),
             }),
         )
         // Autres endpoints JSON modernes
@@ -207,7 +180,7 @@ async fn start_invites_cleanup_task(db: sqlx::SqlitePool) {
 
         // Fallback SPA (avec guard /api/*)
         .fallback(get(spa_fallback))
-        .with_state(std::sync::Arc::new(shared_state));
+        .with_state(Arc::new(shared_state));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     println!("Nook prêt sur http://{}", addr);
