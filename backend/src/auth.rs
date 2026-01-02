@@ -8,7 +8,7 @@ use axum::extract::State as AxumState;
 use axum::http::header::{HeaderMap, HeaderName, SET_COOKIE};
 use axum::http::Request;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -55,11 +55,6 @@ pub struct AuthResponse {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ApprovePayload {
-    pub user_id: String,
-}
-
-#[derive(Serialize, Deserialize)]
 pub struct SessionResponse {
     pub authenticated: bool,
     pub user: Option<UserInfo>,
@@ -68,6 +63,18 @@ pub struct SessionResponse {
 #[derive(Serialize, Deserialize)]
 pub struct UserInfoResponse {
     pub user: Option<UserInfo>,
+}
+
+// Struct pour éviter les tuples complexes (clippy type_complexity)
+#[derive(sqlx::FromRow)]
+struct AdminUserRow {
+    id: String,
+    username: String,
+    name: Option<String>,
+    role: Option<String>,
+    approved: bool,
+    needs_password_change: bool,
+    created_at: String,
 }
 
 // ============ Fonctions utilitaires de sécurité ============
@@ -485,7 +492,7 @@ pub async fn first_setup_handler(
 // ============ Nouvelles routes admin JSON modernes ============
 
 pub async fn pending_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<(String, String, Option<String>, Option<String>, bool, bool, String)> = sqlx::query_as(
+    let rows: Vec<AdminUserRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users WHERE approved = false"
     )
     .fetch_all(&state.db)
@@ -494,19 +501,19 @@ pub async fn pending_users_json_handler(AxumState(state): AxumState<Arc<SharedSt
     .unwrap_or_default();
 
     let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.0,
-        username: r.1,
-        name: r.2.unwrap_or_default(),
-        role: r.3.unwrap_or_else(|| "user".to_string()),
-        approved: r.4,
-        needs_password_change: r.5,
+        id: r.id,
+        username: r.username,
+        name: r.name.unwrap_or_default(),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
+        approved: r.approved,
+        needs_password_change: r.needs_password_change,
     }).collect();
 
     Json(json!({ "users": users }))
 }
 
 pub async fn all_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
-    let rows: Vec<(String, String, Option<String>, Option<String>, bool, bool, String)> = sqlx::query_as(
+    let rows: Vec<AdminUserRow> = sqlx::query_as(
         "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
@@ -515,12 +522,12 @@ pub async fn all_users_json_handler(AxumState(state): AxumState<Arc<SharedState>
     .unwrap_or_default();
 
     let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
-        id: r.0,
-        username: r.1,
-        name: r.2.unwrap_or_default(),
-        role: r.3.unwrap_or_else(|| "user".to_string()),
-        approved: r.4,
-        needs_password_change: r.5,
+        id: r.id,
+        username: r.username,
+        name: r.name.unwrap_or_default(),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
+        approved: r.approved,
+        needs_password_change: r.needs_password_change,
     }).collect();
 
     Json(json!({ "users": users }))
@@ -566,22 +573,6 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
         )
             .into_response(),
     }
-}
-
-pub async fn approve_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<ApprovePayload>,
-) -> impl IntoResponse {
-    let _ = sqlx::query("UPDATE users SET approved = true WHERE id = ?")
-        .bind(&payload.user_id)
-        .execute(&state.db)
-        .await;
-
-    Json(AuthResponse {
-        success: true,
-        message: "Utilisateur approuvé avec succès".to_string(),
-        user: None,
-    })
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
