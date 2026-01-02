@@ -18,6 +18,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+use tower_governor::key_extractor::SmartKeyExtractor;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
