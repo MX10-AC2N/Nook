@@ -2,16 +2,24 @@
 
 const API_BASE = '/api';
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+export async function changePassword(newPassword: string, userId?: string): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${API_BASE}/change-password`, {
+    // Pour changement normal (utilisateur connecté) ou first-setup (admin initial)
+    // Le backend gère les deux cas (avec ou sans current_password, selon la route)
+    const payload: any = { new_password: newPassword };
+    if (userId) payload.user_id = userId;  // Pour first-setup
+
+    const endpoint = userId ? '/first-setup' : '/change-password';
+
+    const response = await fetch(`\( {API_BASE} \){endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      body: JSON.stringify(payload)
     });
-    
-    return await response.json();
+
+    const data = await response.json();
+    return { success: response.ok, message: data.message || 'Succès' };
   } catch (error) {
     console.error('Erreur changement mot de passe:', error);
     return { 
@@ -21,55 +29,25 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
-export async function login(memberId: string): Promise<{ success: boolean; user?: object; token?: string }> {
-  try {
-    const response = await fetch(`${API_BASE}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ member_id: memberId })
-    });
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Erreur login:', error);
-    return { 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Erreur de connexion' 
-    };
-  }
-}
-
-export async function checkAuth(): Promise<{ status: string; memberId?: string }> {
-  try {
-    const response = await fetch(`${API_BASE}/validate-session`, {
-      method: 'GET',
-      credentials: 'include'
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      return { status: 'approved', memberId: data.member_id };
-    }
-    
-    return { status: 'guest' };
-  } catch (error) {
-    console.error('Erreur checkAuth:', error);
-    return { status: 'error' };
-  }
-}
-
-export async function getUserInfo(): Promise<{ id: string; name: string; username: string; role: string } | null> {
+export async function getUserInfo(): Promise<{ 
+  id: string; 
+  username: string; 
+  name: string; 
+  role: string; 
+  approved: boolean; 
+  needs_password_change: boolean 
+} | null> {
   try {
     const response = await fetch(`${API_BASE}/user-info`, {
       method: 'GET',
       credentials: 'include'
     });
-    
+
     if (response.ok) {
-      return await response.json();
+      const data = await response.json();
+      return data.user || null;  // Le backend retourne { user: {...} }
     }
-    
+
     return null;
   } catch (error) {
     console.error('Erreur getUserInfo:', error);
@@ -79,12 +57,13 @@ export async function getUserInfo(): Promise<{ id: string; name: string; usernam
 
 export async function createJoinRequest(token: string, name: string, publicKey: string): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetch(`${API_BASE}/join?token=${encodeURIComponent(token)}`, {
+    const response = await fetch(`\( {API_BASE}/join?token= \){encodeURIComponent(token)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ name, public_key: publicKey })
     });
-    
+
     const data = await response.json();
     return { success: response.ok, message: data.message || response.statusText };
   } catch (error) {
