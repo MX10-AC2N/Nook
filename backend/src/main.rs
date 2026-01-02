@@ -1,3 +1,5 @@
+// backend/src/main.rs
+
 mod auth;
 mod db;
 mod upload;
@@ -18,7 +20,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_governor::key_extractor::PeerIpKeyExtractor;
+use tower_governor::key_extractor::{KeyExtractor, Request};
+use tower_governor::GovernorError;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
@@ -31,6 +34,18 @@ pub struct SharedState {
     pub db: sqlx::SqlitePool,
     pub webrtc_broadcasts:
         std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
+}
+
+// Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
+#[derive(Clone)]
+pub struct UriKeyExtractor;
+
+impl KeyExtractor for UriKeyExtractor {
+    type Key = String;
+
+    fn extract(&self, req: &Request) -> Result<Self::Key, GovernorError> {
+        Ok(req.uri().path().to_string())
+    }
 }
 
 // Fonction pour créer l'admin par défaut si nécessaire
@@ -111,16 +126,6 @@ async fn main() {
     tokio::fs::create_dir_all("/app/data/uploads").await.ok();
     println!("Démarrage de Nook v2.0");
 
-    // Token admin (legacy)
-    let token_path = "/app/data/admin.token";
-    if !std::path::Path::new(token_path).exists() {
-        let token = Uuid::new_v4().to_string();
-        std::fs::write(token_path, &token).expect("Failed to create admin.token");
-        println!("Nouveau token admin généré : {}", token);
-    } else {
-        println!("Token admin chargé depuis /app/data/admin.token");
-    }
-
     // Init DB
     let app_state = db::init_db().await;
 
@@ -133,11 +138,12 @@ async fn main() {
     };
 
     // Rate limiting : 5 tentatives max toutes les 15 minutes (900 secondes)
+    // UriKeyExtractor fonctionne avec CasaOS et tout reverse proxy
     let governor_conf = Arc::new(
         GovernorConfigBuilder::default()
             .period(Duration::from_secs(900))  // fenêtre de 15 minutes
             .burst_size(5)                     // max 5 tentatives
-            .key_extractor(PeerIpKeyExtractor)
+            .key_extractor(UriKeyExtractor)
             .finish()
             .unwrap(),
     );
