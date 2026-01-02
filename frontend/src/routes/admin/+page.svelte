@@ -68,10 +68,8 @@
     generatingInvite = true;
     inviteLink = null;
     try {
-      const response = await fetch('/api/generate-invite', {
-        method: 'POST',
-        credentials: 'include'
-      });
+      const response = await 
+fetch('/api/generate-invite', { method: 'POST', credentials: 'include' });
 
       if (response.ok) {
         const data = await response.json();
