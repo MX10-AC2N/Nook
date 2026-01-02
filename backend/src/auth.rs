@@ -749,6 +749,62 @@ pub async fn approve_handler(
     })
 }
 
+// Nouvelles routes JSON pour l'admin (modernes)
+
+pub async fn pending_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+        "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users WHERE approved = false"
+    )
+    .fetch_all(&state.db)
+    .await
+    .ok()
+    .unwrap_or_default();
+
+    let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
+        id: r.id,
+        username: r.username,
+        name: r.name.unwrap_or_default(),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
+        approved: r.approved,
+        needs_password_change: r.needs_password_change,
+    }).collect();
+
+    Json(serde_json::json!({ "users": users }))
+}
+
+pub async fn all_users_json_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let rows: Vec<UserInfoSqlxRow> = sqlx::query_as(
+        "SELECT id, username, name, role, approved, needs_password_change, created_at FROM users ORDER BY created_at DESC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .ok()
+    .unwrap_or_default();
+
+    let users: Vec<UserInfo> = rows.into_iter().map(|r| UserInfo {
+        id: r.id,
+        username: r.username,
+        name: r.name.unwrap_or_default(),
+        role: r.role.unwrap_or_else(|| "user".to_string()),
+        approved: r.approved,
+        needs_password_change: r.needs_password_change,
+    }).collect();
+
+    Json(serde_json::json!({ "users": users }))
+}
+
+pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+    let invite_token = Uuid::new_v4().to_string();
+    let invite_link = format!("https://ton-domaine.com/join?token={}", invite_token);
+
+    // Optionnel : sauvegarder le token en DB si tu veux le tracker
+
+    Json(serde_json::json!({
+        "success": true,
+        "invite_link": invite_link
+    }))
+}
+
 #[allow(dead_code)]
 pub async fn logout_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -790,18 +846,3 @@ pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         })
 }
 
-// Handlers d'invitation (legacy)
-#[allow(dead_code)]
-pub async fn invite_handler() -> impl IntoResponse {
-    Html("Fonction d'invitation à implémenter".to_string())
-}
-
-#[allow(dead_code)]
-pub async fn join_handler() -> impl IntoResponse {
-    Html("Fonction de rejoindre à implémenter".to_string())
-}
-
-#[allow(dead_code)]
-pub async fn members_handler() -> impl IntoResponse {
-    Html("Fonction membres à implémenter".to_string())
-}
