@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore, isAuthenticated, needsPasswordChange, initAuth } from '$lib/authStore';
-  import { changePassword } from '$lib/api'; // Si tu utilises api.ts pour changePassword
+  import { changePassword } from '$lib/api';  // Utilise ta fonction modernisée
+  import { authStore, needsPasswordChange, initAuth } from '$lib/authStore';
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -10,44 +10,45 @@
   let loading = $state(false);
   let success = $state(false);
 
-  // Guard: si pas besoin de changement ou pas authentifié, redirige
+  // Guard: recharge auth + redirige si pas besoin de changement
   onMount(async () => {
     await initAuth();
-    if (!$isAuthenticated) {
-      goto('/login');
-    } else if (!$needsPasswordChange) {
+    if (!$needsPasswordChange) {
       goto($authStore.isAdmin ? '/admin' : '/chat');
+    } else if (!$authStore.user?.id) {
+      error = 'Utilisateur non trouvé. Reconnectez-vous.';
+      goto('/login');
     }
   });
 
   async function handleSubmit() {
-    error = '';
-    if (!newPassword || newPassword !== confirmPassword) {
-      error = 'Les mots de passe ne correspondent pas ou sont vides';
+    if (newPassword !== confirmPassword) {
+      error = 'Les mots de passe ne correspondent pas';
+      return;
+    }
+    if (newPassword.length < 8) {  // Exemple de validation basique
+      error = 'Le mot de passe doit faire au moins 8 caractères';
       return;
     }
 
     loading = true;
+    error = '';
 
     try {
-      // Appelle l'API first-setup avec user_id et new_password
       const userId = $authStore.user?.id;
-      if (!userId) throw new Error('Utilisateur non trouvé');
-
-      const result = await changePassword(newPassword, userId); // Utilise ta fonction modernisée
+      const result = await changePassword(newPassword, userId);
 
       if (result.success) {
         success = true;
-        // Recharge l'état auth (needs_password_change devient false)
-        await initAuth();
+        await initAuth();  // Recharge l'état (needs_password_change = false)
         setTimeout(() => {
           goto($authStore.isAdmin ? '/admin' : '/chat');
         }, 2000);
       } else {
-        error = result.message || 'Erreur lors du changement de mot de passe';
+        error = result.message || 'Erreur lors du changement';
       }
     } catch (err) {
-      error = err.message || 'Erreur serveur lors du changement';
+      error = 'Erreur serveur lors du changement de mot de passe';
     } finally {
       loading = false;
     }
@@ -202,5 +203,6 @@
   .success-message h1 {
     font-size: 2rem;
     margin-bottom: 1rem;
+    color: #2d5a27;
   }
 </style>
