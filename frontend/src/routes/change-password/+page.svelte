@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore, initAuth } from '$lib/authStore';
+  import { page } from '$app/stores';
+  import { authStore, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore';
   import { changePassword } from '$lib/api';  // Ta fonction modernisée dans api.ts
 
   let newPassword = $state('');
@@ -9,31 +10,44 @@
   let success = $state('');
   let isLoading = $state(false);
 
+  // Recharge auth au montage pour avoir l'état frais
+  $effect(() => {
+    initAuth();
+  });
+
   async function handleSubmit(event: Event) {
     event.preventDefault();
     error = '';
     success = '';
 
     if (newPassword !== confirmPassword) {
-      error = 'Les nouveaux mots de passe ne correspondent pas.';
+      error = 'Les mots de passe ne correspondent pas.';
       return;
     }
 
     if (newPassword.length < 8) {
-      error = 'Le nouveau mot de passe doit contenir au moins 8 caractères.';
+      error = 'Le mot de passe doit contenir au moins 8 caractères.';
       return;
     }
 
     isLoading = true;
 
     try {
-      // Pas de current_password → changement pour utilisateur déjà connecté
-      const result = await changePassword(newPassword);
+      let result;
+
+      if ($needsPasswordChange) {
+        // Premier login admin → first-setup avec user_id
+        const userId = $authStore.user?.id;
+        if (!userId) throw new Error('Utilisateur non identifié');
+        result = await changePassword(newPassword, userId);
+      } else {
+        // Changement normal
+        result = await changePassword(newPassword);
+      }
 
       if (result.success) {
-        success = 'Votre mot de passe a été changé avec succès !';
-        // Recharge l'état auth (needs_password_change passe à false si c'était le cas)
-        await initAuth();
+        success = 'Votre mot de passe a été mis à jour avec succès !';
+        await initAuth();  // Recharge l'état (needs_password_change = false)
         setTimeout(() => {
           goto($authStore.isAdmin ? '/admin' : '/chat');
         }, 2000);
@@ -41,7 +55,7 @@
         error = result.message || 'Échec du changement de mot de passe.';
       }
     } catch (e: any) {
-      error = e.message || 'Une erreur inattendue est survenue.';
+      error = e.message || 'Une erreur est survenue.';
     } finally {
       isLoading = false;
     }
@@ -49,15 +63,23 @@
 </script>
 
 <svelte:head>
-  <title>Changer le mot de passe — Nook</title>
+  <title>
+    {$needsPasswordChange ? 'Créer' : 'Changer'} votre mot de passe — Nook
+  </title>
 </svelte:head>
 
 <div class="page-container">
   <div class="form-wrapper">
     <div class="header">
       <div class="icon">🔐</div>
-      <h1>Changer le mot de passe</h1>
-      <p>Créez un nouveau mot de passe sécurisé pour votre compte</p>
+      <h1>
+        {$needsPasswordChange ? 'Première connexion' : 'Changer le mot de passe'}
+      </h1>
+      <p>
+        {$needsPasswordChange
+          ? 'Vous devez définir un nouveau mot de passe pour continuer'
+          : 'Créez un nouveau mot de passe sécurisé pour votre compte'}
+      </p>
     </div>
 
     {#if error}
@@ -105,9 +127,9 @@
           <button type="submit" class="submit-btn" disabled={isLoading}>
             {#if isLoading}
               <span class="spinner"></span>
-              Changement en cours...
+              Enregistrement...
             {:else}
-              Changer le mot de passe
+              Confirmer le changement
             {/if}
           </button>
         </div>
@@ -117,7 +139,6 @@
 </div>
 
 <style>
-  /* Ton style existant est parfait – je le garde intégralement */
   .page-container {
     display: flex;
     flex-direction: column;
@@ -174,14 +195,8 @@
   }
 
   @keyframes slide-down {
-    from {
-      opacity: 0;
-      transform: translateY(-10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .alert.error {
@@ -271,10 +286,6 @@
     box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
   }
 
-  .submit-btn:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
   .submit-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
@@ -294,20 +305,9 @@
   }
 
   @media (max-width: 480px) {
-    .page-container {
-      padding: 1rem;
-    }
-
-    .password-form {
-      padding: 1.5rem;
-    }
-
-    h1 {
-      font-size: 1.5rem;
-    }
-
-    .icon {
-      font-size: 3rem;
-    }
+    .page-container { padding: 1rem; }
+    .password-form { padding: 1.5rem; }
+    h1 { font-size: 1.5rem; }
+    .icon { font-size: 3rem; }
   }
 </style>
