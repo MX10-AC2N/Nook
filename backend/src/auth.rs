@@ -1,7 +1,7 @@
 use crate::db::User;
 use crate::SharedState;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
-use argon2::password_hash::SaltString;
+use argon2::password_hash::{PasswordHash, SaltString};
 use rand::rngs::OsRng;
 use axum::body::Body;
 use axum::extract::State as AxumState;
@@ -90,7 +90,7 @@ fn hash_password(password: &str) -> String {
 }
 
 fn verify_password(password: &str, hashed_password: &str) -> bool {
-    let parsed_hash = argon2::password_hash::PasswordHash::new(hashed_password).unwrap();
+    let parsed_hash = PasswordHash::new(hashed_password).unwrap();
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
         .is_ok()
@@ -254,7 +254,10 @@ pub async fn validate_session_handler(
                         }).into_response()
                     }
                     None => {
-                        let mut response = Response::new("Session invalide".to_string());
+                        let mut response = Json(SessionResponse {
+                            authenticated: false,
+                            user: None,
+                        }).into_response();
                         response.headers_mut().insert(
                             HeaderName::from_static("set-cookie"),
                             "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
@@ -429,7 +432,9 @@ pub async fn first_setup_handler(
     let user_id = payload.user_id.clone();
 
     let user: Option<User> = sqlx::query_as(
-        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at FROM users WHERE id = ? AND needs_password_change = true"
+        "SELECT id, username, password, name, role, approved, needs_password_change, created_at, token, public_key, joined_at 
+         FROM users 
+         WHERE id = ? AND needs_password_change = true"
     )
     .bind(&user_id)
     .fetch_optional(&state.db)
@@ -441,7 +446,7 @@ pub async fn first_setup_handler(
         Some(_) => {
             let hashed_password = hash_password(&payload.new_password);
 
-            let _ = sqlx::query(
+            let result = sqlx::query(
                 "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
             )
             .bind(&hashed_password)
@@ -449,55 +454,33 @@ pub async fn first_setup_handler(
             .execute(&state.db)
             .await;
 
-            Html(r#"
-            <!DOCTYPE html>
-            <html lang="fr">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Configuration terminée - Nook</title>
-                <style>
-                    body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f5f5f5; }
-                    .container { text-align: center; padding: 2rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    h1 { color: #333; }
-                    .success { color: #28a745; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1 class="success">Configuration terminée !</h1>
-                    <p>Votre mot de passe a été mis à jour avec succès.</p>
-                    <p>Vous allez être redirigé vers la page de connexion...</p>
-                    <script>
-                        setTimeout(() => { window.location.href = '/login'; }, 2000);
-                    </script>
-                </div>
-            </body>
-            </html>
-            "#.to_string())
+            match result {
+                Ok(_) => Json(AuthResponse {
+                    success: true,
+                    message: "Mot de passe mis à jour avec succès.".to_string(),
+                    user: None,
+                })
+                .into_response(),
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(AuthResponse {
+                        success: false,
+                        message: format!("Erreur lors du changement : {}", e),
+                        user: None,
+                    }),
+                )
+                    .into_response(),
+            }
         }
-        None => Html(r#"
-        <!DOCTYPE html>
-        <html lang="fr">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Erreur - Nook</title>
-            <style>
-                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f5f5f5; }
-                .container { text-align: center; padding: 2rem; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                h1 { color: #dc3545; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Erreur</h1>
-                <p>Session invalide ou expirée.</p>
-                <a href="/login">Retour à la connexion</a>
-            </div>
-        </body>
-        </html>
-        "#.to_string())
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(AuthResponse {
+                success: false,
+                message: "Action non autorisée ou session invalide.".to_string(),
+                user: None,
+            }),
+        )
+            .into_response(),
     }
 }
 
@@ -761,7 +744,7 @@ pub async fn approve_handler(
 
     Json(AuthResponse {
         success: true,
-        message: "Utilisateur approuvé avec succès".into(),
+        message: "Utilisateur approuvé avec succès".to_string(),
         user: None,
     })
 }
@@ -791,23 +774,6 @@ pub async fn logout_handler(
         "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
     );
     response
-}
-
-pub async fn change_password_handler(
-    AxumState(state): AxumState<Arc<SharedState>>,
-    Json(payload): Json<ChangePasswordPayload>,
-) -> impl IntoResponse {
-    let hashed_password = hash_password(&payload.new_password);
-
-    let _ = sqlx::query(
-        "UPDATE users SET password = ?, needs_password_change = false WHERE id = ?"
-    )
-    .bind(&hashed_password)
-    .bind(&payload.user_id)
-    .execute(&state.db)
-    .await;
-
-    Html("Mot de passe changé avec succès !".to_string())
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
