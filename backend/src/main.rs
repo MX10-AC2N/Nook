@@ -14,13 +14,14 @@ use axum::{
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
+use http::request::Request;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_governor::key_extractor::{KeyExtractor, Request};
+use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::GovernorError;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
@@ -43,7 +44,7 @@ pub struct UriKeyExtractor;
 impl KeyExtractor for UriKeyExtractor {
     type Key = String;
 
-    fn extract(&self, req: &Request) -> Result<Self::Key, GovernorError> {
+    fn extract<B>(&self, req: &Request<B>) -> Result<Self::Key, GovernorError> {
         Ok(req.uri().path().to_string())
     }
 }
