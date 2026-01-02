@@ -44,8 +44,8 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
         println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
 
         let admin_id = Uuid::new_v4().to_string();
-        let default_username = "admin";
-        let default_password = "admin123!";
+        let default_username = "Admin";
+        let default_password = "Admin123!";
 
         use argon2::{Argon2, PasswordHasher};
         use argon2::password_hash::SaltString;
