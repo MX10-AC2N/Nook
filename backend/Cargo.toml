@@ -29,6 +29,7 @@ headers = "0.4"
 
 # Rate limiting
 tower_governor = "0.4.3"
+governor = "0.6"
 
 # Logging
 tracing = "0.1"
