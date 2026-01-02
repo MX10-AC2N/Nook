@@ -214,15 +214,15 @@ jobs:
             echo "✅ package-lock.json déjà présent"
           fi
 
-      - name: Cache npm dependencies
-        uses: actions/cache@v4
-        id: npm-cache
-        with:
-          path: |
-            node_modules
-            ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
+#     - name: Cache npm dependencies
+#       uses: actions/cache@v4
+#       id: npm-cache
+#       with:
+#         path: |
+#           node_modules
+#           ~/.npm
+#         key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+#         restore-keys: |
             ${{ runner.os }}-node-
 
       - name: Installer dépendances
