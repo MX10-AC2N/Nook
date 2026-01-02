@@ -129,6 +129,31 @@ async fn main() {
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
+    // Clean database 
+async fn start_invites_cleanup_task(db: sqlx::SqlitePool) {
+    tokio::spawn(async move {
+        loop {
+            // Attendre 72 heures
+            tokio::time::sleep(tokio::time::Duration::from_secs(72 * 60 * 60)).await;
+
+            let result = sqlx::query("DELETE FROM invites WHERE expires_at < datetime('now')")
+                .execute(&db)
+                .await;
+
+            match result {
+                Ok(res) => {
+                    if res.rows_affected() > 0 {
+                        println!("Nettoyage automatique : {} invitation(s) expirée(s) supprimée(s)", res.rows_affected());
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Erreur lors du nettoyage des invites : {}", e);
+                }
+            }
+        }
+    });
+}
+
     // Rate limiting : 5 tentatives de login par IP toutes les 15 minutes
     let governor_conf = Box::new(
         GovernorConfigBuilder::default()
