@@ -45,8 +45,8 @@
     const pathname = $page.url.pathname;
 
     // Si needs_password_change → forcer le changement (premier login admin)
-    if ($needsPasswordChange && pathname !== '/create-password') {
-      goto('/create-password');
+    if ($needsPasswordChange && pathname !== '/change-password') {
+      goto('/change-password');
       return;
     }
 
