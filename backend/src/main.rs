@@ -138,7 +138,6 @@ async fn main() {
             .period(Duration::from_secs(900))  // fenêtre de 15 minutes
             .burst_size(5)                     // max 5 tentatives
             .key_extractor(SmartIpKeyExtractor)   // IP automatique
-            .use_header_value_failure_overrides(false)
             .finish()
             .unwrap(),
     );
