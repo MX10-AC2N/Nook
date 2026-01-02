@@ -136,6 +136,8 @@ async fn main() {
         GovernorConfigBuilder::default()
             .period(Duration::from_secs(900))  // fenêtre de 15 minutes
             .burst_size(5)                     // max 5 tentatives
+            .key_extractor(SmartKeyExtractor)   // IP automatique
+            .use_header_value_failure_overrides(false)
             .finish()
             .unwrap(),
     );
