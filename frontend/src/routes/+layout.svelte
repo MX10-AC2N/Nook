@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { authStore, isAuthenticated, isAdmin } from '$lib/authStore';
+  import { authStore, isAuthenticated, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
@@ -38,16 +38,47 @@
     goto('/login');
   }
 
+  // Redirections globales intelligentes
   $effect(() => {
-    if (!loading && !$isAuthenticated && $page.url.pathname !== '/login' && !$page.url.pathname.startsWith('/join')) {
-      goto('/login');
+    if (loading) return;
+
+    const pathname = $page.url.pathname;
+
+    // Si needs_password_change → forcer le changement (premier login admin)
+    if ($needsPasswordChange && pathname !== '/create-password') {
+      goto('/create-password');
+      return;
+    }
+
+    // Si authentifié → rediriger hors des pages publiques si nécessaire
+    if ($isAuthenticated) {
+      if (pathname === '/' || pathname === '/login' || pathname === '/register') {
+        if ($isAdmin) {
+          goto('/admin');
+        } else {
+          goto('/chat');
+        }
+      }
+    } else {
+      // Pas authentifié → rediriger vers login (sauf pages publiques)
+      const publicPaths = ['/login', '/register', '/help', '/join'];
+      if (!publicPaths.some(p => pathname.startsWith(p))) {
+        goto('/login');
+      }
     }
   });
 
-  onMount(() => {
-    setTimeout(() => {
-      loading = false;
-    }, 500);
+  onMount(async () => {
+    try {
+      await initAuth(); // Recharge l'état auth au montage du layout
+    } catch (err) {
+      console.error('Erreur init auth dans layout:', err);
+      appError = 'Impossible de vérifier votre session. Réessayez.';
+    } finally {
+      setTimeout(() => {
+        loading = false;
+      }, 500);
+    }
   });
 </script>
 
@@ -76,7 +107,7 @@
     <h1>🌱 Nook</h1>
 
     {#if $isAuthenticated}
-      <span class="user-name">{$authStore.user?.name}</span>
+      <span class="user-name">{$authStore.user?.name || $authStore.user?.username}</span>
       <button onclick={handleLogout} class="logout-btn" aria-label="Déconnexion">
         🔌
       </button>
@@ -105,9 +136,9 @@
       <ul class="nav-list">
         {#each navItems as item}
           {#if item.requiresAuth && !$isAuthenticated}
-            <!-- Skip if auth required but not authenticated -->
+            <!-- Skip -->
           {:else if item.requiresAdmin && !$isAdmin}
-            <!-- Skip if admin required but not admin -->
+            <!-- Skip -->
           {:else}
             <li>
               <a href={item.path} onclick={closeMenu}>{item.label}</a>
@@ -118,9 +149,11 @@
 
       <div class="menu-footer">
         <p class="version">Version 3.0 • SvelteKit</p>
-        <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
-          🔌 Déconnexion
-        </button>
+        {#if $isAuthenticated}
+          <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
+            🔌 Déconnexion
+          </button>
+        {/if}
       </div>
     </nav>
   {/if}
@@ -135,6 +168,7 @@
 {/if}
 
 <style>
+  /* Ton style existant reste inchangé – je le garde tel quel */
   :global(body) {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
