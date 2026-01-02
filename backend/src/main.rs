@@ -4,7 +4,7 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::{Query, WebSocketUpgrade},
+    extract::{ConnectInfo, OriginalUri, Query, WebSocketUpgrade},
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{delete, get, get_service, post},
@@ -15,6 +15,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use tower_governor::{GovernorConfigBuilder, GovernorLayer};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
 use chrono::Utc;
@@ -31,7 +32,6 @@ pub struct SharedState {
 
 // Fonction pour créer l'admin par défaut si nécessaire
 async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
-    // Vérifier si un admin existe déjà
     let admin_exists: Option<(String,)> = sqlx::query_as(
         "SELECT id FROM users WHERE role = 'admin' LIMIT 1"
     )
@@ -44,8 +44,8 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
         println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
 
         let admin_id = Uuid::new_v4().to_string();
-        let default_username = "Admin";
-        let default_password = "Admin123!";
+        let default_username = "admin";
+        let default_password = "admin123!";
 
         use argon2::{Argon2, PasswordHasher};
         use argon2::password_hash::SaltString;
@@ -83,11 +83,21 @@ async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
     }
 }
 
-// Fallback SPA
-async fn spa_fallback() -> impl IntoResponse {
+// Fallback SPA sécurisé : ne sert pas index.html sur les routes /api/*
+async fn spa_fallback(original_uri: OriginalUri) -> impl IntoResponse {
+    let path = original_uri.0.path();
+
+    if path.starts_with("/api/") {
+        return (StatusCode::NOT_FOUND, "API route not found").into_response();
+    }
+
     match tokio::fs::read_to_string("/app/static/index.html").await {
-        Ok(html) => Html(html),
-        Err(_) => Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
+        Ok(html) => Html(html).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
+        )
+        .into_response(),
     }
 }
 
@@ -119,26 +129,35 @@ async fn main() {
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
+    // Rate limiting : 5 tentatives de login par IP toutes les 15 minutes
+    let governor_conf = Box::new(
+        GovernorConfigBuilder::default()
+            .per_minute(15)
+            .burst_size(5)
+            .finish()
+            .unwrap(),
+    );
+
     let app = Router::new()
-        // Nouveaux endpoints JSON pour le frontend moderne
-        .route("/api/login", post(auth::login_json_handler))
+        // Login avec rate limiting
+        .route(
+            "/api/login",
+            post(auth::login_json_handler).layer(GovernorLayer {
+                config: Box::leak(governor_conf),
+            }),
+        )
+        // Autres endpoints JSON modernes
         .route("/api/validate-session", get(auth::validate_session_handler))
         .route("/api/user-info", get(auth::user_info_handler))
         .route("/api/register", post(auth::register_json_handler))
         .route("/api/change-password", post(auth::change_password_json_handler))
         .route("/api/logout", post(auth::logout_json_handler))
         .route("/api/first-setup", post(auth::first_setup_handler))
+
+        // Nouvelles routes admin JSON
         .route("/api/pending-users-json", get(auth::pending_users_json_handler))
         .route("/api/all-users-json", get(auth::all_users_json_handler))
         .route("/api/generate-invite", post(auth::generate_invite_handler))
-
-        // Anciennes routes HTML (chemins différents pour éviter les conflits)
-//        .route("/api/register-html", post(auth::register_handler))
-//        .route("/api/login-html", post(auth::login_handler))
-//        .route("/api/change-password-html", post(auth::change_password_handler))
-//        .route("/api/pending_users", get(auth::pending_users_handler))
-//        .route("/api/all_users", get(auth::all_users_handler))
-        .route("/api/approve", post(auth::approve_handler))
 
         // Routes upload et autres
         .route("/api/upload", post(upload::upload_handler))
@@ -158,7 +177,7 @@ async fn main() {
         .nest_service("/static", get_service(ServeDir::new("/app/static")))
         .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
 
-        // Fallback SPA
+        // Fallback SPA (avec guard /api/*)
         .fallback(get(spa_fallback))
         .with_state(std::sync::Arc::new(shared_state));
 
