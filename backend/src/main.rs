@@ -4,7 +4,7 @@ mod upload;
 mod webrtc;
 
 use axum::{
-    extract::{ConnectInfo, OriginalUri, Query, WebSocketUpgrade},
+    extract::{OriginalUri, Query, WebSocketUpgrade},
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{delete, get, get_service, post},
@@ -16,6 +16,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::services::ServeDir;
 use uuid::Uuid;
@@ -130,11 +131,11 @@ async fn main() {
         webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
     };
 
-    // Rate limiting : 5 tentatives de login par IP toutes les 15 minutes
+    // Rate limiting : 5 tentatives max toutes les 15 minutes (900 secondes)
     let governor_conf = Arc::new(
         GovernorConfigBuilder::default()
-            .per_minute(15)
-            .burst_size(5)
+            .period(Duration::from_secs(900))  // fenêtre de 15 minutes
+            .burst_size(5)                     // max 5 tentatives
             .finish()
             .unwrap(),
     );
