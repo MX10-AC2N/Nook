@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::{stream::SplitStream, SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -22,7 +22,7 @@ use uuid::Uuid;
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
 
 use rand::RngCore;
-use base64ct::{Base64Unpadded, Encoding};
+use base64ct::{Encoding, Base64Unpadded};
 
 // Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
@@ -32,6 +32,7 @@ const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
 // Configuration
 const FILE_EXPIRATION_HOURS: u64 = 48;
 const CLEANUP_INTERVAL_HOURS: u64 = 1;
+const MAX_FILE_SIZE_BYTES: u64 = 50 * 1024 * 1024; // 50 Mo
 
 /// Génère une clé aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_keygen() -> Vec<u8> {
@@ -53,16 +54,13 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
     
-    use chacha20poly1305::KeyInit;
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
     
-    let encrypted = cipher
-        .encrypt(
-            chacha20poly1305::Nonce::from_slice(nonce),
-            message
-        )
-        .expect("Échec du chiffrement");
+    let encrypted = cipher.encrypt(
+        chacha20poly1305::Nonce::from_slice(nonce),
+        message
+    ).expect("Échec du chiffrement");
     
     result.extend_from_slice(&encrypted);
     result
@@ -77,16 +75,13 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
     
-    use chacha20poly1305::KeyInit;
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
     
-    cipher
-        .decrypt(
-            chacha20poly1305::Nonce::from_slice(nonce),
-            encrypted
-        )
-        .map_err(|_| "Échec du déchiffrement")
+    cipher.decrypt(
+        chacha20poly1305::Nonce::from_slice(nonce),
+        encrypted
+    ).map_err(|_| "Échec du déchiffrement")
 }
 
 /// Encodage base64 (compatible sodium.to_base64)
@@ -96,11 +91,7 @@ pub fn to_base64(data: &[u8]) -> String {
 
 /// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    let buffer_size = encoded.len();
-    let mut buffer = vec![0u8; buffer_size];
-    let len = Base64Unpadded::decode(encoded, &mut buffer)
-        .map_err(|_| "Base64 invalide")?;
-    Ok(buffer[..len].to_vec())
+    Base64Unpadded::decode(encoded).map_err(|_| "Base64 invalide")
 }
 
 // === STRUCTURES ===
@@ -122,7 +113,6 @@ impl WebRtcState {
 }
 
 // Structure pour suivre les fichiers uploadés (avec date d'expiration)
-#[derive(Clone)]
 struct TrackedFile {
     file_id: String,
     path: PathBuf,
@@ -172,10 +162,14 @@ impl FileManager {
             if files[i].expires_at < now {
                 let file = files[i].clone();
                 
+                // Supprimer le fichier physique
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
                     eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
                 } else {
-                    eprintln!("[FileManager] Fichier expiré supprimé: {}", file.file_id);
+                    eprintln!("[FileManager] Fichier expiré supprimé: {} ({} bytes)", 
+                        file.file_id, 
+                        file.path.metadata().map(|m| m.len()).unwrap_or(0)
+                    );
                     deleted_count += 1;
                 }
                 
@@ -192,6 +186,7 @@ impl FileManager {
     pub async fn start_cleanup_task(self) {
         let mut interval = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
         
+        // Attendre un peu avant le premier nettoyage
         sleep(Duration::from_secs(60)).await;
         
         loop {
@@ -207,6 +202,7 @@ impl FileManager {
 // === FONCTIONS PUBLIQUES POUR UPLOAD.RS ===
 
 /// Chiffre un fichier pour stockage sécurisé sur le serveur
+/// Retourne: (ciphertext_with_nonce, nonce_base64, key_base64)
 pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
     let key = crypto_secretbox_keygen();
     let nonce = crypto_secretbox_nonce();
@@ -230,8 +226,8 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 /// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
     state: SharedCallState,
-    _conversation_id: String,
-    _event: String,
+    conversation_id: String,
+    event: String,
     message: String,
 ) {
     if let Ok(guard) = state.lock() {
@@ -244,21 +240,23 @@ pub fn broadcast_message(
 // === HANDLERS HTTP ===
 
 pub async fn handle_offer(
-    AxumState(state): AxumState<SharedCallState>,
+    AxumState(state): AxumState<WebRtcState>,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let offer = payload.get("offer").and_then(|o| o.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(offer_sdp) = offer {
         let response = json!({
             "type": "offer",
             "offer": offer_sdp,
             "from_user_id": from_user_id,
+            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        let guard = state.lock().unwrap();
+        let guard = state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
@@ -271,21 +269,23 @@ pub async fn handle_offer(
 }
 
 pub async fn handle_answer(
-    AxumState(state): AxumState<SharedCallState>,
+    AxumState(state): AxumState<WebRtcState>,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let answer = payload.get("answer").and_then(|a| a.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(answer_sdp) = answer {
         let response = json!({
             "type": "answer",
             "answer": answer_sdp,
             "from_user_id": from_user_id,
+            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        let guard = state.lock().unwrap();
+        let guard = state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
@@ -301,26 +301,24 @@ pub async fn handle_answer(
 
 pub async fn ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
-    AxumState(state): AxumState<SharedCallState>,
+    state: axum::extract::State<Arc<super::main::SharedState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_websocket(socket, state))
+    ws.on_upgrade(move |socket| handle_websocket(socket, state.webrtc_state.clone()))
 }
 
-async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
+async fn handle_websocket(socket: WebSocket, state: WebRtcState) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.broadcasts.lock().unwrap();
     guard.insert(id, broadcast_tx.clone());
     drop(guard);
 
     eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
 
-    // Clone pour la première tâche
-    let broadcast_tx_for_send = broadcast_tx.clone();
     let send_task = tokio::spawn(async move {
-        let mut rx = broadcast_tx_for_send.subscribe();
+        let mut rx = broadcast_tx.subscribe();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
                 eprintln!("[WebSocket] Erreur d'envoi: {}", e);
@@ -329,8 +327,6 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
         }
     });
 
-    // Clone pour la deuxième tâche
-    let broadcast_tx_for_recv = broadcast_tx.clone();
     let receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
@@ -350,7 +346,7 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
                         }
                     }
                     
-                    if let Err(e) = broadcast_tx_for_recv.send(text.clone()) {
+                    if let Err(e) = broadcast_tx.send(text.clone()) {
                         eprintln!("[Signalisation] Erreur de diffusion: {}", e);
                     }
                 }
@@ -371,17 +367,45 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
         _ = receive_task => {},
     }
 
-    let mut guard = state.lock().unwrap();
+    let mut guard = state.broadcasts.lock().unwrap();
     guard.remove(&id);
     eprintln!("[WebSocket] Client déconnecté: {}", id);
 }
 
-// === ROUTES ===
+// === PROTOCOLE E2E P2P (pour documentation du frontend) ===
+/*
+PROTOCOLE DE TRANSFERT P2P E2E (chiffré):
 
-pub fn webrtc_routes(state: WebRtcState) -> Router {
-    Router::new()
-        .route("/api/webrtc/offer", post(handle_offer))
-        .route("/api/webrtc/answer", get(handle_answer))
-        .route("/ws", get(ws_handler))
-        .with_state(state)
+1. EXPÉDITEUR (Client A):
+   - Génère une clé de session aléatoire (32 bytes)
+   - Chiffre le fichier avec ChaCha20-Poly1305
+   - Pour chaque chunk:
+     * Chiffre avec crypto_secretbox_easy(chunk, key, nonce)
+     * Envoie via WebRTC DataChannel
+
+2. SIGNALISATION (Serveur):
+   - Échange des offres/réponses WebRTC
+   - Échange des candidats ICE
+   - Ne voit jamais le contenu des fichiers
+
+3. DESTINATAIRE (Client B):
+   - Reçoit les chunks chiffrés via DataChannel
+   - Déchiffre avec crypto_secretbox_open_easy(chunk, key, nonce)
+   - Reconstruit le fichier original
+
+FORMAT DES MESSAGES P2P:
+{
+  "event": "file_transfer",
+  "file_id": "uuid",
+  "file_name": "video.mp4",
+  "total_size": 52428800,
+  "encrypted": true,
+  "chunks": [
+    {
+      "index": 0,
+      "data": "base64_du_chunk_chiffré",
+      "nonce": "base64_du_nonce"
+    }
+  ]
 }
+*/
