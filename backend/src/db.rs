@@ -1,3 +1,5 @@
+// backend/src/db.rs
+
 use sqlx::{Pool, Row, Sqlite};
 use std::path::Path;
 
@@ -47,6 +49,9 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
             path: row.try_get("path")?,
             sender_id: row.try_get("sender_id")?,
             timestamp: row.try_get("timestamp")?,
+            encrypted: row.try_get("encrypted")?,
+            nonce_base64: row.try_get("nonce")?,
+            key_base64: row.try_get("key_text")?,
         })
     }
 }
@@ -140,6 +145,7 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
+    // Table uploads corrigée avec les champs de chiffrement
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS uploads (
             id TEXT PRIMARY KEY,
@@ -148,7 +154,10 @@ pub async fn init_db() -> AppState {
             size INTEGER NOT NULL,
             path TEXT NOT NULL,
             sender_id TEXT NOT NULL,
-            timestamp INTEGER DEFAULT 0
+            timestamp INTEGER DEFAULT 0,
+            encrypted BOOLEAN DEFAULT 0,
+            nonce TEXT,
+            key_text TEXT
         )",
     )
     .execute(&pool)
