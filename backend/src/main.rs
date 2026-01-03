@@ -217,7 +217,7 @@ async fn main() {
 
 // WS handler
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| webrtc::handle_socket(socket, Arc::new(webrtc::SharedCallState::new())))
+    ws.on_upgrade(|socket| webrtc::handle_socket(socket, state.webrtc_broadcasts.clone()))
 }
 
 // GIF proxy
