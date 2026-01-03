@@ -7,7 +7,7 @@ mod webrtc;
 
 use axum::{
     extract::{OriginalUri, Query, WebSocketUpgrade},
-    http::{HeaderMap, HeaderName, StatusCode, SET_COOKIE},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{delete, get, get_service, post},
     Json, Router,
