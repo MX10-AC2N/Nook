@@ -24,7 +24,7 @@ use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::GovernorError;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
-use crate::webrtc::{self, WebRtcState};
+use crate::webrtc::WebRtcState;
 use chrono::Utc;
 use rand::rngs::OsRng;
 use urlencoding::encode;
