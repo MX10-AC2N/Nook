@@ -1,246 +1,301 @@
-use crate::db::{MessageType, Upload};
-use crate::webrtc::broadcast_message;
-use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
+// backend/src/upload.rs
+
+use crate::db::{AppState, Upload};
 use crate::SharedState;
-use axum::body::Body;
-use axum::extract::{Multipart, Path, State as AxumState};
-use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
-use axum::response::{Html, IntoResponse, Response};
-use serde_json::{json, Value};
-use sqlx::pool::Pool;
-use sqlx::Sqlite;
-use std::path::{Path as StdPath, PathBuf};
+use crate::webrtc::{decrypt_file_from_storage, encrypt_file_for_storage, FileManager};
+use axum::{
+    body::Body,
+    extract::{Path, State as AxumState},
+    http::{header::CONTENT_DISPOSITION, StatusCode},
+    response::IntoResponse,
+    Json,
+};
+use chrono::{TimeZone, Utc};
+use futures_util::stream::StreamExt;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize)]
+pub struct UploadResponse {
+    pub success: bool,
+    pub id: String,
+    pub file_name: String,
+    pub content_type: String,
+    pub size: i64,
+    pub path: String,
+    pub encrypted: bool,
+    pub nonce: Option<String>,
+    pub key: Option<String>,
+}
+
 lazy_static::lazy_static! {
-    static ref FILE_MANAGER: FileManager = FileManager::new(PathBuf::from("uploads"));
+    static ref FILE_MANAGER: Arc<FileManager> = Arc::new(FileManager::new(PathBuf::from("/app/data/uploads")));
 }
 
 pub async fn upload_handler(
-    AxumState(_state): AxumState<Arc<SharedState>>,
-    mut multipart: Multipart,
+    AxumState(state): AxumState<Arc<SharedState>>,
+    mut multipart: axum::extract::Multipart,
 ) -> impl IntoResponse {
-    let mut uploads: Vec<Upload> = Vec::new();
+    let boundary = multipart.boundary().to_string();
+    
+    let mut file_data: Option<(String, Vec<u8>, String)> = None;
+    let mut sender_id: Option<String> = None;
 
-    while let Some(field) = multipart.next_field().await.unwrap() {
-        let file_name = field.file_name().unwrap_or("unknown").to_string();
-        let content_type = field
-            .content_type()
-            .unwrap_or("application/octet-stream")
-            .to_string();
-        let allowed = ["image/", "video/", "audio/", "application/pdf"];
-
-        if !allowed.iter().any(|&prefix| content_type.starts_with(prefix)) {
-            return Html::<Body>("Type de fichier non autorisé".into());
-        }
-
-        let data = field.bytes().await.unwrap();
-        let id = Uuid::new_v4().to_string();
-        let timestamp = chrono::Utc::now().timestamp();
-
-        // Chiffrer le fichier avant de le stocker
-        let (ciphertext, nonce, key) = encrypt_file_for_storage(&data);
-        
-        // Sauvegarder le fichier chiffré
-        let encrypted_path = format!("uploads/{}", id);
-        let _ = std::fs::create_dir_all("uploads");
-        std::fs::write(&encrypted_path, &ciphertext).unwrap();
-        
-        // Enregistrer pour suivi (suppression automatique dans 48h)
-        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
-
-        let upload = Upload {
-            id: id.clone(),
-            file_name,
-            content_type,
-            size: data.len() as i64,
-            path: encrypted_path.clone(),
-            sender_id: "anonymous".to_string(),
-            timestamp,
-            encrypted: true,
-            nonce_base64: nonce,
-            key_base64: key,
+    while let Some(field) = multipart.next_field().await {
+        let field = match field {
+            Ok(f) => f,
+            Err(_) => break,
         };
-        uploads.push(upload);
+
+        let name = field.name().unwrap_or("").to_string();
+
+        if name == "file" {
+            let file_name = field.file_name().unwrap_or("unknown").to_string();
+            let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+            
+            let mut chunks = Vec::new();
+            let mut stream = field;
+            while let Some(chunk) = stream.next().await {
+                if let Ok(data) = chunk {
+                    chunks.extend_from_slice(&data);
+                }
+            }
+            
+            let data = chunks.into_boxed_slice();
+            let size = data.len() as i64;
+            let data_vec = data.to_vec();
+            
+            file_data = Some((file_name, data_vec, content_type));
+        } else if name == "sender_id" {
+            if let Ok(data) = field.text().await {
+                sender_id = Some(data);
+            }
+        }
     }
 
-    Html::<Body>(
-        format!(
-            "Upload réussi !\n\nFichier : {}\nTaille : {} octets\nID : {}",
-            uploads
-                .first()
-                .map(|u| &u.file_name)
-                .unwrap_or(&"aucun".to_string()),
-            uploads.first().map(|u| u.size).unwrap_or(0),
-            uploads.first().map(|u| &u.id).unwrap_or(&"".to_string())
-        )
-        .into(),
+    if file_data.is_none() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "No file provided" })),
+        ).into_response();
+    }
+
+    let (file_name, data, content_type) = file_data.unwrap();
+    let sender_id = sender_id.unwrap_or_else(|| "anonymous".to_string());
+    let id = Uuid::new_v4().to_string();
+    let timestamp = Utc::now().timestamp();
+
+    let (encrypted_path, encrypted_data, nonce, key) = if data.len() > 50 * 1024 * 1024 {
+        // Fichier > 50Mo : pas de stockage sur serveur (P2P uniquement)
+        // Le fichier est déjà传输 via P2P, pas de stockage local
+        let path = format!("/app/data/uploads/{}_p2p_{}", id, file_name);
+        
+        // Ne pas enregistrer le fichier sur le serveur pour les gros fichiers
+        // Ils sont transferes directement entre peers
+        (path, Vec::new(), None, None)
+    } else {
+        // Fichier < 50Mo : chiffrement et stockage sur serveur
+        let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data);
+        
+        let encrypted_path = format!("/app/data/uploads/{}_{}", id, file_name);
+        
+        // Enregistrer le fichier chiffré
+        let mut file = File::create(&encrypted_path).await.unwrap();
+        file.write_all(&ciphertext).await.unwrap();
+        
+        // Enregistrer pour le cleanup
+        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
+        
+        (encrypted_path, ciphertext, Some(nonce_b64), Some(key_b64))
+    };
+
+    // Enregistrer dans la base de données
+    let _ = sqlx::query(
+        "INSERT INTO uploads (id, file_name, content_type, size, path, sender_id, timestamp, encrypted, nonce, key_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
+    .bind(&id)
+    .bind(&file_name)
+    .bind(&content_type)
+    .bind(data.len() as i64)
+    .bind(&encrypted_path)
+    .bind(&sender_id)
+    .bind(timestamp)
+    .bind(encrypted_path.contains("_p2p_") || nonce.is_some())
+    .bind(nonce.as_deref())
+    .bind(key.as_deref())
+    .execute(&state.db)
+    .await;
+
+    Json(json!({
+        "success": true,
+        "id": id,
+        "file_name": file_name,
+        "content_type": content_type,
+        "size": data.len(),
+        "path": encrypted_path,
+        "encrypted": nonce.is_some(),
+        "nonce": nonce,
+        "key": key
+    })).into_response()
 }
 
 pub async fn upload_chat_file(
     AxumState(state): AxumState<Arc<SharedState>>,
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
-    mut multipart: Multipart,
+    mut multipart: axum::extract::Multipart,
 ) -> impl IntoResponse {
-    let pool: &Pool<Sqlite> = &state.db;
+    let mut file_data: Option<(String, Vec<u8>, String)> = None;
 
-    let sender_name_opt: Option<(String, String)> = sqlx::query_as("SELECT id, name FROM users WHERE id = ?")
-        .bind(&sender_id)
-        .fetch_optional(pool)
-        .await
-        .ok()
-        .flatten();
+    while let Some(field) = multipart.next_field().await {
+        let field = match field {
+            Ok(f) => f,
+            Err(_) => break,
+        };
 
-    let sender_name: String = match sender_name_opt {
-        Some((_, name)) => name,
-        None => return Html::<Body>("Utilisateur non trouvé".into()),
-    };
-
-    let uploaded_file: Option<Value> = if let Some(field) = multipart.next_field().await.unwrap() {
-        let file_name = field.file_name().unwrap_or("unknown").to_string();
-        let content_type = field
-            .content_type()
-            .unwrap_or("application/octet-stream")
-            .to_string();
-        let data = field.bytes().await.unwrap();
-        let id = Uuid::new_v4().to_string();
-        let timestamp = chrono::Utc::now().timestamp();
-        
-        // Chiffrer le fichier avant de le stocker
-        let (ciphertext, nonce, key) = encrypt_file_for_storage(&data);
-        
-        // Sauvegarder le fichier chiffré
-        let encrypted_path = format!("uploads/{}", id);
-        let _ = std::fs::create_dir_all("uploads");
-        std::fs::write(&encrypted_path, &ciphertext).unwrap();
-        
-        // Enregistrer pour suivi (suppression automatique dans 48h)
-        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
-
-        Some(json!({
-            "id": id,
-            "file_name": file_name,
-            "content_type": content_type,
-            "size": data.len(),
-            "path": encrypted_path,
-            "encrypted": true,
-            "nonce": nonce,
-            "key": key
-        }))
-    } else {
-        None
-    };
-
-    let message_id = Uuid::new_v4().to_string();
-    let msg_type = match message_type.as_str() {
-        "image" => MessageType::Image,
-        "video" => MessageType::Video,
-        "audio" => MessageType::Audio,
-        _ => MessageType::File,
-    };
-
-    let timestamp = chrono::Utc::now().timestamp();
-    let file_json = serde_json::to_string(&uploaded_file).unwrap_or("null".to_string());
-
-    let _ = sqlx::query(
-        "INSERT INTO chat_messages (id, conversation_id, sender_id, sender_name, content, message_type, timestamp, file)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-    .bind(&message_id)
-    .bind(&conversation_id)
-    .bind(&sender_id)
-    .bind(&sender_name)
-    .bind("")
-    .bind(msg_type.to_string())
-    .bind(timestamp)
-    .bind(&file_json)
-    .execute(pool)
-    .await;
-
-    let message_json = serde_json::to_string(&json!({
-        "id": message_id,
-        "conversation_id": conversation_id,
-        "sender_id": sender_id,
-        "sender_name": sender_name,
-        "content": "",
-        "message_type": msg_type.to_string(),
-        "timestamp": timestamp,
-        "file": uploaded_file
-    }))
-    .unwrap();
-
-    // Utiliser webrtc_broadcasts de SharedState
-    let broadcasts = state.webrtc_broadcasts.lock().await;
-    let broadcast_sender = broadcasts.values().next().cloned();
-    drop(broadcasts);
-
-    if let Some(sender) = broadcast_sender {
-        let _ = sender.send(message_json.clone());
+        if field.name().map(|n| n == "file").unwrap_or(false) {
+            let file_name = field.file_name().unwrap_or("unknown").to_string();
+            let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
+            
+            let mut chunks = Vec::new();
+            let mut stream = field;
+            while let Some(chunk) = stream.next().await {
+                if let Ok(data) = chunk {
+                    chunks.extend_from_slice(&data);
+                }
+            }
+            
+            file_data = Some((file_name, chunks, content_type));
+        }
     }
 
-    Html::<Body>("Fichier envoyé avec succès".into())
-}
+    if file_data.is_none() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "No file provided" })),
+        ).into_response();
+    }
 
-pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
-    let pool = sqlx::SqlitePool::connect(
-        &std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite:/app/data/nook.db".to_string()),
-    )
-    .await
-    .unwrap();
+    let (file_name, data, content_type) = file_data.unwrap();
+    let id = Uuid::new_v4().to_string();
+    let timestamp = Utc::now().timestamp();
 
-    // Récupérer les métadonnées du fichier
-    let upload_result: Option<(String, String, String, i64, String, String, String, bool)> = sqlx::query_as(
-        "SELECT id, file_name, content_type, size, path, nonce, key, encrypted FROM uploads WHERE id = ?",
+    let (encrypted_path, nonce, key) = if data.len() > 50 * 1024 * 1024 {
+        // Fichier > 50Mo : P2P uniquement, pas de stockage serveur
+        (format!("/app/data/uploads/{}_p2p_{}", id, file_name), None, None)
+    } else {
+        // Fichier < 50Mo : chiffrement et stockage
+        let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data);
+        
+        let encrypted_path = format!("/app/data/uploads/{}_{}", id, file_name);
+        
+        let mut file = File::create(&encrypted_path).await.unwrap();
+        file.write_all(&ciphertext).await.unwrap();
+        
+        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
+        
+        (encrypted_path, Some(nonce_b64), Some(key_b64))
+    };
+
+    let _ = sqlx::query(
+        "INSERT INTO uploads (id, file_name, content_type, size, path, sender_id, timestamp, encrypted, nonce, key_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
-    .fetch_optional(&pool)
+    .bind(&file_name)
+    .bind(&content_type)
+    .bind(data.len() as i64)
+    .bind(&encrypted_path)
+    .bind(&sender_id)
+    .bind(timestamp)
+    .bind(nonce.is_some())
+    .bind(nonce.as_deref())
+    .bind(key.as_deref())
+    .execute(&state.db)
+    .await;
+
+    Json(json!({
+        "success": true,
+        "id": id,
+        "file_name": file_name,
+        "content_type": content_type,
+        "size": data.len(),
+        "path": encrypted_path,
+        "encrypted": nonce.is_some(),
+        "nonce": nonce,
+        "key": key
+    })).into_response()
+}
+
+pub async fn get_upload(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let upload: Option<Upload> = sqlx::query_as(
+        "SELECT id, file_name, content_type, size, path, sender_id, timestamp, encrypted, nonce, key_text FROM uploads WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
     .await
     .ok()
     .flatten();
 
-    match upload_result {
-        Some((_, file_name, content_type, _, path, nonce, key, encrypted)) => {
-            let path = StdPath::new(&path);
-            if path.exists() {
-                match tokio::fs::File::open(path).await {
-                    Ok(mut file) => {
-                        let mut encrypted_data = Vec::new();
-                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut encrypted_data).await.is_ok() {
-                            let data = if encrypted {
-                                decrypt_file_from_storage(&encrypted_data, &nonce, &key)
-                                    .unwrap_or_else(|_| encrypted_data)
-                            } else {
-                                encrypted_data
-                            };
+    match upload {
+        Some(upload) => {
+            let path = PathBuf::from(&upload.path);
+            
+            // Vérifier si le fichier existe
+            if !path.exists() {
+                return (StatusCode::NOT_FOUND, Json(json!({ "error": "File not found" }))).into_response();
+            }
 
-                            let mut response = Response::new(Body::empty());
-                            response.headers_mut().insert(
-                                CONTENT_TYPE,
-                                content_type
-                                    .parse()
-                                    .unwrap_or("application/octet-stream".parse().unwrap()),
-                            );
-                            let content_disposition =
-                                format!("attachment; filename=\"{}\"", file_name);
-                            response
-                                .headers_mut()
-                                .insert(CONTENT_DISPOSITION, content_disposition.parse().unwrap());
-                            *response.body_mut() = Body::from(data);
-                            response
+            // Si chiffré, déchiffrer à la volée
+            if upload.encrypted {
+                match tokio::fs::read(&path).await {
+                    Ok(ciphertext) => {
+                        if let (Some(nonce), Some(key)) = (upload.nonce_base64, upload.key_base64) {
+                            match decrypt_file_from_storage(&ciphertext, &nonce, &key) {
+                                Ok(data) => {
+                                    let headers = [
+                                        (CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", upload.file_name)),
+                                    ];
+                                    return (StatusCode::OK, headers, data).into_response();
+                                }
+                                Err(e) => {
+                                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Decryption failed: {}", e) }))).into_response();
+                                }
+                            }
                         } else {
-                            Html::<Body>("Erreur de lecture du fichier".into()).into_response()
+                            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "Missing encryption keys" }))).into_response();
                         }
                     }
-                    Err(_) => Html::<Body>("Fichier non trouvé".into()).into_response(),
+                    Err(e) => {
+                        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Failed to read file: {}", e) }))).into_response();
+                    }
                 }
-            } else {
-                Html::<Body>("Fichier non trouvé".into()).into_response()
+            }
+
+            // Fichier non chiffré : servir directement
+            match tokio::fs::read(&path).await {
+                Ok(data) => {
+                    let headers = [
+                        (CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", upload.file_name)),
+                    ];
+                    (StatusCode::OK, headers, data).into_response()
+                }
+                Err(e) => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": format!("Failed to read file: {}", e) }))).into_response()
+                }
             }
         }
-        None => Html::<Body>("Fichier non trouvé".into()).into_response(),
+        None => {
+            (StatusCode::NOT_FOUND, Json(json!({ "error": "Upload not found" }))).into_response()
+        }
     }
 }
 
@@ -248,31 +303,34 @@ pub async fn delete_upload(
     AxumState(state): AxumState<Arc<SharedState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let pool: &Pool<Sqlite> = &state.db;
-
-    let upload: Option<(String, String)> = sqlx::query_as(
-        "SELECT id, path FROM uploads WHERE id = ?",
+    let upload: Option<Upload> = sqlx::query_as(
+        "SELECT id, file_name, content_type, size, path, sender_id, timestamp FROM uploads WHERE id = ?"
     )
     .bind(&id)
-    .fetch_optional(pool)
+    .fetch_optional(&state.db)
     .await
     .ok()
     .flatten();
 
     match upload {
-        Some((_, path)) => {
-            let std_path = StdPath::new(&path);
-            if std_path.exists() {
-                let _ = tokio::fs::remove_file(std_path).await;
+        Some(upload) => {
+            let path = PathBuf::from(&upload.path);
+            
+            // Supprimer le fichier physique
+            if path.exists() {
+                let _ = tokio::fs::remove_file(&path).await;
             }
 
+            // Supprimer de la base de données
             let _ = sqlx::query("DELETE FROM uploads WHERE id = ?")
                 .bind(&id)
-                .execute(pool)
+                .execute(&state.db)
                 .await;
 
-            Html::<Body>("Fichier supprimé avec succès".into())
+            Json(json!({ "success": true, "message": "File deleted" })).into_response()
         }
-        None => Html::<Body>("Fichier non trouvé".into()),
+        None => {
+            (StatusCode::NOT_FOUND, Json(json!({ "error": "Upload not found" }))).into_response()
+        }
     }
 }
