@@ -1,6 +1,9 @@
-use crate::SharedState;
+// webrtc.rs - Signalisation P2P + Chiffrement fichiers <50Mo (libsodium-compatible)
+// + Nettoyage automatique des fichiers après 48h
+
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    extract::{State as AxumState, Json as AxumJson, ws::WebSocket},
+    response::IntoResponse,
     routing::{get, post},
     Router,
 };
@@ -8,16 +11,93 @@ use futures_util::{stream::SplitStream, SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{Arc, Mutex},
+    time::{Duration, SystemTime},
 };
 use tokio::sync::broadcast;
+use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
-// Type pour les sender broadcast
+// === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
+
+use rand::RngCore;
+use base64ct::{Encoding, Base64Unpadded};
+
+// Constants (même que libsodium crypto_secretbox)
+const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
+const CRYPTO_SECRETBOX_KEYBYTES: usize = 32;
+const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
+
+// Configuration
+const FILE_EXPIRATION_HOURS: u64 = 48;
+const CLEANUP_INTERVAL_HOURS: u64 = 1;
+
+/// Génère une clé aléatoire (compatible sodium.randombytes_buf)
+fn crypto_secretbox_keygen() -> Vec<u8> {
+    let mut key = vec![0u8; CRYPTO_SECRETBOX_KEYBYTES];
+    rand::thread_rng().fill_bytes(&mut key);
+    key
+}
+
+/// Génère un nonce aléatoire (compatible sodium.randombytes_buf)
+fn crypto_secretbox_nonce() -> Vec<u8> {
+    let mut nonce = vec![0u8; CRYPTO_SECRETBOX_NONCEBYTES];
+    rand::thread_rng().fill_bytes(&mut nonce);
+    nonce
+}
+
+/// Chiffrement (compatible sodium.crypto_secretbox_easy)
+/// Retourne: nonce || ciphertext
+fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
+    let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
+    result.extend_from_slice(nonce);
+    
+    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+        .expect("Clé invalide");
+    
+    let encrypted = cipher.encrypt(
+        chacha20poly1305::Nonce::from_slice(nonce),
+        message
+    ).expect("Échec du chiffrement");
+    
+    result.extend_from_slice(&encrypted);
+    result
+}
+
+/// Déchiffrement (compatible sodium.crypto_secretbox_open_easy)
+fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, &'static str> {
+    if ciphertext.len() < CRYPTO_SECRETBOX_NONCEBYTES + CRYPTO_SECRETBOX_MACBYTES {
+        return Err("Ciphertext trop court");
+    }
+    
+    let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
+    let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
+    
+    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| "Clé invalide")?;
+    
+    cipher.decrypt(
+        chacha20poly1305::Nonce::from_slice(nonce),
+        encrypted
+    ).map_err(|_| "Échec du déchiffrement")
+}
+
+/// Encodage base64 (compatible sodium.to_base64)
+pub fn to_base64(data: &[u8]) -> String {
+    Base64Unpadded::encode_string(data)
+}
+
+/// Décodage base64 (compatible sodium.from_base64)
+pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
+    Base64Unpadded::decode(encoded).map_err(|_| "Base64 invalide")
+}
+
+// === STRUCTURES ===
+
 pub type BroadcastSender = broadcast::Sender<String>;
 pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
 
-// Structure pour l'état WebRTC
 #[derive(Clone)]
 pub struct WebRtcState {
     pub broadcasts: SharedCallState,
@@ -31,18 +111,114 @@ impl WebRtcState {
     }
 }
 
-// Structure pour le transfert de fichiers volumineux
-struct FileTransfer {
+// Structure pour suivre les fichiers uploadés (avec date d'expiration)
+struct TrackedFile {
     file_id: String,
-    file_name: String,
-    total_size: u64,
-    received_size: u64,
-    data: Vec<u8>,
+    path: PathBuf,
+    uploaded_at: SystemTime,
+    expires_at: SystemTime,
 }
 
-// Fonction broadcast_message compatible avec upload.rs
+#[derive(Clone)]
+pub struct FileManager {
+    tracked_files: Arc<Mutex<Vec<TrackedFile>>>,
+    uploads_dir: PathBuf,
+}
+
+impl FileManager {
+    pub fn new(uploads_dir: PathBuf) -> Self {
+        Self {
+            tracked_files: Arc::new(Mutex::new(Vec::new())),
+            uploads_dir,
+        }
+    }
+
+    /// Enregistre un nouveau fichier pour suivi
+    pub fn register_file(&self, file_id: &str, path: PathBuf) {
+        let now = SystemTime::UNIX_EPOCH;
+        let uploaded_at = now;
+        let expires_at = uploaded_at + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
+        
+        let mut files = self.tracked_files.lock().unwrap();
+        files.push(TrackedFile {
+            file_id: file_id.to_string(),
+            path,
+            uploaded_at,
+            expires_at,
+        });
+        
+        eprintln!("[FileManager] Fichier {} enregistré, expire dans {}h", file_id, FILE_EXPIRATION_HOURS);
+    }
+
+    /// Nettoie les fichiers expirés (à appeler périodiquement)
+    pub async fn cleanup_expired_files(&self) -> usize {
+        let now = SystemTime::UNIX_EPOCH;
+        let mut files = self.tracked_files.lock().unwrap();
+        let mut deleted_count = 0;
+        
+        let mut i = 0;
+        while i < files.len() {
+            if files[i].expires_at < now {
+                let file = files[i].clone();
+                
+                if let Err(e) = tokio::fs::remove_file(&file.path).await {
+                    eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
+                } else {
+                    eprintln!("[FileManager] Fichier expiré supprimé: {}", file.file_id);
+                    deleted_count += 1;
+                }
+                
+                files.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        
+        deleted_count
+    }
+
+    /// Démarre la tâche de nettoyage périodique
+    pub async fn start_cleanup_task(self) {
+        let mut interval = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
+        
+        sleep(Duration::from_secs(60)).await;
+        
+        loop {
+            interval.tick().await;
+            let deleted = self.cleanup_expired_files().await;
+            if deleted > 0 {
+                eprintln!("[FileManager] Nettoyage: {} fichiers expirés supprimés", deleted);
+            }
+        }
+    }
+}
+
+// === FONCTIONS PUBLIQUES POUR UPLOAD.RS ===
+
+/// Chiffre un fichier pour stockage sécurisé sur le serveur
+pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
+    let key = crypto_secretbox_keygen();
+    let nonce = crypto_secretbox_nonce();
+    let ciphertext = crypto_secretbox_easy(data, &key, &nonce);
+    
+    (ciphertext, to_base64(&nonce), to_base64(&key))
+}
+
+/// Déchiffre un fichier stocké sur le serveur
+pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base64: &str) -> Result<Vec<u8>, &'static str> {
+    let nonce = from_base64(nonce_base64)?;
+    let key = from_base64(key_base64)?;
+    
+    let mut data = Vec::with_capacity(nonce.len() + ciphertext.len());
+    data.extend_from_slice(&nonce);
+    data.extend_from_slice(ciphertext);
+    
+    crypto_secretbox_open_easy(&data, &key)
+}
+
+/// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
-    state: Arc<Mutex<HashMap<Uuid, broadcast::Sender<String>>>>,
+    state: SharedCallState,
     conversation_id: String,
     event: String,
     message: String,
@@ -54,187 +230,124 @@ pub fn broadcast_message(
     }
 }
 
-// Handler pour les offres WebRTC
+// === HANDLERS HTTP ===
+
 pub async fn handle_offer(
-    State(state): State<SharedState>,
-    Json(payload): Json<Value>,
+    AxumState(state): AxumState<SharedCallState>,
+    AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let offer = payload.get("offer").and_then(|o| o.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
-    let to_user_id = payload.get("to_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(offer_sdp) = offer {
         let response = json!({
             "type": "offer",
             "offer": offer_sdp,
             "from_user_id": from_user_id,
-            "to_user_id": to_user_id,
+            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        // Diffuser l'offre à tous les clients connectés
         let guard = state.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
         
-        (axum::http::StatusCode::OK, Json(json!({"status": "offer_sent"})))
+        eprintln!("[Signalisation] Offre P2P diffusée pour {}", from_user_id);
+        (axum::http::StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
     } else {
-        (axum::http::StatusCode::BAD_REQUEST, Json(json!({"error": "Missing offer"})))
+        (axum::http::StatusCode::BAD_REQUEST, AxumJson(json!({"error": "Missing offer"})))
     }
 }
 
-// Handler pour les réponses WebRTC
 pub async fn handle_answer(
-    State(state): State<SharedState>,
-    Json(payload): Json<Value>,
+    AxumState(state): AxumState<SharedCallState>,
+    AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let answer = payload.get("answer").and_then(|a| a.as_str());
+    let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(answer_sdp) = answer {
         let response = json!({
             "type": "answer",
             "answer": answer_sdp,
+            "from_user_id": from_user_id,
+            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        // Diffuser la réponse à tous les clients connectés
         let guard = state.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
         
-        (axum::http::StatusCode::OK, Json(json!({"status": "answer_sent"})))
+        eprintln!("[Signalisation] Réponse P2P diffusée pour {}", from_user_id);
+        (axum::http::StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
     } else {
-        (axum::http::StatusCode::BAD_REQUEST, Json(json!({"error": "Missing answer"})))
+        (axum::http::StatusCode::BAD_REQUEST, AxumJson(json!({"error": "Missing answer"})))
     }
 }
 
-// WebSocket handler principal
+// === WEBSOCKET ===
+
 pub async fn ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<SharedState>,
+    ws: axum::extract::ws::WebSocketUpgrade,
+    AxumState(state): AxumState<SharedCallState>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    ws.on_upgrade(move |socket| handle_websocket(socket, state))
 }
 
-// Fonction interne pour gérer la connexion WebSocket
-async fn handle_socket(socket: WebSocket, state: SharedState) {
-    let (mut sender, mut receiver): (SinkExt<_, _>, SplitStream<WebSocket>) = socket.split();
+async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
+    let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     
-    // Stocker l'émetteur dans l'état partagé
     let mut guard = state.lock().unwrap();
     guard.insert(id, broadcast_tx.clone());
     drop(guard);
 
-    // Map pour les transferts de fichiers en cours
-    let file_transfers: Arc<Mutex<HashMap<String, FileTransfer>>> = Arc::new(Mutex::new(HashMap::new()));
-    let transfers_clone = file_transfers.clone();
+    eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
 
-    // Tâche pour recevoir les messages et les diffuser
     let send_task = tokio::spawn(async move {
         let mut rx = broadcast_tx.subscribe();
         while let Ok(msg) = rx.recv().await {
-            if let Err(e) = sender.send(Message::Text(msg)).await {
-                eprintln!("Erreur d'envoi WebSocket: {}", e);
+            if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
+                eprintln!("[WebSocket] Erreur d'envoi: {}", e);
                 break;
             }
         }
     });
 
-    // Tâche pour recevoir les messages du client
     let receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
-                Ok(Message::Text(text)) => {
-                    // Parser le message JSON
-                    let event_opt = serde_json::from_str::<Value>(&text).ok()
-                        .and_then(|json| json.get("event").and_then(|e| e.as_str()));
+                Ok(axum::extract::ws::Message::Text(text)) => {
+                    let parse_result = serde_json::from_str::<Value>(&text);
                     
-                    if let Some(event) = event_opt {
-                        match event {
-                            "file_start" => {
-                                // Début d'un transfert de fichier volumineux
-                                let json = serde_json::from_str::<Value>(&text).ok().unwrap_or_else(|| json!({}));
-                                let file_id = json.get("file_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
-                                let file_name = json.get("file_name").and_then(|s| s.as_str()).unwrap_or("unknown").to_string();
-                                let total_size = json.get("total_size").and_then(|s| s.as_u64()).unwrap_or(0);
-                                
-                                if total_size > 50 * 1024 * 1024 { // > 50MB
-                                    let mut transfers = transfers_clone.lock().unwrap();
-                                    transfers.insert(file_id.clone(), FileTransfer {
-                                        file_id: file_id.clone(),
-                                        file_name: file_name.clone(),
-                                        total_size,
-                                        received_size: 0,
-                                        data: Vec::with_capacity(total_size as usize),
-                                    });
-                                    
-                                    eprintln!("Début transfert fichier volumineux: {} ({} MB)", file_name, total_size / 1024 / 1024);
-                                }
-                            }
-                            "file_chunk" => {
-                                // Réception d'un chunk de fichier
-                                let json = serde_json::from_str::<Value>(&text).ok().unwrap_or_else(|| json!({}));
-                                if let Some(chunk_data) = json.get("data").and_then(|d| d.as_str()) {
-                                    if let Ok(bytes) = base64::decode(chunk_data) {
-                                        let file_id = json.get("file_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
-                                        let chunk_size = bytes.len() as u64;
-                                        
-                                        let mut transfers = transfers_clone.lock().unwrap();
-                                        if let Some(transfer) = transfers.get_mut(&file_id) {
-                                            transfer.data.extend_from_slice(&bytes);
-                                            transfer.received_size += chunk_size;
-                                            
-                                            // Afficher la progression
-                                            let progress = (transfer.received_size * 100) / transfer.total_size;
-                                            eprintln!("Progression: {}% ({}/{} bytes)", progress, transfer.received_size, transfer.total_size);
-                                            
-                                            // Vérifier si le transfert est complet
-                                            if transfer.received_size >= transfer.total_size {
-                                                // Sauvegarder le fichier
-                                                let path = format!("uploads/{}", transfer.file_id);
-                                                if let Ok(()) = std::fs::create_dir_all("uploads") {
-                                                    if let Ok(()) = std::fs::write(&path, &transfer.data) {
-                                                        eprintln!("Fichier sauvegardé: {} ({} bytes)", path, transfer.data.len());
-                                                    }
-                                                }
-                                                // Nettoyer
-                                                transfers.remove(&file_id);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            _ => {
-                                // Message normal, diffuser à tous les clients
-                                if let Err(e) = broadcast_tx.send(text.clone()) {
-                                    eprintln!("Erreur de diffusion: {}", e);
-                                }
-                            }
-                        }
-                    } else {
-                        // Message texte simple, diffuser à tous
-                        if let Err(e) = broadcast_tx.send(text.clone()) {
-                            eprintln!("Erreur de diffusion: {}", e);
+                    match parse_result {
+                        Ok(json) => {
+                            let msg_type = json.get("type").or(json.get("event"))
+                                .and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let from_user = json.get("from_user_id").or(json.get("sender_id"))
+                                .and_then(|v| v.as_str()).unwrap_or("unknown");
+                            eprintln!("[Signalisation] Message {} de {}", msg_type, from_user);
+                        },
+                        Err(_) => {
+                            eprintln!("[WebSocket] Message texte reçu: {} bytes", text.len());
                         }
                     }
-                    eprintln!("Message WebSocket reçu: {}", text);
+                    
+                    if let Err(e) = broadcast_tx.send(text.clone()) {
+                        eprintln!("[Signalisation] Erreur de diffusion: {}", e);
+                    }
                 }
-                Ok(Message::Binary(data)) => {
-                    // Réception directe de données binaires
-                    let file_id = format!("bin_{}", id);
-                    let path = format!("uploads/{}", file_id);
-                    let _ = std::fs::create_dir_all("uploads");
-                    
-                    if let Ok(()) = std::fs::write(&path, &data) {
-                        eprintln!("Fichier binaire sauvegardé: {} ({} bytes)", path, data.len());
-                    }
+                Ok(axum::extract::ws::Message::Binary(data)) => {
+                    eprintln!("[WebSocket] Message binaire ignoré (transfert P2P direct): {} bytes", data.len());
                 }
                 Err(e) => {
-                    eprintln!("Erreur de réception WebSocket: {}", e);
+                    eprintln!("[WebSocket] Erreur de réception: {}", e);
                     break;
                 }
                 _ => break,
@@ -242,19 +355,18 @@ async fn handle_socket(socket: WebSocket, state: SharedState) {
         }
     });
 
-    // Attendre que les tâches se terminent
     tokio::select! {
         _ = send_task => {},
         _ = receive_task => {},
     }
 
-    // Nettoyer lors de la déconnexion
     let mut guard = state.lock().unwrap();
     guard.remove(&id);
-    println!("Client WebSocket déconnecté: {}", id);
+    eprintln!("[WebSocket] Client déconnecté: {}", id);
 }
 
-// Routeur WebRTC
+// === ROUTES ===
+
 pub fn webrtc_routes(state: WebRtcState) -> Router {
     Router::new()
         .route("/api/webrtc/offer", post(handle_offer))
