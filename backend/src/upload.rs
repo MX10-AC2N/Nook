@@ -1,6 +1,5 @@
 use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
-use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
@@ -11,11 +10,10 @@ use sqlx::pool::Pool;
 use sqlx::Sqlite;
 use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
-use tokio::fs::File;
-use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
+use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
+use std::sync::Mutex;
 
-// FileManager partagé (à créer une seule fois dans main.rs)
 lazy_static::lazy_static! {
     static ref FILE_MANAGER: FileManager = FileManager::new(PathBuf::from("uploads"));
 }
@@ -176,7 +174,7 @@ pub async fn upload_chat_file(
 
 #[allow(unused_must_use)]
     broadcast_message(
-        state.clone(),
+        state.webrtc_broadcasts.clone(),
         conversation_id,
         "new_message".to_string(),
         message_json.clone(),
@@ -193,9 +191,9 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
     .await
     .unwrap();
 
-    // Récupérer les métadonnées du fichier y compris les infos de chiffrement
-    let upload_result: Option<(String, String, String, String, String, bool, String, String)> = sqlx::query_as(
-        "SELECT id, file_name, content_type, size, path, encrypted, nonce, key FROM uploads WHERE id = ?",
+    // Récupérer les métadonnées du fichier
+    let upload_result: Option<(String, String, String, i64, String, String, String, bool)> = sqlx::query_as(
+        "SELECT id, file_name, content_type, size, path, nonce, key, encrypted FROM uploads WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(&pool)
@@ -204,16 +202,14 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
     .flatten();
 
     match upload_result {
-        Some((_, file_name, content_type, _, path, encrypted, nonce, key)) => {
+        Some((_, file_name, content_type, _, path, nonce, key, encrypted)) => {
             let path = StdPath::new(&path);
             if path.exists() {
                 match tokio::fs::File::open(path).await {
                     Ok(mut file) => {
-                        // Lire le fichier chiffré
                         let mut encrypted_data = Vec::new();
                         if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut encrypted_data).await.is_ok() {
                             let data = if encrypted {
-                                // Déchiffrer le fichier
                                 decrypt_file_from_storage(&encrypted_data, &nonce, &key)
                                     .unwrap_or_else(|_| encrypted_data)
                             } else {
