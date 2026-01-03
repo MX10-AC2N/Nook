@@ -1,5 +1,6 @@
 use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
+use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
@@ -11,8 +12,6 @@ use sqlx::Sqlite;
 use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 use uuid::Uuid;
-use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
-use std::sync::Mutex;
 
 lazy_static::lazy_static! {
     static ref FILE_MANAGER: FileManager = FileManager::new(PathBuf::from("uploads"));
@@ -172,13 +171,14 @@ pub async fn upload_chat_file(
     }))
     .unwrap();
 
-#[allow(unused_must_use)]
-    broadcast_message(
-        state.webrtc_broadcasts.clone(),
-        conversation_id,
-        "new_message".to_string(),
-        message_json.clone(),
-    );
+    // Utiliser webrtc_broadcasts de SharedState
+    let broadcasts = state.webrtc_broadcasts.lock().await;
+    let broadcast_sender = broadcasts.values().next().cloned();
+    drop(broadcasts);
+
+    if let Some(sender) = broadcast_sender {
+        let _ = sender.send(message_json.clone());
+    }
 
     Html::<Body>("Fichier envoyé avec succès".into())
 }
