@@ -12,7 +12,6 @@ use axum::{
     routing::{delete, get, get_service, post},
     Json, Router,
 };
-use futures_util::SinkExt;
 use http::request::Request;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -24,16 +23,16 @@ use tower_governor::key_extractor::KeyExtractor;
 use tower_governor::GovernorError;
 use tower_http::services::ServeDir;
 use uuid::Uuid;
-use crate::webrtc::WebRtcState;
+use crate::webrtc::{FileManager, WebRtcState};
 use chrono::Utc;
 use rand::rngs::OsRng;
 use urlencoding::encode;
 
 #[derive(Clone)]
-#[allow(clippy::type_complexity)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
     pub webrtc_state: WebRtcState,
+    pub file_manager: Arc<FileManager>,
 }
 
 // Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
@@ -138,7 +137,7 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     state: axum::extract::State<Arc<SharedState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(|socket| webrtc::handle_socket(socket, state.webrtc_state.clone()))
+    ws.on_upgrade(move |socket| webrtc::handle_socket(socket, state.webrtc_state.clone()))
 }
 
 // GIF proxy
@@ -173,18 +172,20 @@ async fn main() {
     // Créer l'admin par défaut si nécessaire
     ensure_admin_exists(&app_state.db).await;
 
-    // Initialiser le WebRtcState et démarrer la tâche de cleanup
+    // Initialiser WebRtcState et FileManager
     let webrtc_state = WebRtcState::new();
+    let file_manager = Arc::new(FileManager::new("/app/data/uploads".into()));
     
     // Démarrer la tâche de cleanup des fichiers en arrière-plan
-    let webrtc_state_for_cleanup = webrtc_state.clone();
+    let file_manager_for_cleanup = file_manager.clone();
     tokio::spawn(async move {
-        webrtc_state_for_cleanup.start_cleanup_task().await;
+        file_manager_for_cleanup.start_cleanup_task().await;
     });
 
     let shared_state = SharedState {
         db: app_state.db.clone(),
         webrtc_state,
+        file_manager,
     };
 
     // Rate limiting : 5 tentatives max toutes les 15 minutes (900 secondes)
@@ -229,7 +230,7 @@ async fn main() {
         .route("/api/upload/:id", delete(upload::delete_upload))
         .route("/api/gifs", get(gif_proxy))
         
-        // Routes WebRTC - utilisent le SharedState directement
+        // Routes WebRTC
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", post(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
