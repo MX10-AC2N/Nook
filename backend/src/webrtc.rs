@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use futures_util::{stream::SplitStream, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -22,7 +22,7 @@ use uuid::Uuid;
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
 
 use rand::RngCore;
-use base64ct::{Encoding, Base64Unpadded};
+use base64ct::{Encoding, Base64Unpadded, EncodingVariant};
 
 // Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
@@ -53,6 +53,7 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
     
+    use chacha20poly1305::KeyInit;
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
     
@@ -74,6 +75,7 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
     
+    use chacha20poly1305::KeyInit;
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
     
@@ -90,7 +92,10 @@ pub fn to_base64(data: &[u8]) -> String {
 
 /// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    Base64Unpadded::decode(encoded).map_err(|_| "Base64 invalide")
+    let mut buffer = vec![0u8; encoded.len()];
+    let len = Base64Unpadded::decode(encoded, &mut buffer)
+        .map_err(|_| "Base64 invalide")?;
+    Ok(buffer[..len].to_vec())
 }
 
 // === STRUCTURES ===
@@ -112,6 +117,7 @@ impl WebRtcState {
 }
 
 // Structure pour suivre les fichiers uploadés (avec date d'expiration)
+#[derive(Clone)]
 struct TrackedFile {
     file_id: String,
     path: PathBuf,
@@ -219,8 +225,8 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 /// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
     state: SharedCallState,
-    conversation_id: String,
-    event: String,
+    _conversation_id: String,
+    _event: String,
     message: String,
 ) {
     if let Ok(guard) = state.lock() {
@@ -238,14 +244,12 @@ pub async fn handle_offer(
 ) -> impl IntoResponse {
     let offer = payload.get("offer").and_then(|o| o.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
-    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(offer_sdp) = offer {
         let response = json!({
             "type": "offer",
             "offer": offer_sdp,
             "from_user_id": from_user_id,
-            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
@@ -267,14 +271,12 @@ pub async fn handle_answer(
 ) -> impl IntoResponse {
     let answer = payload.get("answer").and_then(|a| a.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
-    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
     
     if let Some(answer_sdp) = answer {
         let response = json!({
             "type": "answer",
             "answer": answer_sdp,
             "from_user_id": from_user_id,
-            "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
         
@@ -321,6 +323,7 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
     });
 
     let receive_task = tokio::spawn(async move {
+        let broadcast_tx = broadcast_tx.clone();
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
