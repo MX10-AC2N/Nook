@@ -1,9 +1,11 @@
+use crate::SharedState;
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use futures_util::{stream::SplitStream, SinkExt, StreamExt};
+use serde_json::{json, Value};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -11,12 +13,22 @@ use std::{
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-// Utiliser le même type SharedState que dans main.rs
-pub type SharedState = Arc<Mutex<HashMap<Uuid, broadcast::Sender<String>>>>;
+// Type pour les sender broadcast
+pub type BroadcastSender = broadcast::Sender<String>;
+pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
 
+// Structure pour l'état WebRTC
 #[derive(Clone)]
 pub struct WebRtcState {
-    pub broadcasts: SharedState,
+    pub broadcasts: SharedCallState,
+}
+
+impl WebRtcState {
+    pub fn new() -> Self {
+        Self {
+            broadcasts: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
 }
 
 // Structure pour le transfert de fichiers volumineux
@@ -28,10 +40,11 @@ struct FileTransfer {
     data: Vec<u8>,
 }
 
+// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
     state: Arc<Mutex<HashMap<Uuid, broadcast::Sender<String>>>>,
-    _conversation_id: String,
-    _event: String,
+    conversation_id: String,
+    event: String,
     message: String,
 ) {
     if let Ok(guard) = state.lock() {
@@ -41,8 +54,73 @@ pub fn broadcast_message(
     }
 }
 
-pub async fn handle_socket(socket: WebSocket, state: SharedState) {
-    let (mut sender, mut receiver): (SinkExt, SplitStream<WebSocket>) = socket.split();
+// Handler pour les offres WebRTC
+pub async fn handle_offer(
+    State(state): State<SharedState>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let offer = payload.get("offer").and_then(|o| o.as_str());
+    let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    let to_user_id = payload.get("to_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
+    
+    if let Some(offer_sdp) = offer {
+        let response = json!({
+            "type": "offer",
+            "offer": offer_sdp,
+            "from_user_id": from_user_id,
+            "to_user_id": to_user_id,
+            "timestamp": chrono::Utc::now().timestamp()
+        });
+        
+        // Diffuser l'offre à tous les clients connectés
+        let guard = state.lock().unwrap();
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(response.to_string());
+        }
+        
+        (axum::http::StatusCode::OK, Json(json!({"status": "offer_sent"})))
+    } else {
+        (axum::http::StatusCode::BAD_REQUEST, Json(json!({"error": "Missing offer"})))
+    }
+}
+
+// Handler pour les réponses WebRTC
+pub async fn handle_answer(
+    State(state): State<SharedState>,
+    Json(payload): Json<Value>,
+) -> impl IntoResponse {
+    let answer = payload.get("answer").and_then(|a| a.as_str());
+    
+    if let Some(answer_sdp) = answer {
+        let response = json!({
+            "type": "answer",
+            "answer": answer_sdp,
+            "timestamp": chrono::Utc::now().timestamp()
+        });
+        
+        // Diffuser la réponse à tous les clients connectés
+        let guard = state.lock().unwrap();
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(response.to_string());
+        }
+        
+        (axum::http::StatusCode::OK, Json(json!({"status": "answer_sent"})))
+    } else {
+        (axum::http::StatusCode::BAD_REQUEST, Json(json!({"error": "Missing answer"})))
+    }
+}
+
+// WebSocket handler principal
+pub async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<SharedState>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
+}
+
+// Fonction interne pour gérer la connexion WebSocket
+async fn handle_socket(socket: WebSocket, state: SharedState) {
+    let (mut sender, mut receiver): (SinkExt<_, _>, SplitStream<WebSocket>) = socket.split();
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     
@@ -66,21 +144,23 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
         }
     });
 
-    // Tâche pour recevoir les messages du client (y compris fichiers volumineux)
+    // Tâche pour recevoir les messages du client
     let receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(Message::Text(text)) => {
-                    // Traitement des messages textuels
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                        let event = json.get("event").map(|e| e.as_str()).unwrap_or("");
-                        
+                    // Parser le message JSON
+                    let event_opt = serde_json::from_str::<Value>(&text).ok()
+                        .and_then(|json| json.get("event").and_then(|e| e.as_str()));
+                    
+                    if let Some(event) = event_opt {
                         match event {
                             "file_start" => {
                                 // Début d'un transfert de fichier volumineux
-                                let file_id = json.get("file_id").map(|s| s.as_str().unwrap_or("")).unwrap_or("").to_string();
-                                let file_name = json.get("file_name").map(|s| s.as_str().unwrap_or("unknown")).unwrap_or("unknown").to_string();
-                                let total_size = json.get("total_size").map(|s| s.as_u64().unwrap_or(0)).unwrap_or(0);
+                                let json = serde_json::from_str::<Value>(&text).ok().unwrap_or_else(|| json!({}));
+                                let file_id = json.get("file_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
+                                let file_name = json.get("file_name").and_then(|s| s.as_str()).unwrap_or("unknown").to_string();
+                                let total_size = json.get("total_size").and_then(|s| s.as_u64()).unwrap_or(0);
                                 
                                 if total_size > 50 * 1024 * 1024 { // > 50MB
                                     let mut transfers = transfers_clone.lock().unwrap();
@@ -97,9 +177,10 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                             }
                             "file_chunk" => {
                                 // Réception d'un chunk de fichier
+                                let json = serde_json::from_str::<Value>(&text).ok().unwrap_or_else(|| json!({}));
                                 if let Some(chunk_data) = json.get("data").and_then(|d| d.as_str()) {
                                     if let Ok(bytes) = base64::decode(chunk_data) {
-                                        let file_id = json.get("file_id").map(|s| s.as_str().unwrap_or("")).unwrap_or("").to_string();
+                                        let file_id = json.get("file_id").and_then(|s| s.as_str()).unwrap_or("").to_string();
                                         let chunk_size = bytes.len() as u64;
                                         
                                         let mut transfers = transfers_clone.lock().unwrap();
@@ -115,8 +196,8 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                                             if transfer.received_size >= transfer.total_size {
                                                 // Sauvegarder le fichier
                                                 let path = format!("uploads/{}", transfer.file_id);
-                                                if let Ok(_) = std::fs::create_dir_all("uploads") {
-                                                    if let Ok(_) = std::fs::write(&path, &transfer.data) {
+                                                if let Ok(()) = std::fs::create_dir_all("uploads") {
+                                                    if let Ok(()) = std::fs::write(&path, &transfer.data) {
                                                         eprintln!("Fichier sauvegardé: {} ({} bytes)", path, transfer.data.len());
                                                     }
                                                 }
@@ -128,7 +209,7 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                                 }
                             }
                             _ => {
-                                // Message normal, diffuser à tous
+                                // Message normal, diffuser à tous les clients
                                 if let Err(e) = broadcast_tx.send(text.clone()) {
                                     eprintln!("Erreur de diffusion: {}", e);
                                 }
@@ -140,15 +221,15 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                             eprintln!("Erreur de diffusion: {}", e);
                         }
                     }
-                    eprintln!("Message reçu: {}", text);
+                    eprintln!("Message WebSocket reçu: {}", text);
                 }
                 Ok(Message::Binary(data)) => {
-                    // Réception directe de données binaires (alternative au base64)
-                    let file_id = format!("bin_{}", id); // ID temporaire pour les binaires
+                    // Réception directe de données binaires
+                    let file_id = format!("bin_{}", id);
                     let path = format!("uploads/{}", file_id);
                     let _ = std::fs::create_dir_all("uploads");
                     
-                    if let Ok(_) = std::fs::write(&path, &data) {
+                    if let Ok(()) = std::fs::write(&path, &data) {
                         eprintln!("Fichier binaire sauvegardé: {} ({} bytes)", path, data.len());
                     }
                 }
@@ -170,13 +251,14 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
     // Nettoyer lors de la déconnexion
     let mut guard = state.lock().unwrap();
     guard.remove(&id);
-    println!("Client déconnecté: {}", id);
+    println!("Client WebSocket déconnecté: {}", id);
 }
 
+// Routeur WebRTC
 pub fn webrtc_routes(state: WebRtcState) -> Router {
     Router::new()
-        .route("/ws", get(move |ws: WebSocketUpgrade| {
-            ws.on_upgrade(|socket| handle_socket(socket, state.broadcasts.clone()))
-        }))
+        .route("/api/webrtc/offer", post(handle_offer))
+        .route("/api/webrtc/answer", get(handle_answer))
+        .route("/ws", get(ws_handler))
         .with_state(state)
 }
