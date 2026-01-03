@@ -14,16 +14,25 @@ CREATE TABLE IF NOT EXISTS users (
     approved BOOLEAN NOT NULL DEFAULT 0,
     needs_password_change BOOLEAN NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-    token TEXT,  -- pour le token de session
+    token TEXT,
     public_key TEXT,
     joined_at INTEGER DEFAULT (strftime('%s', 'now'))
 );
 
+-- Table uploads avec chiffrement (champs ajoutés)
 CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY,
     file_name TEXT NOT NULL,
     content_type TEXT NOT NULL,
     size INTEGER NOT NULL,
     path TEXT NOT NULL,
-    timestamp INTEGER NOT NULL
+    sender_id TEXT DEFAULT 'anonymous',
+    timestamp INTEGER NOT NULL,
+    encrypted BOOLEAN NOT NULL DEFAULT 0,
+    nonce TEXT,
+    key_text TEXT
 );
+
+-- Index pour les uploads
+CREATE INDEX IF NOT EXISTS idx_uploads_timestamp ON uploads(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_uploads_sender ON uploads(sender_id);
