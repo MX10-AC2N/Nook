@@ -7,7 +7,7 @@ mod webrtc;
 
 use axum::{
     extract::{OriginalUri, Query, WebSocketUpgrade},
-    http::{HeaderMap, StatusCode},
+    http::{StatusCode, HeaderMap},
     response::IntoResponse,
     routing::{delete, get, get_service, post},
     Json, Router,
@@ -32,8 +32,9 @@ use urlencoding::encode;
 #[allow(clippy::type_complexity)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
+    // Changé de Uuid à String pourwebrtc.rs
     pub webrtc_broadcasts:
-        std::sync::Arc<tokio::sync::RwLock<HashMap<Uuid, tokio::sync::mpsc::Sender<String>>>>,
+        std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
 }
 
 // Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
@@ -49,7 +50,7 @@ impl KeyExtractor for UriKeyExtractor {
 }
 
 // Fonction utilitaire pour lire un cookie
-fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
         .get("cookie")
         .and_then(|value| value.to_str().ok())
@@ -194,7 +195,7 @@ async fn main() {
         .route("/api/gifs", get(gif_proxy))
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", get(webrtc::handle_answer))
-        .route("/ws", get(ws_handler))
+        .route("/ws", get(webrtc::ws_handler))
 
         // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
@@ -216,14 +217,7 @@ async fn main() {
 
 // WS handler
 async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
-        let (mut sender, mut receiver) = socket.split();
-        while let Some(Ok(msg)) = receiver.next().await {
-            if let Ok(text) = msg.into_text() {
-                let _ = sender.send(axum::extract::ws::Message::Text(text)).await;
-            }
-        }
-    })
+    ws.on_upgrade(|socket| webrtc::handle_socket(socket, Arc::new(webrtc::SharedCallState::new())))
 }
 
 // GIF proxy
