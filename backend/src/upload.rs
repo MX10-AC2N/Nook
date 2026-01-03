@@ -1,5 +1,6 @@
 use crate::db::{MessageType, Upload};
 use crate::webrtc::broadcast_message;
+use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
 use crate::SharedState;
 use axum::body::Body;
 use axum::extract::{Multipart, Path, State as AxumState};
@@ -8,13 +9,16 @@ use axum::response::{Html, IntoResponse, Response};
 use serde_json::{json, Value};
 use sqlx::pool::Pool;
 use sqlx::Sqlite;
-use std::path::Path as StdPath;
+use std::path::{Path as StdPath, PathBuf};
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
-use crate::webrtc::{FileManager, encrypt_file_for_storage, decrypt_file_from_storage};
 
+// FileManager partagé (à créer une seule fois dans main.rs)
+lazy_static::lazy_static! {
+    static ref FILE_MANAGER: FileManager = FileManager::new(PathBuf::from("uploads"));
+}
 
 pub async fn upload_handler(
     AxumState(_state): AxumState<Arc<SharedState>>,
@@ -36,36 +40,30 @@ pub async fn upload_handler(
 
         let data = field.bytes().await.unwrap();
         let id = Uuid::new_v4().to_string();
-
-        let ext = if content_type.starts_with("image/") {
-            if content_type.contains("svg") {
-                "svg"
-            } else {
-                "jpg"
-            }
-        } else if content_type.starts_with("video/") {
-            "mp4"
-        } else if content_type.starts_with("audio/") {
-            "mp3"
-        } else {
-            "pdf"
-        };
-
-        let path = format!("uploads/{}.{}", id, ext);
-        let _ = std::fs::create_dir_all("uploads");
         let timestamp = chrono::Utc::now().timestamp();
 
-        let mut file = File::create(&path).await.unwrap();
-        file.write_all(&data).await.unwrap();
+        // Chiffrer le fichier avant de le stocker
+        let (ciphertext, nonce, key) = encrypt_file_for_storage(&data);
+        
+        // Sauvegarder le fichier chiffré
+        let encrypted_path = format!("uploads/{}", id);
+        let _ = std::fs::create_dir_all("uploads");
+        std::fs::write(&encrypted_path, &ciphertext).unwrap();
+        
+        // Enregistrer pour suivi (suppression automatique dans 48h)
+        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
 
         let upload = Upload {
             id: id.clone(),
             file_name,
             content_type,
             size: data.len() as i64,
-            path: path.clone(),
+            path: encrypted_path.clone(),
             sender_id: "anonymous".to_string(),
             timestamp,
+            encrypted: true,
+            nonce_base64: nonce,
+            key_base64: key,
         };
         uploads.push(upload);
     }
@@ -111,18 +109,28 @@ pub async fn upload_chat_file(
             .to_string();
         let data = field.bytes().await.unwrap();
         let id = Uuid::new_v4().to_string();
-        let path = format!("uploads/{}", id);
+        let timestamp = chrono::Utc::now().timestamp();
+        
+        // Chiffrer le fichier avant de le stocker
+        let (ciphertext, nonce, key) = encrypt_file_for_storage(&data);
+        
+        // Sauvegarder le fichier chiffré
+        let encrypted_path = format!("uploads/{}", id);
         let _ = std::fs::create_dir_all("uploads");
-
-        let mut file = File::create(&path).await.unwrap();
-        file.write_all(&data).await.unwrap();
+        std::fs::write(&encrypted_path, &ciphertext).unwrap();
+        
+        // Enregistrer pour suivi (suppression automatique dans 48h)
+        FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
 
         Some(json!({
             "id": id,
             "file_name": file_name,
             "content_type": content_type,
             "size": data.len(),
-            "path": path
+            "path": encrypted_path,
+            "encrypted": true,
+            "nonce": nonce,
+            "key": key
         }))
     } else {
         None
@@ -185,8 +193,9 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
     .await
     .unwrap();
 
-    let upload: Option<Upload> = sqlx::query_as(
-        "SELECT id, file_name, content_type, size, path, sender_id, timestamp FROM uploads WHERE id = ?",
+    // Récupérer les métadonnées du fichier y compris les infos de chiffrement
+    let upload_result: Option<(String, String, String, String, String, bool, String, String)> = sqlx::query_as(
+        "SELECT id, file_name, content_type, size, path, encrypted, nonce, key FROM uploads WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(&pool)
@@ -194,33 +203,40 @@ pub async fn get_upload(Path(id): Path<String>) -> impl IntoResponse {
     .ok()
     .flatten();
 
-    match upload {
-        Some(upload) => {
-            let path = StdPath::new(&upload.path);
+    match upload_result {
+        Some((_, file_name, content_type, _, path, encrypted, nonce, key)) => {
+            let path = StdPath::new(&path);
             if path.exists() {
                 match tokio::fs::File::open(path).await {
                     Ok(mut file) => {
-                        let mut response = Response::new(Body::empty());
-                        response.headers_mut().insert(
-                            CONTENT_TYPE,
-                            upload
-                                .content_type
-                                .parse()
-                                .unwrap_or("application/octet-stream".parse().unwrap()),
-                        );
-                        // Construction manuelle du Content-Disposition header
-                        let content_disposition =
-                            format!("attachment; filename=\"{}\"", upload.file_name);
-                        response
-                            .headers_mut()
-                            .insert(CONTENT_DISPOSITION, content_disposition.parse().unwrap());
+                        // Lire le fichier chiffré
+                        let mut encrypted_data = Vec::new();
+                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut encrypted_data).await.is_ok() {
+                            let data = if encrypted {
+                                // Déchiffrer le fichier
+                                decrypt_file_from_storage(&encrypted_data, &nonce, &key)
+                                    .unwrap_or_else(|_| encrypted_data)
+                            } else {
+                                encrypted_data
+                            };
 
-                        // Lire le fichier et le placer dans le body
-                        let mut bytes = Vec::new();
-                        if tokio::io::AsyncReadExt::read_to_end(&mut file, &mut bytes).await.is_ok() {
-                            *response.body_mut() = Body::from(bytes);
+                            let mut response = Response::new(Body::empty());
+                            response.headers_mut().insert(
+                                CONTENT_TYPE,
+                                content_type
+                                    .parse()
+                                    .unwrap_or("application/octet-stream".parse().unwrap()),
+                            );
+                            let content_disposition =
+                                format!("attachment; filename=\"{}\"", file_name);
+                            response
+                                .headers_mut()
+                                .insert(CONTENT_DISPOSITION, content_disposition.parse().unwrap());
+                            *response.body_mut() = Body::from(data);
+                            response
+                        } else {
+                            Html::<Body>("Erreur de lecture du fichier".into()).into_response()
                         }
-                        response
                     }
                     Err(_) => Html::<Body>("Fichier non trouvé".into()).into_response(),
                 }
@@ -238,8 +254,8 @@ pub async fn delete_upload(
 ) -> impl IntoResponse {
     let pool: &Pool<Sqlite> = &state.db;
 
-    let upload: Option<Upload> = sqlx::query_as(
-        "SELECT id, file_name, content_type, size, path, sender_id, timestamp FROM uploads WHERE id = ?",
+    let upload: Option<(String, String)> = sqlx::query_as(
+        "SELECT id, path FROM uploads WHERE id = ?",
     )
     .bind(&id)
     .fetch_optional(pool)
@@ -248,10 +264,10 @@ pub async fn delete_upload(
     .flatten();
 
     match upload {
-        Some(upload) => {
-            let path = StdPath::new(&upload.path);
-            if path.exists() {
-                let _ = tokio::fs::remove_file(path).await;
+        Some((_, path)) => {
+            let std_path = StdPath::new(&path);
+            if std_path.exists() {
+                let _ = tokio::fs::remove_file(std_path).await;
             }
 
             let _ = sqlx::query("DELETE FROM uploads WHERE id = ?")
