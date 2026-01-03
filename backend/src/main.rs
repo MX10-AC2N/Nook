@@ -7,11 +7,10 @@ mod webrtc;
 
 use axum::{
     extract::{OriginalUri, Query, WebSocketUpgrade},
-    http::StatusCode,
-    response::{Html, IntoResponse},
+    http::{HeaderMap, HeaderName, StatusCode, SET_COOKIE},
+    response::IntoResponse,
     routing::{delete, get, get_service, post},
-    Json,
-    Router,
+    Json, Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use http::request::Request;
@@ -34,7 +33,7 @@ use urlencoding::encode;
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
     pub webrtc_broadcasts:
-        std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
+        std::sync::Arc<tokio::sync::RwLock<HashMap<Uuid, tokio::sync::mpsc::Sender<String>>>>,
 }
 
 // Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
@@ -47,6 +46,21 @@ impl KeyExtractor for UriKeyExtractor {
     fn extract<B>(&self, req: &Request<B>) -> Result<Self::Key, GovernorError> {
         Ok(req.uri().path().to_string())
     }
+}
+
+// Fonction utilitaire pour lire un cookie
+fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .map(|c| c.trim())
+                .find(|c| c.starts_with(&format!("{}=", name)))
+                .and_then(|c| c.split_once('='))
+                .map(|(_, value)| value.trim().to_string())
+        })
 }
 
 // Fonction pour créer l'admin par défaut si nécessaire
@@ -111,12 +125,11 @@ async fn spa_fallback(original_uri: OriginalUri) -> impl IntoResponse {
     }
 
     match tokio::fs::read_to_string("/app/static/index.html").await {
-        Ok(html) => Html(html).into_response(),
+        Ok(html) => (StatusCode::OK, html).into_response(),
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Html("<h1>Erreur : index.html introuvable</h1>".to_string()),
-        )
-        .into_response(),
+            "<h1>Erreur : index.html introuvable</h1>".to_string(),
+        ).into_response(),
     }
 }
 
@@ -142,8 +155,8 @@ async fn main() {
     // UriKeyExtractor fonctionne avec CasaOS et tout reverse proxy
     let governor_conf = Arc::new(
         GovernorConfigBuilder::default()
-            .period(Duration::from_secs(900))  // fenêtre de 15 minutes
-            .burst_size(5)                     // max 5 tentatives
+            .period(Duration::from_secs(900))
+            .burst_size(5)
             .key_extractor(UriKeyExtractor)
             .finish()
             .unwrap(),
