@@ -6,10 +6,8 @@
 use axum::{
     extract::{State as AxumState, Json as AxumJson, ws::WebSocket},
     response::IntoResponse,
-    routing::{get, post},
-    Router,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::StreamExt;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -19,12 +17,12 @@ use std::{
 };
 use tokio::sync::broadcast;
 use tokio::time::{interval, sleep};
-use uuid::Uuid;
 
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
 
 use rand::RngCore;
 use base64ct::{Encoding, Base64Unpadded};
+use chacha20poly1305::KeyInit;
 
 // Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
@@ -93,13 +91,13 @@ pub fn to_base64(data: &[u8]) -> String {
 
 /// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    Base64Unpadded::decode(encoded).map_err(|_| "Base64 invalide")
+    Base64Unpadded::decode_vec(encoded).map_err(|_| "Base64 invalide")
 }
 
 // === STRUCTURES ===
 
 pub type BroadcastSender = broadcast::Sender<String>;
-pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
+pub type SharedCallState = Arc<Mutex<HashMap<uuid::Uuid, BroadcastSender>>>;
 
 #[derive(Clone)]
 pub struct WebRtcState {
@@ -115,6 +113,7 @@ impl WebRtcState {
 }
 
 // Structure pour suivre les fichiers uploadés (avec date d'expiration)
+#[derive(Clone)]
 struct TrackedFile {
     file_id: String,
     path: PathBuf,
@@ -168,10 +167,7 @@ impl FileManager {
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
                     eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
                 } else {
-                    eprintln!("[FileManager] Fichier expiré supprimé: {} ({} bytes)", 
-                        file.file_id, 
-                        file.path.metadata().map(|m| m.len()).unwrap_or(0)
-                    );
+                    eprintln!("[FileManager] Fichier expiré supprimé: {}", file.file_id);
                     deleted_count += 1;
                 }
                 
@@ -303,11 +299,14 @@ pub async fn handle_answer(
 
 pub async fn handle_socket(socket: WebSocket, state: WebRtcState) {
     let (mut sender, mut receiver) = socket.split();
-    let id = Uuid::new_v4();
+    let id = uuid::Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     
+    // Cloner pour les deux tâches
+    let broadcast_tx_clone = broadcast_tx.clone();
+    
     let mut guard = state.broadcasts.lock().unwrap();
-    guard.insert(id, broadcast_tx.clone());
+    guard.insert(id, broadcast_tx_clone);
     drop(guard);
 
     eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
