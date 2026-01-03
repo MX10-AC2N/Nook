@@ -24,7 +24,7 @@ rand = { version = "0.8", features = ["std_rng"] }
 
 # Auth & crypto
 argon2 = "0.5"
-chacha20poly1305 = "0.12"
+chacha20poly1305 = "^0.11"
 
 # Headers pour ContentDisposition (version 0.4.x)
 headers = "0.4"
