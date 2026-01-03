@@ -12,7 +12,7 @@ use axum::{
     routing::{delete, get, get_service, post},
     Json, Router,
 };
-use futures_util::{SinkExt, StreamExt};
+use futures_util::SinkExt;
 use http::request::Request;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -229,7 +229,7 @@ async fn main() {
         .route("/api/upload/:id", delete(upload::delete_upload))
         .route("/api/gifs", get(gif_proxy))
         
-        // Routes WebRTC
+        // Routes WebRTC - utilisent le SharedState directement
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
         .route("/api/webrtc/answer", post(webrtc::handle_answer))
         .route("/ws", get(ws_handler))
