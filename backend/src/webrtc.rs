@@ -1,3 +1,5 @@
+// backend/src/webrtc.rs
+
 // webrtc.rs - Signalisation P2P + Chiffrement fichiers <50Mo (libsodium-compatible)
 // + Nettoyage automatique des fichiers après 48h
 
@@ -7,7 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use futures_util::{stream::SplitStream, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -226,8 +228,8 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 /// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
     state: SharedCallState,
-    conversation_id: String,
-    event: String,
+    _conversation_id: String,
+    _event: String,
     message: String,
 ) {
     if let Ok(guard) = state.lock() {
@@ -299,14 +301,7 @@ pub async fn handle_answer(
 
 // === WEBSOCKET ===
 
-pub async fn ws_handler(
-    ws: axum::extract::ws::WebSocketUpgrade,
-    state: axum::extract::State<Arc<super::main::SharedState>>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_websocket(socket, state.webrtc_state.clone()))
-}
-
-async fn handle_websocket(socket: WebSocket, state: WebRtcState) {
+pub async fn handle_socket(socket: WebSocket, state: WebRtcState) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
