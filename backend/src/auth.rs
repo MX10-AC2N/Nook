@@ -153,7 +153,7 @@ pub async fn login_json_handler(
 
                 response.headers_mut().insert(
                     SET_COOKIE,
-                    format!("auth_token={}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600", cookie_value)
+                    format!("auth_token={}; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600", cookie_value)
                         .parse()
                         .unwrap(),
                 );
@@ -270,7 +270,7 @@ pub async fn validate_session_handler(
                         .into_response();
                         response.headers_mut().insert(
                             HeaderName::from_static("set-cookie"),
-                            "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
+                            "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".parse().unwrap(),
                         );
                         (StatusCode::UNAUTHORIZED, response).into_response()
                     }
@@ -424,7 +424,7 @@ pub async fn logout_json_handler(
 
     response.headers_mut().insert(
         HeaderName::from_static("set-cookie"),
-        "auth_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0".parse().unwrap(),
+        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".parse().unwrap(),
     );
     response
 }
