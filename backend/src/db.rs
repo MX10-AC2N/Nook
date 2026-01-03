@@ -32,6 +32,9 @@ pub struct Upload {
     pub path: String,
     pub sender_id: String,
     pub timestamp: i64,
+    pub encrypted: bool,
+    pub nonce_base64: String,
+    pub key_base64: String,
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
