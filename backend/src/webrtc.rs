@@ -22,7 +22,7 @@ use uuid::Uuid;
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
 
 use rand::RngCore;
-use base64ct::{Encoding, Base64Unpadded, EncodingVariant};
+use base64ct::{Base64Unpadded, Encoding};
 
 // Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
@@ -57,10 +57,12 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
     
-    let encrypted = cipher.encrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        message
-    ).expect("Échec du chiffrement");
+    let encrypted = cipher
+        .encrypt(
+            chacha20poly1305::Nonce::from_slice(nonce),
+            message
+        )
+        .expect("Échec du chiffrement");
     
     result.extend_from_slice(&encrypted);
     result
@@ -79,10 +81,12 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
     
-    cipher.decrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        encrypted
-    ).map_err(|_| "Échec du déchiffrement")
+    cipher
+        .decrypt(
+            chacha20poly1305::Nonce::from_slice(nonce),
+            encrypted
+        )
+        .map_err(|_| "Échec du déchiffrement")
 }
 
 /// Encodage base64 (compatible sodium.to_base64)
@@ -92,7 +96,8 @@ pub fn to_base64(data: &[u8]) -> String {
 
 /// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    let mut buffer = vec![0u8; encoded.len()];
+    let buffer_size = encoded.len();
+    let mut buffer = vec![0u8; buffer_size];
     let len = Base64Unpadded::decode(encoded, &mut buffer)
         .map_err(|_| "Base64 invalide")?;
     Ok(buffer[..len].to_vec())
@@ -312,8 +317,10 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
 
     eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
 
+    // Clone pour la première tâche
+    let broadcast_tx_for_send = broadcast_tx.clone();
     let send_task = tokio::spawn(async move {
-        let mut rx = broadcast_tx.subscribe();
+        let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
                 eprintln!("[WebSocket] Erreur d'envoi: {}", e);
@@ -322,8 +329,9 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
         }
     });
 
+    // Clone pour la deuxième tâche
+    let broadcast_tx_for_recv = broadcast_tx.clone();
     let receive_task = tokio::spawn(async move {
-        let broadcast_tx = broadcast_tx.clone();
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
@@ -342,7 +350,7 @@ async fn handle_websocket(socket: WebSocket, state: SharedCallState) {
                         }
                     }
                     
-                    if let Err(e) = broadcast_tx.send(text.clone()) {
+                    if let Err(e) = broadcast_tx_for_recv.send(text.clone()) {
                         eprintln!("[Signalisation] Erreur de diffusion: {}", e);
                     }
                 }
