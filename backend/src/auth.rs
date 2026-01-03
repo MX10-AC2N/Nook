@@ -1,3 +1,5 @@
+// backend/src/auth.rs
+
 use crate::db::User;
 use crate::SharedState;
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
@@ -76,6 +78,22 @@ struct AdminUserRow {
     approved: bool,
     needs_password_change: bool,
     created_at: String,
+}
+
+// ============ Fonction utilitaire pour lire un cookie ============
+
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get("cookie")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_str| {
+            cookie_str
+                .split(';')
+                .map(|c| c.trim())
+                .find(|c| c.starts_with(&format!("{}=", name)))
+                .and_then(|c| c.split_once('='))
+                .map(|(_, value)| value.trim().to_string())
+        })
 }
 
 // ============ Fonctions utilitaires de sécurité ============
@@ -574,18 +592,4 @@ pub async fn generate_invite_handler(AxumState(state): AxumState<Arc<SharedState
         )
             .into_response(),
     }
-}
-
-pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get("cookie")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_str| {
-            cookie_str
-                .split(';')
-                .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}=", name)))
-                .and_then(|c| c.split_once('='))
-                .map(|(_, value)| value.trim().to_string())
-        })
 }
