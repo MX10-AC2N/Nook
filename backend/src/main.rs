@@ -33,9 +33,7 @@ use urlencoding::encode;
 #[allow(clippy::type_complexity)]
 pub struct SharedState {
     pub db: sqlx::SqlitePool,
-    // Changé de Uuid à String pourwebrtc.rs
-    pub webrtc_broadcasts:
-        std::sync::Arc<tokio::sync::RwLock<HashMap<String, std::sync::Arc<tokio::sync::RwLock<tokio::sync::broadcast::Sender<String>>>>>>,
+    pub webrtc_state: WebRtcState,
 }
 
 // Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
@@ -135,6 +133,33 @@ async fn spa_fallback(original_uri: OriginalUri) -> impl IntoResponse {
     }
 }
 
+// WS handler avec state
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    state: axum::extract::State<Arc<SharedState>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(|socket| webrtc::handle_socket(socket, state.webrtc_state.clone()))
+}
+
+// GIF proxy
+async fn gif_proxy(
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, StatusCode> {
+    if let Some(q) = params.get("q") {
+        let url = format!(
+            "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
+            encode(q)
+        );
+        let resp = reqwest::get(&url)
+            .await
+            .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+        Ok(Json(json))
+    } else {
+        Err(StatusCode::BAD_REQUEST)
+    }
+}
+
 #[tokio::main]
 async fn main() {
     // Création dossiers
@@ -148,9 +173,18 @@ async fn main() {
     // Créer l'admin par défaut si nécessaire
     ensure_admin_exists(&app_state.db).await;
 
+    // Initialiser le WebRtcState et démarrer la tâche de cleanup
+    let webrtc_state = WebRtcState::new();
+    
+    // Démarrer la tâche de cleanup des fichiers en arrière-plan
+    let webrtc_state_for_cleanup = webrtc_state.clone();
+    tokio::spawn(async move {
+        webrtc_state_for_cleanup.start_cleanup_task().await;
+    });
+
     let shared_state = SharedState {
         db: app_state.db.clone(),
-        webrtc_broadcasts: std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::new())),
+        webrtc_state,
     };
 
     // Rate limiting : 5 tentatives max toutes les 15 minutes (900 secondes)
@@ -194,9 +228,11 @@ async fn main() {
         .route("/api/upload/:id", get(upload::get_upload))
         .route("/api/upload/:id", delete(upload::delete_upload))
         .route("/api/gifs", get(gif_proxy))
+        
+        // Routes WebRTC
         .route("/api/webrtc/offer", post(webrtc::handle_offer))
-        .route("/api/webrtc/answer", get(webrtc::handle_answer))
-        .route("/ws", get(webrtc::ws_handler))
+        .route("/api/webrtc/answer", post(webrtc::handle_answer))
+        .route("/ws", get(ws_handler))
 
         // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
@@ -214,28 +250,4 @@ async fn main() {
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-// WS handler
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(|socket| webrtc::handle_socket(socket, state.webrtc_broadcasts.clone()))
-}
-
-// GIF proxy
-async fn gif_proxy(
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<Value>, StatusCode> {
-    if let Some(q) = params.get("q") {
-        let url = format!(
-            "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
-            encode(q)
-        );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-        Ok(Json(json))
-    } else {
-        Err(StatusCode::BAD_REQUEST)
-    }
 }
