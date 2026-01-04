@@ -57,7 +57,7 @@ pub async fn upload_handler(
 
             // Lire les données du fichier par chunks
             let mut data_vec = Vec::new();
-            while let Some(Ok(chunk)) = field.chunk().await.ok() {
+            while let Some(chunk) = field.chunk().await? {
                 data_vec.extend_from_slice(&chunk);
             }
             form_data.data = Some(data_vec);
