@@ -149,14 +149,14 @@ async fn main() {
         .route("/api/auth/logout", post(auth::logout))
         
         // Routes de conversations
-        .route("/api/conversations", get(auth::list_conversations))
-        .route("/api/conversations", post(auth::create_conversation))
-        .route("/api/conversations/:id", get(auth::get_conversation))
-        .route("/api/conversations/:id/join", post(auth::join_conversation))
+        .route("/api/conversations", get(db::list_conversations))
+        .route("/api/conversations", post(db::create_conversation))
+        .route("/api/conversations/:id", get(db::get_conversation))
+        .route("/api/conversations/:id/join", post(db::join_conversation))
         
         // Routes de messages
-        .route("/api/conversations/:id/messages", get(auth::list_messages))
-        .route("/api/conversations/:id/messages", post(auth::send_message))
+        .route("/api/conversations/:id/messages", get(db::list_messages))
+        .route("/api/conversations/:id/messages", post(db::send_message))
         
         // Routes WebRTC
         .merge(webrtc::webrtc_routes())
