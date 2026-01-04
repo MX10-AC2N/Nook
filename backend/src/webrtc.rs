@@ -17,6 +17,8 @@ use std::{
 };
 use tokio::sync::broadcast;
 use tokio::time::{interval, sleep};
+use chacha20poly1305::aead::Aead;
+use futures_util::SinkExt;
 use uuid::Uuid;
 
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
