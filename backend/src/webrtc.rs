@@ -137,6 +137,7 @@ impl FileManager {
             uploads_dir,
         }
     }
+pub uploads_dir: PathBuf,
 
     /// Enregistre un nouveau fichier pour suivi
     pub fn register_file(&self, file_id: &str, path: PathBuf) {
