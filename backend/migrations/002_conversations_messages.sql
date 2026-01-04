@@ -1,5 +1,5 @@
 -- migrations/002_conversations_messages.sql
--- Tables pour conversations et messages (renommé messages pour cohérence main.rs/db.rs)
+-- Tables pour conversations et messages (cohérent main.rs/db.rs)
 
 CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (file_id) REFERENCES uploads(id)
 );
 
--- Index et triggers simplifiés (cohérents avec db.rs)
+-- Index et triggers
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at DESC);
 
 CREATE TRIGGER IF NOT EXISTS update_conversation_updated_at
