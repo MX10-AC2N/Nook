@@ -105,6 +105,31 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
+// Après les CREATE TABLE dans init_db()
+let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+    .fetch_one(&pool)
+    .await?;
+
+if user_count.0 == 0 {
+    let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();  // ID fixe
+    let default_password = "changeme2026";  // Change ça !
+    let password_hash = crate::auth::hash_password(default_password);  // Utilise ta fonction hash_password
+
+    sqlx::query(
+        "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
+         VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, strftime('%s', 'now'))"
+    )
+    .bind(&admin_id)
+    .bind("admin")
+    .bind("admin@nook.local")
+    .bind(&password_hash)
+    .bind("Administrateur Initial")
+    .execute(&pool)
+    .await?;
+
+    eprintln!("[Init] Admin initial créé (ID: {}). Change username/password au premier login !", admin_id);
+}
+
 #[tokio::main]
 async fn main() {
     // Initialiser le logger
