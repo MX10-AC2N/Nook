@@ -7,7 +7,7 @@ use axum::{
     Json as AxumJson,
 };
 use chrono::Utc;
-use crate::{SharedState, webrtc::encrypt_file_for_storage};  // Chemin correct pour encrypt + SharedState
+use crate::{SharedState, webrtc::encrypt_file_for_storage};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -57,8 +57,17 @@ pub async fn upload_handler(
 
             // Lire les données du fichier par chunks
             let mut data_vec = Vec::new();
-            while let Some(chunk) = field.chunk().await? {
-                data_vec.extend_from_slice(&chunk);
+            while let Some(chunk) = field.chunk().await.transpose() {
+                match chunk {
+                    Ok(bytes) => data_vec.extend_from_slice(&bytes),
+                    Err(e) => {
+                        eprintln!("[Upload] Erreur lecture chunk: {}", e);
+                        return (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            AxumJson(serde_json::json!({"error": "Failed to read file chunk"})),
+                        );
+                    }
+                }
             }
             form_data.data = Some(data_vec);
             form_data.file_name = filename;
@@ -84,7 +93,7 @@ pub async fn upload_handler(
         .and_then(|e| e.to_str())
         .unwrap_or("bin");
     let stored_filename = format!("{}.{}", file_id, file_ext);
-    let storage_path = state.file_manager.uploads_dir().join(&stored_filename);
+    let storage_path = state.file_manager.get_uploads_dir().join(&stored_filename);
 
     // Sauvegarder le fichier (chiffré si demandé)
     let (encrypted, nonce, key) = if data.is_encrypted {
@@ -183,8 +192,17 @@ pub async fn upload_chat_file(
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
 
             let mut data_vec = Vec::new();
-            while let Some(chunk) = field.chunk().await? {
-                data_vec.extend_from_slice(&chunk);
+            while let Some(chunk) = field.chunk().await.transpose() {
+                match chunk {
+                    Ok(bytes) => data_vec.extend_from_slice(&bytes),
+                    Err(e) => {
+                        eprintln!("[Upload Chat] Erreur lecture chunk: {}", e);
+                        return (
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            AxumJson(serde_json::json!({"error": "Failed to read file chunk"})),
+                        );
+                    }
+                }
             }
             form_data.data = Some(data_vec);
             form_data.file_name = filename;
@@ -203,7 +221,7 @@ pub async fn upload_chat_file(
     };
 
     let file_id = Uuid::new_v4().to_string();
-    let storage_path = state.file_manager.uploads_dir.join(&file_id);
+    let storage_path = state.file_manager.get_uploads_dir().join(&file_id);
 
     let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
     if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
