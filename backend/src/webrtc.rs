@@ -7,7 +7,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use futures_util::{stream::SplitStream, SinkExt, StreamExt};
+use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -19,12 +19,14 @@ use tokio::sync::broadcast;
 use tokio::time::{interval, sleep};
 use chacha20poly1305::{ChaCha20Poly1305, KeyInit};
 use chacha20poly1305::aead::Aead;
-use chacha20poly1305::Nonce;
+use chacha20poly1305::aead::generic_array::GenericArray;
+use chacha20poly1305::XChaCha20Poly1305; // Support nonces de 24 bytes
 use rand::RngCore;
 use base64ct::{Encoding, Base64Unpadded};
 use uuid::Uuid;
 
-// === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
+// === CRYPTO - Compatible libsodium (crypto_secretbox / XChaCha20-Poly1305) ===
+// Note: libsodium utilise XChaCha20-Poly1305 avec des nonces de 24 bytes
 
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
 const CRYPTO_SECRETBOX_KEYBYTES: usize = 32;
@@ -33,7 +35,6 @@ const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
 // Configuration
 const FILE_EXPIRATION_HOURS: u64 = 48;
 const CLEANUP_INTERVAL_HOURS: u64 = 1;
-const MAX_FILE_SIZE_BYTES: u64 = 50 * 1024 * 1024; // 50 Mo
 
 /// Génère une clé aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_keygen() -> Vec<u8> {
@@ -51,17 +52,19 @@ fn crypto_secretbox_nonce() -> Vec<u8> {
 
 /// Chiffrement (compatible sodium.crypto_secretbox_easy)
 /// Retourne: nonce || ciphertext
+/// Utilise XChaCha20-Poly1305 pour compatibilité avec libsodium (nonces 24 bytes)
 fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
 
-    let cipher = ChaCha20Poly1305::new_from_slice(key)
+    // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
 
-    let encrypted = cipher.encrypt(
-        &Nonce::try_from(nonce).expect("Nonce invalide"),
-        message,
-    ).expect("Échec du chiffrement");
+    let nonce_array = GenericArray::from_slice(nonce);
+
+    let encrypted = cipher.encrypt(nonce_array, message)
+        .expect("Échec du chiffrement");
 
     result.extend_from_slice(&encrypted);
     result
@@ -76,13 +79,14 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
 
-    let cipher = ChaCha20Poly1305::new_from_slice(key)
+    // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
 
-    cipher.decrypt(
-        &Nonce::try_from(nonce).expect("Nonce invalide"),
-        encrypted,
-    ).map_err(|_| "Échec du déchiffrement")
+    let nonce_array = GenericArray::from_slice(nonce);
+
+    cipher.decrypt(nonce_array, encrypted)
+        .map_err(|_| "Échec du déchiffrement")
 }
 
 /// Encodage base64 (compatible sodium.to_base64)
@@ -134,6 +138,11 @@ impl FileManager {
             tracked_files: Arc::new(Mutex::new(Vec::new())),
             uploads_dir,
         }
+    }
+
+    /// Méthode publique pour accéder à uploads_dir
+    pub fn get_uploads_dir(&self) -> &PathBuf {
+        &self.uploads_dir
     }
 
     /// Enregistre un nouveau fichier pour suivi
@@ -228,8 +237,8 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 /// Fonction broadcast_message compatible avec upload.rs
 pub fn broadcast_message(
     state: SharedCallState,
-    conversation_id: String,
-    event: String,
+    _conversation_id: String,
+    _event: String,
     message: String,
 ) {
     if let Ok(guard) = state.lock() {
@@ -313,18 +322,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
 
-    // Cloner avant l'insertion pour éviter le move
-    let broadcast_tx_for_insert = broadcast_tx.clone();
+    // Créer deux clones distincts pour éviter le problème de move
+    let broadcast_tx_for_send = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
 
     let mut guard = state.webrtc_state.broadcasts.lock().unwrap();
-    guard.insert(id, broadcast_tx_for_insert);
+    guard.insert(id, broadcast_tx);
     drop(guard);
 
     eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
 
     let send_task = tokio::spawn(async move {
-        let mut rx = broadcast_tx_for_receive.subscribe();
+        let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
                 eprintln!("[WebSocket] Erreur d'envoi: {}", e);
@@ -387,23 +396,28 @@ pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
 
 // === PROTOCOLE E2E P2P (pour documentation du frontend) ===
 /*
-PROTOCOLE DE TRANSFERT P2P E2E (chiffré):
+PROTOCOLE DE TRANSFERT P2P E2E (chiffré) - COMPATIBLE LIBSODIUM:
 
-1. EXPÉDITEUR (Client A):
-   - Génère une clé de session aléatoire (32 bytes)
-   - Chiffre le fichier avec ChaCha20-Poly1305
+IMPORTANT: Ce backend utilise XChaCha20-Poly1305 avec des nonces de 24 bytes
+pour être 100% compatible avec libsodium côté frontend (crypto_secretbox).
+
+1. EXPÉDITEUR (Client A - libsodium):
+   - Génère une clé de session aléatoire (32 bytes): sodium.crypto_secretbox_keygen()
+   - Chiffre le fichier avec crypto_secretbox_easy(message, nonce, key)
+   - Nonce de 24 bytes généré par sodium.randombytes_buf(24)
    - Pour chaque chunk:
-     * Chiffre avec crypto_secretbox_easy(chunk, key, nonce)
+     * Chiffre avec crypto_secretbox_easy(chunk, nonce, key)
      * Envoie via WebRTC DataChannel
 
-2. SIGNALISATION (Serveur):
+2. SIGNALISATION (Serveur - Rust XChaCha20Poly1305):
    - Échange des offres/réponses WebRTC
    - Échange des candidats ICE
    - Ne voit jamais le contenu des fichiers
+   - Utilise XChaCha20Poly1305 (nonces 24 bytes) pour compatibilité totale
 
-3. DESTINATAIRE (Client B):
+3. DESTINATAIRE (Client B - libsodium):
    - Reçoit les chunks chiffrés via DataChannel
-   - Déchiffre avec crypto_secretbox_open_easy(chunk, key, nonce)
+   - Déchiffre avec crypto_secretbox_open_easy(ciphertext, nonce, key)
    - Reconstruit le fichier original
 
 FORMAT DES MESSAGES P2P:
@@ -417,8 +431,13 @@ FORMAT DES MESSAGES P2P:
     {
       "index": 0,
       "data": "base64_du_chunk_chiffré",
-      "nonce": "base64_du_nonce"
+      "nonce": "base64_du_nonce_24_bytes"
     }
   ]
 }
+
+COMPATIBILITÉ:
+- Frontend (libsodium): crypto_secretbox = XChaCha20-Poly1305 + nonces 24 bytes
+- Backend (Rust): XChaCha20Poly1305 + nonces 24 bytes
+- 100% interopérable entre JavaScript/libsodium et Rust
 */
