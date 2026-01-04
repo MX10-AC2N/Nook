@@ -9,12 +9,17 @@ use uuid::Uuid;
 
 // === STRUCTURES DE DONNÉES ===
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
     pub email: String,
     pub password_hash: String,
+    pub name: Option<String>,
+    pub role: Option<String>,
+    pub approved: bool,
+    pub needs_password_change: bool,
+    pub token: Option<String>,
     pub created_at: i64,
 }
 
