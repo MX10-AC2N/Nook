@@ -274,8 +274,8 @@ async fn main() {
     // -------------------------------------------------
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app)
         .await
         .expect("[Erreur] Échec du démarrage du serveur");
 }
