@@ -84,7 +84,7 @@ pub async fn upload_handler(
         .and_then(|e| e.to_str())
         .unwrap_or("bin");
     let stored_filename = format!("{}.{}", file_id, file_ext);
-    let storage_path = state.file_manager.uploads_dir.join(&stored_filename);
+    let storage_path = state.file_manager.uploads_dir().join(&stored_filename);
 
     // Sauvegarder le fichier (chiffré si demandé)
     let (encrypted, nonce, key) = if data.is_encrypted {
