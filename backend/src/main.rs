@@ -103,7 +103,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
 #[tokio::main]
 async fn main() {
     // Initialiser le logger
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     
     // Initialiser la base de données
     let pool = match init_db().await {
