@@ -1,5 +1,5 @@
 -- migrations/001_initial.sql
--- Tables de base : invites, users, uploads (cohérent avec main.rs et db.rs)
+-- Tables de base : invites, users, uploads (cohérent avec main.rs, db.rs, auth.rs)
 
 CREATE TABLE IF NOT EXISTS invites (
     token TEXT PRIMARY KEY,
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS invites (
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,  -- Ajouté pour cohérence main.rs
+    email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     name TEXT,
     role TEXT DEFAULT 'user',
