@@ -35,8 +35,8 @@ pub struct Upload {
     pub sender_id: String,
     pub timestamp: i64,
     pub encrypted: bool,
-    pub nonce_base64: String,
-    pub key_base64: String,
+    pub nonce: Option<String>,
+    pub key_text: Option<String>,
 }
 
 impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
@@ -50,8 +50,8 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
             sender_id: row.try_get("sender_id")?,
             timestamp: row.try_get("timestamp")?,
             encrypted: row.try_get("encrypted")?,
-            nonce_base64: row.try_get("nonce")?,
-            key_base64: row.try_get("key_text")?,
+            nonce: row.try_get("nonce")?,
+            key_text: row.try_get("key_text")?,
         })
     }
 }
@@ -145,7 +145,6 @@ pub async fn init_db() -> AppState {
     .await
     .unwrap();
 
-    // Table uploads corrigée avec les champs de chiffrement
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS uploads (
             id TEXT PRIMARY KEY,
