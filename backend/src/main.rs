@@ -230,10 +230,11 @@ async fn main() {
         .route("/api/upload/:id", delete(upload::delete_upload))
         .route("/api/gifs", get(gif_proxy))
         
-        // Routes WebRTC
-        .route("/api/webrtc/offer", post(webrtc::handle_offer))
-        .route("/api/webrtc/answer", post(webrtc::handle_answer))
+        // Route WebSocket
         .route("/ws", get(ws_handler))
+
+        // Routes WebRTC avec le state SharedState
+        .merge(webrtc::webrtc_routes())
 
         // Assets
         .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
