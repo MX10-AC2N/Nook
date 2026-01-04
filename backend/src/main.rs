@@ -36,13 +36,18 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     
     // Créer les tables si elles n'existent pas
     sqlx::query(r#"
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            created_at INTEGER NOT NULL
-        )
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT,
+        role TEXT DEFAULT 'user',
+        approved BOOLEAN DEFAULT 0,
+        needs_password_change BOOLEAN DEFAULT 0,
+        token TEXT,
+        created_at INTEGER NOT NULL
+    )
     "#).execute(&pool).await?;
     
     sqlx::query(r#"
