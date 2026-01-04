@@ -155,11 +155,14 @@ pub async fn create_user(
     .await?;
     
     Ok(User {
-        id,
-        username: username.to_string(),
-        email: email.to_string(),
-        password_hash: password_hash.to_string(),
-        created_at,
+        id: user_id.to_string(),
+        username,
+        password_hash,
+        name: username.clone(), // ou autre valeur par défaut
+        role,
+        approved: role == "admin", // ou true/false selon votre logique
+        needs_password_change: false,
+        created_at: chrono::Utc::now().to_rfc3339(),
     })
 }
 
