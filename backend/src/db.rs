@@ -66,6 +66,10 @@ impl FromRow<'_, sqlx::sqlite::SqliteRow> for User {
             username: row.try_get("username")?,
             email: row.try_get("email")?,
             password_hash: row.try_get("password_hash")?,
+            name: row.try_get("name")?,
+            role: row.try_get("role")?,
+            approved: row.try_get("approved")?,
+            needs_password_change: row.try_get("needs_password_change")?,
             created_at: row.try_get("created_at")?,
         })
     }
