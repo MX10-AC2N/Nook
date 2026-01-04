@@ -59,7 +59,7 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
         .expect("Clé invalide");
 
     let encrypted = cipher.encrypt(
-        Nonce::try_from(nonce).expect("Nonce invalide"),
+        &Nonce::try_from(nonce).expect("Nonce invalide"),
         message,
     ).expect("Échec du chiffrement");
 
@@ -80,7 +80,7 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
         .map_err(|_| "Clé invalide")?;
 
     cipher.decrypt(
-        Nonce::try_from(nonce).expect("Nonce invalide"),
+        &Nonce::try_from(nonce).expect("Nonce invalide"),
         encrypted,
     ).map_err(|_| "Échec du déchiffrement")
 }
