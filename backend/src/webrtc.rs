@@ -17,17 +17,15 @@ use std::{
 };
 use tokio::sync::broadcast;
 use tokio::time::{interval, sleep};
+use chacha20poly1305::{ChaCha20Poly1305, KeyInit};
 use chacha20poly1305::aead::Aead;
-use futures_util::SinkExt;
+use chacha20poly1305::Nonce;
+use rand::RngCore;
+use base64ct::{Encoding, Base64Unpadded};
 use uuid::Uuid;
 
 // === CRYPTO - Compatible libsodium (crypto_secretbox / ChaCha20-Poly1305) ===
 
-use rand::RngCore;
-use base64ct::{Encoding, Base64Unpadded};
-use chacha20poly1305::aead::{Aead, KeyInit};
-
-// Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
 const CRYPTO_SECRETBOX_KEYBYTES: usize = 32;
 const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
@@ -56,15 +54,15 @@ fn crypto_secretbox_nonce() -> Vec<u8> {
 fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
-    
-    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
-    
+
     let encrypted = cipher.encrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        message
+        Nonce::try_from(nonce).expect("Nonce invalide"),
+        message,
     ).expect("Échec du chiffrement");
-    
+
     result.extend_from_slice(&encrypted);
     result
 }
@@ -74,16 +72,16 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     if ciphertext.len() < CRYPTO_SECRETBOX_NONCEBYTES + CRYPTO_SECRETBOX_MACBYTES {
         return Err("Ciphertext trop court");
     }
-    
+
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
-    
-    let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
+
+    let cipher = ChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
-    
+
     cipher.decrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        encrypted
+        Nonce::try_from(nonce).expect("Nonce invalide"),
+        encrypted,
     ).map_err(|_| "Échec du déchiffrement")
 }
 
@@ -94,7 +92,7 @@ pub fn to_base64(data: &[u8]) -> String {
 
 /// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
-    Base64Unpadded::decode(encoded).map_err(|_| "Base64 invalide")
+    Base64Unpadded::decode_vec(encoded).map_err(|_| "Base64 invalide")
 }
 
 // === STRUCTURES ===
@@ -137,14 +135,13 @@ impl FileManager {
             uploads_dir,
         }
     }
-pub uploads_dir: PathBuf,
 
     /// Enregistre un nouveau fichier pour suivi
     pub fn register_file(&self, file_id: &str, path: PathBuf) {
-        let now = SystemTime::UNIX_EPOCH;
+        let now = SystemTime::now();
         let uploaded_at = now;
         let expires_at = uploaded_at + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
-        
+
         let mut files = self.tracked_files.lock().unwrap();
         files.push(TrackedFile {
             file_id: file_id.to_string(),
@@ -152,48 +149,48 @@ pub uploads_dir: PathBuf,
             uploaded_at,
             expires_at,
         });
-        
+
         eprintln!("[FileManager] Fichier {} enregistré, expire dans {}h", file_id, FILE_EXPIRATION_HOURS);
     }
 
     /// Nettoie les fichiers expirés (à appeler périodiquement)
     pub async fn cleanup_expired_files(&self) -> usize {
-        let now = SystemTime::UNIX_EPOCH;
+        let now = SystemTime::now();
         let mut files = self.tracked_files.lock().unwrap();
         let mut deleted_count = 0;
-        
+
         let mut i = 0;
         while i < files.len() {
             if files[i].expires_at < now {
                 let file = files[i].clone();
-                
+
                 // Supprimer le fichier physique
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
                     eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
                 } else {
                     eprintln!("[FileManager] Fichier expiré supprimé: {} ({} bytes)", 
                         file.file_id, 
-                        file.path.metadata().map(|m| m.len()).unwrap_or(0)
+                        file.path.metadata().map(|m: std::fs::Metadata| m.len()).unwrap_or(0)
                     );
                     deleted_count += 1;
                 }
-                
+
                 files.remove(i);
             } else {
                 i += 1;
             }
         }
-        
+
         deleted_count
     }
 
     /// Démarre la tâche de nettoyage périodique
     pub async fn start_cleanup_task(self) {
         let mut interval = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
-        
+
         // Attendre un peu avant le premier nettoyage
         sleep(Duration::from_secs(60)).await;
-        
+
         loop {
             interval.tick().await;
             let deleted = self.cleanup_expired_files().await;
@@ -212,7 +209,7 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
     let key = crypto_secretbox_keygen();
     let nonce = crypto_secretbox_nonce();
     let ciphertext = crypto_secretbox_easy(data, &key, &nonce);
-    
+
     (ciphertext, to_base64(&nonce), to_base64(&key))
 }
 
@@ -220,11 +217,11 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
 pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base64: &str) -> Result<Vec<u8>, &'static str> {
     let nonce = from_base64(nonce_base64)?;
     let key = from_base64(key_base64)?;
-    
+
     let mut data = Vec::with_capacity(nonce.len() + ciphertext.len());
     data.extend_from_slice(&nonce);
     data.extend_from_slice(ciphertext);
-    
+
     crypto_secretbox_open_easy(&data, &key)
 }
 
@@ -251,7 +248,7 @@ pub async fn handle_offer(
     let offer = payload.get("offer").and_then(|o| o.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
     let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
-    
+
     if let Some(offer_sdp) = offer {
         let response = json!({
             "type": "offer",
@@ -260,12 +257,12 @@ pub async fn handle_offer(
             "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
-        
+
         let guard = state.webrtc_state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
-            let _ = tx.send(response.to_string()).await;
+            let _ = tx.send(response.to_string());
         }
-        
+
         eprintln!("[Signalisation] Offre P2P diffusée pour {}", from_user_id);
         (axum::http::StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
     } else {
@@ -280,7 +277,7 @@ pub async fn handle_answer(
     let answer = payload.get("answer").and_then(|a| a.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
     let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
-    
+
     if let Some(answer_sdp) = answer {
         let response = json!({
             "type": "answer",
@@ -289,12 +286,12 @@ pub async fn handle_answer(
             "conversation_id": conversation_id,
             "timestamp": chrono::Utc::now().timestamp()
         });
-        
+
         let guard = state.webrtc_state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
-            let _ = tx.send(response.to_string()).await;
+            let _ = tx.send(response.to_string());
         }
-        
+
         eprintln!("[Signalisation] Réponse P2P diffusée pour {}", from_user_id);
         (axum::http::StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
     } else {
@@ -315,11 +312,11 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
-    
+
     // Cloner avant l'insertion pour éviter le move
     let broadcast_tx_for_insert = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
-    
+
     let mut guard = state.webrtc_state.broadcasts.lock().unwrap();
     guard.insert(id, broadcast_tx_for_insert);
     drop(guard);
@@ -341,7 +338,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
                     let parse_result = serde_json::from_str::<Value>(&text);
-                    
+
                     match parse_result {
                         Ok(json) => {
                             let msg_type = json.get("type").or(json.get("event"))
@@ -354,10 +351,8 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
                             eprintln!("[WebSocket] Message texte reçu: {} bytes", text.len());
                         }
                     }
-                    
-                    if let Err(e) = broadcast_tx_for_receive.send(text.clone()) {
-                        eprintln!("[Signalisation] Erreur de diffusion: {}", e);
-                    }
+
+                    let _ = broadcast_tx_for_receive.send(text.clone());
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     eprintln!("[WebSocket] Message binaire ignoré (transfert P2P direct): {} bytes", data.len());
