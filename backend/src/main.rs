@@ -1,14 +1,15 @@
 // main.rs - Point d'entrée du serveur Nook Backend
+
 // Backend Axum pour gestion d'upload, WebRTC, et chiffrement
 
 use axum::{
     routing::{get, post},
     Router,
 };
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf, sync::Arc, net::SocketAddr};
+
 use sqlx::{SqlitePool, migrate};
 use tower_http::cors::{CorsLayer, Any};
-use std::net::SocketAddr;
 
 // Modules
 mod db;
@@ -19,8 +20,7 @@ mod upload;
 // Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
 
-// === SHARED STATE ===
-
+/// Structure contenant l'état partagé entre les différents handlers.
 #[derive(Clone)]
 pub struct SharedState {
     pub db: SqlitePool,
@@ -28,37 +28,47 @@ pub struct SharedState {
     pub file_manager: Arc<FileManager>,
 }
 
-// === FONCTIONS DE DÉMARRAGE ===
-
+// ---------------------------------------------------------------------------
+//  INITIALISATION DE LA BASE DE DONNÉES
+// ---------------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "nook.db";
     let pool = SqlitePool::connect(db_path).await?;
-    
+
     // Créer les tables si elles n'existent pas
-    sqlx::query(r#"
-    CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        name TEXT,
-        role TEXT DEFAULT 'user',
-        approved BOOLEAN DEFAULT 0,
-        needs_password_change BOOLEAN DEFAULT 0,
-        token TEXT,
-        created_at INTEGER NOT NULL
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            name TEXT,
+            role TEXT DEFAULT 'user',
+            approved BOOLEAN DEFAULT 0,
+            needs_password_change BOOLEAN DEFAULT 0,
+            token TEXT,
+            created_at INTEGER NOT NULL
+        )
+        "#,
     )
-    "#).execute(&pool).await?;
-    
-    sqlx::query(r#"
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )
-    "#).execute(&pool).await?;
-    
-    sqlx::query(r#"
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS conversation_participants (
             conversation_id TEXT NOT NULL,
             user_id TEXT NOT NULL,
@@ -67,9 +77,13 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             FOREIGN KEY (conversation_id) REFERENCES conversations(id),
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
-    "#).execute(&pool).await?;
-    
-    sqlx::query(r#"
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             conversation_id TEXT NOT NULL,
@@ -83,9 +97,13 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             FOREIGN KEY (user_id) REFERENCES users(id),
             FOREIGN KEY (file_id) REFERENCES uploads(id)
         )
-    "#).execute(&pool).await?;
-    
-    sqlx::query(r#"
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
         CREATE TABLE IF NOT EXISTS uploads (
             id TEXT PRIMARY KEY,
             conversation_id TEXT,
@@ -99,52 +117,95 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             nonce TEXT,
             key_text TEXT
         )
-    "#).execute(&pool).await?;
-    
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
     eprintln!("[DB] Base de données initialisée");
     Ok(pool)
 }
 
-// Après les CREATE TABLE dans init_db()
-let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
-    .fetch_one(&pool)
-    .await?;
+// ---------------------------------------------------------------------------
+//  VÉRIFICATION / CRÉATION DE L'ADMINISTRATEUR INITIAL
+// ---------------------------------------------------------------------------
+/// Vérifie s'il existe déjà un utilisateur dans la table `users`.
+/// Si la table est vide, crée l'administrateur initial.
+///
+/// # Arguments
+/// * `pool` – Référence vers le `SqlitePool` déjà ouvert.
+///
+/// # Retour
+/// `Ok(())` si tout s'est bien passé, sinon l'erreur `sqlx::Error`.
+async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // 1️⃣ Compter le nombre d'utilisateurs
+    let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+        .fetch_one(pool)
+        .await?;
 
-if user_count.0 == 0 {
-    let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();  // ID fixe
-    let default_password = "changeme2026";  // Change ça !
-    let password_hash = crate::auth::hash_password(default_password);  // Utilise ta fonction hash_password
+    // 2️⃣ Si aucun utilisateur n'existe → créer l'admin
+    if user_count.0 == 0 {
+        let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
+        let default_password = "changeme2026"; // À changer dès le premier login
+        // Utilise ta fonction de hachage déjà définie dans le module `auth`
+        let password_hash = crate::auth::hash_password(default_password);
 
-    sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
-         VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, strftime('%s', 'now'))"
-    )
-    .bind(&admin_id)
-    .bind("admin")
-    .bind("admin@nook.local")
-    .bind(&password_hash)
-    .bind("Administrateur Initial")
-    .execute(&pool)
-    .await?;
+        sqlx::query(
+            r#"
+            INSERT INTO users (
+                id, username, email, password_hash,
+                name, role, approved, needs_password_change, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, strftime('%s', 'now'))
+            "#,
+        )
+        .bind(&admin_id)
+        .bind("admin")
+        .bind("admin@nook.local")
+        .bind(&password_hash)
+        .bind("Administrateur Initial")
+        .execute(pool)
+        .await?;
 
-    eprintln!("[Init] Admin initial créé (ID: {}). Change username/password au premier login !", admin_id);
+        eprintln!(
+            "[Init] Admin initial créé (ID: {}). Change username/password au premier login !",
+            admin_id
+        );
+    }
+
+    Ok(())
 }
 
+// ---------------------------------------------------------------------------
+//  POINT D'ENTRÉE PRINCIPAL
+// ---------------------------------------------------------------------------
 #[tokio::main]
 async fn main() {
-    // Initialiser le logger
+    // Initialise le logger
     tracing_subscriber::fmt::init();
-    
-    // Initialiser la base de données
+
+    // -------------------------------------------------
+    // 1️⃣ Initialisation de la base de données
+    // -------------------------------------------------
     let pool = match init_db().await {
-        Ok(pool) => pool,
+        Ok(p) => p,
         Err(e) => {
             eprintln!("[Erreur] Échec de l'initialisation de la DB: {}", e);
             std::process::exit(1);
         }
     };
-    
-    // Créer le dossier d'upload
+
+    // -------------------------------------------------
+    // 2️⃣ Vérifier / créer l'administrateur initial
+    // -------------------------------------------------
+    if let Err(e) = check_initial_admin(&pool).await {
+        eprintln!("[Erreur] Création de l'admin initial échouée: {}", e);
+        std::process::exit(1);
+    }
+
+    // -------------------------------------------------
+    // 3️⃣ Préparer le répertoire d'uploads
+    // -------------------------------------------------
     let uploads_dir = PathBuf::from("uploads");
     if !uploads_dir.exists() {
         if let Err(e) = fs::create_dir_all(&uploads_dir) {
@@ -152,65 +213,67 @@ async fn main() {
             std::process::exit(1);
         }
     }
-    
-    // Initialiser le FileManager et WebRtcState
+
+    // -------------------------------------------------
+    // 4️⃣ Initialiser le FileManager et le WebRTC state
+    // -------------------------------------------------
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
-    
+
     // Lancer la tâche de nettoyage des fichiers expirés
     let file_manager_clone = (*file_manager).clone();
     tokio::spawn(async move {
         file_manager_clone.start_cleanup_task().await;
     });
-    
-    // Créer le SharedState
+
+    // -------------------------------------------------
+    // 5️⃣ Construire le SharedState
+    // -------------------------------------------------
     let shared_state = SharedState {
         db: pool.clone(),
         webrtc_state: webrtc_state.clone(),
         file_manager: file_manager.clone(),
     };
-    
-    // Configurer le routeur
+
+    // -------------------------------------------------
+    // 6️⃣ Configurer le routeur Axum
+    // -------------------------------------------------
     let app = Router::new()
-        // Routes d'authentification
+        // Auth routes
         .route("/api/auth/register", post(auth::register))
         .route("/api/auth/login", post(auth::login))
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
-        
-        // Routes de conversations
+        // Conversation routes
         .route("/api/conversations", get(db::get_user_conversations))
         .route("/api/conversations", post(db::create_conversation))
         .route("/api/conversations/:id", get(db::get_conversation))
         .route("/api/conversations/:id/join", post(db::join_conversation))
-        
-        // Routes de messages
+        // Message routes
         .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
         .route("/api/conversations/:id/messages", post(db::send_message))
-        
-        // Routes WebRTC
+        // WebRTC routes
         .merge(webrtc::webrtc_routes())
-        
-        // Routes d'upload
+        // Upload routes
         .route("/api/upload", post(upload::upload_handler))
         .route("/api/upload/chat", post(upload::upload_chat_file))
-        
-        // Route de health check
+        // Health‑check
         .route("/api/health", get(|| async { "OK" }))
-        
-        // Configuration CORS
-        .layer(CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any))
-        
-        // Ajouter le state partagé
+        // CORS configuration
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
+        // Inject the shared state
         .with_state(Arc::new(shared_state));
-    
-    // Démarrer le serveur
+
+    // -------------------------------------------------
+    // 7️⃣ Démarrer le serveur HTTP
+    // -------------------------------------------------
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur {}", addr);
-    
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
