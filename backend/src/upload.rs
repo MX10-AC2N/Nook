@@ -8,6 +8,7 @@ use axum::{
     Json as AxumJson, Router,
 };
 use chrono::Utc;
+use crate::SharedState;  // Pour Arc<SharedState>
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
