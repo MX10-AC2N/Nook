@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 // === STRUCTURES DE DONNÉES ===
 
-#[derive(Clone, Debug, FromRow)]
+#[derive(Clone, Debug)]
 pub struct User {
     pub id: String,
     pub username: String,
