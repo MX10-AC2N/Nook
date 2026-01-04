@@ -6,8 +6,10 @@
 use axum::{
     extract::{State as AxumState, Json as AxumJson, ws::WebSocket},
     response::IntoResponse,
+    routing::{post},
+    Router,
 };
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -22,7 +24,7 @@ use tokio::time::{interval, sleep};
 
 use rand::RngCore;
 use base64ct::{Encoding, Base64Unpadded};
-use chacha20poly1305::KeyInit;
+use chacha20poly1305::{KeyInit, Aead};
 
 // Constants (même que libsodium crypto_secretbox)
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
@@ -57,10 +59,12 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .expect("Clé invalide");
     
-    let encrypted = cipher.encrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        message
-    ).expect("Échec du chiffrement");
+    let encrypted = cipher
+        .encrypt(
+            chacha20poly1305::Nonce::try_from(nonce).expect("Nonce invalide"),
+            message
+        )
+        .expect("Échec du chiffrement");
     
     result.extend_from_slice(&encrypted);
     result
@@ -78,10 +82,12 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let cipher = chacha20poly1305::ChaCha20Poly1305::new_from_slice(key)
         .map_err(|_| "Clé invalide")?;
     
-    cipher.decrypt(
-        chacha20poly1305::Nonce::from_slice(nonce),
-        encrypted
-    ).map_err(|_| "Échec du déchiffrement")
+    cipher
+        .decrypt(
+            chacha20poly1305::Nonce::try_from(nonce).map_err(|_| "Nonce invalide")?,
+            encrypted
+        )
+        .map_err(|_| "Échec du déchiffrement")
 }
 
 /// Encodage base64 (compatible sodium.to_base64)
@@ -238,9 +244,11 @@ pub fn broadcast_message(
 // === HANDLERS HTTP ===
 
 pub async fn handle_offer(
-    AxumState(state): AxumState<WebRtcState>,
+    AxumState(state): AxumState<super::main::SharedState>,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
+    let webrtc_state = &state.webrtc_state;
+    
     let offer = payload.get("offer").and_then(|o| o.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
     let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
@@ -254,7 +262,7 @@ pub async fn handle_offer(
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        let guard = state.broadcasts.lock().unwrap();
+        let guard = webrtc_state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
@@ -267,9 +275,11 @@ pub async fn handle_offer(
 }
 
 pub async fn handle_answer(
-    AxumState(state): AxumState<WebRtcState>,
+    AxumState(state): AxumState<super::main::SharedState>,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
+    let webrtc_state = &state.webrtc_state;
+    
     let answer = payload.get("answer").and_then(|a| a.as_str());
     let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
     let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
@@ -283,7 +293,7 @@ pub async fn handle_answer(
             "timestamp": chrono::Utc::now().timestamp()
         });
         
-        let guard = state.broadcasts.lock().unwrap();
+        let guard = webrtc_state.broadcasts.lock().unwrap();
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
@@ -303,16 +313,17 @@ pub async fn handle_socket(socket: WebSocket, state: WebRtcState) {
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     
     // Cloner pour les deux tâches
-    let broadcast_tx_clone = broadcast_tx.clone();
+    let broadcast_tx_for_send = broadcast_tx.clone();
+    let broadcast_tx_for_receive = broadcast_tx.clone();
     
     let mut guard = state.broadcasts.lock().unwrap();
-    guard.insert(id, broadcast_tx_clone);
+    guard.insert(id, broadcast_tx_for_receive);
     drop(guard);
 
     eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
 
     let send_task = tokio::spawn(async move {
-        let mut rx = broadcast_tx.subscribe();
+        let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
                 eprintln!("[WebSocket] Erreur d'envoi: {}", e);
@@ -340,7 +351,7 @@ pub async fn handle_socket(socket: WebSocket, state: WebRtcState) {
                         }
                     }
                     
-                    if let Err(e) = broadcast_tx.send(text.clone()) {
+                    if let Err(e) = broadcast_tx_for_receive.send(text.clone()) {
                         eprintln!("[Signalisation] Erreur de diffusion: {}", e);
                     }
                 }
@@ -366,40 +377,11 @@ pub async fn handle_socket(socket: WebSocket, state: WebRtcState) {
     eprintln!("[WebSocket] Client déconnecté: {}", id);
 }
 
-// === PROTOCOLE E2E P2P (pour documentation du frontend) ===
-/*
-PROTOCOLE DE TRANSFERT P2P E2E (chiffré):
+// === ROUTES AVEC STATE EMBARQUÉ ===
 
-1. EXPÉDITEUR (Client A):
-   - Génère une clé de session aléatoire (32 bytes)
-   - Chiffre le fichier avec ChaCha20-Poly1305
-   - Pour chaque chunk:
-     * Chiffre avec crypto_secretbox_easy(chunk, key, nonce)
-     * Envoie via WebRTC DataChannel
-
-2. SIGNALISATION (Serveur):
-   - Échange des offres/réponses WebRTC
-   - Échange des candidats ICE
-   - Ne voit jamais le contenu des fichiers
-
-3. DESTINATAIRE (Client B):
-   - Reçoit les chunks chiffrés via DataChannel
-   - Déchiffre avec crypto_secretbox_open_easy(chunk, key, nonce)
-   - Reconstruit le fichier original
-
-FORMAT DES MESSAGES P2P:
-{
-  "event": "file_transfer",
-  "file_id": "uuid",
-  "file_name": "video.mp4",
-  "total_size": 52428800,
-  "encrypted": true,
-  "chunks": [
-    {
-      "index": 0,
-      "data": "base64_du_chunk_chiffré",
-      "nonce": "base64_du_nonce"
-    }
-  ]
+/// Crée un router WebRTC avec le state approprié
+pub fn webrtc_routes() -> Router<super::main::SharedState> {
+    Router::new()
+        .route("/offer", post(handle_offer))
+        .route("/answer", post(handle_answer))
 }
-*/
