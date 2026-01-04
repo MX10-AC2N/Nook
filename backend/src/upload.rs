@@ -1,17 +1,14 @@
 // backend/src/upload.rs
 
-use crate::db::{AppState, Upload};
+use crate::db::Upload;
 use crate::SharedState;
 use crate::webrtc::{decrypt_file_from_storage, encrypt_file_for_storage, FileManager};
 use axum::{
-    body::Body,
     extract::{Path, State as AxumState},
     http::{header::CONTENT_DISPOSITION, StatusCode},
     response::IntoResponse,
     Json,
 };
-use chrono::{TimeZone, Utc};
-use futures_util::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::path::PathBuf;
@@ -37,84 +34,84 @@ lazy_static::lazy_static! {
     static ref FILE_MANAGER: Arc<FileManager> = Arc::new(FileManager::new(PathBuf::from("/app/data/uploads")));
 }
 
+// Structure simple pour recevoir les données multipart
+struct FormData {
+    file_name: Option<String>,
+    content_type: Option<String>,
+    data: Option<Vec<u8>>,
+    sender_id: Option<String>,
+}
+
 pub async fn upload_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
     mut multipart: axum::extract::Multipart,
 ) -> impl IntoResponse {
-    let boundary = multipart.boundary().to_string();
-    
-    let mut file_data: Option<(String, Vec<u8>, String)> = None;
-    let mut sender_id: Option<String> = None;
+    let mut form_data = FormData {
+        file_name: None,
+        content_type: None,
+        data: None,
+        sender_id: None,
+    };
 
-    while let Some(field) = multipart.next_field().await {
-        let field = match field {
-            Ok(f) => f,
-            Err(_) => break,
-        };
-
+    while let Ok(Some(mut field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
-
+        
         if name == "file" {
             let file_name = field.file_name().unwrap_or("unknown").to_string();
             let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             
-            let mut chunks = Vec::new();
-            let mut stream = field;
+            let mut data_vec = Vec::new();
+            let mut stream = field.stream();
             while let Some(chunk) = stream.next().await {
-                if let Ok(data) = chunk {
-                    chunks.extend_from_slice(&data);
-                }
+                let bytes = match chunk {
+                    Ok(bytes) => bytes,
+                    Err(_) => break,
+                };
+                data_vec.extend_from_slice(&bytes);
             }
             
-            let data = chunks.into_boxed_slice();
-            let size = data.len() as i64;
-            let data_vec = data.to_vec();
-            
-            file_data = Some((file_name, data_vec, content_type));
+            form_data.file_name = Some(file_name);
+            form_data.content_type = Some(content_type);
+            form_data.data = Some(data_vec);
         } else if name == "sender_id" {
-            if let Ok(data) = field.text().await {
-                sender_id = Some(data);
+            if let Ok(text) = field.text().await {
+                form_data.sender_id = Some(text);
             }
         }
     }
 
-    if file_data.is_none() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "No file provided" })),
-        ).into_response();
-    }
+    let (file_name, data, content_type) = match (form_data.file_name, form_data.data, form_data.content_type) {
+        (Some(name), Some(data), Some(ct)) => (name, data, ct),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "No file provided" })),
+            ).into_response();
+        }
+    };
 
-    let (file_name, data, content_type) = file_data.unwrap();
-    let sender_id = sender_id.unwrap_or_else(|| "anonymous".to_string());
+    let sender_id = form_data.sender_id.unwrap_or_else(|| "anonymous".to_string());
     let id = Uuid::new_v4().to_string();
-    let timestamp = Utc::now().timestamp();
 
-    let (encrypted_path, encrypted_data, nonce, key) = if data.len() > 50 * 1024 * 1024 {
-        // Fichier > 50Mo : pas de stockage sur serveur (P2P uniquement)
-        // Le fichier est déjà传输 via P2P, pas de stockage local
-        let path = format!("/app/data/uploads/{}_p2p_{}", id, file_name);
-        
-        // Ne pas enregistrer le fichier sur le serveur pour les gros fichiers
-        // Ils sont transferes directement entre peers
-        (path, Vec::new(), None, None)
+    let (encrypted_path, nonce, key) = if data.len() > 50 * 1024 * 1024 {
+        // Fichier > 50Mo : P2P uniquement, pas de stockage serveur
+        (format!("/app/data/uploads/{}_p2p_{}", id, file_name), None, None)
     } else {
-        // Fichier < 50Mo : chiffrement et stockage sur serveur
+        // Fichier < 50Mo : chiffrement et stockage
         let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data);
         
         let encrypted_path = format!("/app/data/uploads/{}_{}", id, file_name);
         
-        // Enregistrer le fichier chiffré
         let mut file = File::create(&encrypted_path).await.unwrap();
         file.write_all(&ciphertext).await.unwrap();
         
-        // Enregistrer pour le cleanup
         FILE_MANAGER.register_file(&id, PathBuf::from(&encrypted_path));
         
-        (encrypted_path, ciphertext, Some(nonce_b64), Some(key_b64))
+        (encrypted_path, Some(nonce_b64), Some(key_b64))
     };
 
-    // Enregistrer dans la base de données
+    let timestamp = Utc::now().timestamp();
+
     let _ = sqlx::query(
         "INSERT INTO uploads (id, file_name, content_type, size, path, sender_id, timestamp, encrypted, nonce, key_text)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -126,7 +123,7 @@ pub async fn upload_handler(
     .bind(&encrypted_path)
     .bind(&sender_id)
     .bind(timestamp)
-    .bind(encrypted_path.contains("_p2p_") || nonce.is_some())
+    .bind(nonce.is_some())
     .bind(nonce.as_deref())
     .bind(key.as_deref())
     .execute(&state.db)
@@ -150,43 +147,50 @@ pub async fn upload_chat_file(
     Path((conversation_id, sender_id, message_type)): Path<(String, String, String)>,
     mut multipart: axum::extract::Multipart,
 ) -> impl IntoResponse {
-    let mut file_data: Option<(String, Vec<u8>, String)> = None;
+    let mut form_data = FormData {
+        file_name: None,
+        content_type: None,
+        data: None,
+        sender_id: None,
+    };
 
-    while let Some(field) = multipart.next_field().await {
-        let field = match field {
-            Ok(f) => f,
-            Err(_) => break,
-        };
-
-        if field.name().map(|n| n == "file").unwrap_or(false) {
+    while let Ok(Some(mut field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or("").to_string();
+        
+        if name == "file" {
             let file_name = field.file_name().unwrap_or("unknown").to_string();
             let content_type = field.content_type().unwrap_or("application/octet-stream").to_string();
             
-            let mut chunks = Vec::new();
-            let mut stream = field;
+            let mut data_vec = Vec::new();
+            let mut stream = field.stream();
             while let Some(chunk) = stream.next().await {
-                if let Ok(data) = chunk {
-                    chunks.extend_from_slice(&data);
-                }
+                let bytes = match chunk {
+                    Ok(bytes) => bytes,
+                    Err(_) => break,
+                };
+                data_vec.extend_from_slice(&bytes);
             }
             
-            file_data = Some((file_name, chunks, content_type));
+            form_data.file_name = Some(file_name);
+            form_data.content_type = Some(content_type);
+            form_data.data = Some(data_vec);
         }
     }
 
-    if file_data.is_none() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "No file provided" })),
-        ).into_response();
-    }
+    let (file_name, data, content_type) = match (form_data.file_name, form_data.data, form_data.content_type) {
+        (Some(name), Some(data), Some(ct)) => (name, data, ct),
+        _ => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "error": "No file provided" })),
+            ).into_response();
+        }
+    };
 
-    let (file_name, data, content_type) = file_data.unwrap();
     let id = Uuid::new_v4().to_string();
-    let timestamp = Utc::now().timestamp();
 
     let (encrypted_path, nonce, key) = if data.len() > 50 * 1024 * 1024 {
-        // Fichier > 50Mo : P2P uniquement, pas de stockage serveur
+        // Fichier > 50Mo : P2P uniquement
         (format!("/app/data/uploads/{}_p2p_{}", id, file_name), None, None)
     } else {
         // Fichier < 50Mo : chiffrement et stockage
@@ -201,6 +205,8 @@ pub async fn upload_chat_file(
         
         (encrypted_path, Some(nonce_b64), Some(key_b64))
     };
+
+    let timestamp = Utc::now().timestamp();
 
     let _ = sqlx::query(
         "INSERT INTO uploads (id, file_name, content_type, size, path, sender_id, timestamp, encrypted, nonce, key_text)
@@ -258,8 +264,8 @@ pub async fn get_upload(
             if upload.encrypted {
                 match tokio::fs::read(&path).await {
                     Ok(ciphertext) => {
-                        if let (Some(nonce), Some(key)) = (upload.nonce_base64, upload.key_base64) {
-                            match decrypt_file_from_storage(&ciphertext, &nonce, &key) {
+                        if let (Some(nonce), Some(key)) = (&upload.nonce, &upload.key_text) {
+                            match decrypt_file_from_storage(&ciphertext, nonce, key) {
                                 Ok(data) => {
                                     let headers = [
                                         (CONTENT_DISPOSITION, format!("attachment; filename=\"{}\"", upload.file_name)),
