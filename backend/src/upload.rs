@@ -183,7 +183,7 @@ pub async fn upload_chat_file(
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
 
             let mut data_vec = Vec::new();
-            while let Some(Ok(chunk)) = field.chunk().await.ok() {
+            while let Some(chunk) = field.chunk().await? {
                 data_vec.extend_from_slice(&chunk);
             }
             form_data.data = Some(data_vec);
