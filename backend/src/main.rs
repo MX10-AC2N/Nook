@@ -1,255 +1,188 @@
-// backend/src/main.rs
-
-mod auth;
-mod db;
-mod upload;
-mod webrtc;
+// main.rs - Point d'entrée du serveur Nook Backend
+// Backend Axum pour gestion d'upload, WebRTC, et chiffrement
 
 use axum::{
-    extract::{OriginalUri, Query, WebSocketUpgrade},
-    http::{StatusCode, HeaderMap},
-    response::IntoResponse,
-    routing::{delete, get, get_service, post},
-    Json, Router,
+    routing::{get, post},
+    Router,
 };
-use http::request::Request;
-use serde_json::Value;
-use std::collections::HashMap;
+use std::{fs, path::PathBuf, sync::Arc};
+use sqlx::{SqlitePool, migrate};
+use tower_http::cors::{CorsLayer, Any};
 use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::Duration;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
-use tower_governor::key_extractor::KeyExtractor;
-use tower_governor::GovernorError;
-use tower_http::services::ServeDir;
-use uuid::Uuid;
-use crate::webrtc::{FileManager, WebRtcState};
-use chrono::Utc;
-use rand::rngs::OsRng;
-use urlencoding::encode;
+
+// Modules
+mod db;
+mod auth;
+mod webrtc;
+mod upload;
+
+// Import des structures partagées
+use webrtc::{WebRtcState, FileManager};
+
+// === SHARED STATE ===
 
 #[derive(Clone)]
 pub struct SharedState {
-    pub db: sqlx::SqlitePool,
+    pub db: SqlitePool,
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
 }
 
-// Key Extractor basé sur l'URI (fonctionne avec CasaOS et tout reverse proxy)
-#[derive(Clone)]
-pub struct UriKeyExtractor;
+// === FONCTIONS DE DÉMARRAGE ===
 
-impl KeyExtractor for UriKeyExtractor {
-    type Key = String;
-
-    fn extract<B>(&self, req: &Request<B>) -> Result<Self::Key, GovernorError> {
-        Ok(req.uri().path().to_string())
-    }
-}
-
-// Fonction utilitaire pour lire un cookie
-pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get("cookie")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_str| {
-            cookie_str
-                .split(';')
-                .map(|c| c.trim())
-                .find(|c| c.starts_with(&format!("{}=", name)))
-                .and_then(|c| c.split_once('='))
-                .map(|(_, value)| value.trim().to_string())
-        })
-}
-
-// Fonction pour créer l'admin par défaut si nécessaire
-async fn ensure_admin_exists(db: &sqlx::SqlitePool) {
-    let admin_exists: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM users WHERE role = 'admin' LIMIT 1"
-    )
-    .fetch_optional(db)
-    .await
-    .ok()
-    .flatten();
-
-    if admin_exists.is_none() {
-        println!("Aucun administrateur trouvé. Création de l'admin par défaut...");
-
-        let admin_id = Uuid::new_v4().to_string();
-        let default_username = "admin";
-        let default_password = "admin123!";
-
-        use argon2::{Argon2, PasswordHasher};
-        use argon2::password_hash::SaltString;
-
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let hashed_password = argon2
-            .hash_password(default_password.as_bytes(), &salt)
-            .unwrap()
-            .to_string();
-
-        let created_at = Utc::now().to_rfc3339();
-
-        let _ = sqlx::query(
-            "INSERT INTO users (id, username, password, name, role, approved, needs_password_change, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+async fn init_db() -> Result<SqlitePool, sqlx::Error> {
+    let db_path = "nook.db";
+    let pool = SqlitePool::connect(db_path).await?;
+    
+    // Créer les tables si elles n'existent pas
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL
         )
-        .bind(&admin_id)
-        .bind(default_username)
-        .bind(&hashed_password)
-        .bind("Administrateur")
-        .bind("admin")
-        .bind(true)
-        .bind(true)
-        .bind(&created_at)
-        .execute(db)
-        .await;
-
-        println!("Admin par défaut créé avec succès!");
-        println!("Username: {}", default_username);
-        println!("Mot de passe temporaire: {}", default_password);
-        println!("ATTENTION: Ces identifiants devront être modifiés à la première connexion!");
-    } else {
-        println!("Un administrateur existe déjà dans la base de données.");
-    }
-}
-
-// Fallback SPA sécurisé : ne sert pas index.html sur les routes /api/*
-async fn spa_fallback(original_uri: OriginalUri) -> impl IntoResponse {
-    let path = original_uri.0.path();
-
-    if path.starts_with("/api/") {
-        return (StatusCode::NOT_FOUND, "API route not found").into_response();
-    }
-
-    match tokio::fs::read_to_string("/app/static/index.html").await {
-        Ok(html) => (StatusCode::OK, html).into_response(),
-        Err(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "<h1>Erreur : index.html introuvable</h1>".to_string(),
-        ).into_response(),
-    }
-}
-
-// WS handler avec state
-async fn ws_handler(
-    ws: WebSocketUpgrade,
-    state: axum::extract::State<Arc<SharedState>>,
-) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| webrtc::handle_socket(socket, state.webrtc_state.clone()))
-}
-
-// GIF proxy
-async fn gif_proxy(
-    Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<Value>, StatusCode> {
-    if let Some(q) = params.get("q") {
-        let url = format!(
-            "https://g.tenor.com/v1/search?q={}&key=LIVDSRZULELA&limit=8",
-            encode(q)
-        );
-        let resp = reqwest::get(&url)
-            .await
-            .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        let json: Value = resp.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-        Ok(Json(json))
-    } else {
-        Err(StatusCode::BAD_REQUEST)
-    }
+    "#).execute(&pool).await?;
+    
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+    "#).execute(&pool).await?;
+    
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS conversation_participants (
+            conversation_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            joined_at INTEGER NOT NULL,
+            PRIMARY KEY (conversation_id, user_id),
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    "#).execute(&pool).await?;
+    
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            content TEXT,
+            message_type TEXT DEFAULT 'text',
+            file_id TEXT,
+            created_at INTEGER NOT NULL,
+            edited_at INTEGER,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (file_id) REFERENCES uploads(id)
+        )
+    "#).execute(&pool).await?;
+    
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS uploads (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT,
+            from_user_id TEXT,
+            file_name TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            content_type TEXT,
+            uploaded_at INTEGER NOT NULL,
+            encrypted BOOLEAN DEFAULT 0,
+            nonce TEXT,
+            key_text TEXT
+        )
+    "#).execute(&pool).await?;
+    
+    eprintln!("[DB] Base de données initialisée");
+    Ok(pool)
 }
 
 #[tokio::main]
 async fn main() {
-    // Création dossiers
-    tokio::fs::create_dir_all("/app/data").await.ok();
-    tokio::fs::create_dir_all("/app/data/uploads").await.ok();
-    println!("Démarrage de Nook v2.0");
-
-    // Init DB
-    let app_state = db::init_db().await;
-
-    // Créer l'admin par défaut si nécessaire
-    ensure_admin_exists(&app_state.db).await;
-
-    // Initialiser WebRtcState et FileManager
-    let webrtc_state = WebRtcState::new();
-    let file_manager = Arc::new(FileManager::new("/app/data/uploads".into()));
+    // Initialiser le logger
+    env_logger::init();
     
-    // Démarrer la tâche de cleanup des fichiers en arrière-plan
-    let file_manager_for_cleanup = file_manager.clone();
-    tokio::spawn(async move {
-        file_manager_for_cleanup.start_cleanup_task().await;
-    });
-
-    let shared_state = SharedState {
-        db: app_state.db.clone(),
-        webrtc_state,
-        file_manager,
+    // Initialiser la base de données
+    let pool = match init_db().await {
+        Ok(pool) => pool,
+        Err(e) => {
+            eprintln!("[Erreur] Échec de l'initialisation de la DB: {}", e);
+            std::process::exit(1);
+        }
     };
-
-    // Rate limiting : 5 tentatives max toutes les 15 minutes (900 secondes)
-    // UriKeyExtractor fonctionne avec CasaOS et tout reverse proxy
-    let governor_conf = Arc::new(
-        GovernorConfigBuilder::default()
-            .period(Duration::from_secs(900))
-            .burst_size(5)
-            .key_extractor(UriKeyExtractor)
-            .finish()
-            .unwrap(),
-    );
-
+    
+    // Créer le dossier d'upload
+    let uploads_dir = PathBuf::from("uploads");
+    if !uploads_dir.exists() {
+        if let Err(e) = fs::create_dir_all(&uploads_dir) {
+            eprintln!("[Erreur] Échec de la création du dossier uploads: {}", e);
+            std::process::exit(1);
+        }
+    }
+    
+    // Initialiser le FileManager et WebRtcState
+    let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
+    let webrtc_state = WebRtcState::new();
+    
+    // Lancer la tâche de nettoyage des fichiers expirés
+    let file_manager_clone = (*file_manager).clone();
+    tokio::spawn(async move {
+        file_manager_clone.start_cleanup_task().await;
+    });
+    
+    // Créer le SharedState
+    let shared_state = SharedState {
+        db: pool.clone(),
+        webrtc_state: webrtc_state.clone(),
+        file_manager: file_manager.clone(),
+    };
+    
+    // Configurer le routeur
     let app = Router::new()
-        // Login avec rate limiting
-        .route(
-            "/api/login",
-            post(auth::login_json_handler).layer(GovernorLayer {
-                config: governor_conf.clone(),
-            }),
-        )
-        // Autres endpoints JSON modernes
-        .route("/api/validate-session", get(auth::validate_session_handler))
-        .route("/api/user-info", get(auth::user_info_handler))
-        .route("/api/register", post(auth::register_json_handler))
-        .route("/api/change-password", post(auth::change_password_json_handler))
-        .route("/api/logout", post(auth::logout_json_handler))
-        .route("/api/first-setup", post(auth::first_setup_handler))
-
-        // Nouvelles routes admin JSON
-        .route("/api/pending-users-json", get(auth::pending_users_json_handler))
-        .route("/api/all-users-json", get(auth::all_users_json_handler))
-        .route("/api/generate-invite", post(auth::generate_invite_handler))
-
-        // Routes upload et autres
-        .route("/api/upload", post(upload::upload_handler))
-        .route(
-            "/api/upload/:conversation_id/:sender_id/:message_type",
-            post(upload::upload_chat_file),
-        )
-        .route("/api/upload/:id", get(upload::get_upload))
-        .route("/api/upload/:id", delete(upload::delete_upload))
-        .route("/api/gifs", get(gif_proxy))
+        // Routes d'authentification
+        .route("/api/auth/register", post(auth::register))
+        .route("/api/auth/login", post(auth::login))
+        .route("/api/auth/me", get(auth::me))
+        .route("/api/auth/logout", post(auth::logout))
         
-        // Route WebSocket
-        .route("/ws", get(ws_handler))
-
-        // Routes WebRTC avec le state SharedState
+        // Routes de conversations
+        .route("/api/conversations", get(auth::list_conversations))
+        .route("/api/conversations", post(auth::create_conversation))
+        .route("/api/conversations/:id", get(auth::get_conversation))
+        .route("/api/conversations/:id/join", post(auth::join_conversation))
+        
+        // Routes de messages
+        .route("/api/conversations/:id/messages", get(auth::list_messages))
+        .route("/api/conversations/:id/messages", post(auth::send_message))
+        
+        // Routes WebRTC
         .merge(webrtc::webrtc_routes())
-
-        // Assets
-        .nest_service("/_app", get_service(ServeDir::new("/app/static/_app")))
-        .nest_service("/static", get_service(ServeDir::new("/app/static")))
-        .nest_service("/uploads", get_service(ServeDir::new("/app/data/uploads")))
-
-        // Fallback SPA (avec guard /api/*)
-        .fallback(get(spa_fallback))
+        
+        // Routes d'upload
+        .route("/api/upload", post(upload::upload_handler))
+        .route("/api/upload/chat", post(upload::upload_chat_file))
+        
+        // Route de health check
+        .route("/api/health", get(|| async { "OK" }))
+        
+        // Configuration CORS
+        .layer(CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any))
+        
+        // Ajouter le state partagé
         .with_state(Arc::new(shared_state));
-
+    
+    // Démarrer le serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    println!("Nook prêt sur http://{}", addr);
-    println!("Static files : /app/static");
-    println!("Uploads : /app/data/uploads");
-
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    eprintln!("[Serveur] Démarrage sur {}", addr);
+    
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await
+        .expect("[Erreur] Échec du démarrage du serveur");
 }
