@@ -116,6 +116,7 @@ impl WebRtcState {
 }
 
 // Structure pour suivre les fichiers uploadés (avec date d'expiration)
+#[derive(Clone)]
 struct TrackedFile {
     file_id: String,
     path: PathBuf,
