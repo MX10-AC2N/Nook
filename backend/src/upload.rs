@@ -4,17 +4,13 @@
 use axum::{
     extract::{Multipart, State as AxumState},
     response::IntoResponse,
-    routing::post,
-    Json as AxumJson, Router,
+    Json as AxumJson,
 };
 use chrono::Utc;
-use crate::SharedState;  // Pour Arc<SharedState>
+use crate::{SharedState, webrtc::encrypt_file_for_storage};  // Chemin correct pour encrypt + SharedState
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
-
-// Import des fonctions de chiffrement depuis webrtc.rs (ou un module crypto partagé)
-// Note: Dans une architecture propre, ces fonctions devraient être dans un module crypto.rs
 
 // === STRUCTURES ===
 
@@ -39,29 +35,29 @@ pub struct UploadMetadata {
 
 pub async fn upload_handler(
     mut multipart: Multipart,
-    AxumState(state): AxumState<Arc<super::SharedState>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
 
     // Parser les champs du formulaire
-    while let Ok(Some(field)) = multipart.next_field().await {
+    while let Ok(Some(mut field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
 
         if name == "conversation_id" {
-            if let Ok(Some(bytes)) = field.chunk().await {
-                form_data.conversation_id = String::from_utf8_lossy(&bytes).into_owned();
+            if let Ok(text) = field.text().await {
+                form_data.conversation_id = text;
             }
         } else if name == "from_user_id" {
-            if let Ok(Some(bytes)) = field.chunk().await {
-                form_data.from_user_id = String::from_utf8_lossy(&bytes).into_owned();
+            if let Ok(text) = field.text().await {
+                form_data.from_user_id = text;
             }
         } else if name == "file" {
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
             let content_type = field.content_type().map(|s| s.to_string()).unwrap_or_default();
 
-            // Lire les données du fichier
+            // Lire les données du fichier par chunks
             let mut data_vec = Vec::new();
-            while let Some(chunk) = field.chunk().await.transpose().unwrap_or(None) {
+            while let Some(Ok(chunk)) = field.chunk().await.ok() {
                 data_vec.extend_from_slice(&chunk);
             }
             form_data.data = Some(data_vec);
@@ -77,7 +73,7 @@ pub async fn upload_handler(
             return (
                 axum::http::StatusCode::BAD_REQUEST,
                 AxumJson(serde_json::json!({"error": e})),
-            )
+            );
         }
     };
 
@@ -93,11 +89,23 @@ pub async fn upload_handler(
     // Sauvegarder le fichier (chiffré si demandé)
     let (encrypted, nonce, key) = if data.is_encrypted {
         let (ciphertext, nonce_b64, key_b64) =
-            super::encrypt_file_for_storage(&data.data);
-        let _ = tokio::fs::write(&storage_path, &ciphertext).await;
+            encrypt_file_for_storage(&data.data);
+        if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
+            eprintln!("[Upload] Erreur écriture fichier: {}", e);
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                AxumJson(serde_json::json!({"error": "Failed to save file"})),
+            );
+        }
         (true, Some(nonce_b64), Some(key_b64))
     } else {
-        let _ = tokio::fs::write(&storage_path, &data.data).await;
+        if let Err(e) = tokio::fs::write(&storage_path, &data.data).await {
+            eprintln!("[Upload] Erreur écriture fichier: {}", e);
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                AxumJson(serde_json::json!({"error": "Failed to save file"})),
+            );
+        }
         (false, None, None)
     };
 
@@ -156,30 +164,31 @@ pub async fn upload_handler(
 
 pub async fn upload_chat_file(
     mut multipart: Multipart,
-    AxumState(state): AxumState<Arc<super::SharedState>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
 
-    while let Ok(Some(field)) = multipart.next_field().await {
+    while let Ok(Some(mut field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
 
         if name == "conversation_id" {
-            if let Ok(Some(bytes)) = field.chunk().await {
-                form_data.conversation_id = String::from_utf8_lossy(&bytes).into_owned();
+            if let Ok(text) = field.text().await {
+                form_data.conversation_id = text;
             }
         } else if name == "from_user_id" {
-            if let Ok(Some(bytes)) = field.chunk().await {
-                form_data.from_user_id = String::from_utf8_lossy(&bytes).into_owned();
+            if let Ok(text) = field.text().await {
+                form_data.from_user_id = text;
             }
         } else if name == "file" {
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
 
             let mut data_vec = Vec::new();
-            while let Some(chunk) = field.chunk().await.transpose().unwrap_or(None) {
+            while let Some(Ok(chunk)) = field.chunk().await.ok() {
                 data_vec.extend_from_slice(&chunk);
             }
             form_data.data = Some(data_vec);
             form_data.file_name = filename;
+            form_data.content_type = "application/octet-stream".to_string();
         }
     }
 
@@ -189,15 +198,21 @@ pub async fn upload_chat_file(
             return (
                 axum::http::StatusCode::BAD_REQUEST,
                 AxumJson(serde_json::json!({"error": e})),
-            )
+            );
         }
     };
 
     let file_id = Uuid::new_v4().to_string();
     let storage_path = state.file_manager.uploads_dir.join(&file_id);
 
-    let (ciphertext, nonce_b64, key_b64) = super::encrypt_file_for_storage(&data.data);
-    let _ = tokio::fs::write(&storage_path, &ciphertext).await;
+    let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
+    if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
+        eprintln!("[Upload Chat] Erreur écriture fichier: {}", e);
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(serde_json::json!({"error": "Failed to save file"})),
+        );
+    }
 
     let now = Utc::now().timestamp();
     let query = r#"
@@ -212,11 +227,11 @@ pub async fn upload_chat_file(
         .bind(&data.file_name)
         .bind(storage_path.to_str().unwrap_or(""))
         .bind(data.data.len() as i64)
-        .bind("application/octet-stream")
+        .bind(&data.content_type)
         .bind(now)
         .bind(true)
-        .bind(nonce_b64)
-        .bind(key_b64)
+        .bind(&nonce_b64)
+        .bind(&key_b64)
         .execute(&state.db)
         .await
     {
