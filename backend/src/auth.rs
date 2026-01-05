@@ -34,6 +34,7 @@ pub struct LoginPayload {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct ChangePasswordPayload {
     pub user_id: String,
     pub new_password: String,
