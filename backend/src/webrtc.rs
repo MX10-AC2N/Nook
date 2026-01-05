@@ -236,7 +236,7 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 }
 
 /// Fonction broadcast_message compatible avec upload.rs
-pub fn broadcast_message(
+pub async fn broadcast_message(
     state: SharedCallState,
     _conversation_id: String,
     _event: String,
