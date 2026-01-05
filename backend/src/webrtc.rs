@@ -245,9 +245,8 @@ pub fn broadcast_message(
     let guard = state.lock().await; 
         for (_, tx) in guard.iter() {
             let _ = tx.send(message.clone());
-        }
+ }
     }
-}
 
 // === HANDLERS HTTP ===
 
