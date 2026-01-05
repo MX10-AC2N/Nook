@@ -155,6 +155,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         // Utilise ta fonction de hachage déjà définie dans le module `auth`
         let password_hash = crate::auth::hash_password(default_password);
 
+        let now = chrono::Utc::now()
         sqlx::query(
             r#"
             INSERT INTO users (
