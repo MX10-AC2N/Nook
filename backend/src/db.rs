@@ -51,6 +51,7 @@ pub struct Message {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(dead_code)]
 pub struct Upload {
     pub id: String,
     pub conversation_id: Option<String>,
