@@ -18,7 +18,7 @@ use std::{
 use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio::time::{interval, sleep};
-use chacha20poly1305::{ChaCha20Poly1305, KeyInit};
+use chacha20poly1305::KeyInit;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::aead::generic_array::GenericArray;
 use chacha20poly1305::XChaCha20Poly1305; // Support nonces de 24 bytes
