@@ -6,7 +6,7 @@ use argon2::password_hash::{PasswordHash, SaltString};
 use rand::rngs::OsRng;
 use axum::{
     extract::State as AxumState,
-    http::{HeaderMap, HeaderName, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
