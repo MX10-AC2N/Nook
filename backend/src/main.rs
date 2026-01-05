@@ -162,11 +162,12 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
                 id, username, email, password_hash,
                 name, role, approved, needs_password_change, created_at
             )
-            VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, strftime('%s', 'now'))
+            VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, ?)
             "#,
         )
         .bind(&admin_id)
         .bind("admin")
+        .bind("now")
         .bind("admin@nook.local")
         .bind(&password_hash)
         .bind("Administrateur Initial")
@@ -186,7 +187,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 //  POINT D'ENTRÉE PRINCIPAL
 // ---------------------------------------------------------------------------
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialise le logger
     tracing_subscriber::fmt::init();
 
@@ -235,11 +236,11 @@ async fn main() {
     // -------------------------------------------------
     // 5️⃣ Construire le SharedState
     // -------------------------------------------------
-    let shared_state = SharedState {
+    let shared_state = Arc::new(SharedState {
         db: pool.clone(),
         webrtc_state: webrtc_state.clone(),
         file_manager: file_manager.clone(),
-    };
+    });
 
     // -------------------------------------------------
     // 6️⃣ Configurer le routeur Axum
@@ -281,7 +282,7 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app)
-        .await
-        .expect("[Erreur] Échec du démarrage du serveur");
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
