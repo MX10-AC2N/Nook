@@ -87,67 +87,6 @@ pub struct MessageQueryParams {
     pub before: Option<i64>,
 }
 
-// === IMPLEMENTATIONS ===
-
-impl FromRow<'_, sqlx::sqlite::SqliteRow> for User {
-    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
-        Ok(User {
-            id: row.try_get("id")?,
-            username: row.try_get("username")?,
-            email: row.try_get("email")?,
-            password_hash: row.try_get("password_hash")?,
-            name: row.try_get("name")?,
-            role: row.try_get("role")?,
-            approved: row.try_get("approved")?,
-            needs_password_change: row.try_get("needs_password_change")?,
-            created_at: row.try_get("created_at")?,
-        })
-    }
-}
-
-impl FromRow<'_, sqlx::sqlite::SqliteRow> for Conversation {
-    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
-        Ok(Conversation {
-            id: row.try_get("id")?,
-            created_at: row.try_get("created_at")?,
-            updated_at: row.try_get("updated_at")?,
-        })
-    }
-}
-
-impl FromRow<'_, sqlx::sqlite::SqliteRow> for Message {
-    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
-        Ok(Message {
-            id: row.try_get("id")?,
-            conversation_id: row.try_get("conversation_id")?,
-            user_id: row.try_get("user_id")?,
-            content: row.try_get("content")?,
-            message_type: row.try_get("message_type")?,
-            file_id: row.try_get("file_id")?,
-            created_at: row.try_get("created_at")?,
-            edited_at: row.try_get("edited_at")?,
-        })
-    }
-}
-
-impl FromRow<'_, sqlx::sqlite::SqliteRow> for Upload {
-    fn from_row(row: &sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
-        Ok(Upload {
-            id: row.try_get("id")?,
-            conversation_id: row.try_get("conversation_id")?,
-            from_user_id: row.try_get("from_user_id")?,
-            file_name: row.try_get("file_name")?,
-            file_path: row.try_get("file_path")?,
-            file_size: row.try_get("file_size")?,
-            content_type: row.try_get("content_type")?,
-            uploaded_at: row.try_get("uploaded_at")?,
-            encrypted: row.try_get("encrypted")?,
-            nonce: row.try_get("nonce")?,
-            key_text: row.try_get("key_text")?,
-        })
-    }
-}
-
 // === FONCTIONS UTILITAIRES ===
 
 pub async fn get_user_by_id(pool: &SqlitePool, user_id: &str) -> Result<Option<User>, sqlx::Error> {
