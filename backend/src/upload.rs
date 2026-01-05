@@ -34,7 +34,7 @@ pub struct UploadMetadata {
 // === HANDLERS ===
 
 pub async fn upload_handler(
-    AxumState(_state): AxumState<Arc<SharedState>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
