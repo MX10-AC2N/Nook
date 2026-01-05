@@ -150,7 +150,7 @@ pub async fn upload_handler(
     }
 
     // Enregistrer pour suivi d'expiration
-    state.file_manager.register_file(&file_id, storage_path);
+    state.file_manager.register_file(&file_id, storage_path).await;
 
     eprintln!(
         "[Upload] Fichier '{}' uploaded ({} bytes, encrypted: {})",
@@ -262,7 +262,7 @@ pub async fn upload_chat_file(
         );
     }
 
-    state.file_manager.register_file(&file_id, storage_path);
+    state.file_manager.register_file(&file_id, storage_path).await;
 
     eprintln!(
         "[Upload Chat] Fichier '{}' pour conversation {}",
