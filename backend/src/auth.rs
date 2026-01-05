@@ -151,7 +151,7 @@ pub async fn login(
                     id: user.id.clone(),
                     username: user.username.clone(),
                     name: user.name.unwrap_or_default(),
-                    role: user.role.unwrap_or_else(|| "user".to_string()),
+                    role: user.role,
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
@@ -208,7 +208,7 @@ pub async fn me(
                     id: user.id,
                     username: user.username,
                     name: user.name.unwrap_or_default(),
-                    role: user.role.unwrap_or_else(|| "user".to_string()),
+                    role: user.role,
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
