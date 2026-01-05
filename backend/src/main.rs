@@ -32,7 +32,7 @@ pub struct SharedState {
 //  INITIALISATION DE LA BASE DE DONNÉES
 // ---------------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
-    let db_path = "nook.db";
+    let db_path = "sqlite:nook.db";
     let pool = SqlitePool::connect(db_path).await?;
 
     // Créer les tables si elles n'existent pas
