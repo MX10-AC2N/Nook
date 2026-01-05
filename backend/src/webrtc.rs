@@ -268,9 +268,9 @@ pub async fn handle_offer(
         });
 
     let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() {
-            let _ = tx.send(response.to_string());
-        }
+    for (_, tx) in guard.iter() {
+        let _ = tx.send(response.to_string());
+    }
 
         eprintln!("[Signalisation] Offre P2P diffusée pour {}", from_user_id);
         (axum::http::StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
