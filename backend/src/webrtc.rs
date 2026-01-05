@@ -327,7 +327,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
     let broadcast_tx_for_send = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
 
-    let mut guard = state.webrtc_state.broadcasts.lock().unwrap();
+    let mut guard = state.webrtc_state.broadcasts.lock().await;
     guard.insert(id, broadcast_tx);
     drop(guard);
 
@@ -381,7 +381,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
         _ = receive_task => {},
     }
 
-    let mut guard = state.webrtc_state.broadcasts.lock().unwrap();
+    let mut guard = state.webrtc_state.broadcasts.lock().await;
     guard.remove(&id);
     eprintln!("[WebSocket] Client déconnecté: {}", id);
 }
