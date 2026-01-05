@@ -30,10 +30,13 @@ pub struct User {
     pub created_at: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Conversation {
     pub id: String,
+    pub name: Option<String>,
+    pub is_group: bool,
     pub created_at: i64,
+    pub created_by: String,
     pub updated_at: i64,
 }
 
