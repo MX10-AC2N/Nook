@@ -92,6 +92,7 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
 }
 
 /// Encodage base64 (compatible sodium.to_base64)
+#[allow(dead_code)]
 pub fn to_base64(data: &[u8]) -> String {
     Base64Unpadded::encode_string(data)
 }
