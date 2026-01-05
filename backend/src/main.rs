@@ -274,7 +274,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .allow_headers(Any),
         )
         // Inject the shared state
-        .with_state(Arc::new(SharedState));
+        .with_state(Arc::new(shared_state));
 
     // -------------------------------------------------
     // 7️⃣ Démarrer le serveur HTTP
