@@ -95,7 +95,7 @@ pub async fn create_conversation(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    sqlx::query(
+    sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO conversations (id, name, is_group, created_at, created_by, updated_at) 
          VALUES (?, ?, ?, ?, ?, ?)"
     )
@@ -109,7 +109,7 @@ pub async fn create_conversation(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    sqlx::query(
+    sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO conversation_participants (conversation_id, user_id, joined_at) 
          VALUES (?, ?, ?)"
     )
@@ -170,7 +170,7 @@ pub async fn join_conversation(
 ) -> Result<StatusCode, StatusCode> {
     let now = chrono::Utc::now().timestamp();
     
-    sqlx::query(
+    sqlx::query::<sqlx::Sqlite>(
         "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at) 
          VALUES (?, ?, ?)"
     )
@@ -181,7 +181,7 @@ pub async fn join_conversation(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    sqlx::query(
+    sqlx::query::<sqlx::Sqlite>(
         "UPDATE conversations SET updated_at = ? WHERE id = ?"
     )
     .bind(now)
@@ -202,7 +202,7 @@ pub async fn send_message(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    sqlx::query(
+    sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO messages (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
@@ -218,7 +218,7 @@ pub async fn send_message(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    sqlx::query("UPDATE conversations SET updated_at = ? WHERE id = ?")
+    sqlx::query::<sqlx::Sqlite>("UPDATE conversations SET updated_at = ? WHERE id = ?")
         .bind(now)
         .bind(&conversation_id)
         .execute(&state.db)
