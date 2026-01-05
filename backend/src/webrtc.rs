@@ -152,7 +152,7 @@ impl FileManager {
         let uploaded_at = now;
         let expires_at = uploaded_at + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
 
-        let mut files = self.tracked_files.lock().unwrap();
+        let mut files = self.tracked_files.lock().await;
         files.push(TrackedFile {
             file_id: file_id.to_string(),
             path,
@@ -166,7 +166,7 @@ impl FileManager {
     /// Nettoie les fichiers expirés (à appeler périodiquement)
     pub async fn cleanup_expired_files(&self) -> usize {
         let now = SystemTime::now();
-        let mut files = self.tracked_files.lock().unwrap();
+        let mut files = self.tracked_files.lock().await;
         let mut deleted_count = 0;
 
         let mut i = 0;
