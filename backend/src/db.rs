@@ -54,7 +54,7 @@ pub struct Message {
     pub edited_at: Option<i64>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Upload {
     pub id: String,
     pub conversation_id: Option<String>,
