@@ -40,14 +40,16 @@ pub struct Conversation {
     pub updated_at: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Message {
     pub id: String,
     pub conversation_id: String,
-    pub user_id: String,
-    pub content: Option<String>,
+    pub sender_id: String,
+    pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
+    pub encrypted: bool,
+    pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
 }
