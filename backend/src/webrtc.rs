@@ -242,7 +242,7 @@ pub fn broadcast_message(
     _event: String,
     message: String,
 ) {
-    if let Ok(guard) = state.lock() {
+    let guard = state.lock().await; 
         for (_, tx) in guard.iter() {
             let _ = tx.send(message.clone());
         }
