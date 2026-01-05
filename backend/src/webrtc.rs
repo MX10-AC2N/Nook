@@ -147,7 +147,7 @@ impl FileManager {
     }
 
     /// Enregistre un nouveau fichier pour suivi
-    pub fn register_file(&self, file_id: &str, path: PathBuf) {
+    pub async fn register_file(&self, file_id: &str, path: PathBuf) {
         let now = SystemTime::now();
         let uploaded_at = now;
         let expires_at = uploaded_at + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
