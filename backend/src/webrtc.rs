@@ -268,7 +268,7 @@ pub async fn handle_offer(
             "timestamp": chrono::Utc::now().timestamp()
         });
 
-        let guard = state.webrtc_state.broadcasts.lock().await;
+    let guard = state.webrtc_state.broadcasts.lock().await;
         for (_, tx) in guard.iter() {
             let _ = tx.send(response.to_string());
         }
