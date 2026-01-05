@@ -7,6 +7,7 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use uuid::Uuid;
 
 // === STRUCTURES DE DONNÉES ===
