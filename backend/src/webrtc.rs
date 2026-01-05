@@ -72,6 +72,7 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
 }
 
 /// Déchiffrement (compatible sodium.crypto_secretbox_open_easy)
+#[allow(dead_code)]
 fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, &'static str> {
     if ciphertext.len() < CRYPTO_SECRETBOX_NONCEBYTES + CRYPTO_SECRETBOX_MACBYTES {
         return Err("Ciphertext trop court");
