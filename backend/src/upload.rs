@@ -15,6 +15,7 @@ use uuid::Uuid;
 // === STRUCTURES ===
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 pub struct UploadResponse {
     pub file_id: String,
     pub file_name: String,
@@ -25,6 +26,7 @@ pub struct UploadResponse {
 }
 
 #[derive(Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct UploadMetadata {
     pub conversation_id: String,
     pub from_user_id: String,
