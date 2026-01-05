@@ -105,7 +105,7 @@ pub async fn register(
             message: "Inscription réussie! En attente d'approbation.".to_string(),
             user: None,
         }).into_response(),
-        Err(e) => (
+        Err(_e) => (
             StatusCode::CONFLICT,
             Json(AuthResponse {
                 success: false,
