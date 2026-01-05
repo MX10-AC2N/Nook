@@ -10,8 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::SharedState;
-
 // === STRUCTURES DE DONNÉES ===
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
