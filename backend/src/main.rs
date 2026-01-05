@@ -59,7 +59,10 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
         r#"
         CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
+            name TEXT,
+    is_group BOOLEAN DEFAULT 0,
             created_at INTEGER NOT NULL,
+            created_by TEXT NOT NULL,
             updated_at INTEGER NOT NULL
         )
         "#,
