@@ -122,6 +122,7 @@ impl WebRtcState {
 
 // Structure pour suivre les fichiers uploadés (avec date d'expiration)
 #[derive(Clone)]
+#[allow(dead_code)]
 struct TrackedFile {
     file_id: String,
     path: PathBuf,
@@ -226,6 +227,7 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
 }
 
 /// Déchiffre un fichier stocké sur le serveur
+#[allow(dead_code)]
 pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base64: &str) -> Result<Vec<u8>, &'static str> {
     let nonce = from_base64(nonce_base64)?;
     let key = from_base64(key_base64)?;
@@ -238,6 +240,7 @@ pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base
 }
 
 /// Fonction broadcast_message compatible avec upload.rs
+#[allow(dead_code)]
 pub async fn broadcast_message(
     state: SharedCallState,
     _conversation_id: String,
