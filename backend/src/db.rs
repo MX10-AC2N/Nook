@@ -1,6 +1,5 @@
 // db.rs - Structures et utilitaires de base de données
 
-use sqlx::{SqlitePool, FromRow, Row};
 use axum::{
     extract::{Path, Query, State},
     Extension,
@@ -8,10 +7,6 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use std::collections::HashMap;
 use uuid::Uuid;
 
 // === STRUCTURES DE DONNÉES ===
