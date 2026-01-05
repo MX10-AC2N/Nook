@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 // === STRUCTURES DE DONNÉES ===
 
-#[derive(Clone, Debug, Serialise, Deserialise, sqlx::FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
