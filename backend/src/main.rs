@@ -90,10 +90,12 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             conversation_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
+            sender_id TEXT NOT NULL,
             content TEXT,
             message_type TEXT DEFAULT 'text',
             file_id TEXT,
+            encrypted BOOLEAN DEFAULT 0,
+            timestamp INTEGER NOT NULL,
             created_at INTEGER NOT NULL,
             edited_at INTEGER,
             FOREIGN KEY (conversation_id) REFERENCES conversations(id),
