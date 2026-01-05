@@ -172,7 +172,7 @@ pub async fn upload_handler(
 }
 
 pub async fn upload_chat_file(
-    AxumState(_state): AxumState<Arc<SharedState>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
