@@ -86,7 +86,7 @@ pub async fn register(
     let user_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().timestamp();
 
-    let result = sqlx::query(
+    let result = sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
          VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)"
     )
@@ -141,7 +141,7 @@ pub async fn login(
 
             if verify_password(&payload.password, &user.password_hash) {
                 let token = Uuid::new_v4().to_string();
-                let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+                let _ = sqlx::query::<sqlx::Sqlite>("UPDATE users SET token = ? WHERE id = ?")
                     .bind(&token)
                     .bind(&user.id)
                     .execute(&state.db)
@@ -227,7 +227,7 @@ pub async fn logout(
         let parts: Vec<&str> = cookie.split(':').collect();
         if parts.len() == 2 {
             let user_id = parts[0];
-            let _ = sqlx::query("UPDATE users SET token = NULL WHERE id = ?")
+            let _ = sqlx::query::<sqlx::Sqlite>("UPDATE users SET token = NULL WHERE id = ?")
                 .bind(user_id)
                 .execute(&state.db)
                 .await;
