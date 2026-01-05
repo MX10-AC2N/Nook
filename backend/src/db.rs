@@ -69,6 +69,24 @@ pub struct Upload {
     pub key_text: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateConversationRequest {
+    pub name: Option<String>,
+    pub is_group: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SendMessageRequest {
+    pub content: String,
+    pub encrypted: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MessageQueryParams {
+    pub limit: Option<i32>,
+    pub before: Option<i64>,
+}
+
 // === IMPLEMENTATIONS ===
 
 impl FromRow<'_, sqlx::sqlite::SqliteRow> for User {
