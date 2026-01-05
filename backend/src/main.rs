@@ -8,7 +8,7 @@ use axum::{
 };
 use std::{fs, path::PathBuf, sync::Arc, net::SocketAddr};
 
-use sqlx::{SqlitePool, migrate};
+use sqlx::SqlitePool;
 use tower_http::cors::{CorsLayer, Any};
 
 // Modules
