@@ -89,229 +89,188 @@ pub struct MessageQueryParams {
 
 // === FONCTIONS UTILITAIRES ===
 
-pub async fn get_user_by_id(pool: &SqlitePool, user_id: &str) -> Result<Option<User>, sqlx::Error> {
-    sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-}
-
-pub async fn get_user_by_username(pool: &SqlitePool, username: &str) -> Result<Option<User>, sqlx::Error> {
-    sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
-        .bind(username)
-        .fetch_optional(pool)
-        .await
-}
-
-pub async fn create_user(
-    pool: &SqlitePool,
-    username: &str,
-    email: &str,
-    password_hash: &str,
-) -> Result<User, sqlx::Error> {
+pub async fn create_conversation(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(user_id): Extension<String>,
+    Json(req): Json<CreateConversationRequest>,
+) -> Result<Json<Conversation>, StatusCode> {
     let id = Uuid::new_v4().to_string();
-    let created_at = Utc::now().timestamp();
-    
-    sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(&id)
-    .bind(username)
-    .bind(email)
-    .bind(password_hash)
-    .bind(created_at)
-    .execute(pool)
-    .await?;
-    
-    Ok(User {
-        id: user_id.to_string(),
-        username,
-        password_hash,
-        name: username.clone(), // ou autre valeur par défaut
-        role,
-        approved: role == "admin", // ou true/false selon votre logique
-        needs_password_change: false,
-        created_at: chrono::Utc::now().to_rfc3339(),
-    })
-}
+    let now = chrono::Utc::now().timestamp();
 
-pub async fn create_conversation(pool: &SqlitePool, user_id: &str) -> Result<Conversation, sqlx::Error> {
-    let id = Uuid::new_v4().to_string();
-    let now = Utc::now().timestamp();
-    
     sqlx::query(
-        "INSERT INTO conversations (id, created_at, updated_at) VALUES (?, ?, ?)",
+        "INSERT INTO conversations (id, name, is_group, created_at, created_by, updated_at) 
+         VALUES (?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
+    .bind(&req.name)
+    .bind(req.is_group)
     .bind(now)
+    .bind(&user_id)
     .bind(now)
-    .execute(pool)
-    .await?;
-    
-    // Ajouter le créateur comme participant
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     sqlx::query(
-        "INSERT INTO conversation_participants (conversation_id, user_id, joined_at) VALUES (?, ?, ?)",
+        "INSERT INTO conversation_participants (conversation_id, user_id, joined_at) 
+         VALUES (?, ?, ?)"
     )
     .bind(&id)
-    .bind(user_id)
+    .bind(&user_id)
     .bind(now)
-    .execute(pool)
-    .await?;
-    
-    Ok(Conversation {
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(Conversation {
         id,
+        name: req.name,
+        is_group: req.is_group,
         created_at: now,
+        created_by: user_id,
         updated_at: now,
-    })
+    }))
 }
 
 pub async fn get_conversation(
-    pool: &SqlitePool,
-    conversation_id: &str,
-) -> Result<Option<Conversation>, sqlx::Error> {
-    sqlx::query_as::<_, Conversation>("SELECT * FROM conversations WHERE id = ?")
-        .bind(conversation_id)
-        .fetch_optional(pool)
-        .await
+    State(state): State<Arc<crate::SharedState>>,
+    Path(id): Path<String>,
+) -> Result<Json<Conversation>, StatusCode> {
+    let conversation = sqlx::query_as::<_, Conversation>(
+        "SELECT * FROM conversations WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|_| StatusCode::NOT_FOUND)?;
+
+    Ok(Json(conversation))
 }
 
 pub async fn get_user_conversations(
-    pool: &SqlitePool,
-    user_id: &str,
-) -> Result<Vec<Conversation>, sqlx::Error> {
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(user_id): Extension<String>,
+) -> Result<Json<Vec<Conversation>>, StatusCode> {
     let conversations = sqlx::query_as::<_, Conversation>(
-        "SELECT c.* FROM conversations c
-         INNER JOIN conversation_participants cp ON c.id = cp.conversation_id
+        "SELECT c.* FROM conversations c 
+         INNER JOIN conversation_participants cp ON c.id = cp.conversation_id 
          WHERE cp.user_id = ?
          ORDER BY c.updated_at DESC"
     )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await?;
-    
-    Ok(conversations)
+    .bind(&user_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(conversations))
 }
 
 pub async fn join_conversation(
-    pool: &SqlitePool,
-    conversation_id: &str,
-    user_id: &str,
-) -> Result<(), sqlx::Error> {
-    let now = Utc::now().timestamp();
+    State(state): State<Arc<crate::SharedState>>,
+    Path(id): Path<String>,
+    Extension(user_id): Extension<String>,
+) -> Result<StatusCode, StatusCode> {
+    let now = chrono::Utc::now().timestamp();
     
     sqlx::query(
-        "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at) VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at) 
+         VALUES (?, ?, ?)"
     )
-    .bind(conversation_id)
-    .bind(user_id)
+    .bind(&id)
+    .bind(&user_id)
     .bind(now)
-    .execute(pool)
-    .await?;
-    
-    // Mettre à jour updated_at
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     sqlx::query(
-        "UPDATE conversations SET updated_at = ? WHERE id = ?",
+        "UPDATE conversations SET updated_at = ? WHERE id = ?"
     )
     .bind(now)
-    .bind(conversation_id)
-    .execute(pool)
-    .await?;
-    
-    Ok(())
+    .bind(&id)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(StatusCode::OK)
 }
 
 pub async fn send_message(
-    pool: &SqlitePool,
-    conversation_id: &str,
-    user_id: &str,
-    content: Option<&str>,
-    message_type: &str,
-    file_id: Option<&str>,
-) -> Result<Message, sqlx::Error> {
+    State(state): State<Arc<crate::SharedState>>,
+    Path(conversation_id): Path<String>,
+    Extension(user_id): Extension<String>,
+    Json(req): Json<SendMessageRequest>,
+) -> Result<Json<Message>, StatusCode> {
     let id = Uuid::new_v4().to_string();
-    let created_at = Utc::now().timestamp();
-    
+    let now = chrono::Utc::now().timestamp();
+
     sqlx::query(
-        "INSERT INTO messages (id, conversation_id, user_id, content, message_type, file_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO messages (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
-    .bind(conversation_id)
-    .bind(user_id)
-    .bind(content)
-    .bind(message_type)
-    .bind(file_id)
-    .bind(created_at)
-    .execute(pool)
-    .await?;
-    
-    // Mettre à jour updated_at de la conversation
-    sqlx::query(
-        "UPDATE conversations SET updated_at = ? WHERE id = ?",
-    )
-    .bind(created_at)
-    .bind(conversation_id)
-    .execute(pool)
-    .await?;
-    
-    Ok(Message {
+    .bind(&conversation_id)
+    .bind(&user_id)
+    .bind(&req.content)
+    .bind(req.encrypted)
+    .bind(now)
+    .bind(now)
+    .bind("text")
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    sqlx::query("UPDATE conversations SET updated_at = ? WHERE id = ?")
+        .bind(now)
+        .bind(&conversation_id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(Message {
         id,
-        conversation_id: conversation_id.to_string(),
-        user_id: user_id.to_string(),
-        content: content.map(|s| s.to_string()),
-        message_type: message_type.to_string(),
-        file_id: file_id.map(|s| s.to_string()),
-        created_at,
+        conversation_id,
+        sender_id: user_id,
+        content: req.content,
+        message_type: "text".to_string(),
+        file_id: None,
+        encrypted: req.encrypted,
+        timestamp: now,
+        created_at: now,
         edited_at: None,
-    })
+    }))
 }
 
 pub async fn get_conversation_messages(
-    pool: &SqlitePool,
-    conversation_id: &str,
-    limit: Option<i64>,
-    before: Option<i64>,
-) -> Result<Vec<Message>, sqlx::Error> {
-    let limit = limit.unwrap_or(50);
+    State(state): State<Arc<crate::SharedState>>,
+    Path(id): Path<String>,
+    Query(params): Query<MessageQueryParams>,
+) -> Result<Json<Vec<Message>>, StatusCode> {
+    let limit = params.limit.unwrap_or(50);
     
-    let query = if let Some(before_timestamp) = before {
-        "SELECT * FROM messages WHERE conversation_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?"
-    } else {
-        "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?"
-    };
-    
-    let mut query = sqlx::query_as::<_, Message>(query).bind(conversation_id).bind(limit);
-    
-    if let Some(before_timestamp) = before {
-        query = sqlx::query_as::<_, Message>(
-            "SELECT * FROM messages WHERE conversation_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?"
-        ).bind(conversation_id).bind(before_timestamp).bind(limit);
-    } else {
-        query = sqlx::query_as::<_, Message>(
-            "SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?"
-        ).bind(conversation_id).bind(limit);
-    }
-    
-    let messages = query.fetch_all(pool).await?;
-    
-    // Inverser pour avoir l'ordre chronologique
-    let mut messages = messages;
-    messages.reverse();
-    
-    Ok(messages)
-}
-
-pub async fn get_upload(pool: &SqlitePool, upload_id: &str) -> Result<Option<Upload>, sqlx::Error> {
-    sqlx::query_as::<_, Upload>("SELECT * FROM uploads WHERE id = ?")
-        .bind(upload_id)
-        .fetch_optional(pool)
+    let messages = if let Some(before) = params.before {
+        sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages 
+             WHERE conversation_id = ? AND created_at < ? 
+             ORDER BY created_at DESC LIMIT ?"
+        )
+        .bind(&id)
+        .bind(before)
+        .bind(limit)
+        .fetch_all(&state.db)
         .await
-}
+    } else {
+        sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages 
+             WHERE conversation_id = ? 
+             ORDER BY created_at DESC LIMIT ?"
+        )
+        .bind(&id)
+        .bind(limit)
+        .fetch_all(&state.db)
+        .await
+    }
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-pub async fn delete_upload(pool: &SqlitePool, upload_id: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM uploads WHERE id = ?")
-        .bind(upload_id)
-        .execute(pool)
-        .await?;
-    
-    Ok(())
+    Ok(Json(messages))
 }
