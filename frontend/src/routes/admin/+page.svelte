@@ -132,7 +132,7 @@
 
   function isExpired(invite: any): boolean {
     return Date.now() / 1000 > invite.expires_at;
-}
+  }
 // Puis class:expired={isExpired(invite)} et getStatus ajoute check isExpired
 </script>
 
