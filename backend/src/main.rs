@@ -20,6 +20,7 @@ mod webrtc;
 mod upload;
 mod prune;
 mod invites;
+mod admin;
 
 // Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
@@ -313,8 +314,7 @@ let app = Router::new()
     .route("/api/auth/logout", post(auth::logout))
     .route("/api/auth/change-password", post(auth::change_password))
 
-    // Invites routes
-    .route("/api/invites/create", post(invites::create_invite)) // Admin only
+    // Join routes
     .route("/api/join", post(invites::join))
 
     // Conversation routes
@@ -330,6 +330,14 @@ let app = Router::new()
     // Upload routes
     .route("/api/upload", post(upload::upload_handler))
     .route("/api/upload/chat", post(upload::upload_chat_file))
+    // ajout pour admin.rs
+     .route("/api/pending-users-json", get(admin::pending_users))
+    .route("/api/all-users-json", get(admin::all_users))
+    .route("/api/approve", post(admin::approve_user))
+    .route("/api/list-invites", get(admin::list_invites))
+    .route("/api/generate-invite", post(admin::generate_invite))
+    .route("/api/delete-invite", post(admin::delete_invite))
+
     // Health‑check
     .route("/api/health", get(|| async { "OK" }))
     // Inject the shared state
