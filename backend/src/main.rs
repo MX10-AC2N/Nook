@@ -20,6 +20,8 @@ mod prune;
 
 // Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
+// Import de prune.rs
+use crate::prune::prune_old_data;
 
 /// Structure contenant l'état partagé entre les différents handlers.
 #[derive(Clone)]
