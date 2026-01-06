@@ -62,10 +62,17 @@ RUN ls -la /app/static && \
 # --- Image finale : Distroless ---
 FROM gcr.io/distroless/cc-debian12:latest
 
+# Copier passwd pour l'utilisateur app
 COPY --from=runtime-builder /etc/passwd /etc/passwd
-COPY --from=runtime-builder /app /app
+COPY --from=runtime-builder /etc/group /etc/group
 
-USER app
+# Copier l'application et les répertoires avec les bonnes permissions
+COPY --from=runtime-builder --chown=1000:1000 /app /app
+
+# IMPORTANT: Définir le WORKDIR pour que les chemins relatifs fonctionnent
+WORKDIR /app
+
+USER 1000:1000
 
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:/app/data/nook.db
