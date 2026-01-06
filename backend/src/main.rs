@@ -292,6 +292,8 @@ let app = Router::new()
     .route("/api/auth/login", post(auth::login))
     .route("/api/auth/me", get(auth::me))
     .route("/api/auth/logout", post(auth::logout))
+    .route("/api/auth/change-password", post(auth::change_password))
+
     // Conversation routes
     .route("/api/conversations", get(db::get_user_conversations))
     .route("/api/conversations", post(db::create_conversation))
