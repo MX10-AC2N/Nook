@@ -239,7 +239,7 @@
                   </button>
                 </td>
                 <td>
-                  <button class="delete-btn" on:click={() => deleteInvite(invite.id)} disabled={invite.used || invite.expired}>
+                  <button class="delete-btn" on:click={() => deleteInvite(invite.id)} disabled={invite.used || isExpired(invite)}>
                     Supprimer
                   </button>
                 </td>
