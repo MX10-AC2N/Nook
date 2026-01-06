@@ -70,7 +70,7 @@ fn verify_password(password: &str, hashed: &str) -> bool {
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
-fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers.get("cookie")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.split(';').find_map(|c| c.trim().starts_with(&format!("{}=", name)).then(|| c.split('=').nth(1).unwrap_or("").to_string())))
