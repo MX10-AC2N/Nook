@@ -190,3 +190,43 @@ pub async fn delete_invite(
         _ => Err((StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Invitation non trouvée"})))),
     }
 }
+
+#[derive(Deserialize)]
+pub struct GenerateInvitePayload {
+    pub role: String,
+}
+
+pub async fn generate_invite(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    headers: HeaderMap,
+    Json(payload): Json<GenerateInvitePayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    get_admin_user(&state, &headers).await?;  // Guard admin
+
+    let invite_id = uuid::Uuid::new_v4().to_string();
+    let token = uuid::Uuid::new_v4().to_string();
+    let created_at = chrono::Utc::now().timestamp();
+    let expires_at = created_at + (7 * 24 * 3600); // 7 jours
+
+    sqlx::query::<sqlx::Sqlite>(
+        "INSERT INTO invites (id, token, role, created_at, expires_at, used) VALUES (?, ?, ?, ?, ?, 0)"
+    )
+    .bind(&invite_id)
+    .bind(&token)
+    .bind(&payload.role)
+    .bind(created_at)
+    .bind(expires_at)
+    .execute(&state.db)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?;
+
+    Ok(Json(json!({
+        "success": true,
+        "invite": {
+            "id": invite_id,
+            "token": token,
+            "expires_at": expires_at
+        }
+    })))
+}
+
