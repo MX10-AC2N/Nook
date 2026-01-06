@@ -55,6 +55,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             needs_password_change BOOLEAN DEFAULT 0,
             token TEXT,
             created_at INTEGER NOT NULL
+            public_key TEXT
         )
         "#,
     )
