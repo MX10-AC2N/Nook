@@ -3,13 +3,16 @@
 // Backend Axum pour gestion d'upload, WebRTC, et chiffrement
 
 use axum::{
-    routing::{get, post},
+    routing::{get, post, get_service},
     Router,
+    handler::Handler,
 };
 use std::{fs, path::PathBuf, sync::Arc, net::SocketAddr};
 
 use sqlx::SqlitePool;
 use tower_http::cors::{CorsLayer, Any};
+use tower_http::services::{ServeDir, ServeFile};
+use axum::http::StatusCode;
 
 // Modules
 mod db;
@@ -284,44 +287,72 @@ tokio::spawn(async move {
     // -------------------------------------------------
     // 6️⃣ Configurer le routeur Axum
     // -------------------------------------------------
-    let app = Router::new()
+// === ROUTEUR API (toutes tes routes existantes, déjà préfixées /api/) ===
+    let api_router = Router::new()
         // Auth routes
-        .route("/api/auth/register", post(auth::register))
-        .route("/api/auth/login", post(auth::login))
-        .route("/api/auth/me", get(auth::me))
-        .route("/api/auth/logout", post(auth::logout))
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
+        .route("/auth/me", get(auth::me))
+        .route("/auth/logout", post(auth::logout))
         // Conversation routes
-        .route("/api/conversations", get(db::get_user_conversations))
-        .route("/api/conversations", post(db::create_conversation))
-        .route("/api/conversations/:id", get(db::get_conversation))
-        .route("/api/conversations/:id/join", post(db::join_conversation))
+        .route("/conversations", get(db::get_user_conversations))
+        .route("/conversations", post(db::create_conversation))
+        .route("/conversations/:id", get(db::get_conversation))
+        .route("/conversations/:id/join", post(db::join_conversation))
         // Message routes
-        .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
-        .route("/api/conversations/:id/messages", post(db::send_message))
+        .route("/conversations/:id/messages", get(db::get_conversation_messages))
+        .route("/conversations/:id/messages", post(db::send_message))
         // WebRTC routes
         .merge(webrtc::webrtc_routes())
         // Upload routes
-        .route("/api/upload", post(upload::upload_handler))
-        .route("/api/upload/chat", post(upload::upload_chat_file))
+        .route("/upload", post(upload::upload_handler))
+        .route("/upload/chat", post(upload::upload_chat_file))
         // Health‑check
-        .route("/api/health", get(|| async { "OK" }))
-        // CORS configuration
+        .route("/health", get(|| async { "OK" }))
+        .with_state(shared_state.clone());
+
+    // === SERVICE STATIQUE POUR LE FRONTEND (SvelteKit SPA) ===
+    // Chemin où les fichiers du frontend sont copiés dans le container Docker
+    // (via ton workflow : frontend-artifact → /app/static dans le Dockerfile)
+    let static_path = "/app/static";
+
+    // Gestion d'erreur personnalisée pour ServeDir (optionnel mais recommandé)
+    let static_service = get_service(
+        ServeDir::new(static_path)
+            .append_index_html_on_directories(true)  // Gère / → /index.html
+            .precompressed_gzip()                    // Support des .gz si npm run build les génère
+            .precompressed_br()                      // Support brotli
+            .fallback(ServeFile::new(format!("{}/index.html", static_path))), // Fallback SPA crucial pour les routes client-side
+    )
+    .handle_error(|error: std::io::Error| async move {
+        eprintln!("[Static] Erreur service fichier : {}", error);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Erreur fichier statique : {}", error),
+        )
+    });
+
+    // === ROUTEUR FINAL ===
+    let app = Router::new()
+        // Toutes les API sous /api
+        .nest("/api", api_router)
+        // CORS sur tout (tu peux le restreindre si tu veux)
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
                 .allow_methods(Any)
                 .allow_headers(Any),
         )
-        // Inject the shared state
-        .with_state(shared_state);
+        // Fallback : tout le reste → frontend statique (SPA)
+        .fallback(static_service.into_make_service());
 
-    // -------------------------------------------------
+// -------------------------------------------------
     // 7️⃣ Démarrer le serveur HTTP
     // -------------------------------------------------
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    eprintln!("[Serveur] Démarrage sur {}", addr);
+    eprintln!("[Serveur] Démarrage sur http://{}", addr);
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
-}
