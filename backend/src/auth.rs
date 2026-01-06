@@ -33,11 +33,11 @@ pub struct LoginPayload {
     pub password: String,
 }
 
-#[derive(Deserialize)]
 #[allow(dead_code)]
+#[derive(Deserialize)]
 pub struct ChangePasswordPayload {
-    pub user_id: String,
     pub new_password: String,
+    pub user_id: Option<String>,  // Optionnel pour first-setup admin
 }
 
 #[derive(Serialize)]
@@ -241,12 +241,6 @@ pub async fn logout(
         "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".parse().unwrap(),
     );
     response
-}
-
-#[derive(Deserialize)]
-pub struct ChangePasswordPayload {
-    pub new_password: String,
-    pub user_id: Option<String>,  // Optionnel pour first-setup admin
 }
 
 // =====  mise en place de change_password. =====
