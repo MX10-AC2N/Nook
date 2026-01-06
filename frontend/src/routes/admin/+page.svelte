@@ -121,7 +121,13 @@
 
   function formatDate(ts: number | string): string {
     const date = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
-    return date.toLocaleDateString('fr-FR') { ... });
+    return date.toLocaleDateString('fr-FR') {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   }
 
   function getStatus(invite: any): string {
