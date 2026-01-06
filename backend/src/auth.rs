@@ -275,9 +275,14 @@ pub async fn change_password(
         .await;
 
     match result {
-        Ok(_) => Json(json!({"success": true, "message": "Mot de passe changé"})),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "message": "Erreur DB"}))),
-    }.into_response()
+    Ok(_) => (
+        StatusCode::OK,
+        Json(json!({"success": true, "message": "Mot de passe changé"}))
+    ).into_response(),
+    Err(_) => (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({"success": false, "message": "Erreur DB"}))
+    ).into_response(),
 }
 
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
