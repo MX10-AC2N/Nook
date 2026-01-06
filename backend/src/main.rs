@@ -16,6 +16,7 @@ mod db;
 mod auth;
 mod webrtc;
 mod upload;
+mod prune;
 
 // Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
