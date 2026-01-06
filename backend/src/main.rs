@@ -19,6 +19,7 @@ mod auth;
 mod webrtc;
 mod upload;
 mod prune;
+mod invites;
 
 // Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
@@ -309,6 +310,10 @@ let app = Router::new()
     .route("/api/auth/me", get(auth::me))
     .route("/api/auth/logout", post(auth::logout))
     .route("/api/auth/change-password", post(auth::change_password))
+
+    // Invites routes
+    .route("/api/invites/create", post(invites::create_invite)) // Admin only
+    .route("/api/join", post(invites::join))
 
     // Conversation routes
     .route("/api/conversations", get(db::get_user_conversations))
