@@ -98,7 +98,7 @@ export async function createJoinRequest(token: string, name: string, publicKey: 
 
 export async function logout(): Promise<void> {
   try {
-    await fetch(`${API_BASE}/logout`, {
+    await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'include'
     });
