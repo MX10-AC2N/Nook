@@ -255,7 +255,9 @@ pub async fn change_password(
         if parts.len() == 2 { Some(parts[0].to_string()) } else { None }
     } else { None };
 
-    let target_user_id = payload.user_id.or(current_user_id);
+    let target_user_id = payload.user_id.as_ref()
+    .map(|s| s.as_str())
+    .unwrap_or(&current_user_id);
 
     let target_id = match target_user_id {
         Some(id) => id,
