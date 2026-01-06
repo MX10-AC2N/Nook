@@ -121,7 +121,7 @@
 
   function formatDate(ts: number | string): string {
     const date = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
-    return date.toLocaleDateString('fr-FR') {
+    return date.toLocaleDateString('fr-FR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -132,14 +132,13 @@
 
   function getStatus(invite: any): string {
     if (invite.used) return 'Utilisée';
-    if (invite.expired) return 'Expirée';
+    if (isExpired(invite)) return 'Expirée';
     return 'Valide';
   }
 
   function isExpired(invite: any): boolean {
     return Date.now() / 1000 > invite.expires_at;
   }
-// Puis class:expired={isExpired(invite)} et getStatus ajoute check isExpired
 </script>
 
 <svelte:head>
@@ -228,7 +227,7 @@
           </thead>
           <tbody>
             {#each invites as invite}
-              <tr class:expired={invite.expired} class:used={invite.used}>
+              <tr class:expired={isExpired(invite)} class:used={invite.used}>
                 <td>{formatDate(invite.created_at)}</td>
                 <td>{formatDate(invite.expires_at)}</td>
                 <td class="status">{getStatus(invite)}</td>
