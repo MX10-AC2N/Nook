@@ -283,6 +283,7 @@ pub async fn change_password(
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(json!({"success": false, "message": "Erreur DB"}))
     ).into_response(),
+    }
 }
 
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
