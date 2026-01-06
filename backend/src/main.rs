@@ -132,6 +132,22 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     .execute(&pool)
     .await?;
 
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS invites (
+            id TEXT PRIMARY KEY,
+            token TEXT UNIQUE NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            used BOOLEAN DEFAULT 0,
+            used_by TEXT,
+            used_at INTEGER
+        )
+        "#,
+)
+    .execute(&pool)
+    .await?;
+
     eprintln!("[DB] Base de données initialisée");
     Ok(pool)
 }
