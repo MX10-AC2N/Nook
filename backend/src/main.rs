@@ -191,6 +191,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialise le logger
     tracing_subscriber::fmt::init();
 
+    
+    // 1. S'assurer que le répertoire data existe
+    tokio::fs::create_dir_all("/app/data").await?;
+    
+    // 2. S'assurer que le répertoire uploads existe
+    tokio::fs::create_dir_all("/app/data/uploads").await?;
+    
+    // 3. Créer le fichier DB vide s'il n'existe pas
+    let db_file_path = std::path::Path::new("/app/data/nook.db");
+    if !db_file_path.exists() {
+        eprintln!("[Info] Création du fichier de base de données...");
+        tokio::fs::File::create(db_file_path).await?;
+    }
+
     // -------------------------------------------------
     // 1️⃣ Initialisation de la base de données
     // -------------------------------------------------
