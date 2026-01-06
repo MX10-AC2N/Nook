@@ -48,7 +48,7 @@ export async function getUserInfo(): Promise<{
   needs_password_change: boolean
 } | null> {
   try {
-    const response = await fetch(`${API_BASE}/user-info`, {
+    const response = await fetch(`${API_BASE}/auth/me`, {
       method: 'GET',
       credentials: 'include'
     });
