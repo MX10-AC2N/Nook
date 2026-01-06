@@ -32,7 +32,7 @@ pub struct SharedState {
 //  INITIALISATION DE LA BASE DE DONNÉES
 // ---------------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
-    let db_path = "sqlite:nook.db";
+    let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
 
     // Créer les tables si elles n'existent pas
@@ -213,7 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // -------------------------------------------------
     // 3️⃣ Préparer le répertoire d'uploads
     // -------------------------------------------------
-    let uploads_dir = PathBuf::from("uploads");
+    let uploads_dir = PathBuf::from("/app/data/uploads");
     if !uploads_dir.exists() {
         if let Err(e) = fs::create_dir_all(&uploads_dir) {
             eprintln!("[Erreur] Échec de la création du dossier uploads: {}", e);
