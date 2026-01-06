@@ -356,4 +356,4 @@ tokio::spawn(async move {
     axum::serve(listener, app).await?;
 
     Ok(())
-;
+}
