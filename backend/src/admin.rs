@@ -31,7 +31,7 @@ pub struct InvitesResponse {
     pub invites: Vec<InviteInfo>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, sqlx::FromRow)]
 pub struct InviteInfo {
     pub id: String,
     pub token: String,
