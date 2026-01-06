@@ -1,6 +1,6 @@
 // backend/src/admin.rs - Gestion admin : utilisateurs + invitations
 
-use crate::{db::User, SharedState, auth::{get_cookie, UserInfo}};
+use crate::{db::User, SharedState, auth::get_cookie};
 use axum::{
     extract::State as AxumState,
     http::{HeaderMap, StatusCode},
@@ -9,8 +9,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
-use uuid::Uuid;
-use chrono::Utc;
 
 // Structures pour réponses JSON
 #[derive(Serialize)]
@@ -47,7 +45,7 @@ pub struct InviteInfo {
 // Utilitaire : Récupère l'utilisateur courant + vérifie admin
 async fn get_admin_user(state: &Arc<SharedState>, headers: &HeaderMap) -> Result<User, (StatusCode, Json<serde_json::Value>)> {
     let current_user: Option<User> = if let Some(cookie) = get_cookie(headers, "auth_token") {
-        let parts: Vec<&str> = cookie.split(':').collect();
+        let parts = cookie.split(':').collect::<Vec<&str>>();
         if parts.len() == 2 {
             let user_id = parts[0];
             let token = parts[1];
