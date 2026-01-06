@@ -247,6 +247,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager_clone.start_cleanup_task().await;
     });
 
+    // ===== Nettoyage automatique au bout de 7 jours =====
+    let pool_clone = pool.clone();
+
+tokio::spawn(async move {
+    // Attente au démarrage pour laisser l'app se lancer
+    tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+
+    // Prune immédiat au démarrage (utile si le container a été arrêté plusieurs jours)
+    if let Err(e) = prune_old_data(&pool_clone).await {
+        eprintln!("[Prune] Échec du pruning initial : {}", e);
+    }
+
+    loop {
+        if let Err(e) = prune_old_data(&pool_clone).await {
+            eprintln!("[Prune] Échec du pruning périodique : {}", e);
+        }
+
+        // Toutes les 24h → ajuste si tu veux plus souvent (ex: from_hours(6))
+        tokio::time::sleep(tokio::time::Duration::from_hours(24)).await;
+    }
+});
+
     // -------------------------------------------------
     // 5️⃣ Construire le SharedState
     // -------------------------------------------------
