@@ -1,6 +1,6 @@
 // backend/src/invites.rs - Gestion des invitations (single-use, expiration 48h)
 
-use crate::{db::User, SharedState, auth::{hash_password, get_cookie}};
+use crate::{db::User, SharedState, auth::{hash_password, get_cookie, UserInfo}};
 use axum::{
     extract::{State as AxumState, Query},
     http::{HeaderMap, StatusCode},
