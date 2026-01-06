@@ -99,7 +99,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             created_at INTEGER NOT NULL,
             edited_at INTEGER,
             FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (sender_id) REFERENCES users(id),
             FOREIGN KEY (file_id) REFERENCES uploads(id)
         )
         "#,
