@@ -68,7 +68,7 @@ COPY --from=runtime-builder /app /app
 USER app
 
 ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:/app/data/members.db
+ENV DATABASE_URL=sqlite:/app/data/nook.db
 ENV PORT=3000
 
 EXPOSE 3000
