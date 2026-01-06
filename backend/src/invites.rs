@@ -1,21 +1,21 @@
-// backend/src/invites.rs
+// backend/src/invites.rs - Gestion des invitations (single-use, expiration 48h)
 
-use crate::{db::User, SharedState, auth::{hash_password, UserInfo}}; // Réutilise hash_password et UserInfo
+use crate::{db::User, SharedState, auth::{hash_password, UserInfo, get_cookie}};
 use axum::{
     extract::{State as AxumState, Query},
     http::{HeaderMap, StatusCode},
     Json,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 use chrono::Utc;
-use serde_json::json;
 
 #[derive(Deserialize)]
 pub struct JoinPayload {
     pub name: String,
-    pub public_key: String, // Pour E2EE, stocke-la où tu veux (ex: nouvelle colonne users ou table keys)
+    pub public_key: String,  // Clé publique pour E2EE
 }
 
 #[derive(Serialize)]
@@ -25,43 +25,84 @@ pub struct JoinResponse {
     pub user: Option<UserInfo>,
 }
 
-#[derive(Deserialize)]
-pub struct CreateInviteParams {
-    pub token: Option<String>, // Optionnel : génère auto si absent
+#[derive(Serialize)]
+pub struct InviteResponse {
+    pub success: bool,
+    pub message: String,
+    pub token: Option<String>,
+    pub invite_link: Option<String>,
 }
 
-// Handler : Créer un token d'invitation (admin only)
+// Handler : Créer un token d'invitation (ADMIN ONLY, single-use, expire en 48h)
 pub async fn create_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
-    headers: HeaderMap, // Pour vérifier auth admin
+    headers: HeaderMap,
 ) -> impl axum::response::IntoResponse {
-    // Vérifie que l'utilisateur est admin connecté (réutilise logique de me)
-    // ... (copie/adapte la vérification cookie + role == "admin" depuis auth::me)
+    // Vérification auth + role admin
+    let current_user: Option<User> = if let Some(cookie) = get_cookie(&headers, "auth_token") {
+        let parts: Vec<&str> = cookie.split(':').collect();
+        if parts.len() == 2 {
+            let user_id = parts[0];
+            let token = parts[1];
 
+            sqlx::query_as("SELECT * FROM users WHERE id = ? AND token = ?")
+                .bind(user_id)
+                .bind(token)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let user = match current_user {
+        Some(u) if u.role == "admin" => u,
+        _ => return (StatusCode::FORBIDDEN, Json(json!({"success": false, "message": "Accès refusé : admin requis"}))).into_response(),
+    };
+
+    // Générer token unique
     let token = Uuid::new_v4().to_string();
-    let admin_id = "ID_DE_L_ADMIN"; // Récupère depuis cookie
-
+    let invite_id = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
-    sqlx::query("INSERT INTO invites (id, token, created_by, created_at) VALUES (?, ?, ?, ?)")
-        .bind(Uuid::new_v4().to_string())
-        .bind(&token)
-        .bind(admin_id)
-        .bind(now)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let expires_at = now + (48 * 3600); // 48 heures en secondes
 
-    Json(json!({
-        "success": true,
-        "token": token,
-        "invite_link": format!("https://ton-domaine.com/?invite={}", token) // Adapte ton domaine
-    }))
+    let result = sqlx::query(
+        "INSERT INTO invites (id, token, created_by, created_at, expires_at) 
+         VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(&invite_id)
+    .bind(&token)
+    .bind(&user.id)
+    .bind(now)
+    .bind(expires_at)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(_) => {
+            let invite_link = format!("https://ton-domaine.com/?invite={}", token); // Adapte ton domaine réel
+            Json(InviteResponse {
+                success: true,
+                message: "Invitation créée (expire dans 48h)".to_string(),
+                token: Some(token),
+                invite_link: Some(invite_link),
+            }).into_response()
+        }
+        Err(e) => {
+            eprintln!("[Invite] Erreur création : {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "message": "Erreur serveur"}))).into_response()
+        }
+    }
 }
 
-// Handler : Rejoindre via token
+// Handler : Rejoindre via token d'invitation
 pub async fn join(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Query(params): Query<serde_aux::QueryMap>, // Pour ?token=...
+    Query(params): Query<std::collections::HashMap<String, String>>,
     Json(payload): Json<JoinPayload>,
 ) -> impl axum::response::IntoResponse {
     let token = match params.get("token") {
@@ -69,62 +110,102 @@ pub async fn join(
         None => return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token manquant"}))).into_response(),
     };
 
-    // Vérifie le token
-    let invite: Option<(String, i64)> = sqlx::query_as("SELECT id, used FROM invites WHERE token = ?")
-        .bind(token)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+    let now = Utc::now().timestamp();
 
-    let (invite_id, used) = match invite {
+    // Récupérer l'invite
+    let invite: Option<(String, bool, i64)> = sqlx::query_as(
+        "SELECT id, used, expires_at FROM invites WHERE token = ?"
+    )
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (invite_id, used, expires_at) = match invite {
         Some(row) => row,
         None => return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token invalide"}))).into_response(),
     };
 
-    if used == 1 {
+    if used {
         return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token déjà utilisé"}))).into_response();
     }
 
-    // Crée l'utilisateur (auto-approved)
+    if now > expires_at {
+        return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token expiré"}))).into_response();
+    }
+
+    // Créer l'utilisateur (auto-approved, force change password)
     let user_id = Uuid::new_v4().to_string();
-    let username = payload.name.to_lowercase().replace(" ", ""); // Simple génération username
-    let default_password = Uuid::new_v4().to_string()[0..12].to_string(); // Random temp password
-    let hashed = hash_password(&default_password);
+    let username = payload.name.to_lowercase().replace(" ", "_"); // Exemple simple
+    let temp_password = Uuid::new_v4().to_string()[..12].to_string(); // Mot de passe temporaire random
+    let hashed = hash_password(&temp_password);
 
-    let now = Utc::now().timestamp();
+    let now_ts = Utc::now().timestamp();
 
-    sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
-         VALUES (?, ?, ?, ?, ?, 'user', 1, 1, ?)" // approved=1, force change password
+    let result = sqlx::query(
+        r#"
+        INSERT INTO users (
+            id, username, email, password_hash, name, role, approved, 
+            needs_password_change, created_at, public_key
+        ) VALUES (?, ?, ?, ?, ?, 'user', 1, 1, ?, ?)
+        "#
     )
     .bind(&user_id)
     .bind(&username)
-    .bind(format!("{}@nook.local", username)) // Email temp
+    .bind(format!("{}@nook.local", username)) // Email temporaire
     .bind(hashed)
     .bind(&payload.name)
-    .bind(now)
+    .bind(now_ts)
+    .bind(&payload.public_key)  // Stockage de la clé publique
     .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::CONFLICT)?;
+    .await;
 
-    // Marque le token utilisé
+    if let Err(e) = result {
+        eprintln!("[Join] Erreur création user : {}", e);
+        return (StatusCode::CONFLICT, Json(json!({"success": false, "message": "Nom d'utilisateur déjà pris"}))).into_response();
+    }
+
+    // Marquer l'invite comme utilisée
     sqlx::query("UPDATE invites SET used = 1, used_by = ?, used_at = ? WHERE id = ?")
         .bind(&user_id)
-        .bind(now)
+        .bind(now_ts)
         .bind(&invite_id)
         .execute(&state.db)
         .await
         .ok();
 
-    // TODO : Stocke public_key (ajoute colonne users.public_key TEXT ou table séparée)
+    // Login automatique (génère token + cookie)
+    let session_token = Uuid::new_v4().to_string();
+    sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+        .bind(&session_token)
+        .bind(&user_id)
+        .execute(&state.db)
+        .await
+        .ok();
 
-    // Login auto + cookie (comme dans login)
-    // ... (génère token, set cookie, retourne user info)
+    let user_info = UserInfo {
+        id: user_id.clone(),
+        username,
+        name: payload.name,
+        role: "user".to_string(),
+        approved: true,
+        needs_password_change: true,
+    };
 
-    Json(JoinResponse {
+    let mut response = Json(JoinResponse {
         success: true,
-        message: "Bienvenue ! Change ton mot de passe dès la première connexion.".to_string(),
-        user: Some(UserInfo { /* rempli */ }),
-    }).into_response()
+        message: "Compte créé ! Change ton mot de passe dès maintenant.".to_string(),
+        user: Some(user_info),
+    }).into_response();
+
+    // Set cookie HttpOnly
+    response.headers_mut().insert(
+        http::header::SET_COOKIE,
+        format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", user_id, session_token)
+            .parse()
+            .unwrap(),
+    );
+
+    response
 }
