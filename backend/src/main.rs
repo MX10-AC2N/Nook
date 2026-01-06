@@ -141,6 +141,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             token TEXT UNIQUE NOT NULL,
             created_by TEXT NOT NULL,
             created_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL,
             used BOOLEAN DEFAULT 0,
             used_by TEXT,
             used_at INTEGER
