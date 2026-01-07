@@ -125,22 +125,24 @@
 </div>
 
 <style>
+  * { box-sizing: border-box; }  /* ← Fix global overflow */
+
   .login-page {
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1.5rem;
+    padding: 1rem;
     background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
   }
 
   .login-card {
     background: white;
-    padding: 2.5rem;
-    border-radius: 1.5rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     width: 100%;
-    max-width: 420px;
+    max-width: 400px;
     text-align: center;
   }
 
@@ -208,13 +210,11 @@
 
   input {
     width: 100%;
-    padding: 0.875rem 1rem;
+    padding: 0.75rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
     font-size: 1rem;
-    background: #f8fafc;
-    border: 2px solid #e2e8f0;
-    border-radius: 0.75rem;
-    transition: all 0.2s;
-    outline: none;
+    transition: border-color 0.2s;
   }
 
   input:focus {
@@ -293,13 +293,12 @@
     font-size: 0.85rem;
   }
 
-  @media (max-width: 480px) {
+   @media (max-width: 380px) {
     .login-card {
-      padding: 2rem 1.5rem;
+      padding: 1.5rem;
     }
-    
-    .logo-icon {
-      font-size: 3rem;
+    input {
+      padding: 0.65rem;
     }
   }
 </style>
