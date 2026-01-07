@@ -35,7 +35,7 @@ pub struct InviteResponse {
 }
 
 // Handler : Créer un token d'invitation (ADMIN ONLY, single-use, expire en 48h)
-pub async fn create_invite(
+pub async fn generate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
 ) -> impl axum::response::IntoResponse {
