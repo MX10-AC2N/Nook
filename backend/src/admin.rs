@@ -4,7 +4,6 @@ use crate::{db::User, SharedState, auth::get_cookie};
 use axum::{
     extract::State as AxumState,
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
     Json,
 };
 use serde::{Deserialize, Serialize};
