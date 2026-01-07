@@ -2,88 +2,67 @@
   <style>
     /* Variables de couleurs */
     :root {
-      --primary: #4A6FA5;    /* Bleu principal */
-      --secondary: #6D98BA;  /* Bleu secondaire */
-      --accent: #FF9A76;     /* Corail accent */
+      --primary: #4A6FA5;
+      --secondary: #6D98BA;
+      --accent: #FF9A76;
       --white: #FFFFFF;
     }
     
-    /* Animations subtiles */
-    @keyframes gentleFloat {
+    /* Animation de flottement */
+    @keyframes float {
       0%, 100% { transform: translateY(0); }
       50% { transform: translateY(-1px); }
     }
     
-    @keyframes wingFlap {
-      0%, 100% { transform: scaleY(1); }
-      50% { transform: scaleY(0.9); }
-    }
-    
-    @keyframes messagePulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
-    }
-    
     /* Styles */
-    .bird-container {
-      animation: gentleFloat 4s ease-in-out infinite;
-    }
-    
     .bird-body {
       fill: var(--primary);
-      stroke: var(--primary);
-      stroke-width: 0.5;
-      stroke-opacity: 0.3;
     }
     
     .bird-wing {
       fill: var(--secondary);
-      animation: wingFlap 1.5s ease-in-out infinite;
-      transform-origin: center;
     }
     
     .bird-beak {
       fill: var(--accent);
     }
     
-    .message {
+    .message-bubble {
       fill: var(--accent);
-      animation: messagePulse 3s ease-in-out infinite;
-      transform-orzone: center;
     }
     
-    .message-fold {
-      fill: var(--primary);
-      opacity: 0.8;
+    /* Application de l'animation au groupe oiseau */
+    #bird-group {
+      animation: float 3s ease-in-out infinite;
     }
   </style>
   
-  <!-- Oiseau plus grand et mieux positionné -->
-  <g class="bird-container" transform="translate(40, 40)">
-    <!-- Corps principal de l'oiseau -->
-    <ellipse class="bird-body" cx="0" cy="0" rx="18" ry="12"/>
+  <!-- Groupe oiseau (animé) -->
+  <g id="bird-group">
+    <!-- Corps de l'oiseau (forme de goutte) -->
+    <path class="bird-body" d="M35,50 
+      C25,40 30,25 45,30 
+      C60,35 70,45 65,60 
+      C60,75 45,80 35,70 
+      C25,60 30,50 35,50Z"/>
     
     <!-- Tête -->
-    <circle class="bird-body" cx="15" cy="-10" r="9"/>
+    <circle class="bird-body" cx="60" cy="35" r="10"/>
     
     <!-- Œil -->
-    <circle cx="17" cy="-12" r="2" fill="var(--white)"/>
-    <circle cx="17" cy="-12" r="1" fill="#333"/>
+    <circle cx="62" cy="33" r="1.5" fill="var(--white)"/>
     
-    <!-- Bec (pointant vers la droite) -->
-    <polygon class="bird-beak" points="22,-10 27,-10 24,-7"/>
+    <!-- Bec -->
+    <polygon class="bird-beak" points="68,35 73,35 70,38"/>
     
-    <!-- Aile positionnée correctement -->
-    <ellipse class="bird-wing" cx="-8" cy="-2" rx="14" ry="8"/>
-    
-    <!-- Queue -->
-    <polygon class="bird-body" points="-18,0 -25,6 -18,6"/>
+    <!-- Aile (forme simplifiée) -->
+    <ellipse class="bird-wing" cx="40" cy="45" rx="12" ry="7"/>
   </g>
   
-  <!-- Message plus petit et mieux proportionné -->
-  <g transform="translate(65, 65)">
-    <rect class="message" x="0" y="0" width="12" height="9" rx="1.5"/>
-    <polygon class="message-fold" points="0,0 6,4.5 12,0"/>
-    <text x="6" y="5.5" text-anchor="middle" fill="var(--white)" font-size="3" font-family="Arial, sans-serif" font-weight="bold">N</text>
+  <!-- Message (petit et discret) -->
+  <g transform="translate(70, 60)">
+    <rect class="message-bubble" x="0" y="0" width="15" height="10" rx="2"/>
+    <polygon points="0,0 7.5,5 15,0" fill="var(--primary)" opacity="0.8"/>
+    <text x="7.5" y="6" text-anchor="middle" fill="var(--white)" font-size="4" font-family="Arial, sans-serif">N</text>
   </g>
 </svg>
