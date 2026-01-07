@@ -259,10 +259,11 @@ pub async fn change_password(
     .map(|s| s.as_str())
     .unwrap_or(&current_user_id);
 
-    let target_id = match target_user_id {
-        Some(id) => id,
-        None => return (StatusCode::UNAUTHORIZED, Json(json!({"success": false, "message": "Non authentifié"}))).into_response(),
-    };
+    let target_id = if let Some(ref user_id) = payload.user_id {
+    user_id.as_str()
+} else {
+    &current_user_id
+};
 
     // Optionnel : Vérifier que c'est l'utilisateur lui-même ou admin (ajoute role check si besoin)
 
