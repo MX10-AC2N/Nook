@@ -1,77 +1,162 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--  Nook – Oiseau messager en vol  -->
-<svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="100%" height="100%"
-    viewBox="0 0 100 100"
-    preserveAspectRatio="xMidYMid meet">
-
-  <!-- ====================  Définitions de couleurs  ==================== -->
-  <defs>
-    <!-- Couleurs principales -->
-    <linearGradient id="birdBodyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#0066CC"/>   <!-- Bleu profond -->
-      <stop offset="100%" stop-color="#0099FF"/> <!-- Bleu clair -->
-    </linearGradient>
-    <linearGradient id="wingGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#00A3E0"/>
-      <stop offset="100%" stop-color="#66CFFF"/>
-    </linearGradient>
-    <style>
-      .bird-body { fill:url(#birdBodyGrad); }
-      .wing      { fill:url(#wingGrad); }
-      .label     { font-family:Arial,Helvetica,sans-serif;
-                   font-weight:600; fill:#222222; }
-    </style>
-  </defs>
-
-  <!-- ====================  Oiseau (corps + ailes)  ==================== -->
-  <g id="bird" transform-origin="50 55">
-    <!-- Corps principal -->
-    <path class="bird-body"
-          d="M45,55 C48,45 52,45 55,55
-             C58,65 53,73 47,73
-             C41,73 38,65 41,55 Z"/>
-    <!-- Aile gauche -->
-    <path class="wing"
-          d="M45,55 C35,40 20,38 15,55
-             C10,72 28,68 33,60 Z"/>
-    <!-- Aile droite -->
-    <path class="wing"
-          d="M55,55 C65,40 80,38 85,55
-             C90,72 72,68 67,60 Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <style>
+    :root {
+      --primary-color: #4a6fa5;
+      --secondary-color: #6d98ba;
+      --accent-color: #ff9a76;
+    }
+    
+    /* Animation de l'oiseau */
+    @keyframes fly {
+      0%, 100% { transform: translateY(0) rotate(0); }
+      50% { transform: translateY(-5px) rotate(1deg); }
+    }
+    
+    /* Animation des ailes */
+    @keyframes wingFlap {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.85); }
+    }
+    
+    /* Animation des plumes de la queue */
+    @keyframes tailSway {
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(2px); }
+    }
+    
+    /* Animation de l'enveloppe du message */
+    @keyframes messageFloat {
+      0%, 100% { transform: translateY(0); opacity: 0.8; }
+      50% { transform: translateY(-8px); opacity: 1; }
+    }
+    
+    /* Animation des particules d'envol */
+    @keyframes particleFloat {
+      0% { transform: translateY(0) scale(1); opacity: 0; }
+      20% { opacity: 1; }
+      100% { transform: translateY(-30px) scale(0.5); opacity: 0; }
+    }
+    
+    /* Styles */
+    .bird-body {
+      fill: var(--primary-color);
+      animation: fly 3s ease-in-out infinite;
+      transform-origin: center;
+    }
+    
+    .bird-wing {
+      fill: var(--secondary-color);
+      animation: wingFlap 1.2s ease-in-out infinite;
+      transform-origin: 70% 40%;
+    }
+    
+    .bird-tail {
+      fill: var(--secondary-color);
+      animation: tailSway 1.5s ease-in-out infinite;
+      transform-origin: 20% 50%;
+    }
+    
+    .bird-eye {
+      fill: white;
+    }
+    
+    .bird-eye-pupil {
+      fill: #333;
+    }
+    
+    .bird-beak {
+      fill: var(--accent-color);
+    }
+    
+    .message-envelope {
+      fill: var(--accent-color);
+      animation: messageFloat 4s ease-in-out infinite;
+      opacity: 0.8;
+    }
+    
+    .message-fold {
+      fill: #ff7a4d;
+    }
+    
+    .particle {
+      fill: var(--accent-color);
+      opacity: 0;
+    }
+    
+    .text-nook {
+      font-family: 'Arial, sans-serif';
+      font-size: 24px;
+      font-weight: bold;
+      fill: var(--primary-color);
+      letter-spacing: 1px;
+    }
+    
+    .text-subtitle {
+      font-family: 'Arial, sans-serif';
+      font-size: 12px;
+      fill: var(--secondary-color);
+    }
+    
+    /* Animation des particules */
+    .particle1 { animation: particleFloat 3s infinite 0.2s; }
+    .particle2 { animation: particleFloat 3s infinite 0.6s; }
+    .particle3 { animation: particleFloat 3s infinite 1s; }
+    .particle4 { animation: particleFloat 3s infinite 1.4s; }
+    .particle5 { animation: particleFloat 3s infinite 1.8s; }
+    
+    /* Effet au survol */
+    svg:hover .bird-body {
+      animation-duration: 1.5s;
+    }
+    
+    svg:hover .bird-wing {
+      animation-duration: 0.8s;
+    }
+    
+    svg:hover .message-envelope {
+      animation-duration: 2.5s;
+    }
+  </style>
+  
+  <!-- Fond -->
+  <circle cx="100" cy="100" r="95" fill="#f0f7ff" stroke="#e1ecf7" stroke-width="2"/>
+  
+  <!-- Particules d'envol (arrière-plan) -->
+  <circle class="particle particle1" cx="110" cy="150" r="3"/>
+  <circle class="particle particle2" cx="130" cy="145" r="2.5"/>
+  <circle class="particle particle3" cx="90" cy="155" r="2"/>
+  <circle class="particle particle4" cx="70" cy="140" r="2.8"/>
+  <circle class="particle particle5" cx="150" cy="135" r="2.3"/>
+  
+  <!-- Oiseau -->
+  <g>
+    <!-- Corps de l'oiseau -->
+    <path class="bird-body" d="M80,100 Q100,80 120,100 Q130,120 120,140 Q100,160 80,140 Q70,120 80,100 Z"/>
+    
+    <!-- Aile -->
+    <path class="bird-wing" d="M90,110 Q110,95 120,105 Q115,125 95,125 Z"/>
+    
+    <!-- Queue -->
+    <path class="bird-tail" d="M65,125 Q55,130 60,140 Q65,135 70,130 Z"/>
+    
+    <!-- Œil -->
+    <circle class="bird-eye" cx="105" cy="105" r="6"/>
+    <circle class="bird-eye-pupil" cx="105" cy="105" r="3"/>
+    
+    <!-- Bec -->
+    <path class="bird-beak" d="M120,105 Q130,105 125,110 Q120,112 118,108 Z"/>
   </g>
-
-  <!-- ====================  Texte (optionnel)  ==================== -->
-  <g id="label" transform="translate(0,78)" text-anchor="middle">
-    <text class="label" x="50" y="0" font-size="9">NOOK</text>
+  
+  <!-- Message porté par l'oiseau -->
+  <g transform="translate(95, 80)">
+    <rect class="message-envelope" x="-15" y="-10" width="30" height="20" rx="3"/>
+    <polygon class="message-fold" points="-15,-10 0,0 15,-10"/>
+    <line x1="-8" y1="-3" x2="8" y2="-3" stroke="white" stroke-width="1.5"/>
+    <line x1="-5" y1="0" x2="5" y2="0" stroke="white" stroke-width="1.5"/>
+    <line x1="-10" y1="3" x2="10" y2="3" stroke="white" stroke-width="1.5"/>
   </g>
-
-  <!-- ====================  Animations  ==================== -->
-  <!-- 1️⃣ Battement d’ailes (rotation locale) -->
-  <animateTransform xlink:href="#bird"
-                    attributeName="transform"
-                    type="rotate"
-                    values="-5 45 55; 5 45 55; -5 45 55"
-                    dur="0.8s"
-                    repeatCount="indefinite"/>
-
-  <!-- 2️⃣ Décollage vertical + inclinaison progressive -->
-  <animateTransform attributeName="transform"
-                    type="translate"
-                    from="0 0"
-                    to="0 -30"
-                    dur="2s"
-                    fill="freeze"
-                    begin="0s"/>
-
-  <!-- Inclinaison du corps pendant le décollage (légère) -->
-  <animateTransform attributeName="transform"
-                    type="rotate"
-                    from="0 50 55"
-                    to="-15 50 55"
-                    dur="2s"
-                    fill="freeze"
-                    begin="0s"/>
-
+  
+  <!-- Texte Nook -->
+  <text class="text-nook" x="100" y="180" text-anchor="middle">NOOK</text>
+  <text class="text-subtitle" x="100" y="195" text-anchor="middle">Messagerie familiale</text>
 </svg>
