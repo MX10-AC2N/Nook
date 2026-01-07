@@ -35,7 +35,7 @@ export async function checkAuth() {
 }
 
 export async function login(username, password) {
-    const response = await fetch('/api/login', {
+    const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -52,7 +52,7 @@ export async function login(username, password) {
 
 export async function logout() {
     try {
-        await fetch('/api/logout', { method: 'POST', credentials: 'include' });
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch (err) {
         console.error('Logout error:', err);
     }
