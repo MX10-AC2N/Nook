@@ -3,7 +3,7 @@ import { browser } from '$app/environment';
 
 export async function checkAuth() {
     try {
-        const response = await fetch('/api/validate-session', { credentials: 'include' });
+        const response = await fetch('/api/auth/me', { credentials: 'include' });
 
         if (response.ok) {
             const data = await response.json();
