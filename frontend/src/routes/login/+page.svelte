@@ -18,7 +18,7 @@
     error = '';
 
     try {
-      const response = await fetch('/api/auth/login', {  // ← Endpoint corrigé
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -114,11 +114,7 @@
 
     <div class="actions">
       <a href="/register" class="action-link primary">
-        ➕ Créer un compte (attente approbation)
-      </a>
-      
-      <a href="/join" class="action-link secondary">
-        🔗 Rejoindre avec une invitation
+        ➕ Créer un compte (attente approbation admin)
       </a>
       
       <a href="/help" class="action-link subtle">
@@ -213,15 +209,15 @@
   input {
     width: 100%;
     padding: 0.875rem 1rem;
+    font-size: 1rem;
+    background: #f8fafc;
     border: 2px solid #e2e8f0;
     border-radius: 0.75rem;
-    font-size: 1rem;
     transition: all 0.2s;
-    background: #f8fafc;
+    outline: none;
   }
 
   input:focus {
-    outline: none;
     border-color: #2d5a27;
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
   }
@@ -290,10 +286,6 @@
   .action-link.primary {
     color: #2d5a27;
     font-weight: 600;
-  }
-
-  .action-link.secondary {
-    color: #2563eb;
   }
 
   .action-link.subtle {
