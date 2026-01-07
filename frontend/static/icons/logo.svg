@@ -1,74 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="400" height="200">
   <style>
-    :root {
-      --black: #000000;
-      --gray: #222222;
-    }
-    
-    @keyframes flicker {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.95; }
-    }
-    
-    .logo-text {
-      font-family: 'Arial Black', 'Impact', sans-serif;
+    .letter {
+      fill: #000000;
+      font-family: 'Courier New', monospace;
       font-weight: 900;
-      fill: var(--black);
-      filter: url(#sprayEffect);
-      animation: flicker 3s ease-in-out infinite;
     }
     
-    .spray-particle {
-      fill: var(--gray);
-      opacity: 0;
-    }
-    
-    .particle1 { animation: spray 2s infinite 0.1s; }
-    .particle2 { animation: spray 2s infinite 0.3s; }
-    .particle3 { animation: spray 2s infinite 0.5s; }
-    .particle4 { animation: spray 2s infinite 0.7s; }
-    .particle5 { animation: spray 2s infinite 0.9s; }
-    
-    @keyframes spray {
-      0% {
-        opacity: 0;
-        transform: translate(0, 0) scale(0);
-      }
-      20% {
-        opacity: 0.7;
-      }
-      100% {
-        opacity: 0;
-        transform: translate(var(--tx, 10px), var(--ty, -15px)) scale(1);
-      }
-    }
+    /* Chaque lettre légèrement décalée pour effet graffiti */
+    .n1 { transform: translate(0, -2px) rotate(-1deg); }
+    .o1 { transform: translate(0, 1px) rotate(0.5deg); }
+    .o2 { transform: translate(0, -1px) rotate(-0.5deg); }
+    .k { transform: translate(0, 2px) rotate(1deg); }
   </style>
   
-  <defs>
-    <!-- Effet de pulvérisation -->
-    <filter id="sprayEffect">
-      <feTurbulence type="fractalNoise" baseFrequency="0.01" numOctaves="1" result="noise"/>
-      <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
-    </filter>
-    
-    <!-- Texture de spray -->
-    <pattern id="sprayTexture" width="20" height="20" patternUnits="userSpaceOnUse">
-      <circle cx="10" cy="10" r="1" fill="#000" opacity="0.1"/>
-      <circle cx="5" cy="5" r="0.5" fill="#000" opacity="0.1"/>
-      <circle cx="15" cy="15" r="0.5" fill="#000" opacity="0.1"/>
-    </pattern>
-  </defs>
+  <!-- Lettres positionnées individuellement pour un effet graffiti -->
+  <text class="letter n1" x="50" y="120" font-size="100">N</text>
+  <text class="letter o1" x="130" y="120" font-size="100">O</text>
+  <text class="letter o2" x="210" y="120" font-size="100">O</text>
+  <text class="letter k" x="290" y="120" font-size="100">K</text>
   
-  <!-- Texte principal -->
-  <text class="logo-text" x="50" y="140" font-size="120" letter-spacing="2">NOOK</text>
-  
-  <!-- Subtile texture de spray -->
-  <rect x="0" y="0" width="400" height="200" fill="url(#sprayTexture)" opacity="0.3"/>
-  
-  <!-- Particules de spray subtiles -->
-  <circle class="spray-particle particle1" cx="350" cy="80" r="2" style="--tx: 15px; --ty: -10px;"/>
-  <circle class="spray-particle particle2" cx="360" cy="90" r="1.5" style="--tx: 12px; --ty: -12px;"/>
-  <circle class="spray-particle particle3" cx="340" cy="70" r="2.5" style="--tx: 8px; --ty: -8px;"/>
-  <circle class="spray-particle particle4" cx="355" cy="85" r="1" style="--tx: 10px; --ty: -15px;"/>
-  <circle class="spray-particle particle5" cx="345" cy="75" r="2" style="--tx: 5px; --ty: -5px;"/>
+  <!-- Ligne de base (optionnelle) -->
+  <line x1="40" y1="125" x2="350" y2="125" stroke="#000" stroke-width="3" opacity="0.1"/>
 </svg>
