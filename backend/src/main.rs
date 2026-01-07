@@ -180,7 +180,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         // Utilise ta fonction de hachage déjà définie dans le module `auth`
         let password_hash = crate::auth::hash_password(default_password);
 
-        let _now = chrono::Utc::now();
+        let now_ts = Utc::now().timestamp();
         sqlx::query(
             r#"
             INSERT INTO users (
@@ -192,10 +192,10 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         )
         .bind(&admin_id)
         .bind("admin")
-        .bind("now")
         .bind("admin@nook.local")
         .bind(&password_hash)
         .bind("Administrateur Initial")
+        .bind(now_ts)
         .execute(pool)
         .await?;
 
