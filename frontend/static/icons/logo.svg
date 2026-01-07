@@ -1,30 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
   <defs>
-    <!-- Dégradés -->
-    <linearGradient id="birdGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5D7FB9">
-        <animate attributeName="stop-color" values="#5D7FB9;#6A8BC6;#5D7FB9" dur="4s" repeatCount="indefinite"/>
-      </stop>
-      <stop offset="100%" stop-color="#3A5A9C">
-        <animate attributeName="stop-color" values="#3A5A9C;#4A6AA9;#3A5A9C" dur="4s" repeatCount="indefinite"/>
-      </stop>
+    <!-- Dégradés élégants -->
+    <linearGradient id="birdPrimary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4A6FA5"/>
+      <stop offset="50%" stop-color="#5D8BB8"/>
+      <stop offset="100%" stop-color="#3A5A8F"/>
     </linearGradient>
     
-    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF9E7D"/>
+    <linearGradient id="birdSecondary" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6D98BA"/>
+      <stop offset="100%" stop-color="#5A83AA"/>
+    </linearGradient>
+    
+    <linearGradient id="accentWarm" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9A76"/>
       <stop offset="100%" stop-color="#FF7A5A"/>
     </linearGradient>
     
-    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#F8FBFF" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#E8F2FF" stop-opacity="0"/>
-    </radialGradient>
+    <!-- Filtres pour profondeur -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="5" result="blur"/>
+      <feOffset in="blur" dx="0" dy="2" result="offsetBlur"/>
+      <feFlood flood-color="#4A6FA5" flood-opacity="0.15"/>
+      <feComposite in2="offsetBlur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
     
-    <!-- Filtres -->
-    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+    <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
-      <feOffset dx="2" dy="2" result="offsetblur"/>
-      <feFlood flood-color="#3A5A9C" flood-opacity="0.15"/>
+      <feOffset dx="3" dy="3" result="offsetblur"/>
+      <feFlood flood-color="#3A5A8F" flood-opacity="0.2"/>
       <feComposite in2="offsetblur" operator="in"/>
       <feMerge>
         <feMergeNode/>
@@ -32,236 +40,303 @@
       </feMerge>
     </filter>
     
-    <!-- Motif de plume subtil -->
-    <pattern id="featherPattern" patternUnits="userSpaceOnUse" width="20" height="20" patternTransform="rotate(45)">
-      <path d="M10,0 C12,5 8,10 10,15 C8,10 12,5 10,0Z" fill="#FFFFFF" opacity="0.1"/>
+    <!-- Motif de plume -->
+    <pattern id="featherTexture" width="30" height="30" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <circle cx="15" cy="15" r="1" fill="#FFFFFF" opacity="0.2"/>
+      <circle cx="5" cy="5" r="0.5" fill="#FFFFFF" opacity="0.15"/>
+      <circle cx="25" cy="25" r="0.5" fill="#FFFFFF" opacity="0.15"/>
     </pattern>
-    
-    <!-- ClipPath pour le badge -->
-    <clipPath id="badgeClip">
-      <circle cx="150" cy="150" r="130"/>
-    </clipPath>
   </defs>
   
   <style>
-    /* Animations principales */
-    @keyframes float {
-      0%, 100% { transform: translateY(0) rotate(0deg); }
-      33% { transform: translateY(-6px) rotate(0.5deg); }
-      66% { transform: translateY(-3px) rotate(-0.5deg); }
+    /* Animations fluides */
+    @keyframes gentleFloat {
+      0%, 100% { 
+        transform: translateY(0) rotate(0deg); 
+      }
+      33% { 
+        transform: translateY(-8px) rotate(0.3deg); 
+      }
+      66% { 
+        transform: translateY(-4px) rotate(-0.2deg); 
+      }
     }
     
-    @keyframes wingFlap {
-      0%, 100% { transform: rotate(0deg) scaleY(1); }
-      50% { transform: rotate(5deg) scaleY(0.95); }
+    @keyframes wingMotion {
+      0%, 100% { 
+        transform: rotate(0deg); 
+      }
+      50% { 
+        transform: rotate(8deg); 
+      }
     }
     
-    @keyframes tailWave {
-      0%, 100% { transform: rotate(0deg); }
-      33% { transform: rotate(3deg); }
-      66% { transform: rotate(-2deg); }
+    @keyframes tailSway {
+      0%, 100% { 
+        transform: rotate(0deg); 
+      }
+      33% { 
+        transform: rotate(4deg); 
+      }
+      66% { 
+        transform: rotate(-2deg); 
+      }
     }
     
-    @keyframes messagePulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.9; }
+    @keyframes envelopeFloat {
+      0%, 100% { 
+        transform: translateY(0) rotate(0deg); 
+      }
+      50% { 
+        transform: translateY(-5px) rotate(1deg); 
+      }
     }
     
-    @keyframes lineDraw {
-      to { stroke-dashoffset: 0; }
-    }
-    
-    @keyframes particleRise {
+    @keyframes messageLines {
       0% { 
-        transform: translateY(0) rotate(0deg);
-        opacity: 0;
+        stroke-dashoffset: 100; 
+        opacity: 0; 
       }
-      20% { opacity: 0.7; }
+      50% { 
+        opacity: 1; 
+      }
       100% { 
-        transform: translateY(-100px) rotate(180deg);
-        opacity: 0;
+        stroke-dashoffset: 0; 
+        opacity: 1; 
       }
     }
     
-    @keyframes glowPulse {
-      0%, 100% { opacity: 0.3; }
-      50% { opacity: 0.6; }
+    @keyframes featherDrift {
+      0% { 
+        transform: translateY(0) rotate(0deg); 
+        opacity: 0; 
+      }
+      20% { 
+        opacity: 0.7; 
+      }
+      100% { 
+        transform: translateY(-60px) rotate(120deg); 
+        opacity: 0; 
+      }
+    }
+    
+    @keyframes sparkle {
+      0%, 100% { 
+        opacity: 0.3; 
+        transform: scale(1); 
+      }
+      50% { 
+        opacity: 1; 
+        transform: scale(1.1); 
+      }
     }
     
     /* Styles des éléments */
-    .bird-body {
-      fill: url(#birdGradient);
-      filter: url(#softShadow);
-      animation: float 6s ease-in-out infinite;
+    .bird-container {
+      filter: url(#softGlow);
+      animation: gentleFloat 6s ease-in-out infinite;
       transform-origin: center;
     }
     
+    .bird-body {
+      fill: url(#birdPrimary);
+      stroke: #3A5A8F;
+      stroke-width: 0.8;
+      stroke-opacity: 0.3;
+    }
+    
     .bird-wing {
-      fill: url(#birdGradient);
-      animation: wingFlap 2s ease-in-out infinite;
-      transform-origin: 70% 40%;
+      fill: url(#birdSecondary);
+      animation: wingMotion 2.5s ease-in-out infinite;
+      transform-origin: 70% 50%;
+      filter: url(#dropShadow);
     }
     
     .bird-tail {
-      fill: #4A6AA9;
-      animation: tailWave 4s ease-in-out infinite;
-      transform-origin: 20% 60%;
+      fill: url(#birdSecondary);
+      animation: tailSway 3s ease-in-out infinite;
+      transform-origin: 10% 60%;
     }
     
-    .bird-detail {
-      fill: url(#featherPattern);
+    .bird-head {
+      fill: url(#birdPrimary);
     }
     
     .bird-eye {
-      fill: white;
+      fill: #FFFFFF;
       filter: drop-shadow(0 1px 1px rgba(0,0,0,0.2));
     }
     
     .bird-eye-pupil {
       fill: #1A3A6C;
-      animation: messagePulse 3s ease-in-out infinite;
     }
     
     .bird-beak {
-      fill: url(#accentGradient);
-      filter: drop-shadow(0 2px 2px rgba(255,122,90,0.3));
+      fill: url(#accentWarm);
+      filter: drop-shadow(0 2px 3px rgba(255,122,90,0.3));
     }
     
-    .message-badge {
-      fill: url(#accentGradient);
-      animation: messagePulse 4s ease-in-out infinite;
-      filter: drop-shadow(0 3px 5px rgba(255,122,90,0.4));
+    .envelope {
+      fill: url(#accentWarm);
+      animation: envelopeFloat 4s ease-in-out infinite;
+      filter: drop-shadow(0 3px 5px rgba(255,122,90,0.3));
+    }
+    
+    .envelope-detail {
+      fill: #FF6B4A;
     }
     
     .message-line {
-      stroke: white;
+      stroke: url(#accentWarm);
       stroke-width: 2;
+      stroke-linecap: round;
       stroke-dasharray: 100;
       stroke-dashoffset: 100;
-      animation: lineDraw 1.5s ease-out forwards 1s;
-      animation-iteration-count: 1;
+      fill: none;
+      animation: messageLines 2s ease-out infinite;
+      opacity: 0.7;
     }
     
-    .particle {
-      fill: url(#accentGradient);
+    .feather {
+      fill: #FFFFFF;
       opacity: 0;
     }
     
-    .bg-glow {
-      fill: url(#bgGlow);
-      animation: glowPulse 8s ease-in-out infinite;
+    .sparkle {
+      fill: #FFFFFF;
+      opacity: 0.3;
+      animation: sparkle 2s ease-in-out infinite;
     }
     
     .text-nook {
-      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-      font-size: 32px;
+      font-family: 'Montserrat', 'Segoe UI', sans-serif;
+      font-size: 42px;
       font-weight: 700;
-      letter-spacing: 1.5px;
-      fill: #3A5A9C;
+      letter-spacing: 2px;
+      fill: #3A5A8F;
       text-anchor: middle;
     }
     
     .text-subtitle {
-      font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-      font-size: 14px;
+      font-family: 'Montserrat', 'Segoe UI', sans-serif;
+      font-size: 16px;
       font-weight: 400;
-      letter-spacing: 3px;
-      fill: #6A8BC6;
+      letter-spacing: 4px;
+      fill: #6D98BA;
       text-anchor: middle;
       text-transform: uppercase;
     }
     
-    /* Animations des particules */
-    .particle1 { animation: particleRise 4s infinite 0.3s; }
-    .particle2 { animation: particleRise 4s infinite 0.8s; }
-    .particle3 { animation: particleRise 4s infinite 1.3s; }
-    .particle4 { animation: particleRise 4s infinite 1.8s; }
-    .particle5 { animation: particleRise 4s infinite 2.3s; }
+    /* Animations individuelles */
+    .feather1 { animation: featherDrift 5s infinite 0.5s; }
+    .feather2 { animation: featherDrift 5s infinite 1s; }
+    .feather3 { animation: featherDrift 5s infinite 1.5s; }
     
-    /* Effets interactifs */
-    svg:hover .bird-body {
+    /* Interactions */
+    svg:hover .bird-container {
       animation-duration: 4s;
     }
     
     svg:hover .bird-wing {
-      animation-duration: 1s;
+      animation-duration: 1.5s;
     }
     
-    svg:hover .message-badge {
-      animation-duration: 2s;
+    svg:hover .envelope {
+      animation-duration: 3s;
     }
   </style>
   
-  <!-- Fond avec effet de lumière -->
-  <circle class="bg-glow" cx="150" cy="150" r="140"/>
+  <!-- Fond élégant -->
+  <rect width="400" height="400" fill="#F8FBFF"/>
   
-  <!-- Cercle de fond élégant -->
-  <circle cx="150" cy="150" r="130" fill="none" stroke="#E8F2FF" stroke-width="1" opacity="0.8"/>
-  
-  <!-- Oiseau principal - Design soigné -->
-  <g clip-path="url(#badgeClip)">
-    <!-- Corps de l'oiseau (forme plus élégante) -->
-    <path class="bird-body" d="M110,150 
-      C100,130 120,110 140,120 
-      C160,130 170,150 160,170 
-      C150,190 120,190 110,170 
-      C105,160 105,155 110,150Z"
-      stroke="#3A5A9C" stroke-width="0.5" stroke-opacity="0.3"/>
+  <!-- Oiseau principal - Gros et reconnaissable -->
+  <g class="bird-container" transform="translate(200, 160)">
+    <!-- Corps de l'oiseau (forme reconnaissable) -->
+    <path class="bird-body" d="M-80,0 
+      C-100,-30 -60,-60 -30,-40 
+      C0,-20 30,-40 60,-20 
+      C90,0 100,30 80,60 
+      C60,90 20,90 -10,70 
+      C-40,50 -60,30 -80,0Z"/>
     
-    <!-- Détails de plumage -->
-    <path class="bird-detail" d="M130,140 Q140,135 145,140
-      M125,150 Q135,145 140,150
-      M120,160 Q130,155 135,160"/>
+    <!-- Texture de plumes subtile -->
+    <rect x="-80" y="-60" width="160" height="130" fill="url(#featherTexture)" opacity="0.1" rx="40"/>
     
-    <!-- Aile élégante -->
-    <path class="bird-wing" d="M125,135 
-      C135,120 155,125 160,140 
-      C155,150 140,155 130,145 
-      C127,142 125,138 125,135Z"
-      stroke="#3A5A9C" stroke-width="0.5" stroke-opacity="0.3"/>
+    <!-- Aile supérieure -->
+    <path class="bird-wing" d="M-40,-20 
+      C-20,-50 20,-60 40,-40 
+      C60,-20 40,10 10,20 
+      C-20,30 -60,10 -40,-20Z"/>
     
-    <!-- Queue stylisée -->
-    <path class="bird-tail" d="M100,160 
-      C85,165 90,175 95,175 
-      C100,170 105,165 110,160 
+    <!-- Queue -->
+    <path class="bird-tail" d="M60,40 
+      C80,60 90,80 70,100 
+      C50,120 20,110 10,90 
+      C0,70 20,50 40,40 
+      C50,30 60,30 60,40Z"/>
+    
+    <!-- Tête -->
+    <circle class="bird-head" cx="-50" cy="-30" r="25"/>
+    
+    <!-- Œil -->
+    <circle class="bird-eye" cx="-45" cy="-35" r="9"/>
+    <circle class="bird-eye-pupil" cx="-42" cy="-38" r="4"/>
+    
+    <!-- Reflet dans l'œil -->
+    <circle cx="-47" cy="-37" r="2" fill="#FFFFFF"/>
+    
+    <!-- Bec -->
+    <path class="bird-beak" d="M-25,-25 
+      L5,-15 
+      L0,0 
       Z"/>
     
-    <!-- Œil expressif -->
-    <circle class="bird-eye" cx="140" cy="135" r="7"/>
-    <circle class="bird-eye-pupil" cx="140" cy="135" r="3"/>
-    
-    <!-- Petit reflet dans l'œil -->
-    <circle cx="138" cy="133" r="1" fill="white"/>
-    
-    <!-- Bec élégant -->
-    <path class="bird-beak" d="M155,140 
-      Q165,140 162,145 
-      Q160,148 155,145 
-      Z"/>
+    <!-- Détail du bec -->
+    <line x1="-15" y1="-20" x2="-5" y2="-10" stroke="#FF6B4A" stroke-width="1.5"/>
   </g>
   
-  <!-- Badge message (positionné avec élégance) -->
-  <g transform="translate(180, 120)">
-    <circle class="message-badge" cx="0" cy="0" r="18"/>
-    <text x="0" y="0" text-anchor="middle" dy=".3em" font-family="Arial" font-size="14" font-weight="bold" fill="white">N</text>
+  <!-- Enveloppe du message -->
+  <g transform="translate(120, 180)">
+    <rect class="envelope" x="0" y="0" width="50" height="35" rx="4"/>
+    <polygon class="envelope-detail" points="0,0 25,15 50,0"/>
+    
+    <!-- Lignes du message -->
+    <line x1="10" y1="12" x2="40" y2="12" stroke="white" stroke-width="2"/>
+    <line x1="15" y1="18" x2="35" y2="18" stroke="white" stroke-width="2"/>
+    <line x1="10" y1="24" x2="40" y2="24" stroke="white" stroke-width="2"/>
   </g>
   
-  <!-- Lignes de connexion élégantes -->
-  <path class="message-line" fill="none" d="M160,140 Q175,130 180,120"/>
+  <!-- Lignes de connexion entre l'oiseau et l'enveloppe -->
+  <path class="message-line" d="M170,180 Q190,160 210,150 Q230,140 250,150"/>
   
-  <!-- Particules d'envol élégantes -->
+  <!-- Plumes qui s'envolent -->
   <g>
-    <path class="particle particle1" d="M100,180 Q102,175 105,178 Q108,180 105,182 Q102,185 100,180Z" transform="rotate(45)"/>
-    <path class="particle particle2" d="M120,190 Q122,185 125,188 Q128,190 125,192 Q122,195 120,190Z" transform="rotate(30)"/>
-    <path class="particle particle3" d="M80,170 Q82,165 85,168 Q88,170 85,172 Q82,175 80,170Z" transform="rotate(60)"/>
-    <path class="particle particle4" d="M140,160 Q142,155 145,158 Q148,160 145,162 Q142,165 140,160Z" transform="rotate(15)"/>
-    <path class="particle particle5" d="M60,150 Q62,145 65,148 Q68,150 65,152 Q62,155 60,150Z" transform="rotate(75)"/>
+    <path class="feather feather1" d="M100,250 
+      Q110,245 115,250 
+      Q120,255 115,260 
+      Q110,265 100,260 
+      Q95,255 100,250Z"/>
+    
+    <path class="feather feather2" d="M300,220 
+      Q310,215 315,220 
+      Q320,225 315,230 
+      Q310,235 300,230 
+      Q295,225 300,220Z"/>
+    
+    <path class="feather feather3" d="M180,300 
+      Q190,295 195,300 
+      Q200,305 195,310 
+      Q190,315 180,310 
+      Q175,305 180,300Z"/>
   </g>
   
-  <!-- Texte élégant -->
-  <text class="text-nook" x="150" y="250">NOOK</text>
-  <text class="text-subtitle" x="150" y="275">MESSAGERIE FAMILIALE</text>
+  <!-- Points lumineux décoratifs -->
+  <circle class="sparkle" cx="80" cy="100" r="3"/>
+  <circle class="sparkle" cx="320" cy="80" r="2"/>
+  <circle class="sparkle" cx="150" cy="320" r="2.5"/>
+  <circle class="sparkle" cx="280" cy="280" r="3"/>
   
-  <!-- Ligne de séparation décorative -->
-  <line x1="100" y1="260" x2="200" y2="260" stroke="#E8F2FF" stroke-width="2" stroke-linecap="round"/>
+  <!-- Texte -->
+  <text class="text-nook" x="200" y="360">NOOK</text>
+  <text class="text-subtitle" x="200" y="390">Messagerie sécurisée</text>
 </svg>
