@@ -4,18 +4,25 @@ import { browser } from '$app/environment';
 export async function checkAuth() {
     try {
         const response = await fetch('/api/auth/me', { credentials: 'include' });
-
+        console.log('Session validation response status:', response.status);
+        
         if (response.ok) {
-    const data = await response.json();
-    if (data.user) {  // Backend retourne { user: {...} }
-        return {
-            status: 'authenticated',
-            user: data.user,
-            isAdmin: data.user.role === 'admin',
-            needsPasswordChange: data.user.needs_password_change || false
-        };
-    }
-}
+            const data = await response.json();
+            console.log('Session validation data:', data);
+            console.log('User role:', data.user?.role);
+            
+            if (data.authenticated && data.user) {
+                const isAdmin = data.user.role === 'admin';
+                console.log('Is admin?', isAdmin); // ← AJOUTEZ CE LOG
+                
+                return {
+                    status: 'authenticated',
+                    user: data.user,
+                    isAdmin: isAdmin,
+                    needsPasswordChange: data.user.needs_password_change || false
+                };
+            }
+        }
 
         // Gestion du token d'invitation (legacy, garde si tu en as besoin)
         if (browser) {
