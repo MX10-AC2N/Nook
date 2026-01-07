@@ -335,7 +335,7 @@ let app = Router::new()
     .route("/api/all-users-json", get(admin::all_users))
     .route("/api/approve", post(admin::approve_user))
     .route("/api/list-invites", get(admin::list_invites))
-    .route("/api/generate-invite", post(admin::generate_invite))
+    .route("/api/generate-invite", post(invites::generate_invite))
     .route("/api/delete-invite", post(admin::delete_invite))
 
     // Health‑check
