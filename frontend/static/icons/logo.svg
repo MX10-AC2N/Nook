@@ -1,68 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-  <style>
-    /* Variables de couleurs */
-    :root {
-      --primary: #4A6FA5;
-      --secondary: #6D98BA;
-      --accent: #FF9A76;
-      --white: #FFFFFF;
-    }
-    
-    /* Animation de flottement */
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-1px); }
-    }
-    
-    /* Styles */
-    .bird-body {
-      fill: var(--primary);
-    }
-    
-    .bird-wing {
-      fill: var(--secondary);
-    }
-    
-    .bird-beak {
-      fill: var(--accent);
-    }
-    
-    .message-bubble {
-      fill: var(--accent);
-    }
-    
-    /* Application de l'animation au groupe oiseau */
-    #bird-group {
-      animation: float 3s ease-in-out infinite;
-    }
-  </style>
+  <!-- Oiseau simplifié pour les petites tailles -->
+  <path fill="#4A6FA5" d="M30,50
+    Q20,40 30,30
+    Q50,25 60,35
+    Q70,45 65,55
+    Q60,65 45,65
+    Q30,65 25,55
+    Q20,50 30,50Z"/>
   
-  <!-- Groupe oiseau (animé) -->
-  <g id="bird-group">
-    <!-- Corps de l'oiseau (forme de goutte) -->
-    <path class="bird-body" d="M35,50 
-      C25,40 30,25 45,30 
-      C60,35 70,45 65,60 
-      C60,75 45,80 35,70 
-      C25,60 30,50 35,50Z"/>
-    
-    <!-- Tête -->
-    <circle class="bird-body" cx="60" cy="35" r="10"/>
-    
-    <!-- Œil -->
-    <circle cx="62" cy="33" r="1.5" fill="var(--white)"/>
-    
-    <!-- Bec -->
-    <polygon class="bird-beak" points="68,35 73,35 70,38"/>
-    
-    <!-- Aile (forme simplifiée) -->
-    <ellipse class="bird-wing" cx="40" cy="45" rx="12" ry="7"/>
-  </g>
+  <!-- Tête -->
+  <circle fill="#4A6FA5" cx="60" cy="35" r="8"/>
   
-  <!-- Message (petit et discret) -->
-  <g transform="translate(70, 60)">
-    <rect class="message-bubble" x="0" y="0" width="15" height="10" rx="2"/>
-    <polygon points="0,0 7.5,5 15,0" fill="var(--primary)" opacity="0.8"/>
-    <text x="7.5" y="6" text-anchor="middle" fill="var(--white)" font-size="4" font-family="Arial, sans-serif">N</text>
-  </g>
+  <!-- Bec -->
+  <polygon fill="#FF9A76" points="67,35 72,35 69,38"/>
+  
+  <!-- Aile -->
+  <ellipse fill="#6D98BA" cx="40" cy="45" rx="10" ry="6"/>
+  
+  <!-- Message -->
+  <rect fill="#FF9A76" x="70" y="60" width="12" height="8" rx="1.5"/>
+  <polygon fill="#4A6FA5" points="70,60 76,64 82,60"/>
 </svg>
