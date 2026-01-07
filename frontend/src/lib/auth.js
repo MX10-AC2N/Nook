@@ -6,16 +6,16 @@ export async function checkAuth() {
         const response = await fetch('/api/auth/me', { credentials: 'include' });
 
         if (response.ok) {
-            const data = await response.json();
-            if (data.authenticated && data.user) {
-                return {
-                    status: 'authenticated',
-                    user: data.user,
-                    isAdmin: data.user.role === 'admin',
-                    needsPasswordChange: data.user.needs_password_change || false
-                };
-            }
-        }
+    const data = await response.json();
+    if (data.user) {  // Backend retourne { user: {...} }
+        return {
+            status: 'authenticated',
+            user: data.user,
+            isAdmin: data.user.role === 'admin',
+            needsPasswordChange: data.user.needs_password_change || false
+        };
+    }
+}
 
         // Gestion du token d'invitation (legacy, garde si tu en as besoin)
         if (browser) {
