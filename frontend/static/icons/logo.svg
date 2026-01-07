@@ -1,125 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <style>
     :root {
       --primary: #4A6FA5;
       --secondary: #6D98BA;
       --accent: #FF9A76;
       --white: #FFFFFF;
-      --bg: #F5F9FF;
+      --bg: #F8FBFF;
     }
     
-    /* Animations */
+    /* Animations subtiles */
     @keyframes gentleFloat {
       0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-5px); }
+      50% { transform: translateY(-2%); }
     }
     
-    @keyframes wingMotion {
-      0%, 100% { transform: rotate(0deg); }
-      50% { transform: rotate(-8deg); }
+    @keyframes wingFlap {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.85); }
     }
     
-    @keyframes messageFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-4px); }
+    @keyframes messagePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
     }
     
-    /* Styles */
+    /* Styles de base */
+    .bird {
+      fill: var(--primary);
+    }
+    
+    .wing {
+      fill: var(--secondary);
+      transform-origin: 30% 50%;
+      animation: wingFlap 1.5s ease-in-out infinite;
+    }
+    
+    .beak {
+      fill: var(--accent);
+    }
+    
+    .message {
+      fill: var(--accent);
+      animation: messagePulse 3s ease-in-out infinite;
+    }
+    
     .bird-container {
-      animation: gentleFloat 3s ease-in-out infinite;
-    }
-    
-    .bird-body {
-      fill: var(--primary);
-      filter: drop-shadow(0 3px 6px rgba(74, 111, 165, 0.2));
-    }
-    
-    .bird-wing {
-      fill: var(--secondary);
-      animation: wingMotion 1s ease-in-out infinite;
-      transform-origin: 70% 30%; /* Position ajustée */
-    }
-    
-    .bird-tail {
-      fill: var(--secondary);
-    }
-    
-    .bird-head {
-      fill: var(--primary);
-    }
-    
-    .bird-eye {
-      fill: var(--white);
-    }
-    
-    .bird-pupil {
-      fill: #2C3E50;
-    }
-    
-    .bird-beak {
-      fill: var(--accent);
-    }
-    
-    .message-bubble {
-      fill: var(--accent);
-      animation: messageFloat 4s ease-in-out infinite;
-      filter: drop-shadow(0 3px 5px rgba(255, 154, 118, 0.3));
-    }
-    
-    .logo-text {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 36px;
-      font-weight: 700;
-      fill: var(--primary);
-      letter-spacing: 1px;
-    }
-    
-    .logo-subtitle {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px;
-      fill: var(--secondary);
-      letter-spacing: 2px;
-      text-transform: uppercase;
+      animation: gentleFloat 4s ease-in-out infinite;
     }
   </style>
   
-  <!-- Fond -->
-  <rect width="300" height="300" fill="var(--bg)" rx="20"/>
+  <!-- Fond circulaire (optionnel) -->
+  <circle cx="50" cy="50" r="45" fill="var(--bg)"/>
   
-  <!-- Oiseau corrigé -->
-  <g class="bird-container" transform="translate(150, 120)">
-    <!-- Corps principal -->
-    <ellipse class="bird-body" cx="0" cy="0" rx="45" ry="30"/>
+  <!-- Oiseau scalable -->
+  <g class="bird-container" transform="translate(50, 50)">
+    <!-- Corps de l'oiseau -->
+    <ellipse class="bird" cx="0" cy="0" rx="15" ry="10"/>
     
     <!-- Tête -->
-    <circle class="bird-head" cx="45" cy="-25" r="20"/>
+    <circle class="bird" cx="12" cy="-8" r="7"/>
     
     <!-- Œil -->
-    <circle class="bird-eye" cx="55" cy="-30" r="6"/>
-    <circle class="bird-pupil" cx="55" cy="-30" r="3"/>
+    <circle cx="14" cy="-10" r="1.5" fill="var(--white)"/>
     
-    <!-- Bec pointant vers la droite (correct) -->
-    <path class="bird-beak" d="M60, -20 L80, -20 L70, -10 Z"/>
+    <!-- Bec (pointant vers la droite) -->
+    <polygon class="beak" points="17,-8 22,-8 19,-5"/>
     
-    <!-- Aile positionnée plus haut -->
-    <ellipse class="bird-wing" cx="-10" cy="-10" rx="25" ry="15"/>
+    <!-- Aile (positionnée correctement) -->
+    <ellipse class="wing" cx="-8" cy="-2" rx="10" ry="6"/>
     
     <!-- Queue -->
-    <path class="bird-tail" d="M-50, 0 L-70, 15 L-60, 20 L-45, 5 Z"/>
+    <polygon class="bird" points="-15,0 -22,5 -15,5"/>
   </g>
   
   <!-- Message -->
-  <g transform="translate(100, 180)">
-    <rect class="message-bubble" x="0" y="0" width="50" height="35" rx="8"/>
-    <polygon points="0,0 25,15 50,0" fill="var(--primary)" opacity="0.8"/>
-    <text x="25" y="22" text-anchor="middle" fill="white" font-family="Arial" font-size="14" font-weight="bold">N</text>
+  <g transform="translate(30, 60)">
+    <rect class="message" x="0" y="0" width="15" height="10" rx="2"/>
+    <polygon points="0,0 7.5,5 15,0" fill="var(--primary)" opacity="0.8"/>
+    <text x="7.5" y="6" text-anchor="middle" fill="var(--white)" font-size="4" font-family="Arial, sans-serif" font-weight="bold">N</text>
   </g>
-  
-  <!-- Ligne de connexion -->
-  <path d="M150,150 Q180,160 200,180" stroke="var(--secondary)" stroke-width="2" 
-        stroke-dasharray="5,3" fill="none" opacity="0.5"/>
-  
-  <!-- Texte -->
-  <text class="logo-text" x="150" y="250" text-anchor="middle">NOOK</text>
-  <text class="logo-subtitle" x="150" y="280" text-anchor="middle">MESSAGERIE FAMILIALE</text>
 </svg>
