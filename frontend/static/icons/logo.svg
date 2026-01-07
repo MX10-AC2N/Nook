@@ -1,12 +1,195 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="currentColor">
-  <!-- Oiseau stylisé -->
-  <path d="M40,60 Q50,40 60,60 Q70,80 80,60 L80,70 Q70,80 60,80 Q50,80 40,70 Z" fill="#2d5a27"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <style>
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(-2deg); }
+      50% { transform: translateY(-4px) rotate(2deg); }
+    }
+    
+    @keyframes wingFlap {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.9); }
+    }
+    
+    @keyframes trailPulse {
+      0%, 100% { opacity: 0.3; r: 1.5; }
+      50% { opacity: 0.7; r: 2; }
+    }
+    
+    @keyframes waveMove {
+      0% { transform: translateX(0); opacity: 0; }
+      20% { opacity: 0.7; }
+      80% { opacity: 0.7; }
+      100% { transform: translateX(30px); opacity: 0; }
+    }
+    
+    @keyframes messageFade {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 1; }
+    }
+    
+    .bird {
+      animation: float 6s ease-in-out infinite;
+      transform-origin: center;
+    }
+    
+    .wing {
+      animation: wingFlap 2s ease-in-out infinite;
+      transform-origin: 70% 40%;
+    }
+    
+    .wing-right {
+      animation-delay: 1s;
+    }
+    
+    .trail-dot {
+      animation: trailPulse 2s ease-in-out infinite;
+    }
+    
+    .message-wave {
+      animation: waveMove 3s ease-out infinite;
+    }
+    
+    .message-symbol {
+      animation: messageFade 3s ease-in-out infinite;
+    }
+    
+    .message-1 { animation-delay: 0.5s; }
+    .message-2 { animation-delay: 1s; }
+    .message-3 { animation-delay: 1.5s; }
+  </style>
   
-  <!-- Ailes -->
-  <path d="M35,60 Q20,50 30,65 Q35,70 35,65 Z" fill="#3d7a37"/>
-  <path d="M85,60 Q100,50 90,65 Q85,70 85,65 Z" fill="#3d7a37"/>
+  <!-- Points de trajectoire (traînées d'envol) -->
+  <circle class="trail-dot trail-1" cx="40" cy="110" r="1.5" fill="#2d5a27" opacity="0.3"/>
+  <circle class="trail-dot trail-2" cx="55" cy="95" r="1.5" fill="#2d5a27" opacity="0.3" style="animation-delay: 0.3s"/>
+  <circle class="trail-dot trail-3" cx="70" cy="85" r="1.5" fill="#2d5a27" opacity="0.3" style="animation-delay: 0.6s"/>
+  
+  <!-- Corps de l'oiseau -->
+  <g class="bird">
+    <!-- Contour principal de l'oiseau -->
+    <path d="M80 80 
+             C 90 70, 110 70, 120 80
+             C 130 90, 135 100, 130 110
+             C 125 115, 110 120, 100 115
+             C 95 110, 85 110, 80 105
+             C 75 100, 70 90, 80 80" 
+          stroke="#2d5a27" 
+          stroke-width="4" 
+          fill="none" 
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+    
+    <!-- Aile gauche -->
+    <path class="wing wing-left" 
+          d="M95 90 
+             C 85 75, 70 85, 75 95
+             C 80 100, 90 100, 95 90" 
+          stroke="#3d7a37" 
+          stroke-width="3" 
+          fill="none" 
+          stroke-linecap="round"/>
+    
+    <!-- Aile droite -->
+    <path class="wing wing-right" 
+          d="M105 90 
+             C 115 75, 130 85, 125 95
+             C 120 100, 110 100, 105 90" 
+          stroke="#3d7a37" 
+          stroke-width="3" 
+          fill="none" 
+          stroke-linecap="round"/>
+    
+    <!-- Queue -->
+    <path d="M80 105 
+             C 70 110, 65 105, 70 100
+             C 73 97, 77 100, 80 105" 
+          stroke="#2d5a27" 
+          stroke-width="3" 
+          fill="none" 
+          stroke-linecap="round"/>
+    
+    <!-- Œil -->
+    <circle cx="110" cy="90" r="2.5" fill="#2d5a27"/>
+    <circle cx="111" cy="89" r="1" fill="white"/>
+    
+    <!-- Bec -->
+    <path d="M120 85 L125 88 L122 90 Z" 
+          fill="#2d5a27" 
+          stroke="#2d5a27" 
+          stroke-width="1"/>
+  </g>
   
   <!-- Ondes de message -->
-  <path d="M90,55 Q95,50 100,55 Q105,60 110,55" stroke="#2d5a27" stroke-width="2" fill="none"/>
-  <path d="M95,50 Q100,55 105,50 Q110,45 115,50" stroke="#2d5a27" stroke-width="1.5" fill="none" opacity="0.7"/>
+  <g class="message-waves">
+    <!-- Première onde -->
+    <path class="message-wave message-1" 
+          d="M140 90 
+             Q 150 85, 160 90
+             Q 170 95, 180 90" 
+          stroke="#2d5a27" 
+          stroke-width="1.5" 
+          fill="none" 
+          stroke-dasharray="4,2" 
+          opacity="0"/>
+    
+    <!-- Deuxième onde -->
+    <path class="message-wave message-2" 
+          d="M145 95 
+             Q 155 90, 165 95
+             Q 175 100, 185 95" 
+          stroke="#3d7a37" 
+          stroke-width="1" 
+          fill="none" 
+          stroke-dasharray="3,3" 
+          opacity="0"/>
+    
+    <!-- Troisième onde -->
+    <path class="message-wave message-3" 
+          d="M150 100 
+             Q 160 95, 170 100
+             Q 180 105, 190 100" 
+          stroke="#2d5a27" 
+          stroke-width="0.8" 
+          fill="none" 
+          stroke-dasharray="2,4" 
+          opacity="0"/>
+  </g>
+  
+  <!-- Symboles de message qui apparaissent -->
+  <g class="message-symbols">
+    <!-- Cœur -->
+    <path class="message-symbol message-1" 
+          d="M160 80 
+             Q 165 75, 170 80
+             Q 175 85, 170 90
+             Q 165 95, 160 90
+             Q 155 85, 160 80" 
+          fill="#e53e3e" 
+          opacity="0"/>
+    
+    <!-- Étoile -->
+    <path class="message-symbol message-2" 
+          d="M170 70 
+             L 173 75
+             L 179 76
+             L 175 80
+             L 176 86
+             L 170 83
+             L 164 86
+             L 165 80
+             L 161 76
+             L 167 75
+             Z" 
+          fill="#3182ce" 
+          opacity="0"/>
+    
+    <!-- Note de musique -->
+    <g class="message-symbol message-3" opacity="0">
+      <circle cx="155" cy="105" r="3" fill="#805ad5"/>
+      <circle cx="155" cy="115" r="3" fill="#805ad5"/>
+      <path d="M155 105 L155 120 L160 118" 
+            stroke="#805ad5" 
+            stroke-width="2" 
+            fill="none"/>
+    </g>
+  </g>
 </svg>
