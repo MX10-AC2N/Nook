@@ -58,11 +58,14 @@ export async function initAuth() {
     try {
         authStore.setLoading();
         const result = await checkAuth();
+        console.log('initAuth() result:', result);
 
         if (result.status === 'authenticated' && result.user) {
+            console.log('Setting authenticated, isAdmin:', result.isAdmin);
             authStore.setAuthenticated(result.user, result.isAdmin);
         } else {
             authStore.setGuest();
+            console.log('Setting guest');
         }
     } catch (error) {
         console.error('Auth initialization failed:', error);
