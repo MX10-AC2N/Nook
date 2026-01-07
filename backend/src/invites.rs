@@ -37,7 +37,7 @@ pub async fn generate_invite(
         .and_then(|h| h.to_str().ok())
         .and_then(|s| {
             s.split(';')
-                .find_map(|c| c.trim().starts_with("auth_token=").then_some(c))
+                .find(|c| c.trim().starts_with("auth_token="))
         })
         .and_then(|c| c.split('=').nth(1))
         .and_then(|v| {
