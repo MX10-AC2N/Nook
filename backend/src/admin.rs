@@ -196,37 +196,43 @@ pub struct GenerateInvitePayload {
     pub role: String,
 }
 
+// POST /api/generate-invite (sans payload)
 pub async fn generate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
-    Json(payload): Json<GenerateInvitePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    let admin_user = get_admin_user(&state, &headers).await?;  // Guard admin + récupère l'user
 
-    let invite_id = uuid::Uuid::new_v4().to_string();
-    let token = uuid::Uuid::new_v4().to_string();
-    let created_at = chrono::Utc::now().timestamp();
-    let expires_at = created_at + (7 * 24 * 3600); // 7 jours
+    let token = Uuid::new_v4().to_string();
+    let invite_id = Uuid::new_v4().to_string();
+    let now = Utc::now().timestamp();
+    let expires_at = now + (48 * 3600); // 48 heures
 
-    sqlx::query::<sqlx::Sqlite>(
-        "INSERT INTO invites (id, token, role, created_at, expires_at, used) VALUES (?, ?, ?, ?, ?, 0)"
+    let result = sqlx::query(
+        "INSERT INTO invites (id, token, created_by, created_at, expires_at) 
+         VALUES (?, ?, ?, ?, ?)"
     )
     .bind(&invite_id)
     .bind(&token)
-    .bind(&payload.role)
-    .bind(created_at)
+    .bind(&admin_user.id)  // Stocke qui a créé l'invite (utile pour logs futurs)
+    .bind(now)
     .bind(expires_at)
     .execute(&state.db)
-    .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?;
+    .await;
 
-    Ok(Json(json!({
-        "success": true,
-        "invite": {
-            "id": invite_id,
-            "token": token,
-            "expires_at": expires_at
+    match result {
+        Ok(_) => {
+            let invite_link = format!("https://ton-domaine.com/?invite={}", token); // Adapte ton domaine réel
+            Ok(Json(json!({
+                "success": true,
+                "message": "Invitation créée (expire dans 48h)",
+                "invite_link": invite_link
+            })))
         }
-    })))
+        Err(e) => {
+            eprintln!("[Admin] Erreur génération invite : {}", e);
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "message": "Erreur serveur"}))))
+        }
+    }
 }
 
