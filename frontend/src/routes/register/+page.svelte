@@ -1,116 +1,118 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { getPendingInviteToken } from '$lib/auth';
+  import { goto } from '$app/navigation';
 
-	let name = $state('');
-	let username = $state('');
-	let password = $state('');
-	let confirmPassword = $state('');
-	let error = $state('');
-	let success = $state(false);
-	let loading = $state(false);
-	let inviteToken = $state('');
+  let name = $state('');
+  let username = $state('');
+  let email = $state('');
+  let password = $state('');
+  let confirmPassword = $state('');
+  let error = $state('');
+  let success = $state(false);
+  let loading = $state(false);
 
-	onMount(() => {
-		inviteToken = getPendingInviteToken() || '';
-		if (!inviteToken) {
-			error = 'Un token d\'invitation est requis pour créer un compte';
-		}
-	});
+  async function handleRegister() {
+    if (!name || !username || !email || !password || !confirmPassword) {
+      error = 'Veuillez remplir tous les champs';
+      return;
+    }
 
-	async function handleRegister() {
-		if (!name || !username || !password || !confirmPassword) {
-			error = 'Veuillez remplir tous les champs';
-			return;
-		}
+    if (password !== confirmPassword) {
+      error = 'Les mots de passe ne correspondent pas';
+      return;
+    }
 
-		if (password !== confirmPassword) {
-			error = 'Les mots de passe ne correspondent pas';
-			return;
-		}
+    if (password.length < 8) {
+      error = 'Le mot de passe doit contenir au moins 8 caractères';
+      return;
+    }
 
-		if (password.length < 8) {
-			error = 'Le mot de passe doit contenir au moins 8 caractères';
-			return;
-		}
+    loading = true;
+    error = '';
 
-		loading = true;
-		error = '';
+    try {
+      const response = await fetch('/api/auth/register', {  // ← Endpoint correct
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          name, 
+          username, 
+          email, 
+          password 
+        })
+      });
 
-		try {
-			const response = await fetch('/api/register', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, username, password, invite_token: inviteToken })
-			});
+      const data = await response.json();
 
-			const data = await response.json();
-
-			if (response.ok) {
-				success = true;
-			} else {
-				error = data.message || 'Erreur lors de l\'inscription';
-			}
-		} catch (err) {
-			error = 'Erreur de connexion au serveur';
-		} finally {
-			loading = false;
-		}
-	}
+      if (response.ok) {
+        success = true;
+      } else {
+        error = data.message || 'Erreur lors de l\'inscription (ex: username/email déjà pris)';
+      }
+    } catch (err) {
+      error = 'Erreur de connexion au serveur';
+    } finally {
+      loading = false;
+    }
+  }
 </script>
 
 <svelte:head>
-	<title>Inscription - Nook</title>
+  <title>Inscription libre - Nook</title>
 </svelte:head>
 
 <div class="register-container">
-	{#if success}
-		<div class="success-card">
-			<h1>✅ Inscription发送ée</h1>
-			<p>Votre demande d'inscription a été envoyée à l'administrateur.</p>
-			<p>Vous recevrez une notification une fois votre compte approuvé.</p>
-			<a href="/login" class="back-btn">Retour à la connexion</a>
-		</div>
-	{:else}
-		<div class="register-card">
-			<h1>🌱 Nook</h1>
-			<p class="subtitle">Créer votre compte familial</p>
+  {#if success}
+    <div class="success-card">
+      <h1>✅ Inscription envoyée</h1>
+      <p>Votre demande a été soumise à l'administrateur pour approbation.</p>
+      <p>Vous pourrez vous connecter une fois approuvé.</p>
+      <a href="/login" class="back-btn">Retour à la connexion</a>
+    </div>
+  {:else}
+    <div class="register-card">
+      <h1>🌱 Inscription Nook</h1>
+      <p class="subtitle">Créez un compte (en attente d'approbation admin)</p>
 
-			{#if error}
-				<div class="error-message">{error}</div>
-			{/if}
+      {#if error}
+        <div class="error-message">{error}</div>
+      {/if}
 
-			<form onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
-				<div class="form-group">
-					<label for="name">Prénom</label>
-					<input type="text" id="name" bind:value={name} placeholder="Votre prénom" disabled={loading || !inviteToken} />
-				</div>
+      <form on:submit|preventDefault={handleRegister}>
+        <div class="form-group">
+          <label for="name">Prénom/Nom</label>
+          <input type="text" id="name" bind:value={name} placeholder="Jean Dupont" disabled={loading} required />
+        </div>
 
-				<div class="form-group">
-					<label for="username">Identifiant</label>
-					<input type="text" id="username" bind:value={username} placeholder="Identifiant unique" disabled={loading || !inviteToken} />
-				</div>
+        <div class="form-group">
+          <label for="username">Identifiant</label>
+          <input type="text" id="username" bind:value={username} placeholder="jean" disabled={loading} required />
+        </div>
 
-				<div class="form-group">
-					<label for="password">Mot de passe</label>
-					<input type="password" id="password" bind:value={password} placeholder="Au moins 8 caractères" disabled={loading || !inviteToken} />
-				</div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" bind:value={email} placeholder="jean@example.com" disabled={loading} required />
+        </div>
 
-				<div class="form-group">
-					<label for="confirmPassword">Confirmer le mot de passe</label>
-					<input type="password" id="confirmPassword" bind:value={confirmPassword} placeholder="Répétez le mot de passe" disabled={loading || !inviteToken} />
-				</div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" bind:value={password} placeholder="Au moins 8 caractères" disabled={loading} required />
+        </div>
 
-				<button type="submit" class="register-btn" disabled={loading || !inviteToken}>
-					{loading ? 'Inscription...' : 'S\'inscrire'}
-				</button>
-			</form>
+        <div class="form-group">
+          <label for="confirmPassword">Confirmer mot de passe</label>
+          <input type="password" id="confirmPassword" bind:value={confirmPassword} placeholder="Répétez" disabled={loading} required />
+        </div>
 
-			<div class="links">
-				<a href="/login">Déjà un compte ? Se connecter</a>
-			</div>
-		</div>
-	{/if}
+        <button type="submit" class="register-btn" disabled={loading}>
+          {loading ? 'Inscription...' : 'S\'inscrire'}
+        </button>
+      </form>
+
+      <div class="links">
+        <a href="/login">Déjà un compte ? Se connecter</a>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
