@@ -16,8 +16,8 @@
   <!-- Lettres positionnées individuellement pour un effet graffiti -->
   <text class="letter n1" x="50" y="120" font-size="100">N</text>
   <text class="letter o1" x="130" y="120" font-size="100">O</text>
-  <text class="letter o2" x="210" y="120" font-size="100">O</text>
-  <text class="letter k" x="290" y="120" font-size="100">K</text>
+  <text class="letter o2" x="190" y="120" font-size="100">O</text>
+  <text class="letter k" x="260" y="120" font-size="100">K</text>
   
   <!-- Ligne de base (optionnelle) -->
   <line x1="40" y1="125" x2="350" y2="125" stroke="#000" stroke-width="3" opacity="0.1"/>
