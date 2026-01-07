@@ -7,10 +7,10 @@
     }
     
     /* Chaque lettre légèrement décalée pour effet graffiti */
-    .n1 { transform: translate(0, -2px) rotate(-1deg); }
-    .o1 { transform: translate(0, 1px) rotate(0.5deg); }
-    .o2 { transform: translate(0, -1px) rotate(-0.5deg); }
-    .k { transform: translate(0, 2px) rotate(1deg); }
+    .n1 { transform: translate(0, -2px) rotate(-6deg); }
+    .o1 { transform: translate(0, 1px) rotate(2deg); }
+    .o2 { transform: translate(0, -1px) rotate(-3deg); }
+    .k { transform: translate(0, 2px) rotate(4deg); }
   </style>
   
   <!-- Lettres positionnées individuellement pour un effet graffiti -->
