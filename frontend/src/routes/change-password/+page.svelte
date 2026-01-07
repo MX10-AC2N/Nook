@@ -1,8 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
-  import { authStore, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore';
-  import { changePassword } from '$lib/api';  // Ta fonction modernisée dans api.ts
+  import { authStore, needsPasswordChange, initAuth } from '$lib/authStore';
+  import { changePassword } from '$lib/api';
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -10,7 +9,6 @@
   let success = $state('');
   let isLoading = $state(false);
 
-  // Recharge auth au montage pour avoir l'état frais
   $effect(() => {
     initAuth();
   });
@@ -36,18 +34,16 @@
       let result;
 
       if ($needsPasswordChange) {
-        // Premier login admin → first-setup avec user_id
         const userId = $authStore.user?.id;
         if (!userId) throw new Error('Utilisateur non identifié');
         result = await changePassword(newPassword, userId);
       } else {
-        // Changement normal
         result = await changePassword(newPassword);
       }
 
       if (result.success) {
         success = 'Votre mot de passe a été mis à jour avec succès !';
-        await initAuth();  // Recharge l'état (needs_password_change = false)
+        await initAuth();
         setTimeout(() => {
           goto($authStore.isAdmin ? '/admin' : '/chat');
         }, 2000);
@@ -64,236 +60,237 @@
 
 <svelte:head>
   <title>
-    {$needsPasswordChange ? 'Créer' : 'Changer'} votre mot de passe — Nook
+    {$needsPasswordChange ? 'Définir' : 'Changer'} votre mot de passe — Nook
   </title>
 </svelte:head>
 
 <div class="page-container">
-  <div class="form-wrapper">
+  <div class="card">
     <div class="header">
       <div class="icon">🔐</div>
       <h1>
         {$needsPasswordChange ? 'Première connexion' : 'Changer le mot de passe'}
       </h1>
-      <p>
+      <p class="description">
         {$needsPasswordChange
-          ? 'Vous devez définir un nouveau mot de passe pour continuer'
-          : 'Créez un nouveau mot de passe sécurisé pour votre compte'}
+          ? 'Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.'
+          : 'Choisissez un mot de passe fort et unique pour protéger votre compte.'}
       </p>
     </div>
 
     {#if error}
-      <div class="alert error">
+      <div class="alert error" role="alert">
         <span class="alert-icon">⚠️</span>
         <span>{error}</span>
       </div>
     {/if}
 
     {#if success}
-      <div class="alert success">
+      <div class="alert success" role="alert">
         <span class="alert-icon">✅</span>
         <span>{success}</span>
       </div>
-      <p class="redirect-text">Redirection vers votre espace...</p>
+      <p class="info-text">Redirection en cours...</p>
     {:else}
-      <form class="password-form" on:submit={handleSubmit}>
-        <div class="form-group">
+      <form class="form" on:submit={handleSubmit}>
+        <div class="input-group">
           <label for="new-password">Nouveau mot de passe</label>
           <input
             id="new-password"
             type="password"
             bind:value={newPassword}
-            class="input"
-            placeholder="Minimum 8 caractères"
+            placeholder="Au moins 8 caractères"
             required
             disabled={isLoading}
+            autocomplete="new-password"
           />
+          <p class="help-text">Utilisez lettres, chiffres et symboles pour plus de sécurité</p>
         </div>
 
-        <div class="form-group">
-          <label for="confirm-password">Confirmer le nouveau mot de passe</label>
+        <div class="input-group">
+          <label for="confirm-password">Confirmer le mot de passe</label>
           <input
             id="confirm-password"
             type="password"
             bind:value={confirmPassword}
-            class="input"
-            placeholder="Confirmez votre nouveau mot de passe"
+            placeholder="Répétez le mot de passe"
             required
             disabled={isLoading}
+            autocomplete="new-password"
           />
         </div>
 
-        <div class="form-group">
-          <button type="submit" class="submit-btn" disabled={isLoading}>
-            {#if isLoading}
-              <span class="spinner"></span>
-              Enregistrement...
-            {:else}
-              Confirmer le changement
-            {/if}
-          </button>
-        </div>
+        <button type="submit" class="btn-primary" disabled={isLoading}>
+          {#if isLoading}
+            <span class="spinner"></span>
+            Enregistrement...
+          {:else}
+            {$needsPasswordChange ? 'Définir le mot de passe' : 'Changer le mot de passe'}
+          {/if}
+        </button>
       </form>
     {/if}
+
+    <div class="footer">
+      <a href="/login" class="back-link">
+        ← Retour à la connexion
+      </a>
+    </div>
   </div>
 </div>
 
 <style>
   .page-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
     min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 1.5rem;
-    background: linear-gradient(135deg, var(--bg-primary, #f0fdf4) 0%, var(--bg-secondary, #e0f2fe) 100%);
+    background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
   }
 
-  .form-wrapper {
+  .card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 400px;
+    max-width: 420px;
+    text-align: center;
   }
 
   .header {
-    text-align: center;
     margin-bottom: 2rem;
   }
 
   .icon {
     font-size: 3.5rem;
     margin-bottom: 1rem;
-    animation: bounce 2s ease-in-out infinite;
-  }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
   }
 
   h1 {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--text-primary, #1e293b);
-    margin: 0 0 0.5rem 0;
+    color: #1e293b;
+    margin: 0 0 0.75rem 0;
   }
 
-  .header p {
-    font-size: 0.9rem;
-    color: var(--text-secondary, #64748b);
+  .description {
+    font-size: 0.95rem;
+    color: #64748b;
+    line-height: 1.5;
     margin: 0;
   }
 
   .alert {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius-lg, 0.75rem);
-    margin-bottom: 1rem;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
     font-size: 0.9rem;
-    animation: slide-down 0.3s ease;
-  }
-
-  @keyframes slide-down {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
   }
 
   .alert.error {
-    background-color: var(--error-light, #fee2e2);
-    color: var(--error, #ef4444);
-    border: 1px solid var(--error, #ef4444);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
   }
 
   .alert.success {
-    background-color: var(--success-light, #dcfce7);
-    color: var(--success, #22c55e);
-    border: 1px solid var(--success, #22c55e);
+    background: rgba(74, 222, 128, 0.1);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    color: #22c55e;
   }
 
   .alert-icon {
-    font-size: 1.1rem;
+    font-size: 1.25rem;
   }
 
-  .redirect-text {
+  .info-text {
     text-align: center;
-    color: var(--text-secondary, #64748b);
+    color: #64748b;
     font-size: 0.9rem;
     margin-top: 1rem;
   }
 
-  .password-form {
-    background-color: var(--bg-primary, #ffffff);
-    padding: 2rem;
-    border-radius: var(--radius-xl, 1rem);
-    box-shadow: var(--depth, 0 4px 12px rgba(0, 0, 0, 0.1));
-    border: 1px solid var(--border, #e2e8f0);
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
   }
 
-  .form-group {
-    margin-bottom: 1.25rem;
+  .input-group {
+    text-align: left;
   }
 
   label {
     display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-primary, #1e293b);
     margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95rem;
   }
 
-  .input {
+  input {
     width: 100%;
-    padding: 0.75rem 1rem;
-    font-size: 0.9rem;
-    background-color: var(--input-bg, #ffffff);
-    color: var(--text-primary, #1e293b);
-    border: 2px solid var(--border, #e2e8f0);
-    border-radius: var(--radius-lg, 0.75rem);
-    transition: all 0.2s ease;
+    padding: 0.875rem 1rem;
+    font-size: 1rem;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
     outline: none;
   }
 
-  .input:focus {
-    border-color: var(--accent, #4ade80);
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+  input:focus {
+    border-color: #2d5a27;
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
   }
 
-  .input::placeholder {
-    color: var(--text-secondary, #64748b);
-    opacity: 0.7;
+  input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
-  .submit-btn {
+  .help-text {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin: 0.5rem 0 0 0;
+  }
+
+  .btn-primary {
     width: 100%;
-    padding: 0.875rem 1.5rem;
-    font-size: 0.9rem;
-    font-weight: 600;
+    padding: 1rem;
+    background: #2d5a27;
     color: white;
-    background: linear-gradient(135deg, var(--accent, #4ade80) 0%, var(--accent-dark, #22c55e) 100%);
     border: none;
-    border-radius: var(--radius-lg, 0.75rem);
+    border-radius: 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
 
-  .submit-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+  .btn-primary:hover:not(:disabled) {
+    background: #3d7a37;
+    transform: translateY(-1px);
   }
 
-  .submit-btn:disabled {
+  .btn-primary:disabled {
     opacity: 0.7;
     cursor: not-allowed;
   }
 
   .spinner {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: white;
     border-radius: 50%;
@@ -304,10 +301,34 @@
     to { transform: rotate(360deg); }
   }
 
+  .footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .back-link {
+    color: #64748b;
+    font-size: 0.9rem;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .back-link:hover {
+    color: #2d5a27;
+  }
+
   @media (max-width: 480px) {
-    .page-container { padding: 1rem; }
-    .password-form { padding: 1.5rem; }
-    h1 { font-size: 1.5rem; }
-    .icon { font-size: 3rem; }
+    .card {
+      padding: 2rem 1.5rem;
+    }
+    
+    .icon {
+      font-size: 3rem;
+    }
+    
+    h1 {
+      font-size: 1.5rem;
+    }
   }
 </style>
