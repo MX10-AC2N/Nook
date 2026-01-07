@@ -1,82 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
   <style>
-    :root {
-      --primary: #4A6FA5;
-      --secondary: #6D98BA;
-      --accent: #FF9A76;
-      --white: #FFFFFF;
-      --bg: #F8FBFF;
-    }
-    
-    /* Animations subtiles */
-    @keyframes gentleFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-2%); }
-    }
-    
-    @keyframes wingFlap {
-      0%, 100% { transform: scaleY(1); }
-      50% { transform: scaleY(0.85); }
-    }
-    
-    @keyframes messagePulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.8; }
-    }
-    
-    /* Styles de base */
-    .bird {
-      fill: var(--primary);
-    }
-    
-    .wing {
-      fill: var(--secondary);
-      transform-origin: 30% 50%;
-      animation: wingFlap 1.5s ease-in-out infinite;
-    }
-    
-    .beak {
-      fill: var(--accent);
-    }
-    
-    .message {
-      fill: var(--accent);
-      animation: messagePulse 3s ease-in-out infinite;
-    }
-    
-    .bird-container {
-      animation: gentleFloat 4s ease-in-out infinite;
-    }
+    .bird-body { fill: #4A6FA5; }
+    .bird-wing { fill: #6D98BA; }
+    .bird-beak { fill: #FF9A76; }
+    .message { fill: #FF9A76; }
   </style>
   
-  <!-- Fond circulaire (optionnel) -->
-  <circle cx="50" cy="50" r="45" fill="var(--bg)"/>
+  <!-- Oiseau ultra simple -->
+  <!-- Corps -->
+  <circle class="bird-body" cx="40" cy="50" r="15"/>
   
-  <!-- Oiseau scalable -->
-  <g class="bird-container" transform="translate(50, 50)">
-    <!-- Corps de l'oiseau -->
-    <ellipse class="bird" cx="0" cy="0" rx="15" ry="10"/>
-    
-    <!-- Tête -->
-    <circle class="bird" cx="12" cy="-8" r="7"/>
-    
-    <!-- Œil -->
-    <circle cx="14" cy="-10" r="1.5" fill="var(--white)"/>
-    
-    <!-- Bec (pointant vers la droite) -->
-    <polygon class="beak" points="17,-8 22,-8 19,-5"/>
-    
-    <!-- Aile (positionnée correctement) -->
-    <ellipse class="wing" cx="-8" cy="-2" rx="10" ry="6"/>
-    
-    <!-- Queue -->
-    <polygon class="bird" points="-15,0 -22,5 -15,5"/>
-  </g>
+  <!-- Tête -->
+  <circle class="bird-body" cx="55" cy="40" r="8"/>
+  
+  <!-- Bec -->
+  <polygon class="bird-beak" points="62,40 67,40 64,43"/>
+  
+  <!-- Aile -->
+  <ellipse class="bird-wing" cx="35" cy="45" rx="12" ry="7"/>
   
   <!-- Message -->
-  <g transform="translate(30, 60)">
-    <rect class="message" x="0" y="0" width="15" height="10" rx="2"/>
-    <polygon points="0,0 7.5,5 15,0" fill="var(--primary)" opacity="0.8"/>
-    <text x="7.5" y="6" text-anchor="middle" fill="var(--white)" font-size="4" font-family="Arial, sans-serif" font-weight="bold">N</text>
-  </g>
+  <rect class="message" x="65" y="60" width="20" height="12" rx="2"/>
+  <polygon points="65,60 75,65 85,60" fill="#4A6FA5"/>
 </svg>
