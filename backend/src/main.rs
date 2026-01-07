@@ -55,8 +55,8 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             approved BOOLEAN DEFAULT 0,
             needs_password_change BOOLEAN DEFAULT 0,
             token TEXT,
-            created_at INTEGER NOT NULL
-            public_key TEXT
+            created_at INTEGER NOT NULL,
+            public_key TEXT  -- ← Virgule ajoutée avant cette ligne
         )
         "#,
     )
@@ -68,7 +68,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
         CREATE TABLE IF NOT EXISTS conversations (
             id TEXT PRIMARY KEY,
             name TEXT,
-    is_group BOOLEAN DEFAULT 0,
+            is_group BOOLEAN DEFAULT 0,
             created_at INTEGER NOT NULL,
             created_by TEXT NOT NULL,
             updated_at INTEGER NOT NULL
@@ -148,7 +148,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
             used_at INTEGER
         )
         "#,
-)
+    )
     .execute(&pool)
     .await?;
 
