@@ -18,7 +18,7 @@
     error = '';
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch('/api/auth/login', {  // ← Endpoint corrigé
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -28,7 +28,6 @@
       if (response.ok) {
         const data = await response.json();
         
-        // Redirection conditionnelle selon needs_password_change
         if (data.user?.needs_password_change) {
           goto('/change-password');
         } else {
@@ -36,10 +35,10 @@
         }
       } else {
         const data = await response.json();
-        error = data.message || 'Identifiants incorrects';
+        error = data.message || 'Identifiants incorrects ou compte en attente d\'approbation';
       }
     } catch (err) {
-      error = 'Erreur de connexion au serveur';
+      error = 'Erreur de connexion au serveur. Vérifiez votre réseau.';
     } finally {
       loading = false;
     }
@@ -60,106 +59,255 @@
   <title>Connexion - Nook</title>
 </svelte:head>
 
-<div class="login-container">
+<div class="login-page">
   <div class="login-card">
-    <h1>🌱 Nook</h1>
-    <p class="subtitle">Connexion à votre espace familial</p>
+    <div class="logo">
+      <span class="logo-icon">🌱</span>
+      <h1>Nook</h1>
+    </div>
+    
+    <p class="subtitle">Bienvenue dans votre espace familial sécurisé</p>
 
-    <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
-      <div class="form-group">
+    {#if error}
+      <div class="alert error" role="alert">
+        <span class="alert-icon">⚠️</span>
+        <span>{error}</span>
+      </div>
+    {/if}
+
+    <form on:submit|preventDefault={handleLogin} class="login-form">
+      <div class="input-group">
         <label for="username">Identifiant</label>
-        <input 
-          type="text" 
-          id="username" 
-          bind:value={username} 
-          placeholder="Votre identifiant" 
-          disabled={loading} 
+        <input
+          id="username"
+          type="text"
+          bind:value={username}
+          placeholder="Votre identifiant unique"
+          autocomplete="username"
+          required
+          disabled={loading}
         />
       </div>
 
-      <div class="form-group">
+      <div class="input-group">
         <label for="password">Mot de passe</label>
-        <input 
-          type="password" 
-          id="password" 
-          bind:value={password} 
-          placeholder="Votre mot de passe" 
-          disabled={loading} 
+        <input
+          id="password"
+          type="password"
+          bind:value={password}
+          placeholder="Votre mot de passe"
+          autocomplete="current-password"
+          required
+          disabled={loading}
         />
       </div>
 
-      {#if error}
-        <div class="error-message">{error}</div>
-      {/if}
-
-      <button type="submit" class="login-btn" disabled={loading}>
-        {loading ? 'Connexion...' : 'Se connecter'}
+      <button type="submit" class="btn-primary" disabled={loading}>
+        {#if loading}
+          <span class="spinner"></span>
+          Connexion en cours...
+        {:else}
+          Se connecter
+        {/if}
       </button>
     </form>
 
-    <div class="links">
-      <a href="/register">Créer un compte</a>
-      <span class="separator">•</span>
-      <a href="/help">Aide</a>
+    <div class="actions">
+      <a href="/register" class="action-link primary">
+        ➕ Créer un compte (attente approbation)
+      </a>
+      
+      <a href="/join" class="action-link secondary">
+        🔗 Rejoindre avec une invitation
+      </a>
+      
+      <a href="/help" class="action-link subtle">
+        Besoin d'aide ?
+      </a>
     </div>
   </div>
 </div>
 
 <style>
-  .login-container { 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    min-height: calc(100vh - 100px); 
-    padding: 1rem; 
+  .login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
   }
-  .login-card { 
-    background: white; 
-    padding: 2rem; 
-    border-radius: 16px; 
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1); 
-    width: 100%; 
-    max-width: 400px; 
-    text-align: center; 
+
+  .login-card {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
   }
-  h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-  .subtitle { color: #666; margin-bottom: 2rem; }
-  .form-group { margin-bottom: 1.25rem; text-align: left; }
-  label { display: block; margin-bottom: 0.5rem; font-weight: 500; color: #333; }
-  input { 
-    width: 100%; 
-    padding: 0.75rem; 
-    border: 2px solid #e0e0e0; 
-    border-radius: 8px; 
-    font-size: 1rem; 
-    transition: border-color 0.2s; 
-    box-sizing: border-box;
+
+  .logo {
+    margin-bottom: 1.5rem;
   }
-  input:focus { outline: none; border-color: #2d5a27; }
-  .error-message { 
-    background: #ffebee; 
-    color: #c62828; 
-    padding: 0.75rem; 
-    border-radius: 8px; 
-    margin-bottom: 1rem; 
-    font-size: 0.9rem; 
+
+  .logo-icon {
+    font-size: 3.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
   }
-  .login-btn { 
-    width: 100%; 
-    padding: 0.875rem; 
-    background: #2d5a27; 
-    color: white; 
-    border: none; 
-    border-radius: 8px; 
-    font-size: 1rem; 
-    font-weight: 500; 
-    cursor: pointer; 
-    transition: background 0.2s; 
+
+  h1 {
+    font-size: 2rem;
+    margin: 0;
+    color: #1e293b;
   }
-  .login-btn:hover:not(:disabled) { background: #3d7a37; }
-  .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .links { margin-top: 1.5rem; display: flex; justify-content: center; gap: 0.5rem; font-size: 0.9rem; }
-  .links a { color: #2d5a27; text-decoration: none; }
-  .links a:hover { text-decoration: underline; }
-  .separator { color: #ccc; }
+
+  .subtitle {
+    color: #64748b;
+    margin-bottom: 2rem;
+    font-size: 1rem;
+  }
+
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin-bottom: 1.5rem;
+    text-align: left;
+    font-size: 0.9rem;
+  }
+
+  .alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+  }
+
+  .alert-icon {
+    font-size: 1.25rem;
+  }
+
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+
+  .input-group {
+    text-align: left;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95rem;
+  }
+
+  input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    transition: all 0.2s;
+    background: #f8fafc;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: #2d5a27;
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
+  }
+
+  input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 1rem;
+    background: #2d5a27;
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #3d7a37;
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .action-link {
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .action-link:hover {
+    opacity: 0.8;
+  }
+
+  .action-link.primary {
+    color: #2d5a27;
+    font-weight: 600;
+  }
+
+  .action-link.secondary {
+    color: #2563eb;
+  }
+
+  .action-link.subtle {
+    color: #64748b;
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 480px) {
+    .login-card {
+      padding: 2rem 1.5rem;
+    }
+    
+    .logo-icon {
+      font-size: 3rem;
+    }
+  }
 </style>
