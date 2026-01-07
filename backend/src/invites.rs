@@ -26,53 +26,68 @@ pub struct JoinResponse {
     pub user: Option<UserInfo>,
 }
 
-// Handler : Créer un token d'invitation (ADMIN ONLY)
+// Handler : Créer un token d'invitation (ADMIN ONLY, 48h expiration)
 pub async fn generate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    // Vérification admin (réutilise la logique de get_cookie depuis auth, mais comme get_cookie n'est plus importé, on duplique minimalement ou importe seulement ce qu'il faut)
-    // Pour éviter unused, on implémente la vérification ici sans get_cookie si possible, ou importe seulement UserInfo + hash_password
-
-    // Note : Pour simplifier et éviter unused imports, on suppose que tu as une fonction auth pour guard admin, mais ici on duplique légèrement
-    let current_user: Option<(String, String)> = if let Some(cookie_header) = headers.get("cookie") {
-        cookie_header.to_str().ok().and_then(|s| {
+    // Extraction et vérification du cookie auth_token
+    let (user_id, session_token) = match headers
+        .get("cookie")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| {
             s.split(';')
-                .find_map(|c| c.trim().starts_with("auth_token=").then(|| {
-                    let value = c.split('=').nth(1)?;
-                    let parts: Vec<&str> = value.split(':').collect();
-                    if parts.len() == 2 {
-                        Some((parts[0].to_string(), parts[1].to_string()))
-                    } else {
-                        None
-                    }
-                }))
+                .find_map(|c| c.trim().starts_with("auth_token=").then_some(c))
         })
-    } else {
-        None
-    };
-
-    let (user_id, token) = match current_user {
+        .and_then(|c| c.split('=').nth(1))
+        .and_then(|v| {
+            let parts: Vec<&str> = v.split(':').collect();
+            if parts.len() == 2 {
+                Some((parts[0].to_string(), parts[1].to_string()))
+            } else {
+                None
+            }
+        })
+    {
         Some(t) => t,
-        None => return (StatusCode::FORBIDDEN, Json(json!({"success": false, "message": "Non authentifié"}))).into_response(),
+        None => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({
+                    "success": false,
+                    "message": "Non authentifié"
+                }))
+            )
+                .into_response();
+        }
     };
 
-    let user: Option<(String,)> = sqlx::query_as("SELECT role FROM users WHERE id = ? AND token = ?")
+    // Vérification role admin
+    let role: Option<String> = sqlx::query_as("SELECT role FROM users WHERE id = ? AND token = ?")
         .bind(&user_id)
-        .bind(&token)
+        .bind(&session_token)
         .fetch_optional(&state.db)
         .await
         .ok()
-        .flatten();
+        .flatten()
+        .map(|(r,): (String,)| r);
 
-    if user.map(|(role,)| role) != Some("admin".to_string()) {
-        return (StatusCode::FORBIDDEN, Json(json!({"success": false, "message": "Accès refusé : admin requis"}))).into_response(),
+    if role != Some("admin".to_string()) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "success": false,
+                "message": "Accès refusé : admin requis"
+            }))
+        )
+            .into_response();
     }
 
+    // Génération invite
     let token = Uuid::new_v4().to_string();
     let invite_id = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
-    let expires_at = now + (48 * 3600);
+    let expires_at = now + (48 * 3600); // 48 heures
 
     let result = sqlx::query(
         "INSERT INTO invites (id, token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
@@ -87,32 +102,49 @@ pub async fn generate_invite(
 
     match result {
         Ok(_) => {
-            let invite_link = format!("https://ton-domaine.com/?invite={}", token);
-            Json(json!({
-                "success": true,
-                "message": "Invitation créée (expire dans 48h)",
-                "invite_link": invite_link
-            })).into_response()
+            let invite_link = format!("https://ton-domaine.com/?invite={}", token); // Adapte ton domaine réel
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "message": "Invitation créée (expire dans 48h)",
+                    "invite_link": invite_link
+                }))
+            )
+                .into_response()
         }
         Err(e) => {
-            eprintln!("[Invites] Erreur génération : {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"success": false, "message": "Erreur serveur"}))).into_response()
+            eprintln!("[Invites] Erreur génération invite : {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false,
+                    "message": "Erreur serveur"
+                }))
+            )
+                .into_response()
         }
     }
 }
 
-// Handler : Rejoindre via token (ton code existant, légèrement nettoyé)
+// Handler : Rejoindre via token d'invitation
 pub async fn join(
     AxumState(state): AxumState<Arc<SharedState>>,
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(payload): Json<JoinPayload>,
 ) -> impl IntoResponse {
-    // Ton code join existant (inchangé, il est parfait)
-    // ... (copie le code que tu as fourni)
-    // Je le garde tel quel pour éviter redondance
     let token = match params.get("token") {
         Some(t) => t,
-        None => return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token manquant"}))).into_response(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "message": "Token manquant"
+                }))
+            )
+                .into_response();
+        }
     };
 
     let now = Utc::now().timestamp();
@@ -128,15 +160,38 @@ pub async fn join(
 
     let (invite_id, used, expires_at) = match invite {
         Some(row) => row,
-        None => return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token invalide"}))).into_response(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "message": "Token invalide"
+                }))
+            )
+                .into_response();
+        }
     };
 
     if used {
-        return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token déjà utilisé"}))).into_response(),
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "success": false,
+                "message": "Token déjà utilisé"
+            }))
+        )
+            .into_response();
     }
 
     if now > expires_at {
-        return (StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Token expiré"}))).into_response(),
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "success": false,
+                "message": "Token expiré"
+            }))
+        )
+            .into_response();
     }
 
     let user_id = Uuid::new_v4().to_string();
@@ -166,7 +221,14 @@ pub async fn join(
 
     if let Err(e) = result {
         eprintln!("[Join] Erreur création user : {}", e);
-        return (StatusCode::CONFLICT, Json(json!({"success": false, "message": "Nom d'utilisateur déjà pris"}))).into_response();
+        return (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "success": false,
+                "message": "Nom d'utilisateur déjà pris"
+            }))
+        )
+            .into_response();
     }
 
     sqlx::query("UPDATE invites SET used = 1, used_by = ?, used_at = ? WHERE id = ?")
@@ -198,7 +260,8 @@ pub async fn join(
         success: true,
         message: "Compte créé ! Change ton mot de passe dès maintenant.".to_string(),
         user: Some(user_info),
-    }).into_response();
+    })
+    .into_response();
 
     response.headers_mut().insert(
         http::header::SET_COOKIE,
