@@ -302,6 +302,6 @@ pub async fn change_password(
         ).into_response(),
     }
 }
-}
+
 
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
