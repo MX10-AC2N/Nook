@@ -246,45 +246,62 @@ pub async fn logout(
 // =====  mise en place de change_password. =====
 pub async fn change_password(
     AxumState(state): AxumState<Arc<SharedState>>,
-    headers: HeaderMap,  // Pour auth normale
+    headers: HeaderMap,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
-    // Cas 1 : Utilisateur connecté (via cookie)
-    let current_user_id = if let Some(cookie) = get_cookie(&headers, "auth_token") {
-        let parts: Vec<&str> = cookie.split(':').collect();
-        if parts.len() == 2 { Some(parts[0].to_string()) } else { None }
-    } else { None };
+    // Récupérer l'utilisateur courant depuis le cookie
+    let current_user_id_opt: Option<String> = if let Some(cookie) = get_cookie(&headers, "auth_token") {
+        let parts = cookie.split(':').collect::<Vec<&str>>();
+        if parts.len() == 2 {
+            Some(parts[0].to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
-    let target_user_id = payload.user_id.as_ref()
-    .map(|s| s.as_str())
-    .unwrap_or(&current_user_id);
+    // Vérifier que l'utilisateur est connecté
+    let current_user_id = match current_user_id_opt {
+        Some(id) => id,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"success": false, "message": "Non authentifié"})),
+            ).into_response();
+        }
+    };
 
+    // Déterminer l'ID cible (soit celui du payload, soit l'utilisateur courant)
     let target_id = if let Some(ref user_id) = payload.user_id {
-    user_id.as_str()
-} else {
-    &current_user_id
-};
+        user_id.as_str()
+    } else {
+        current_user_id.as_str()
+    };
 
-    // Optionnel : Vérifier que c'est l'utilisateur lui-même ou admin (ajoute role check si besoin)
-
+    // Hasher le nouveau mot de passe
     let hashed = hash_password(&payload.new_password);
 
-    let result = sqlx::query("UPDATE users SET password_hash = ?, needs_password_change = 0 WHERE id = ?")
-        .bind(&hashed)
-        .bind(&target_id)
-        .execute(&state.db)
-        .await;
+    // Mettre à jour dans la DB
+    let result = sqlx::query::<sqlx::Sqlite>(
+        "UPDATE users SET password_hash = ?, needs_password_change = 0 WHERE id = ?"
+    )
+    .bind(&hashed)
+    .bind(target_id)
+    .execute(&state.db)
+    .await;
 
     match result {
-    Ok(_) => (
-        StatusCode::OK,
-        Json(json!({"success": true, "message": "Mot de passe changé"}))
-    ).into_response(),
-    Err(_) => (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(json!({"success": false, "message": "Erreur DB"}))
-    ).into_response(),
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({"success": true, "message": "Mot de passe changé"}))
+        ).into_response(),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"success": false, "message": "Erreur DB"}))
+        ).into_response(),
     }
+}
 }
 
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
