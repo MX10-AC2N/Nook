@@ -51,10 +51,11 @@ export async function login(username, password) {
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Identifiants incorrects ou erreur serveur');
+        throw new Error(errorData.message || 'Identifiants incorrect');
     }
 
-    return response.json();
+    const result = await response.json();
+    return result;
 }
 
 export async function logout() {
