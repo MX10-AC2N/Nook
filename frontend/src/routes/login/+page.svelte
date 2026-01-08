@@ -312,4 +312,29 @@
       padding: 0.65rem;
     }
   }
+ .input-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.95rem;
+  }
+
+  .alert {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .btn-primary {
+    gap: 0.75rem;
+  }
+
+  .action-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
 </style>
