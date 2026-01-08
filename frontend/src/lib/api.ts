@@ -4,13 +4,11 @@ const API_BASE = '/api';
 
 export async function changePassword(newPassword: string, userId?: string): Promise<{ success: boolean; message: string }> {
   try {
-    // Pour changement normal (utilisateur connecté) ou first-setup (admin initial)
+    // Payload unifié pour tous les cas
     const payload: any = { new_password: newPassword };
     if (userId) payload.user_id = userId;
 
-    const endpoint = '/auth/change-password';
-
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${API_BASE}/auth/change-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -19,7 +17,7 @@ export async function changePassword(newPassword: string, userId?: string): Prom
 
     // Essayer de parser le JSON, même si la réponse est vide
     const text = await response.text();
-    
+
     if (!text.trim()) {
       return { success: false, message: `Erreur ${response.status}: Réponse vide du serveur` };
     }
