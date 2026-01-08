@@ -6,7 +6,7 @@
 
   const basePath = '/icons';
 
-  // Chemin du SVG (logo animé externe ou icône standard)
+  // Chemin du SVG : logo animé externe ou icône standard
   \( : src = name === 'logo' ? '/logo-animated.svg' : ` \){basePath}/${name}.svg`;
 </script>
 
@@ -20,7 +20,7 @@
   class={className}
   aria-label={name}
 >
-  <!-- Fallback img (sécurité) -->
+  <!-- Fallback img (sécurité pour vieux navigateurs) -->
   <img src={src} alt={name} width={size} height={size} />
 </object>
 
