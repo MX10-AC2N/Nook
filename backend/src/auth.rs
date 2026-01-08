@@ -133,7 +133,9 @@ pub async fn login(
 
     match user {
         Some(user) => {
+            eprintln!("[LOGIN] Utilisateur trouvé : id={}, approved={}, roles={}", user.id, user.approved, user.role);
             if !user.approved {
+                eprintln!("[LOGIN] Échec : Compte non approuvé");
                 return (StatusCode::UNAUTHORIZED, Json(AuthResponse {
                     success: false,
                     message: "Compte en attente d'approbation".to_string(),
@@ -141,8 +143,11 @@ pub async fn login(
                 })).into_response();
             }
 
+            eprintln!("[LOGIN] Vérification du mot de passe.. ..");
             if verify_password(&payload.password, &user.password_hash) {
+                eprintln!("[LOGIN] Mot de passe correct.");
                 let token = Uuid::new_v4().to_string();
+                eprintln!("[LOGIN] Génération du token : {}", token);
                 let _ = sqlx::query::<sqlx::Sqlite>("UPDATE users SET token = ? WHERE id = ?")
                     .bind(&token)
                     .bind(&user.id)
@@ -170,8 +175,10 @@ pub async fn login(
                         .parse()
                         .unwrap(),
                 );
+                eprintln!("[LOGIN] Connexion réussie, cookies définis");
                 response
             } else {
+                eprintln!("[LOGIN] Échec : Mot de passe incorrect.");
                 (StatusCode::UNAUTHORIZED, Json(AuthResponse {
                     success: false,
                     message: "Identifiants incorrects".to_string(),
@@ -179,7 +186,8 @@ pub async fn login(
                 })).into_response()
             }
         }
-        None => (StatusCode::UNAUTHORIZED, Json(AuthResponse {
+        None =>
+            eprintln!("[LOGIN] Échec : Utilisateur non trouvé."); (StatusCode::UNAUTHORIZED, Json(AuthResponse {
             success: false,
             message: "Identifiants incorrects".to_string(),
             user: None,
