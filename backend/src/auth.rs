@@ -121,6 +121,7 @@ pub async fn login(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
+    eprintln!("[LOGIN] Requête utilisateur résultat: {:?}", user_result);
     let user: Option<User> = sqlx::query_as(
         "SELECT * FROM users WHERE username = ?"
     )
