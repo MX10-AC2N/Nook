@@ -7,7 +7,7 @@
   const basePath = '/icons';
 
   // Chemin du SVG : logo animé externe ou icône standard
-  \( : src = name === 'logo' ? '/logo-animated.svg' : ` \){basePath}/${name}.svg`;
+\( : src = name === 'logo' ? '/logo-animated.svg' : ` \ {basePath}/${name}.svg`;
 </script>
 
 <object
