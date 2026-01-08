@@ -4,13 +4,11 @@ import { browser } from '$app/environment';
 export async function checkAuth() {
     try {
         const response = await fetch('/api/auth/me', { credentials: 'include' });
-        console.log('Session validation response status:', response.status);
-        
+    
         if (response.ok) {
             const data = await response.json();
             console.log('Session validation data:', data);
-            console.log('User role:', data.user?.role);
-            
+       
             if (data.authenticated && data.user) {
                 const isAdmin = data.user.role === 'admin';
                 console.log('Is admin?', isAdmin); // ← AJOUTEZ CE LOG
@@ -24,7 +22,7 @@ export async function checkAuth() {
             }
         }
 
-        // Gestion du token d'invitation (legacy, garde si tu en as besoin)
+        // Gestion du token d'invitation
         if (browser) {
             const urlParams = new URLSearchParams(window.location.search);
             const inviteToken = urlParams.get('token');
@@ -49,13 +47,14 @@ export async function login(username, password) {
         credentials: 'include'
     });
 
+    const result = await response.json();
+
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || 'Identifiants incorrect');
     }
 
-    const result = await response.json();
-    return result;
+    return result.user;
 }
 
 export async function logout() {
