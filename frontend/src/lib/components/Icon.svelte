@@ -10,7 +10,6 @@
   \( : src = name === 'logo' ? '/logo-animated.svg' : ` \){basePath}/${name}.svg`;
 </script>
 
-<!-- <object> charge le SVG externe + hérite currentColor si le SVG utilise currentColor -->
 <object
   type="image/svg+xml"
   data={src}
@@ -20,7 +19,6 @@
   class={className}
   aria-label={name}
 >
-  <!-- Fallback img (sécurité pour vieux navigateurs) -->
   <img src={src} alt={name} width={size} height={size} />
 </object>
 
