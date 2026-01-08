@@ -4,16 +4,13 @@
   export let color: string = 'currentColor';
   export let className: string = '';
 
-  // Chemin de base pour les icônes standards
-  const iconsBase = '/icons';
+  const basePath = '/icons';
 
-  // Cas spécial logo animé (fichier externe dans static/)
-  $: isLogo = name === 'logo';
+  // Chemin du SVG (logo animé externe ou icône standard)
   \( : src = name === 'logo' ? '/logo-animated.svg' : ` \){basePath}/${name}.svg`;
 </script>
 
-<!-- Utilisation de <object> pour charger les SVG externes 
-     → Hérite currentColor si le SVG utilise fill/stroke="currentColor" -->
+<!-- <object> charge le SVG externe + hérite currentColor si le SVG utilise currentColor -->
 <object
   type="image/svg+xml"
   data={src}
@@ -23,7 +20,7 @@
   class={className}
   aria-label={name}
 >
-  <!-- Fallback img (rare, mais sécurisé pour vieux navigateurs) -->
+  <!-- Fallback img (sécurité) -->
   <img src={src} alt={name} width={size} height={size} />
 </object>
 
