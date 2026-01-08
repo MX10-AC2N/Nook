@@ -58,13 +58,13 @@
 </script>
 
 <svelte:head>
-  <title>Connexion - Nook</title>
+  <title>~ Nook ~ Connexion ~</title>
 </svelte:head>
 
 <div class="login-page">
   <div class="login-card">
     <div class="logo">
-      <span class="logo-icon">🌱</span>
+      <Icon name="logo" size={80} />
       <h1>Nook</h1>
     </div>
     
@@ -72,14 +72,17 @@
 
     {#if error}
       <div class="alert error" role="alert">
-        <span class="alert-icon">⚠️</span>
+        <Icon name="error" size={24} class="alert-icon" />
         <span>{error}</span>
       </div>
     {/if}
 
     <form on:submit|preventDefault={handleLogin} class="login-form">
       <div class="input-group">
-        <label for="username">Identifiant</label>
+        <label for="username">
+          <Icon name="user" size={20} />
+          Identifiant
+        </label>
         <input
           id="username"
           type="text"
@@ -92,7 +95,10 @@
       </div>
 
       <div class="input-group">
-        <label for="password">Mot de passe</label>
+        <label for="password">
+          <Icon name="lock" size={20} />
+          Mot de passe
+        </label>
         <input
           id="password"
           type="password"
@@ -109,6 +115,7 @@
           <span class="spinner"></span>
           Connexion en cours...
         {:else}
+          <Icon name="login" size={24} />
           Se connecter
         {/if}
       </button>
@@ -116,10 +123,12 @@
 
     <div class="actions">
       <a href="/register" class="action-link primary">
-        ➕ Créer un compte (attente approbation admin)
+        <Icon name="add-user" size={20} />
+        Créer un compte (attente approbation admin)
       </a>
       
       <a href="/help" class="action-link subtle">
+        <Icon name="help" size={20} />
         Besoin d'aide ?
       </a>
     </div>
