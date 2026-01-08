@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="400" height="200">
+  <style>
+    .letter {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      font-family: 'Courier New', Courier, monospace;
+      font-weight: 900;
+      font-size: 100px;
+      transform-origin: center bottom;
+    }
+
+    /* Animation de dessin initial (une seule fois) */
+    @keyframes draw {
+      to { stroke-dashoffset: 0; }
+    }
+
+    @keyframes fillIn {
+      from { fill: none; }
+      to { fill: currentColor; }
+    }
+
+    /* Animation d'apparition avec bounce énergique (une seule fois) */
+    @keyframes bounceIn {
+      0% { opacity: 0; transform: translateY(-80px) scale(0.3) rotate(var(--rot)); }
+      60% { opacity: 1; transform: translateY(15px) scale(1.2) rotate(var(--rot)); }
+      80% { transform: translateY(-8px) scale(0.9) rotate(var(--rot)); }
+      100% { opacity: 1; transform: translateY(0) scale(1) rotate(var(--rot)); }
+    }
+
+    /* Effet boucle calme et tranquille (infinite, très subtil) */
+    @keyframes calmLoop {
+      0%, 100% { transform: translateY(0) rotate(var(--rot)) scale(1); }
+      50% { transform: translateY(-6px) rotate(calc(var(--rot) + 1deg)) scale(1.02); }
+    }
+
+    .n1 { --rot: -5deg; stroke-dasharray: 280; stroke-dashoffset: 280; animation: draw 0.9s ease-out 0.2s forwards, fillIn 0.9s ease-out 1.1s forwards, bounceIn 1.2s ease-out 0.2s forwards, calmLoop 6s ease-in-out 1.4s infinite; }
+    .o1 { --rot: 3deg; stroke-dasharray: 300; stroke-dashoffset: 300; animation: draw 0.9s ease-out 0.5s forwards, fillIn 0.9s ease-out 1.4s forwards, bounceIn 1.2s ease-out 0.5s forwards, calmLoop 6s ease-in-out 1.7s infinite; }
+    .o2 { --rot: -2deg; stroke-dasharray: 300; stroke-dashoffset: 300; animation: draw 0.9s ease-out 0.8s forwards, fillIn 0.9s ease-out 1.7s forwards, bounceIn 1.2s ease-out 0.8s forwards, calmLoop 6s ease-in-out 2s infinite; }
+    .k  { --rot: 5deg; stroke-dasharray: 340; stroke-dashoffset: 340; animation: draw 0.9s ease-out 1.1s forwards, fillIn 0.9s ease-out 2s forwards, bounceIn 1.2s ease-out 1.1s forwards, calmLoop 6s ease-in-out 2.3s infinite; }
+
+    /* Splatter subtil qui apparaît pendant le bounce */
+    @keyframes splatterFade {
+      0% { opacity: 0; transform: scale(0); }
+      50% { opacity: 0.5; transform: scale(1.3); }
+      100% { opacity: 0.3; transform: scale(1); }
+    }
+
+    .splatter {
+      fill: currentColor;
+      opacity: 0;
+    }
+
+    .s1 { animation: splatterFade 0.8s ease-out 1s forwards; }
+    .s2 { animation: splatterFade 0.8s ease-out 1.3s forwards; }
+    .s3 { animation: splatterFade 0.8s ease-out 1.6s forwards; }
+    .s4 { animation: splatterFade 0.8s ease-out 1.9s forwards; }
+  </style>
+
+  <!-- Lettres avec espacement corrigé (plus équilibré pour "NOOK") -->
+  <text class="letter n1" x="60" y="120">N</text>
+  <text class="letter o1" x="140" y="120">O</text>
+  <text class="letter o2" x="220" y="120">O</text>
+  <text class="letter k" x="300" y="120">K</text>
+
+  <!-- Splatter léger pour vibe graffiti -->
+  <circle class="splatter s1" cx="50" cy="90" r="8"/>
+  <circle class="splatter s2" cx="130" cy="140" r="6"/>
+  <circle class="splatter s3" cx="230" cy="80" r="10"/>
+  <circle class="splatter s4" cx="320" cy="130" r="7"/>
+
+  <!-- Ligne de base subtile -->
+  <line x1="50" y1="125" x2="350" y2="140" stroke="currentColor" stroke-width="3" opacity="0">
+    <animate attributeName="opacity" from="0" to="0.2" dur="2s" begin="2.2s" fill="freeze"/>
+  </line>
+</svg>
