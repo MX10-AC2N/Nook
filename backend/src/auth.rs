@@ -187,7 +187,8 @@ pub async fn login(
             }
         }
         None =>
-            eprintln!("[LOGIN] Échec : Utilisateur non trouvé."); (StatusCode::UNAUTHORIZED, Json(AuthResponse {
+            eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
+            (StatusCode::UNAUTHORIZED, Json(AuthResponse {
             success: false,
             message: "Identifiants incorrects".to_string(),
             user: None,
