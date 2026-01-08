@@ -26,6 +26,7 @@
       });
 
       if (response.ok) {
+        await initAuth();  // ← Rafraîchit le store avec me (authenticated + needs_password_change)
         const data = await response.json();
         
         if (data.user?.needs_password_change) {
