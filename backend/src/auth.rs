@@ -198,9 +198,9 @@ pub async fn login(
             success: false,
             message: "Identifiants incorrects".to_string(),
             user: None,
-        })).into_response();
+        })).into_response()
         }
-    }
+    },
 }
 
 pub async fn me(
