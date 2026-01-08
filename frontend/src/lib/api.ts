@@ -8,7 +8,7 @@ export async function changePassword(newPassword: string, userId?: string): Prom
     const payload: any = { new_password: newPassword };
     if (userId) payload.user_id = userId;
 
-    const endpoint = userId ? '/first-setup' : '/change-password';
+    const endpoint = '/auth/change-password';
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
       method: 'POST',
