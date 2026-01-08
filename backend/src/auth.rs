@@ -127,19 +127,30 @@ pub async fn login(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
-    eprintln!("[LOGIN] Requête utilisateur résultat: {:?}", user_result);
-    let user: Option<User> = sqlx::query_as(
+    // Exécuter la requête et stocker le résultat dans user_result
+    let user_result = sqlx::query_as::<_, User>(
         "SELECT * FROM users WHERE username = ?"
     )
     .bind(&payload.username)
     .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    .await;
+
+    // Afficher le résultat de la requête
+    eprintln!("[LOGIN] Requête utilisateur résultat: {:?}", user_result);
+
+    // Gérer le résultat de la requête
+    let user = match user_result {
+        Ok(Some(u)) => Some(u),
+        Ok(None) => None,
+        Err(e) => {
+            eprintln!("[LOGIN] Erreur SQL: {}", e);
+            None
+        }
+    };
 
     match user {
         Some(user) => {
-            eprintln!("[LOGIN] Utilisateur trouvé : id={}, approved={}, roles={}", user.id, user.approved, user.role);
+            eprintln!("[LOGIN] Utilisateur trouvé : id={}, approved={}, role={}", user.id, user.approved, user.role);
             if !user.approved {
                 eprintln!("[LOGIN] Échec : Compte non approuvé");
                 return (StatusCode::UNAUTHORIZED, Json(AuthResponse {
@@ -149,7 +160,7 @@ pub async fn login(
                 })).into_response();
             }
 
-            eprintln!("[LOGIN] Vérification du mot de passe.. ..");
+            eprintln!("[LOGIN] Vérification du mot de passe...");
             if verify_password(&payload.password, &user.password_hash) {
                 eprintln!("[LOGIN] Mot de passe correct.");
                 let token = Uuid::new_v4().to_string();
@@ -181,7 +192,7 @@ pub async fn login(
                         .parse()
                         .unwrap(),
                 );
-                eprintln!("[LOGIN] Connexion réussie, cookies définis");
+                eprintln!("[LOGIN] Connexion réussie, cookie défini");
                 response
             } else {
                 eprintln!("[LOGIN] Échec : Mot de passe incorrect.");
@@ -195,11 +206,11 @@ pub async fn login(
         None => {
             eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
             (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-            success: false,
-            message: "Identifiants incorrects".to_string(),
-            user: None,
-        })).into_response()
-        },
+                success: false,
+                message: "Identifiants incorrects".to_string(),
+                user: None,
+            })).into_response()
+        }
     }
 }
 
