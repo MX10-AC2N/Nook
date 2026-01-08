@@ -66,7 +66,13 @@ pub fn hash_password(password: &str) -> String {
 }
 
 fn verify_password(password: &str, hashed: &str) -> bool {
-    let parsed = PasswordHash::new(hashed).unwrap();
+    let parsed = match PasswordHash::new(hashed) {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("[AUTH] Format de hachage invalide");
+            return false;
+        }
+    };
     Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
