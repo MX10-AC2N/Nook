@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { isAuthenticated, needsPasswordChange } from '$lib/authStore';
   import { onMount } from 'svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   let username = $state('');
   let password = $state('');
