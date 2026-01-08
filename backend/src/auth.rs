@@ -199,8 +199,8 @@ pub async fn login(
             message: "Identifiants incorrects".to_string(),
             user: None,
         })).into_response()
-        }
-    },
+        },
+    }
 }
 
 pub async fn me(
