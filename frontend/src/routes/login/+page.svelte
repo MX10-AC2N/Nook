@@ -44,13 +44,17 @@
 }
 
   onMount(() => {
-    if ($isAuthenticated) {
-      if ($needsPasswordChange) {
-        goto('/change-password');
-      } else {
-        goto('/chat');
+    // 6. Correction de l'accès au store dans onMount
+    const unsubscribe = authStore.subscribe(store => {
+      if (store.isAuthenticated) {
+        if (store.needsPasswordChange) {
+          goto('/change-password');
+        } else {
+          goto('/chat');
+        }
+        unsubscribe(); // Arrête l'écoute après redirection
       }
-    }
+    });
   });
 </script>
 
