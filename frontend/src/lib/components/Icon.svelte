@@ -9,7 +9,7 @@
 
   // Cas spécial logo animé (fichier externe dans static/)
   $: isLogo = name === 'logo';
-  \( : src = isLogo ? '/logo-animated.svg' : ` \){iconsBase}/${name}.svg`;
+  \( : src = name === 'logo' ? '/logo-animated.svg' : ` \){basePath}/${name}.svg`;
 </script>
 
 <!-- Utilisation de <object> pour charger les SVG externes 
