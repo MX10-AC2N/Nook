@@ -185,7 +185,7 @@ pub async fn login(
                     user: None,
                 })).into_response()
             }
-        }
+        },
         None => {
             eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
             (StatusCode::UNAUTHORIZED, Json(AuthResponse {
