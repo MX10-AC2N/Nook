@@ -186,13 +186,14 @@ pub async fn login(
                 })).into_response()
             }
         }
-        None =>
+        None => {
             eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
             (StatusCode::UNAUTHORIZED, Json(AuthResponse {
             success: false,
             message: "Identifiants incorrects".to_string(),
             user: None,
         })).into_response(),
+        }
     }
 }
 
