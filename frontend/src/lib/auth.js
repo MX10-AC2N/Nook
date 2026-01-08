@@ -47,14 +47,17 @@ export async function login(username, password) {
         credentials: 'include'
     });
 
-    const result = await response.json();
+    // 1. Lire la réponse UNE SEULE FOIS
+    const data = await response.json();
 
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Identifiants incorrect');
+    // 2. Vérifier le statut HTTP et la logique métier
+    if (!response.ok || !data.success) {
+        // Utiliser le message du backend ou un message par défaut
+        throw new Error(data.message || 'Identifiants incorrects ou erreur serveur');
     }
 
-    return result.user;
+    // 3. Retourner les données utilisateur
+    return data.user;
 }
 
 export async function logout() {
