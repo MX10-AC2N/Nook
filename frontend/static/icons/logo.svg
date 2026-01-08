@@ -1,24 +1,55 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="400" height="200">
   <style>
     .letter {
-      fill: #000000;
-      font-family: 'Courier New', monospace;
+      fill: currentColor; /* ← Permet de teinter le logo avec CSS (ex: color: #2d5a27) */
+      font-family: 'Courier New', Courier, monospace;
       font-weight: 900;
+      opacity: 0; /* Départ invisible pour animation */
+      transform-origin: center bottom;
     }
-    
-    /* Chaque lettre légèrement décalée pour effet graffiti */
-    .n1 { transform: translate(0, -2px) rotate(-6deg); }
-    .o1 { transform: translate(0, 1px) rotate(2deg); }
-    .o2 { transform: translate(0, -1px) rotate(-3deg); }
-    .k { transform: translate(0, 2px) rotate(4deg); }
+
+    /* Animation d'apparition + bounce pour chaque lettre (décalée pour effet séquentiel) */
+    @keyframes bounceIn {
+      0% {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.3);
+      }
+      60% {
+        opacity: 1;
+        transform: translateY(10px) scale(1.1);
+      }
+      80% {
+        transform: translateY(-5px) scale(0.95);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .n1 { animation: bounceIn 0.8s ease-out 0.1s forwards; transform: rotate(-6deg); }
+    .o1 { animation: bounceIn 0.8s ease-out 0.3s forwards; transform: rotate(2deg); }
+    .o2 { animation: bounceIn 0.8s ease-out 0.5s forwards; transform: rotate(-3deg); }
+    .k  { animation: bounceIn 0.8s ease-out 0.7s forwards; transform: rotate(4deg); }
+
+    /* Effet graffiti subtil : petite vibration permanente */
+    @keyframes graffitiVibe {
+      0%, 100% { transform: translate(0, 0) rotate(0); }
+      25% { transform: translate(1px, -1px) rotate(0.5deg); }
+      75% { transform: translate(-1px, 1px) rotate(-0.5deg); }
+    }
+
+    .letter {
+      animation: bounceIn 0.8s ease-out forwards, graffitiVibe 8s ease-in-out infinite;
+    }
   </style>
-  
-  <!-- Lettres positionnées individuellement pour un effet graffiti -->
+
+  <!-- Lettres avec classes pour animations individuelles -->
   <text class="letter n1" x="50" y="120" font-size="100">N</text>
   <text class="letter o1" x="130" y="120" font-size="100">O</text>
   <text class="letter o2" x="190" y="120" font-size="100">O</text>
   <text class="letter k" x="260" y="120" font-size="100">K</text>
-  
-  <!-- Ligne de base (optionnelle) -->
-  <line x1="40" y1="125" x2="350" y2="140" stroke="#000" stroke-width="3" opacity="0.1"/>
+
+  <!-- Ligne de base subtile -->
+  <line x1="40" y1="125" x2="350" y2="140" stroke="currentColor" stroke-width="3" opacity="0.2"/>
 </svg>
