@@ -1,16 +1,26 @@
 <script lang="ts">
-  // Props que le composant accepte
-  export let name: string;               // nom de l’icône (ex. "home", "logo")
-  export let size: string = '1em';       // taille CSS (ex. "24px", "2rem")
-  export let color: string = 'currentColor'; // couleur héritée du texte
-  export let className: string = '';    // classe CSS supplémentaire
+  /* ------------------------------------------------------------------
+   * Récupération des propriétés en « runes mode ».
+   * $props() renvoie un objet contenant toutes les props passées au
+   * composant. Nous utilisons la déstructuration avec des valeurs par
+   * défaut pour reproduire le comportement habituel d’« export let ».
+   * ------------------------------------------------------------------ */
+  const {
+    name,
+    size = '1em',
+    color = 'currentColor',
+    className = ''
+  } = $props<{                     // typage générique (facultatif)
+    name: string;
+    size?: string;
+    color?: string;
+    className?: string;
+  }>();
 
   // Chemin de base où se trouvent les SVG
   const basePath = '/icons';
 
   // Construction du chemin complet du fichier SVG
-  // Si le nom est "logo", on utilise le SVG animé spécial,
-  // sinon on charge le SVG standard depuis le répertoire `basePath`.
   const src =
     name === 'logo'
       ? '/logo-animated.svg'
