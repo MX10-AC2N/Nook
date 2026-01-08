@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore, needsPasswordChange, initAuth } from '$lib/authStore';
-  import { changePassword } from '$lib/api';
+  import { authStore, needsPasswordChange } from '$lib/authStore';
+  import { onMount } from 'svelte';
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -9,8 +9,16 @@
   let success = $state('');
   let isLoading = $state(false);
 
-  $effect(() => {
-    initAuth();
+  // Vérifier l'authentification au chargement
+  onMount(() => {
+    const store = authStore.get();
+    if (!store.isAuthenticated) {
+      goto('/login');
+    }
+    // Si authentifié mais pas besoin de changer le mot de passe, rediriger vers chat
+    if (store.isAuthenticated && !store.needsPasswordChange) {
+      goto('/chat');
+    }
   });
 
   async function handleSubmit(event: Event) {
@@ -31,21 +39,37 @@
     isLoading = true;
 
     try {
-      let result;
+      // Utiliser authStore.get() pour accéder aux valeurs du store
+      const store = authStore.get();
+      const userId = store.user?.id;
+      
+      if (!userId) throw new Error('Utilisateur non identifié');
 
-      if ($needsPasswordChange) {
-        const userId = $authStore.user?.id;
-        if (!userId) throw new Error('Utilisateur non identifié');
-        result = await changePassword(newPassword, userId);
-      } else {
-        result = await changePassword(newPassword);
-      }
+      // Appeler l'endpoint de changement de mot de passe
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ 
+          new_password: newPassword,
+          user_id: userId 
+        })
+      });
 
-      if (result.success) {
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         success = 'Votre mot de passe a été mis à jour avec succès !';
-        await initAuth();
+        
+        // Mettre à jour le store localement
+        authStore.update(state => ({
+          ...state,
+          needsPasswordChange: false
+        }));
+        
+        // Rediriger après 2 secondes
         setTimeout(() => {
-          goto($authStore.isAdmin ? '/admin' : '/chat');
+          goto(store.isAdmin ? '/admin' : '/chat');
         }, 2000);
       } else {
         error = result.message || 'Échec du changement de mot de passe.';
