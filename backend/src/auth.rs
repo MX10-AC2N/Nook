@@ -213,11 +213,17 @@ pub async fn me(
                     approved: user.approved,
                     needs_password_change: user.needs_password_change,
                 };
-                return Json(json!({"user": user_info})).into_response();
+                return Json(json!({
+                    "authenticated": true,
+                    "user": user_info
+                })).into_response();
             }
         }
     }
-    (StatusCode::UNAUTHORIZED, Json(json!({"user": null}))).into_response()
+    Json(json!({
+        "authenticated": false,
+        "user": null
+    })).into_response()
 }
 
 pub async fn logout(
