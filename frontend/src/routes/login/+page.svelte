@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { isAuthenticated, needsPasswordChange } from '$lib/authStore';
+  import { isAuthenticated, needsPasswordChange, initAuth } from '$lib/authStore';
   import { onMount } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
 
