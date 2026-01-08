@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { authStore, needsPasswordChange } from '$lib/authStore';
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store'; // ⬅️ AJOUTER CET IMPORT
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -9,13 +10,12 @@
   let success = $state('');
   let isLoading = $state(false);
 
-  // Vérifier l'authentification au chargement
   onMount(() => {
-    const store = authStore.get();
+    // Utiliser get(authStore) au lieu de authStore.get()
+    const store = get(authStore);
     if (!store.isAuthenticated) {
       goto('/login');
     }
-    // Si authentifié mais pas besoin de changer le mot de passe, rediriger vers chat
     if (store.isAuthenticated && !store.needsPasswordChange) {
       goto('/chat');
     }
@@ -39,13 +39,12 @@
     isLoading = true;
 
     try {
-      // Utiliser authStore.get() pour accéder aux valeurs du store
-      const store = authStore.get();
+      // Utiliser get(authStore) au lieu de authStore.get()
+      const store = get(authStore);
       const userId = store.user?.id;
       
       if (!userId) throw new Error('Utilisateur non identifié');
 
-      // Appeler l'endpoint de changement de mot de passe
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -61,7 +60,7 @@
       if (response.ok && result.success) {
         success = 'Votre mot de passe a été mis à jour avec succès !';
         
-        // Mettre à jour le store localement
+        // Mettre à jour le store avec la méthode update (celle-ci existe)
         authStore.update(state => ({
           ...state,
           needsPasswordChange: false
