@@ -326,8 +326,6 @@ let app = Router::new()
     // Message routes
     .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
     .route("/api/conversations/:id/messages", post(db::send_message))
-    // WebRTC routes
-    .merge(webrtc::webrtc_routes())
     // Upload routes
     .route("/api/upload", post(upload::upload_handler))
     .route("/api/upload/chat", post(upload::upload_chat_file))
@@ -338,9 +336,12 @@ let app = Router::new()
     .route("/api/list-invites", get(admin::list_invites))
     .route("/api/generate-invite", post(invites::generate_invite))
     .route("/api/delete-invite", post(admin::delete_invite))
-
     // Health‑check
     .route("/api/health", get(|| async { "OK" }))
+
+    // WebRTC routes
+    .merge(webrtc::webrtc_routes())
+
     // Inject the shared state
     .with_state(shared_state)
     // CORS configuration (appliqué à tout, y compris API)
