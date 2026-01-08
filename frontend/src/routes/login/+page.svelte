@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { isAuthenticated, needsPasswordChange, initAuth } from '$lib/authStore';
+  import { login } from '$lib/auth.js';
   import { onMount } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
 
@@ -11,40 +12,36 @@
 
   async function handleLogin() {
     if (!username || !password) {
-      error = 'Veuillez remplir tous les champs';
-      return;
+        error = 'Veuillez remplir tous les champs';
+        return;
     }
 
     loading = true;
     error = '';
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password })
-      });
+        // Utiliser la fonction login corrigée
+        const user = await login(username, password);
+        console.log('Utilisateur connecté:', user);
 
-      if (response.ok) {
-        await initAuth();  // ← Rafraîchit le store avec me (authenticated + needs_password_change)
-        const data = await response.json();
+        // Mettre à jour le store d'authentification
+        authStore.setAuthenticated(user, user.role === 'admin');
         
-        if (data.user?.needs_password_change) {
-          goto('/change-password');
+        // Rediriger selon le besoin
+        if (user.needs_password_change) {
+            goto('/change-password');
         } else {
-          goto('/chat');
+            goto('/chat');
         }
-      } else {
-        const data = await response.json();
-        error = data.message || 'Identifiants incorrects ou compte en attente d\'approbation';
-      }
+
     } catch (err) {
-      error = 'Erreur de connexion au serveur. Vérifiez votre réseau.';
+        // Afficher le message d'erreur spécifique du backend
+        console.error('Erreur de connexion:', err);
+        error = err.message || 'Erreur de connexion au serveur.';
     } finally {
-      loading = false;
+        loading = false;
     }
-  }
+}
 
   onMount(() => {
     if ($isAuthenticated) {
