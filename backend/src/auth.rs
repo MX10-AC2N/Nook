@@ -316,26 +316,40 @@ pub async fn change_password(
     // Hasher le nouveau mot de passe
     let hashed = hash_password(&payload.new_password);
 
+    // GÉNÉRER UN NOUVEAU TOKEN pour la session
+    let new_token = Uuid::new_v4().to_string();
+
     // Mettre à jour dans la DB
     let result = sqlx::query::<sqlx::Sqlite>(
-        "UPDATE users SET password_hash = ?, needs_password_change = 0 WHERE id = ?"
+        "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?"
     )
     .bind(&hashed)
+    .bind(&new_token)
     .bind(target_id)
     .execute(&state.db)
     .await;
 
     match result {
         Ok(_) => (
-            StatusCode::OK,
-            Json(json!({"success": true, "message": "Mot de passe changé"}))
-        ).into_response(),
+            // Mettre à jour le cookie avec le nouveau token
+            let mut response = (
+                StatusCode::OK,
+                Json(json!({"success": true, "message": "Mot de passe changé"})),
+            ).into_response();
+            
+            response.headers_mut().insert(
+                SET_COOKIE,
+                format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", target_id, new_token)
+                    .parse()
+                    .unwrap(),
+            );
+            response
+        },
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"success": false, "message": "Erreur DB"}))
         ).into_response(),
     }
 }
-
 
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
