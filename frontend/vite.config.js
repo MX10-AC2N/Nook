@@ -1,34 +1,58 @@
+// frontend/vite.config.js
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-  assetsInclude: ['**/*.svg'],
+  assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
 build: {
-		rollupOptions: {
-			external: ['libsodium-wrappers-sumo']
-		}
+    commonjsOptions: {
+      include: [/libsodium/, /node_modules/],
+      transformMixedEsModules: true
+    },
+    rollupOptions: {
+		external: [],
+		 output: {
+        manualChunks(id) {
+          if (id.includes('libsodium-wrappers-sumo')) {
+            return 'libsodium';
+          }
+        }
+      }
+	}
+},
+optimizeDeps: {
+	exclude: ['libsodium-wrappers-sumo'],
+	include: ['svelte', 'svelte/internal', '@sveltejs/kit']
+},
+server: {
+	port: 5173,
+	strictPort: false,
+	host: true,
+	fs: {
+		strict: false,
+		allow: ['..']
 	},
-	optimizeDeps: {
-		exclude: ['libsodium-wrappers-sumo']
-	},
-	server: {
-		port: 5173,
-		strictPort: false,
-		host: true,
-		fs: {
-			strict: false,
-			allow: ['..']
+	proxy: {
+		'/api': {
+			target: 'http://127.0.0.1:3000',
+			changeOrigin: true,
+			secure: false,
+			rewrite: (path) => path.replace(/^\/api/, '')
 		},
-		proxy: {
-			'/api': {
-				target: 'http://127.0.0.1:3000',
-				changeOrigin: true
-			},
-			'/ws': {
-				target: 'ws://127.0.0.1:3000',
-				ws: true
-			}
+		'/ws': {
+			target: 'ws://127.0.0.1:3000',
+			ws: true
 		}
 	}
-});
+},
+  resolve: {
+    alias: {
+      'libsodium-wrappers-sumo': 'libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js'
+    }
+  },
+  define: {
+    // Pour éviter les erreurs de variables non définies
+    'import.meta.vitest': 'undefined'
+  }
+});	
