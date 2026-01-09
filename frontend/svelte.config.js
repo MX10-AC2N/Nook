@@ -17,11 +17,15 @@ const config = {
 			precompress: false,
 			strict: true
 		}),
+ appDir: 'app'
+ files: {
+   appTemplate: 'src/app.html'
+ }
 		alias: {
 			$lib: './src/lib',
 			$components: './src/components',
 			$routes: './src/routes',
-			$assets: './static'  // ← Apostrophe enlevée
+			$assets: './static'
 		},
 		serviceWorker: {
 			register: false
