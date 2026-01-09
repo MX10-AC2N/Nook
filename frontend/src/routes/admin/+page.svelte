@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAdmin, authLoading, initAuth } from '$lib/authStore';
+  import { authStore } from '$lib/authStore';
   import { get } from 'svelte/store';
 
   let pendingUsers = $state<any[]>([]);
@@ -11,28 +11,58 @@
   let activeTab = $state<'pending' | 'all' | 'invites'>('pending');
   let generatingInvite = $state(false);
   let inviteLink = $state<string | null>(null);
+  let authChecked = $state(false);
 
-  // Guard admin
+  // Vérifier l'authentification comme dans la page login
   onMount(async () => {
-    // 1. Initialiser l'authentification
-    await initAuth();
-    
-    // 2. Attendre que le chargement soit terminé
-    if (get(authLoading)) {
-      // Petite pause pour laisser initAuth terminer
-      await new Promise(resolve => setTimeout(resolve, 100));
+    await checkAuthAndRedirect();
+    if (authChecked) {
+      await loadAdminData();
     }
-    
-    // 3. Vérifier si l'utilisateur est admin en lisant le store
-    if (!get(isAdmin)) {
-      console.log('Utilisateur non admin, redirection vers /chat');
-      goto('/chat');
-      return;
+  });
+
+  async function checkAuthAndRedirect() {
+    try {
+      console.log('Vérification de l\'authentification pour admin...');
+      
+      // Méthode DIRECTE comme dans la page login
+      const response = await fetch('/api/auth/me', { 
+        credentials: 'include' 
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Données auth reçues:', data);
+        
+        if (data.authenticated && data.user) {
+          // Mettre à jour le store DIRECTEMENT comme dans login
+          authStore.setAuthenticated(data.user, data.user.role === 'admin');
+          
+          if (data.user.role !== 'admin') {
+            console.log('Utilisateur non admin, redirection vers /chat');
+            goto('/chat');
+            return false;
+          }
+          
+          console.log('✅ Admin authentifié:', data.user.username);
+          authChecked = true;
+          return true;
+        }
+      }
+      
+      // Non authentifié ou pas admin
+      console.log('❌ Non authentifié ou pas admin, redirection vers /login');
+      goto('/login');
+      return false;
+      
+    } catch (error) {
+      console.error('Erreur vérification auth:', error);
+      goto('/login');
+      return false;
     }
-    
-    console.log('Utilisateur admin, chargement des données...');
-    
-    // 4. Charger les données admin
+  }
+
+  async function loadAdminData() {
     try {
       await Promise.all([loadUsers(), loadInvites()]);
       loading = false;
@@ -40,7 +70,7 @@
       console.error('Erreur chargement données admin:', error);
       loading = false;
     }
-  });
+  }
 
   async function loadUsers() {
     try {
@@ -163,23 +193,26 @@
 </svelte:head>
 
 <div class="admin-container">
-  <div class="admin-header">
-    <h1>👑 Administration</h1>
-    <!-- Ajout d'un indicateur de statut -->
-    <div class="auth-status">
-      {#if $authLoading}
-        <span class="loading-badge">Chargement auth...</span>
-      {:else if $isAdmin}
-        <span class="admin-badge">Connecté en tant qu'admin</span>
-      {:else}
-        <span class="guest-badge">Non autorisé</span>
-      {/if}
+  {#if !authChecked}
+    <div class="loading-fullpage">
+      <div class="spinner-large"></div>
+      <p>Vérification des permissions administrateur...</p>
     </div>
-    <p>Gérez les membres et les invitations de votre espace familial</p>
-  </div>
+  {:else if !$isAdmin}
+    <div class="not-authorized">
+      <h2>Accès non autorisé</h2>
+      <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
+      <button on:click={() => goto('/chat')}>Aller au chat</button>
+    </div>
+  {:else}
+    <div class="admin-header">
+      <h1>👑 Administration</h1>
+      <div class="auth-status">
+        <span class="admin-badge">Connecté en tant qu'admin</span>
+      </div>
+      <p>Gérez les membres et les invitations de votre espace familial</p>
+    </div>
 
-  <!-- NE MONTRER LE CONTENU ADMIN QUE SI L'UTILISATEUR EST ADMIN ET PAS EN TRAIN DE CHARGER -->
-  {#if !$authLoading && $isAdmin}
     {#if loading}
       <div class="loading-message">Chargement des données d'administration...</div>
     {:else}
@@ -280,16 +313,33 @@
         {/if}
       </div>
     {/if}
-  {:else if !$authLoading && !$isAdmin}
-    <div class="not-authorized">
-      <h2>Accès non autorisé</h2>
-      <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
-      <button on:click={() => goto('/chat')}>Aller au chat</button>
-    </div>
   {/if}
 </div>
 
 <style>
+  .loading-fullpage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    color: #666;
+  }
+  
+  .spinner-large {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(45, 90, 39, 0.1);
+    border-top-color: #2d5a27;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
   .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
   .admin-header { text-align: center; margin-bottom: 2rem; }
   .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
@@ -300,26 +350,13 @@
     font-size: 0.9rem;
   }
   
-  .loading-badge, .admin-badge, .guest-badge {
+  .admin-badge {
     padding: 0.25rem 0.75rem;
     border-radius: 1rem;
     font-size: 0.8rem;
     font-weight: 600;
-  }
-  
-  .loading-badge {
-    background: #fef3c7;
-    color: #92400e;
-  }
-  
-  .admin-badge {
     background: #d1fae5;
     color: #065f46;
-  }
-  
-  .guest-badge {
-    background: #fee2e2;
-    color: #991b1b;
   }
   
   .admin-actions { text-align: center; margin-bottom: 1.5rem; }
