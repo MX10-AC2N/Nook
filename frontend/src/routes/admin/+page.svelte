@@ -290,10 +290,6 @@
 </div>
 
 <style>
-  /* AJOUTEZ CES STYLES AU VÔTRE */
-  
-  
-  /* Le reste de votre CSS existant */
   .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
   .admin-header { text-align: center; margin-bottom: 2rem; }
   .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
