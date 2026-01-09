@@ -5,11 +5,17 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
+  // Import des fonctions de crypto
+  import { initCryptoSystem } from '$lib/crypto';
+  import { sodiumLoading, sodiumError } from '$lib/sodium';
+  import { get } from 'svelte/store';
 
   let { children } = $props();
   let showMenu = $state(false);
   let appError = $state<string | null>(null);
   let loading = $state(true);
+  let cryptoInitialized = $state(false);
+  let cryptoError = $state<string | null>(null);
 
   const navItems = [
     { path: '/chat', label: '💬 Chat', requiresAuth: true },
@@ -39,9 +45,9 @@
     goto('/login');
   }
 
-  // Redirections globales intelligentes
+  // Redirections globales intelligentes - modifié pour attendre l'init crypto
   $effect(() => {
-    if (loading) return;
+    if (loading || !cryptoInitialized) return;
 
     const pathname = $page.url.pathname;
 
@@ -71,29 +77,74 @@
 
   onMount(async () => {
     try {
-      await initAuth(); // Recharge l'état auth au montage du layout
+      // 1. Initialiser libsodium d'abord
+      const sodiumReady = new Promise((resolve) => {
+        const unsubscribe = sodiumLoading.subscribe(($loading) => {
+          if (!$loading) {
+            unsubscribe();
+            resolve(true);
+          }
+        });
+      });
+
+      await sodiumReady;
+      
+      // 2. Initialiser le système crypto
+      cryptoInitialized = await initCryptoSystem();
+      if (!cryptoInitialized) {
+        cryptoError = 'Erreur d\'initialisation du système cryptographique';
+        throw new Error('Crypto initialization failed');
+      }
+
+      // 3. Initialiser l'authentification
+      await initAuth();
+      
     } catch (err) {
-      console.error('Erreur init auth dans layout:', err);
-      appError = 'Impossible de vérifier votre session. Réessayez.';
+      console.error('Erreur d\'initialisation globale:', err);
+      
+      // Déterminer le type d'erreur
+      if (cryptoError) {
+        appError = 'Impossible d\'initialiser la sécurité. Veuillez réessayer.';
+      } else if (get(sodiumError)) {
+        appError = 'Erreur de chargement des bibliothèques de sécurité.';
+      } else {
+        appError = 'Impossible de vérifier votre session. Réessayez.';
+      }
     } finally {
+      // Toujours afficher le contenu après un délai pour UX fluide
       setTimeout(() => {
         loading = false;
-      }, 500);
+      }, 800);
     }
   });
 </script>
 
-{#if loading}
+{#if loading || !cryptoInitialized}
   <div class="loading-screen">
     <div class="loading-spinner"></div>
-    <p>Chargement de Nook...</p>
+    {#if !cryptoInitialized}
+      <p>Initialisation de la sécurité...</p>
+    {:else}
+      <p>Chargement de Nook...</p>
+    {/if}
+    {#if $sodiumError}
+      <p class="crypto-error">⚠️ {$sodiumError.message}</p>
+    {/if}
   </div>
-{:else if appError}
+{:else if appError || cryptoError}
   <div class="error-screen">
     <div class="error-content">
       <h1>❌ Erreur système</h1>
       <p class="error-title">================</p>
-      <p class="error-message">{appError}</p>
+      <p class="error-message">{appError || cryptoError}</p>
+      <div class="error-details">
+        {#if get(sodiumError)}
+          <p class="detail-item">• Libsodium: {get(sodiumError).message}</p>
+        {/if}
+        {#if cryptoError}
+          <p class="detail-item">• Cryptographie: {cryptoError}</p>
+        {/if}
+      </div>
       <button onclick={() => window.location.reload()} class="retry-button">
         🔄 Recharger l'application
       </button>
@@ -184,6 +235,7 @@
     justify-content: center;
     min-height: 100vh;
     gap: 1rem;
+    padding: 1.5rem;
   }
 
   .loading-spinner {
@@ -193,6 +245,17 @@
     border-top-color: #4ade80;
     border-radius: 50%;
     animation: spin 1s linear infinite;
+  }
+
+  .crypto-error {
+    color: #dc2626;
+    font-size: 0.9rem;
+    text-align: center;
+    max-width: 400px;
+    padding: 0.5rem;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
   }
 
   @keyframes spin {
@@ -213,7 +276,8 @@
     border-radius: 1rem;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
     text-align: center;
-    max-width: 400px;
+    max-width: 450px;
+    width: 100%;
   }
 
   .error-content h1 {
@@ -225,12 +289,29 @@
   .error-title {
     color: #64748b;
     margin: 0 0 1.25rem 0;
+    font-family: monospace;
   }
 
   .error-message {
     color: #dc2626;
     margin: 0 0 1.5rem 0;
     line-height: 1.5;
+    font-weight: 500;
+  }
+
+  .error-details {
+    text-align: left;
+    margin: 1rem 0;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+  }
+
+  .detail-item {
+    color: #64748b;
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
   }
 
   .retry-button {
@@ -243,6 +324,9 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .retry-button:hover {
@@ -448,6 +532,10 @@
     .menu {
       width: 100%;
       max-width: none;
+    }
+    
+    .error-content {
+      padding: 1.5rem;
     }
   }
 </style>
