@@ -12,6 +12,8 @@
   let generatingInvite = $state(false);
   let inviteLink = $state<string | null>(null);
   let authChecked = $state(false);
+  let adminStatus = $derived($isAdmin);
+
 
   // Vérifier l'authentification comme dans la page login
   onMount(async () => {
@@ -187,7 +189,6 @@
     return Date.now() / 1000 > invite.expires_at;
   }
 
-  let adminStatus = $derived($isAdmin);
 </script>
 
 <svelte:head>
