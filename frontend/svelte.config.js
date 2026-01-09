@@ -17,7 +17,7 @@ const config = {
 			precompress: false,
 			strict: true
 		}),
- appDir: 'app'
+ appDir: 'app',
  files: {
    appTemplate: 'src/app.html'
  }
