@@ -22,8 +22,7 @@ build: {
 	}
 },
 optimizeDeps: {
-	exclude: ['libsodium-wrappers-sumo'],
-	include: ['svelte', 'svelte/internal', '@sveltejs/kit']
+	include: ['libsodium-wrappers-sumo', 'svelte', 'svelte/internal', '@sveltejs/kit']
 },
 server: {
 	port: 5173,
