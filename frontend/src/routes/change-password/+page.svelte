@@ -1,8 +1,25 @@
+# 🔍 Analyse de `change-password/+page.svelte`
+
+J'ai trouvé **un problème de syntaxe Svelte 5** à la ligne 57 - il manque des accolades fermantes.
+
+---
+
+## ❌ PROBLÈME - Ligne 57
+
+**Erreur de syntaxe :** Le bloc `if` n'est pas fermé correctement.
+
+---
+
+## ✅ FICHIER CORRIGÉ COMPLET
+
+Remplace **TOUT** le contenu de `frontend/src/routes/change-password/+page.svelte` par :
+
+```svelte
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { authStore, needsPasswordChange } from '$lib/authStore';
   import { onMount } from 'svelte';
-  import { get } from 'svelte/store'; // ⬅️ AJOUTER CET IMPORT
+  import { get } from 'svelte/store';
 
   let newPassword = $state('');
   let confirmPassword = $state('');
@@ -11,7 +28,6 @@
   let isLoading = $state(false);
 
   onMount(() => {
-    // Utiliser get(authStore) au lieu de authStore.get()
     const store = get(authStore);
     if (!store.isAuthenticated) {
       goto('/login');
@@ -39,7 +55,6 @@
     isLoading = true;
 
     try {
-      // Utiliser get(authStore) au lieu de authStore.get()
       const store = get(authStore);
       const userId = store.user?.id;
       
@@ -59,54 +74,45 @@
 
       if (response.ok && result.success) {
         success = 'Votre mot de passe a été mis à jour avec succès !';
-
-        // IMPORTANT: Vérifier que la session est toujours valide
-      await verifySessionAndRedirect(userId);
-    } else {
-      error = result.message || 'Échec du changement de mot de passe.';
-    }
-  } catch (e: any) {
-    error = e.message || 'Une erreur est survenue.';
-  } finally {
-    isLoading = false;
-  }
-}
-
-// Nouvelle fonction pour vérifier la session après changement de mot de passe
-async function verifySessionAndRedirect(userId: string) {
-  try {
-    // Petite pause pour laisser le cookie se mettre à jour
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Vérifier la session
-    const meResponse = await fetch('/api/auth/me', { credentials: 'include' });
-    
-    if (meResponse.ok) {
-      const meData = await meResponse.json();
-      
-      if (meData.authenticated && meData.user) {
-        
-        // Mettre à jour le store
-        authStore.setAuthenticated(meData.user, meData.user.role === 'admin');
-        
-        // Rediriger selon le rôle
-        setTimeout(() => {
-          goto(meData.user.role === 'admin' ? '/admin' : '/chat');
-        }, 2000);
-        return;
+        await verifySessionAndRedirect(userId);
+      } else {
+        error = result.message || 'Échec du changement de mot de passe.';
       }
+    } catch (e: any) {
+      error = e.message || 'Une erreur est survenue.';
+    } finally {
+      isLoading = false;
     }
-    
-    // Si la vérification échoue, proposer de se reconnecter
-    error = 'Session expirée. Veuillez vous reconnecter.';
-    setTimeout(() => goto('/login'), 3000);
-    
-  } catch (err) {
-    console.error('Erreur vérification session:', err);
-    error = 'Erreur de session. Veuillez vous reconnecter.';
-    setTimeout(() => goto('/login'), 3000);
   }
-}
+
+  async function verifySessionAndRedirect(userId: string) {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const meResponse = await fetch('/api/auth/me', { credentials: 'include' });
+      
+      if (meResponse.ok) {
+        const meData = await meResponse.json();
+        
+        if (meData.authenticated && meData.user) {
+          authStore.setAuthenticated(meData.user, meData.user.role === 'admin');
+          
+          setTimeout(() => {
+            goto(meData.user.role === 'admin' ? '/admin' : '/chat');
+          }, 2000);
+          return;
+        }
+      }
+      
+      error = 'Session expirée. Veuillez vous reconnecter.';
+      setTimeout(() => goto('/login'), 3000);
+      
+    } catch (err) {
+      console.error('Erreur vérification session:', err);
+      error = 'Erreur de session. Veuillez vous reconnecter.';
+      setTimeout(() => goto('/login'), 3000);
+    }
+  }
 </script>
 
 <svelte:head>
