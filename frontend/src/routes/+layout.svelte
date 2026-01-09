@@ -1,4 +1,5 @@
 <script lang="ts">
+  import '../app.css';
   import { page } from '$app/stores';
   import { authStore, isAuthenticated, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore';
   import { onMount } from 'svelte';
