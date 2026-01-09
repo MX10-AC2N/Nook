@@ -3,51 +3,52 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [sveltekit()],
+  plugins: [sveltekit()],
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
-build: {
+  build: {
     commonjsOptions: {
       include: [/libsodium/, /node_modules/],
       transformMixedEsModules: true
     },
     rollupOptions: {
-		external: [],
-		 output: {
+      output: {
         manualChunks(id) {
           if (id.includes('libsodium-wrappers-sumo')) {
             return 'libsodium';
           }
         }
       }
-	}
-},
-optimizeDeps: {
-	include: ['libsodium-wrappers-sumo', 'svelte', 'svelte/internal', '@sveltejs/kit']
-},
-server: {
-	port: 5173,
-	strictPort: false,
-	host: true,
-	fs: {
-		strict: false,
-		allow: ['..']
-	},
-	proxy: {
-		'/api': {
-			target: 'http://127.0.0.1:3000',
-			changeOrigin: true,
-			secure: false,
-			rewrite: (path) => path.replace(/^\/api/, '')
-		},
-		'/ws': {
-			target: 'ws://127.0.0.1:3000',
-			ws: true
-		}
-	}
-},
+    }
+  },
+  optimizeDeps: {
+    // Suppression de l'exclude qui empêchait le pre-bundle
+    // exclude: ['libsodium-wrappers-sumo'],
 
+    // Ajout de l'include pour forcer Vite à pre-bundle ce package (fix le bug de résolution interne)
+    include: ['libsodium-wrappers-sumo', 'svelte', 'svelte/internal', '@sveltejs/kit']
+  },
+  server: {
+    port: 5173,
+    strictPort: false,
+    host: true,
+    fs: {
+      strict: false,
+      allow: ['..']
+    },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/ws': {
+        target: 'ws://127.0.0.1:3000',
+        ws: true
+      }
+    }
+  },
   define: {
-    // Pour éviter les erreurs de variables non définies
     'import.meta.vitest': 'undefined'
   }
-});	
+});
