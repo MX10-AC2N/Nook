@@ -1,0 +1,106 @@
+name: 🧹 Nettoyage du cache GitHub Actions
+
+# ------------------------------------------------------------------
+# Déclencheurs
+# ------------------------------------------------------------------
+on:
+  # Bouton « Run workflow » dans l’interface GitHub
+  workflow_dispatch:
+
+  # Optionnel : exécution programmée chaque dimanche à 03 h UTC
+  # schedule:
+  #   - cron: '0 3 * * 0'
+
+# ------------------------------------------------------------------
+# Jobs
+# ------------------------------------------------------------------
+jobs:
+  clear-cache:
+    runs-on: ubuntu-latest
+
+    # Permissions nécessaires pour lire et supprimer les caches
+    permissions:
+      actions: write      # permet DELETE /actions/caches/*
+      contents: read     # lecture du dépôt (par défaut)
+
+    steps:
+      # --------------------------------------------------------------
+      # 1️⃣ Vérifier que les outils requis sont disponibles
+      # --------------------------------------------------------------
+      - name: Vérifier la version de curl et installer jq
+        run: |
+          curl --version
+          sudo apt-get update && sudo apt-get install -y jq
+
+      # --------------------------------------------------------------
+      # 2️⃣ Récupérer la liste complète des caches du dépôt
+      # --------------------------------------------------------------
+      - name: Lister les caches
+        id: list-caches
+        env:
+          REPO: ${{ github.repository }}          # MX10-AC2N/Nook
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}      # token fourni automatiquement
+        run: |
+          # Initialise le fichier où seront stockés les IDs
+          > caches.txt
+
+          PAGE=1
+          while true; do
+            echo "🔎 Page $PAGE …"
+            RESPONSE=$(curl -sSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/repos/${REPO}/actions/caches?per_page=100&page=${PAGE}")
+
+            # Si aucun cache n’est retourné, on arrête la boucle
+            IDS=$(echo "$RESPONSE" | jq -r '.actions_caches[].id')
+            if [ -z "$IDS" ]; then
+              echo "✅ Aucun autre cache trouvé."
+              break
+            fi
+
+            # Ajoute les IDs au fichier
+            echo "$IDS" >> caches.txt
+            PAGE=$((PAGE + 1))
+          done
+
+          echo "🗂️ Nombre total de caches trouvés :"
+          wc -l < caches.txt
+          cat caches.txt
+
+      # --------------------------------------------------------------
+      # 3️⃣ Supprimer chaque cache trouvé
+      # --------------------------------------------------------------
+      - name: Supprimer les caches
+        if: always() && steps.list-caches.outputs != ''
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -s caches.txt ]; then
+            echo "⚡ Aucun cache à supprimer."
+            exit 0
+          fi
+
+          echo "🚀 Démarrage de la suppression…"
+          while read -r CACHE_ID; do
+            echo "❌ Suppression du cache ID $CACHE_ID"
+            STATUS=$(curl -sSL -o /dev/null -w "%{http_code}" \
+              -X DELETE \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/repos/${REPO}/actions/caches/${CACHE_ID}")
+
+            if [ "$STATUS" = "204" ]; then
+              echo "✅ Cache $CACHE_ID supprimé."
+            else
+              echo "⚠️ Échec de la suppression du cache $CACHE_ID (HTTP $STATUS)."
+            fi
+          done < caches.txt
+
+      # --------------------------------------------------------------
+      # 4️⃣ Nettoyage final (facultatif)
+      # --------------------------------------------------------------
+      - name: Nettoyer les artefacts temporaires
+        if: always()
+        run: rm -f caches.txt
