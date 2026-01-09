@@ -59,26 +59,54 @@
 
       if (response.ok && result.success) {
         success = 'Votre mot de passe a été mis à jour avec succès !';
-        
-        // Mettre à jour le store avec la méthode update (celle-ci existe)
-        authStore.update(state => ({
-          ...state,
-          needsPasswordChange: false
-        }));
-        
-        // Rediriger après 2 secondes
-        setTimeout(() => {
-          goto(store.isAdmin ? '/admin' : '/chat');
-        }, 2000);
-      } else {
-        error = result.message || 'Échec du changement de mot de passe.';
-      }
-    } catch (e: any) {
-      error = e.message || 'Une erreur est survenue.';
-    } finally {
-      isLoading = false;
+
+        // IMPORTANT: Vérifier que la session est toujours valide
+      await verifySessionAndRedirect(userId);
+    } else {
+      error = result.message || 'Échec du changement de mot de passe.';
     }
+  } catch (e: any) {
+    error = e.message || 'Une erreur est survenue.';
+  } finally {
+    isLoading = false;
   }
+}
+
+// Nouvelle fonction pour vérifier la session après changement de mot de passe
+async function verifySessionAndRedirect(userId: string) {
+  try {
+    // Petite pause pour laisser le cookie se mettre à jour
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Vérifier la session
+    const meResponse = await fetch('/api/auth/me', { credentials: 'include' });
+    
+    if (meResponse.ok) {
+      const meData = await meResponse.json();
+      
+      if (meData.authenticated && meData.user) {
+        
+        // Mettre à jour le store
+        authStore.setAuthenticated(meData.user, meData.user.role === 'admin');
+        
+        // Rediriger selon le rôle
+        setTimeout(() => {
+          goto(meData.user.role === 'admin' ? '/admin' : '/chat');
+        }, 2000);
+        return;
+      }
+    }
+    
+    // Si la vérification échoue, proposer de se reconnecter
+    error = 'Session expirée. Veuillez vous reconnecter.';
+    setTimeout(() => goto('/login'), 3000);
+    
+  } catch (err) {
+    console.error('Erreur vérification session:', err);
+    error = 'Erreur de session. Veuillez vous reconnecter.';
+    setTimeout(() => goto('/login'), 3000);
+  }
+}
 </script>
 
 <svelte:head>
