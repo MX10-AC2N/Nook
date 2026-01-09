@@ -208,7 +208,6 @@ export async function storeEncryptedKeys(userId: string, encryptedPrivateKey: st
     
     dbReq.onerror = () => reject(dbReq.error);
   };
-}
 
 // Récupérer les clés
 export async function getStoredKeys(userId: string): Promise<{
