@@ -108,7 +108,7 @@
         inviteLink = data.invite_link;
         await navigator.clipboard.writeText(inviteLink);
         alert('Lien copié dans le presse-papiers !');
-        await loadInvites(); // Recharger la liste
+        await loadInvites();
       } else {
         alert('Erreur lors de la génération');
       }
@@ -156,6 +156,187 @@
   function isExpired(invite: any): boolean {
     return Date.now() / 1000 > invite.expires_at;
   }
+</script>
+
+<svelte:head>
+  <title>Administration - Nook</title>
+</svelte:head>
+
+<div class="admin-container">
+  <div class="admin-header">
+    <h1>👑 Administration</h1>
+    <!-- Ajout d'un indicateur de statut -->
+    <div class="auth-status">
+      {#if $authLoading}
+        <span class="loading-badge">Chargement auth...</span>
+      {:else if $isAdmin}
+        <span class="admin-badge">Connecté en tant qu'admin</span>
+      {:else}
+        <span class="guest-badge">Non autorisé</span>
+      {/if}
+    </div>
+    <p>Gérez les membres et les invitations de votre espace familial</p>
+  </div>
+
+  <!-- NE MONTRER LE CONTENU ADMIN QUE SI L'UTILISATEUR EST ADMIN ET PAS EN TRAIN DE CHARGER -->
+  {#if !$authLoading && $isAdmin}
+    {#if loading}
+      <div class="loading-message">Chargement des données d'administration...</div>
+    {:else}
+      <div class="admin-actions">
+        <button class="invite-btn" on:click={generateInvite} disabled={generatingInvite}>
+          {generatingInvite ? 'Génération...' : '➕ Générer un lien d\'invitation'}
+        </button>
+        {#if inviteLink}
+          <p class="invite-link">Dernier lien généré : <code>{inviteLink}</code></p>
+        {/if}
+      </div>
+
+      <div class="admin-tabs">
+        <button class="tab" class:active={activeTab === 'pending'} on:click={() => activeTab = 'pending'}>
+          En attente ({pendingUsers.length})
+        </button>
+        <button class="tab" class:active={activeTab === 'all'} on:click={() => activeTab = 'all'}>
+          Membres ({allUsers.length})
+        </button>
+        <button class="tab" class:active={activeTab === 'invites'} on:click={() => activeTab = 'invites'}>
+          Invitations ({invites.length})
+        </button>
+      </div>
+
+      <div class="admin-content">
+        {#if activeTab === 'pending'}
+          {#if pendingUsers.length === 0}
+            <div class="empty-state">Aucun utilisateur en attente</div>
+          {:else}
+            <div class="user-list">
+              {#each pendingUsers as user}
+                <div class="user-card pending">
+                  <div class="user-info">
+                    <span class="user-name">{user.name || 'Sans nom'}</span>
+                    <span class="user-username">@{user.username}</span>
+                    <span class="user-date">Inscrit le {formatDate(user.created_at)}</span>
+                  </div>
+                  <button class="approve-btn" on:click={() => approveUser(user.id)}>
+                    ✅ Approuver
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        {:else if activeTab === 'all'}
+          <div class="user-list">
+            {#each allUsers as user}
+              <div class="user-card" class:admin={user.role === 'admin'}>
+                <div class="user-info">
+                  <span class="user-name">
+                    {user.name || 'Sans nom'}
+                    {#if user.role === 'admin'} <span class="admin-badge">Admin</span>{/if}
+                  </span>
+                  <span class="user-username">@{user.username}</span>
+                  <span class="user-status" class:approved={user.approved}>
+                    {user.approved ? '✅ Approuvé' : '⏳ En attente'}
+                  </span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else if activeTab === 'invites'}
+          {#if invites.length === 0}
+            <div class="empty-state">Aucune invitation créée</div>
+          {:else}
+            <table class="invites-table">
+              <thead>
+                <tr>
+                  <th>Créée le</th>
+                  <th>Expire le</th>
+                  <th>Statut</th>
+                  <th>Lien</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each invites as invite}
+                  <tr class:expired={isExpired(invite)} class:used={invite.used}>
+                    <td>{formatDate(invite.created_at)}</td>
+                    <td>{formatDate(invite.expires_at)}</td>
+                    <td class="status">{getStatus(invite)}</td>
+                    <td class="link">
+                      <code>{invite.token.slice(0, 12)}...</code>
+                      <button on:click={() => navigator.clipboard.writeText(`${window.location.origin}/join?token=${invite.token}`)}>
+                        Copier
+                      </button>
+                    </td>
+                    <td>
+                      <button class="delete-btn" on:click={() => deleteInvite(invite.id)} disabled={invite.used || isExpired(invite)}>
+                        Supprimer
+                      </button>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {/if}
+        {/if}
+      </div>
+    {/if}
+  {:else if !$authLoading && !$isAdmin}
+    <div class="not-authorized">
+      <h2>Accès non autorisé</h2>
+      <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
+      <button on:click={() => goto('/chat')}>Aller au chat</button>
+    </div>
+  {/if}
+</div>
+
+<style>
+  /* AJOUTEZ CES STYLES AU VÔTRE */
+  
+  
+  /* Le reste de votre CSS existant */
+  .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
+  .admin-header { text-align: center; margin-bottom: 2rem; }
+  .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
+  .admin-header p { color: #666; }
+
+  .admin-actions { text-align: center; margin-bottom: 1.5rem; }
+  .invite-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; }
+  .invite-btn:hover:not(:disabled) { background: #3d7a37; }
+
+  .invite-link { margin-top: 0.8rem; word-break: break-all; }
+  .invite-link code { background: #f0f0f0; padding: 0.3rem 0.6rem; border-radius: 4px; }
+
+  .admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
+  .tab { padding: 0.75rem 1.25rem; background: none; border: none; cursor: pointer; color: #666; border-radius: 8px 8px 0 0; }
+  .tab.active { background: #2d5a27; color: white; }
+
+  .admin-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+
+  .user-list, .invites-table { width: 100%; }
+  .user-card { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; }
+  .user-card.pending { background: #fff8e1; }
+  .user-card.admin { background: #e3f2fd; }
+
+  .user-info { display: flex; flex-direction: column; gap: 0.25rem; }
+  .user-name { font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+  .user-name .admin-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; background: #2196f3; color: white; border-radius: 4px; }
+  .user-username, .user-date, .user-status { font-size: 0.85rem; color: #666; }
+  .user-status.approved { color: #4caf50; }
+
+  .approve-btn { padding: 0.5rem 1rem; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  .approve-btn:hover { background: #43a047; }
+
+  .invites-table { border-collapse: collapse; }
+  .invites-table th, .invites-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+  .invites-table th { background: #f8f9fa; font-weight: 600; }
+  .status { font-weight: 500; }
+  .expired { opacity: 0.6; }
+  .used { opacity: 0.6; background: #f0f0f0; }
+  .link code { font-size: 0.8rem; background: #f0f0f0; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  .delete-btn { background: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
 </script>
 
 <svelte:head>
@@ -285,6 +466,62 @@
 </div>
 
 <style>
+  .auth-status {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+  }
+  
+  .loading-badge, .admin-badge, .guest-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  
+  .loading-badge {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  
+  .admin-badge {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  
+  .guest-badge {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+  
+  .loading-message, .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #888;
+  }
+  
+  .not-authorized {
+    text-align: center;
+    padding: 3rem;
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin: 2rem 0;
+  }
+  
+  .not-authorized h2 {
+    color: #dc2626;
+    margin-bottom: 1rem;
+  }
+  
+  .not-authorized button {
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: #2d5a27;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+  }
   .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
   .admin-header { text-align: center; margin-bottom: 2rem; }
   .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
@@ -313,6 +550,47 @@
   .user-info { display: flex; flex-direction: column; gap: 0.25rem; }
   .user-name { font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
   .admin-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; background: #2196f3; color: white; border-radius: 4px; }
+  .user-username, .user-date, .user-status { font-size: 0.85rem; color: #666; }
+  .user-status.approved { color: #4caf50; }
+
+  .approve-btn { padding: 0.5rem 1rem; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  .approve-btn:hover { background: #43a047; }
+
+  .invites-table { border-collapse: collapse; }
+  .invites-table th, .invites-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
+  .invites-table th { background: #f8f9fa; font-weight: 600; }
+  .status { font-weight: 500; }
+  .expired { opacity: 0.6; }
+  .used { opacity: 0.6; background: #f0f0f0; }
+  .link code { font-size: 0.8rem; background: #f0f0f0; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  .delete-btn { background: #dc2626; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; }
+  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; }
+  .admin-header { text-align: center; margin-bottom: 2rem; }
+  .admin-header h1 { font-size: 1.75rem; color: #2d5a27; }
+  .admin-header p { color: #666; }
+
+  .admin-actions { text-align: center; margin-bottom: 1.5rem; }
+  .invite-btn { padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border: none; border-radius: 8px; cursor: pointer; }
+  .invite-btn:hover:not(:disabled) { background: #3d7a37; }
+
+  .invite-link { margin-top: 0.8rem; word-break: break-all; }
+  .invite-link code { background: #f0f0f0; padding: 0.3rem 0.6rem; border-radius: 4px; }
+
+  .admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
+  .tab { padding: 0.75rem 1.25rem; background: none; border: none; cursor: pointer; color: #666; border-radius: 8px 8px 0 0; }
+  .tab.active { background: #2d5a27; color: white; }
+
+  .admin-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+
+  .user-list, .invites-table { width: 100%; }
+  .user-card { display: flex; justify-content: space-between; align-items: center; padding: 1rem; border-bottom: 1px solid #eee; }
+  .user-card.pending { background: #fff8e1; }
+  .user-card.admin { background: #e3f2fd; }
+
+  .user-info { display: flex; flex-direction: column; gap: 0.25rem; }
+  .user-name { font-weight: 500; display: flex; align-items: center; gap: 0.5rem; }
+  .user-name .admin-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; background: #2196f3; color: white; border-radius: 4px; }
   .user-username, .user-date, .user-status { font-size: 0.85rem; color: #666; }
   .user-status.approved { color: #4caf50; }
 
