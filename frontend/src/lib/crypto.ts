@@ -1,18 +1,38 @@
 // frontend/src/lib/crypto.ts
-import * as sodium from 'libsodium-wrappers-sumo';
+import { sodiumStore } from './sodium';
 import { authStore } from './authStore';
+import { get } from 'svelte/store';
 
-// Initialisation globale
 let isInitialized = false;
-export async function initCrypto() {
-  if (isInitialized) return;
-  await sodium.ready;
-  isInitialized = true;
+
+// Fonction helper pour obtenir une instance de sodium
+async function getSodium() {
+  if (isInitialized) {
+    return get(sodiumStore);
+  }
+  
+  // Attendre que sodium soit chargé
+  const sodium = get(sodiumStore);
+  if (sodium) {
+    isInitialized = true;
+    return sodium;
+  }
+  
+  // Si pas encore chargé, attendre
+  return new Promise((resolve) => {
+    const unsubscribe = sodiumStore.subscribe(async (sodium) => {
+      if (sodium) {
+        unsubscribe();
+        isInitialized = true;
+        resolve(sodium);
+      }
+    });
+  });
 }
 
 // Génération d'une clé publique/privée (à faire une fois à l'inscription)
 export async function generateKeyPair() {
-  await initCrypto();
+  const sodium = await getSodium();
   return sodium.crypto_box_keypair();
 }
 
@@ -26,7 +46,7 @@ export async function encryptForRecipients(
   encryptedKeys: Record<string, Uint8Array>; // { user_id: clé chiffrée }
   nonce: Uint8Array;
 }> {
-  await initCrypto();
+  const sodium = await getSodium();
 
   // 1. Générer une clé secrète aléatoire pour ce message
   const sessionKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
@@ -74,7 +94,7 @@ export async function decryptMessage(
   recipientPrivateKey: Uint8Array,
   nonce: Uint8Array
 ): Promise<string> {
-  await initCrypto();
+  const sodium = await getSodium();
 
   // 1. Extraire nonce et clé chiffrée
   const asymNonce = encryptedKeyData.slice(0, sodium.crypto_box_NONCEBYTES);
@@ -100,7 +120,7 @@ export async function decryptMessage(
 
 // Chiffrer la clé privée avec le mot de passe utilisateur (pour stockage)
 export async function encryptPrivateKey(privateKey: Uint8Array, password: string): Promise<string> {
-  await initCrypto();
+  const sodium = await getSodium();
   
   // Générer un sel aléatoire
   const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES);
@@ -126,7 +146,7 @@ export async function encryptPrivateKey(privateKey: Uint8Array, password: string
 
 // Déchiffrer la clé privée avec le mot de passe
 export async function decryptPrivateKey(encryptedData: string, password: string): Promise<Uint8Array> {
-  await initCrypto();
+  const sodium = await getSodium();
   
   // Décoder depuis base64
   const data = sodium.from_base64(encryptedData, sodium.base64_variants.ORIGINAL);
@@ -167,14 +187,27 @@ export async function storeEncryptedKeys(userId: string, encryptedPrivateKey: st
     const tx = db.transaction('keys', 'readwrite');
     const store = tx.objectStore('keys');
     
-    store.put({
+    const request = store.put({
       userId,
       encryptedPrivateKey,
       publicKey: Array.from(publicKey)
     });
     
-    tx.oncomplete = () => db.close();
-  };
+    request.onsuccess = () => {
+      tx.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+    };
+
+    request.onerror = () => {
+        db.close();
+        reject(request.error);
+      };
+    };
+    
+    dbReq.onerror = () => reject(dbReq.error);
+  });
 }
 
 // Récupérer les clés
@@ -182,7 +215,7 @@ export async function getStoredKeys(userId: string): Promise<{
   encryptedPrivateKey: string;
   publicKey: Uint8Array;
 } | null> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const dbReq = indexedDB.open('nook_crypto', 1);
     
     dbReq.onsuccess = () => {
@@ -204,10 +237,25 @@ export async function getStoredKeys(userId: string): Promise<{
           publicKey: new Uint8Array(data.publicKey)
         });
       };
+
+      req.onerror = () => reject(req.error);
       
       tx.oncomplete = () => db.close();
     };
     
-    dbReq.onerror = () => resolve(null);
+    dbReq.onerror = () => reject(dbReq.error);
   });
+}
+
+// Fonction d'initialisation globale (à appeler dans +layout.svelte ou au démarrage)
+export async function initCryptoSystem() {
+  try {
+    // S'assurer que sodium est chargé
+    await loadSodium();
+    console.log('✅ Système cryptographique initialisé');
+    return true;
+  } catch (error) {
+    console.error('❌ Erreur initialisation crypto:', error);
+    return false;
+  }
 }
