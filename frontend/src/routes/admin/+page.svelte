@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/authStore';
+  import { authStore, isAdmin } from '$lib/authStore';
   import { get } from 'svelte/store';
 
   let pendingUsers = $state<any[]>([]);
@@ -198,7 +198,7 @@
       <div class="spinner-large"></div>
       <p>Vérification des permissions administrateur...</p>
     </div>
-  {:else if !authChecked || !$authStore.isAdmin}
+  {:else if !$isAdmin}
     <div class="not-authorized">
       <h2>Accès non autorisé</h2>
       <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
