@@ -315,11 +315,11 @@ pub async fn change_password(
 
     // Hasher le nouveau mot de passe
     let hashed = hash_password(&payload.new_password);
-
+    
     // GÉNÉRER UN NOUVEAU TOKEN pour la session
     let new_token = Uuid::new_v4().to_string();
 
-    // Mettre à jour dans la DB
+    // Mettre à jour dans la DB: mot de passe ET token
     let result = sqlx::query::<sqlx::Sqlite>(
         "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?"
     )
@@ -330,7 +330,7 @@ pub async fn change_password(
     .await;
 
     match result {
-        Ok(_) => (
+        Ok(_) => {
             // Mettre à jour le cookie avec le nouveau token
             let mut response = (
                 StatusCode::OK,
@@ -345,10 +345,12 @@ pub async fn change_password(
             );
             response
         },
-        Err(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"success": false, "message": "Erreur DB"}))
-        ).into_response(),
+        Err(_) => {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"success": false, "message": "Erreur DB"}))
+            ).into_response()
+        }
     }
 }
 
