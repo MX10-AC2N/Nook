@@ -186,6 +186,8 @@
   function isExpired(invite: any): boolean {
     return Date.now() / 1000 > invite.expires_at;
   }
+
+  let adminStatus = $derived($isAdmin);
 </script>
 
 <svelte:head>
@@ -198,7 +200,7 @@
       <div class="spinner-large"></div>
       <p>Vérification des permissions administrateur...</p>
     </div>
-  {:else if !$isAdmin}
+  {:else if !adminStatus}
     <div class="not-authorized">
       <h2>Accès non autorisé</h2>
       <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
