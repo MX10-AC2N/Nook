@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-       assetsInclude: ['**/*.svg'],
+  assetsInclude: ['**/*.svg'],
 build: {
 		rollupOptions: {
 			external: ['libsodium-wrappers-sumo']
