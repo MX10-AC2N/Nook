@@ -1,0 +1,25 @@
+/* Import du système de design de base */
+@import './lib/ui/themes/themes.css';
+
+/* Import des 3 thèmes */
+@import './lib/ui/themes/jardin.css';
+@import './lib/ui/themes/space.css';
+@import './lib/ui/themes/maison.css';
+
+/* Reset global */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow-x: hidden;
+}
+
+/* Application du thème par défaut au body */
+body {
+  font-family: var(--font-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
