@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { isAdmin, authLoading, initAuth } from '$lib/authStore';
+  import { get } from 'svelte/store';
 
   let pendingUsers = $state<any[]>([]);
   let allUsers = $state<any[]>([]);
@@ -13,16 +14,32 @@
 
   // Guard admin
   onMount(async () => {
+    // 1. Initialiser l'authentification
     await initAuth();
-    if ($authLoading) return;
-
-    if (!$isAdmin) {
+    
+    // 2. Attendre que le chargement soit terminé
+    if (get(authLoading)) {
+      // Petite pause pour laisser initAuth terminer
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // 3. Vérifier si l'utilisateur est admin en lisant le store
+    if (!get(isAdmin)) {
+      console.log('Utilisateur non admin, redirection vers /chat');
       goto('/chat');
       return;
     }
-
-    await Promise.all([loadUsers(), loadInvites()]);
-    loading = false;
+    
+    console.log('Utilisateur admin, chargement des données...');
+    
+    // 4. Charger les données admin
+    try {
+      await Promise.all([loadUsers(), loadInvites()]);
+      loading = false;
+    } catch (error) {
+      console.error('Erreur chargement données admin:', error);
+      loading = false;
+    }
   });
 
   async function loadUsers() {
@@ -148,8 +165,24 @@
 <div class="admin-container">
   <div class="admin-header">
     <h1>👑 Administration</h1>
+    <!-- Ajout d'un indicateur de statut -->
+    <div class="auth-status">
+      {#if $authLoading}
+        <span class="loading-badge">Chargement auth...</span>
+      {:else if $isAdmin}
+        <span class="admin-badge">Connecté en tant qu'admin</span>
+      {:else}
+        <span class="guest-badge">Non autorisé</span>
+      {/if}
+    </div>
     <p>Gérez les membres et les invitations de votre espace familial</p>
   </div>
+
+  <!-- NE MONTRER LE CONTENU ADMIN QUE SI L'UTILISATEUR EST ADMIN ET PAS EN TRAIN DE CHARGER -->
+  {#if !$authLoading && $isAdmin}
+    {#if loading}
+      <div class="loading-message">Chargement des données d'administration...</div>
+    {:else}
 
   <div class="admin-actions">
     <button class="invite-btn" on:click={generateInvite} disabled={generatingInvite}>
