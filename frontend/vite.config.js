@@ -46,11 +46,7 @@ server: {
 		}
 	}
 },
-  resolve: {
-    alias: {
-      'libsodium-wrappers-sumo': 'libsodium-wrappers-sumo/dist/modules-sumo/libsodium-wrappers.js'
-    }
-  },
+
   define: {
     // Pour éviter les erreurs de variables non définies
     'import.meta.vitest': 'undefined'
