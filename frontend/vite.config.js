@@ -21,10 +21,10 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    // Suppression de l'exclude qui empêchait le pre-bundle
+    // SUPPRIME CETTE LIGNE : elle empêche Vite de pré-bundler le package → cause l'erreur de résolution
     // exclude: ['libsodium-wrappers-sumo'],
 
-    // Ajout de l'include pour forcer Vite à pre-bundle ce package (fix le bug de résolution interne)
+    // AJOUTE libsodium-wrappers-sumo pour forcer le pre-bundle → fix le bug interne du package
     include: ['libsodium-wrappers-sumo', 'svelte', 'svelte/internal', '@sveltejs/kit']
   },
   server: {
