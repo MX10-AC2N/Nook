@@ -5,24 +5,19 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [sveltekit()],
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
-  build: {
-    commonjsOptions: {
-      include: [/libsodium/, /node_modules/],
-      transformMixedEsModules: true
-    },
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes('libsodium-wrappers')) {
-            return 'libsodium';
-          }
-        }
-      }
+  resolve: {
+    alias: {
+      // Fix le bug de résolution interne de libsodium-wrappers en forçant l'entry CJS (compatible ESM via Vite)
+      'libsodium-wrappers': 'libsodium-wrappers/dist/modules/libsodium-wrappers.js'
     }
   },
   optimizeDeps: {
-    // Force Vite à pré-bundler libsodium-wrappers (fix le bug de résolution interne ESM en build CI)
-    include: ['libsodium-wrappers', 'svelte', 'svelte/internal', '@sveltejs/kit']
+    include: ['libsodium-wrappers']
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
   },
   server: {
     port: 5173,
