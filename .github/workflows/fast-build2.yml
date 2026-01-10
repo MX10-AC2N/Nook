@@ -238,8 +238,8 @@ jobs:
           rm -f package-lock.json
           rm -rf node_modules
           
-          # NE PAS nettoyer le cache (peut causer des problèmes)
-          # npm cache clean --force
+          # NE PAS ?? nettoyer le cache (peut causer des problèmes)
+          npm cache clean --force
           
           # Générer avec la version npm ACTUELLE (10.x)
           npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps
@@ -292,7 +292,7 @@ jobs:
         run: |
           echo "🔄 Installation des dépendances..."
           echo "📦 NPM version: $(npm --version)"
-          npm ci --no-audit --no-fund
+          npm ci --no-audit --no-fund --legacy-peer-deps
           echo "✅ Dépendances installées"
 
       - name: Vérifier dépendances critiques
