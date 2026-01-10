@@ -7,9 +7,9 @@ export default defineConfig({
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
   resolve: {
     alias: {
-      // Fix définitif pour le bug de résolution interne ESM de libsodium-wrappers
-      // Pointe vers le bundle browser combiné (stable, pas de imports cassés)
-      'libsodium-wrappers': 'libsodium-wrappers/dist/browsers/combined/libsodium.js'
+      // Fix définitif pour libsodium-wrappers standard en Vite/Rollup CI
+      // Pointe vers le bundle browser unique et stable (pas d'imports internes cassés)
+      'libsodium-wrappers': 'libsodium-wrappers/dist/browsers/libsodium.js'
     }
   },
   optimizeDeps: {
