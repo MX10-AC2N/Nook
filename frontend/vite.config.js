@@ -7,13 +7,18 @@ export default defineConfig({
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
   resolve: {
     alias: {
-      // Fix définitif pour libsodium-wrappers standard en Vite/Rollup CI
-      // Pointe vers l'entry ESM principal (existe et est stable, pas d'imports internes cassés)
-      'libsodium-wrappers': 'libsodium-wrappers/dist/modules-esm/libsodium-wrappers.mjs'
+      // Fix pour libsodium-wrappers standard en Vite/Rollup CI
+      // Pointe vers l'entry CJS stable (évite les imports ESM internes cassés)
+      'libsodium-wrappers': 'libsodium-wrappers/dist/modules/libsodium.js'
     }
   },
   optimizeDeps: {
     include: ['libsodium-wrappers']
+  },
+  build: {
+    commonjsOptions: {
+      transformMixedEsModules: true  // Gère CJS in ESM context
+    }
   },
   server: {
     port: 5173,
