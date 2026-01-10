@@ -1,4 +1,4 @@
-name: 🚀 Fast Build & Push 2 (Manual)
+@name: 🚀 Fast Build & Push 2 (Manual)
 on:
   workflow_dispatch: # Déclenchement manuel uniquement
   push:
@@ -228,8 +228,24 @@ jobs:
         if: steps.check-package.outputs.needs_generation == 'true'
         run: |
           echo "🔄 Génération du package-lock.json..."
+          
+          # Supprimer l'ancien lock s'il existe
+          rm -f package-lock.json
+          
+          # Nettoyer le cache npm
+          npm cache clean --force 2>/dev/null || true
+          
+          # Générer un nouveau lock file
           npm install --package-lock-only --no-audit --no-fund
-          echo "✅ package-lock.json généré/mis à jour"
+          
+          # Vérifier que le fichier a bien été créé
+          if [ ! -f "package-lock.json" ]; then
+            echo "❌ Échec de génération du package-lock.json"
+            exit 1
+          fi
+          
+          echo "✅ package-lock.json généré avec succès"
+          ls -lh package-lock.json
 
       - name: 💾 Commit automatique de package-lock.json
         if: steps.check-package.outputs.needs_generation == 'true'
@@ -240,11 +256,16 @@ jobs:
           cd ..
           
           # Vérifier s'il y a des changements
-          if git diff --quiet frontend/package-lock.json; then
-            echo "✅ Aucun changement dans package-lock.json"
+          if git diff --quiet frontend/package-lock.json && git diff --cached --quiet frontend/package-lock.json; then
+            echo "⚠️ Aucun changement dans package-lock.json (fichier identique au précédent)"
           else
             echo "📝 Changements détectés dans package-lock.json"
             git add frontend/package-lock.json
+            
+            # Afficher les différences
+            echo "📊 Différences:"
+            git diff --cached --stat frontend/package-lock.json || true
+            
             git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
             echo "✅ package-lock.json commité"
           fi
@@ -253,28 +274,21 @@ jobs:
         if: steps.check-package.outputs.needs_generation == 'true'
         run: |
           cd ..
-          git push origin HEAD:${{ github.ref_name }} || echo "⚠️ Push échoué (peut-être aucun changement)"
-
-#     - name: Cache npm dependencies
-#       uses: actions/cache@v4
-#       id: npm-cache
-#       with:
-#         path: |
-#           node_modules
-#           ~/.npm
-#         key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-#         restore-keys: |
-#           ${{ runner.os }}-node-
-
-      - name: Installer dépendances
-        run: |
-          if [ "${{ steps.npm-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "🔄 Cache raté, installation des dépendances npm..."
-            npm ci --no-audit --no-fund
-            echo "✅ Dépendances installées"
+          
+          # Vérifier s'il y a des commits à pousser
+          if git diff origin/${{ github.ref_name }} --quiet; then
+            echo "⚠️ Aucun commit à pousser"
           else
-            echo "✅ Dépendances récupérées depuis le cache"
+            echo "📤 Push du commit..."
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Changements poussés avec succès"
           fi
+
+      - name: 📥 Installer dépendances
+        run: |
+          echo "🔄 Installation des dépendances npm..."
+          npm ci --no-audit --no-fund
+          echo "✅ Dépendances installées"
 
       - name: Vérifier dépendances critiques (SvelteKit)
         run: |
