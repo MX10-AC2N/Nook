@@ -1,24 +1,33 @@
-// frontend/vite.config.js
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [sveltekit()],
   assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
-  resolve: {
-    alias: {
-      // Fix pour libsodium-wrappers standard en Vite/Rollup CI
-      // Pointe vers l'entry CJS stable (évite les imports ESM internes cassés)
-      'libsodium-wrappers': 'libsodium-wrappers/dist/modules/libsodium.js'
-    }
-  },
-  optimizeDeps: {
-    include: ['libsodium-wrappers']
-  },
   build: {
     commonjsOptions: {
-      transformMixedEsModules: true  // Gère CJS in ESM context
-    }
+      include: [/libsodium/, /node_modules/],
+      transformMixedEsModules: true,
+      ignoreDynamicRequires: true
+    },
+    rollupOptions: {
+      external: [],
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/libsodium')) {
+            return 'libsodium';
+          }
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        }
+      }
+    },
+    target: 'es2020'
+  },
+  optimizeDeps: {
+    exclude: ['libsodium-wrappers'],
+    include: ['svelte', 'svelte/internal', '@sveltejs/kit']
   },
   server: {
     port: 5173,
@@ -26,7 +35,7 @@ export default defineConfig({
     host: true,
     fs: {
       strict: false,
-      allow: ['..']
+      allow: ['..', '.']
     },
     proxy: {
       '/api': {
@@ -41,7 +50,18 @@ export default defineConfig({
       }
     }
   },
+  resolve: {
+    extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
+    alias: {
+      // Chemin correct pour libsodium dans GitHub Actions
+      'libsodium-wrappers': 'libsodium-wrappers/dist/modules/index.js'
+    }
+  },
   define: {
-    'import.meta.vitest': 'undefined'
+    'import.meta.vitest': 'undefined',
+    global: 'globalThis'
+  },
+  esbuild: {
+    legalComments: 'inline'
   }
 });
