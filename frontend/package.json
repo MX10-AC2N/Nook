@@ -12,8 +12,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "clean": "rm -rf .svelte-kit build node_modules/.vite",
-    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force",
-    "postinstall": "svelte-kit sync"
+    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.2.5",
