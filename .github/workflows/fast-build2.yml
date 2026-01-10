@@ -185,6 +185,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -200,19 +201,59 @@ jobs:
           fi
           echo "✅ Dossier frontend trouvé"
 
-      - name: Installer npm globalement (si nécessaire)
+      - name: 🔍 Vérifier état de package.json et package-lock.json
+        id: check-package
         run: |
-          npm install -g npm@latest || true
-
-      - name: Générer package-lock.json si absent
-        run: |
+          # Vérifier si package-lock.json existe
           if [ ! -f "package-lock.json" ]; then
-            echo "🔄 Génération du package-lock.json..."
-            npm install --package-lock-only --no-audit --no-fund
-            echo "✅ package-lock.json généré"
+            echo "lock_exists=false" >> $GITHUB_OUTPUT
+            echo "needs_generation=true" >> $GITHUB_OUTPUT
+            echo "⚠️ package-lock.json manquant"
           else
-            echo "✅ package-lock.json déjà présent"
+            echo "lock_exists=true" >> $GITHUB_OUTPUT
+            
+            # Vérifier si package.json a été modifié dans le dernier commit
+            cd ..
+            if git diff HEAD~1 HEAD --name-only | grep -q "^frontend/package.json$"; then
+              echo "needs_generation=true" >> $GITHUB_OUTPUT
+              echo "📝 package.json a été modifié, régénération du lock nécessaire"
+            else
+              echo "needs_generation=false" >> $GITHUB_OUTPUT
+              echo "✅ package.json inchangé"
+            fi
+            cd frontend
           fi
+
+      - name: 🔄 Générer/Mettre à jour package-lock.json
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          echo "🔄 Génération du package-lock.json..."
+          npm install --package-lock-only --no-audit --no-fund
+          echo "✅ package-lock.json généré/mis à jour"
+
+      - name: 💾 Commit automatique de package-lock.json
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          cd ..
+          
+          # Vérifier s'il y a des changements
+          if git diff --quiet frontend/package-lock.json; then
+            echo "✅ Aucun changement dans package-lock.json"
+          else
+            echo "📝 Changements détectés dans package-lock.json"
+            git add frontend/package-lock.json
+            git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+            echo "✅ package-lock.json commité"
+          fi
+
+      - name: 📤 Pousser les changements
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          cd ..
+          git push origin HEAD:${{ github.ref_name }} || echo "⚠️ Push échoué (peut-être aucun changement)"
 
 #     - name: Cache npm dependencies
 #       uses: actions/cache@v4
