@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "chart.js": "^4.4.0",
-    "libsodium-wrappers": "^0.7.15",  // ← Remplacé sumo par standard
+    "libsodium-wrappers": "^0.7.15",
     "simple-peer": "^9.11.1",
     "uuid": "^9.0.1"
   }
