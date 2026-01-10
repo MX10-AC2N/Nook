@@ -248,30 +248,30 @@ jobs:
           ls -lh package-lock.json
 
       - name: 💾 Commit automatique de package-lock.json
-  if: steps.check-package.outputs.needs_generation == 'true'
-  run: |
-    git config --local user.email "github-actions[bot]@users.noreply.github.com"
-    git config --local user.name "github-actions[bot]"
+          if: steps.check-package.outputs.needs_generation == 'true'
+          run: |
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
     
-    cd ..
+            cd ..
     
     # Ajouter le fichier (qu'il soit nouveau ou modifié)
-    git add frontend/package-lock.json
+            git add frontend/package-lock.json
     
     # Vérifier s'il y a quelque chose à commiter
-    if git diff --staged --quiet; then
-      echo "⚠️ Aucun changement à commiter (le fichier est identique)"
-    else
-      echo "📝 Changements détectés dans package-lock.json"
+            if git diff --staged --quiet; then
+              echo "⚠️ Aucun changement à commiter (le fichier est identique)"
+            else
+              echo "📝 Changements détectés dans package-lock.json"
       
       # Afficher les stats
-      echo "📊 Statistiques du fichier:"
-      git diff --staged --stat frontend/package-lock.json
+              echo "📊 Statistiques du fichier:"
+              git diff --staged --stat frontend/package-lock.json
       
       # Commiter
-      git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
-      echo "✅ package-lock.json commité"
-    fi
+              git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+              echo "✅ package-lock.json commité"
+            fi
 
       - name: 📤 Pousser les changements
         if: steps.check-package.outputs.needs_generation == 'true'
