@@ -201,10 +201,15 @@ jobs:
           fi
           echo "✅ Dossier frontend trouvé"
 
+      - name: 🔍 Afficher versions npm/node
+        run: |
+          echo "📦 Node: $(node --version)"
+          echo "📦 NPM: $(npm --version)"
+          echo "⚠️ N'upgrader PAS npm pour garder la compatibilité avec npm ci"
+
       - name: 🔍 Vérifier état de package.json et package-lock.json
         id: check-package
         run: |
-          # Vérifier si package-lock.json existe
           if [ ! -f "package-lock.json" ]; then
             echo "lock_exists=false" >> $GITHUB_OUTPUT
             echo "needs_generation=true" >> $GITHUB_OUTPUT
@@ -212,11 +217,10 @@ jobs:
           else
             echo "lock_exists=true" >> $GITHUB_OUTPUT
             
-            # Vérifier si package.json a été modifié dans le dernier commit
             cd ..
             if git diff HEAD~1 HEAD --name-only | grep -q "^frontend/package.json$"; then
               echo "needs_generation=true" >> $GITHUB_OUTPUT
-              echo "📝 package.json a été modifié, régénération du lock nécessaire"
+              echo "📝 package.json modifié"
             else
               echo "needs_generation=false" >> $GITHUB_OUTPUT
               echo "✅ package.json inchangé"
@@ -228,24 +232,25 @@ jobs:
         if: steps.check-package.outputs.needs_generation == 'true'
         run: |
           echo "🔄 Génération du package-lock.json..."
+          echo "📦 NPM utilisé: $(npm --version)"
           
-          # Supprimer l'ancien lock s'il existe
+          # Supprimer l'ancien lock
           rm -f package-lock.json
           
-          # Nettoyer le cache npm
-          npm cache clean --force 2>/dev/null || true
+          # NE PAS nettoyer le cache (peut causer des problèmes)
+          # npm cache clean --force
           
-          # Générer un nouveau lock file
+          # Générer avec la version npm ACTUELLE (10.x)
           npm install --package-lock-only --no-audit --no-fund
           
-          # Vérifier que le fichier a bien été créé
+          # Vérifier création
           if [ ! -f "package-lock.json" ]; then
-            echo "❌ Échec de génération du package-lock.json"
+            echo "❌ Échec de génération"
             exit 1
           fi
           
-          echo "✅ package-lock.json généré avec succès"
-          ls -lh package-lock.json
+          echo "✅ package-lock.json généré"
+          echo "📊 Taille: $(ls -lh package-lock.json | awk '{print $5}')"
 
       - name: 💾 Commit automatique de package-lock.json
         if: steps.check-package.outputs.needs_generation == 'true'
@@ -255,22 +260,15 @@ jobs:
           
           cd ..
           
-          # Ajouter le fichier au staging (nouveau ou modifié)
           git add frontend/package-lock.json
           
-          # Vérifier s'il y a des changements dans le staging
           if git diff --staged --quiet; then
-            echo "⚠️ Aucun changement à commiter (fichier identique ou inexistant)"
+            echo "⚠️ Aucun changement"
           else
-            echo "📝 Nouveau fichier ou modifications détectées"
-            
-            # Afficher les stats
-            echo "📊 Statistiques:"
+            echo "📝 Changements détectés"
             git diff --staged --stat frontend/package-lock.json || true
-            
-            # Commiter
             git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
-            echo "✅ package-lock.json commité"
+            echo "✅ Commité"
           fi
 
       - name: 📤 Pousser les changements
@@ -278,7 +276,6 @@ jobs:
         run: |
           cd ..
           
-          # Vérifier s'il y a des commits à pousser
           COMMITS_TO_PUSH=$(git rev-list @{u}..HEAD 2>/dev/null | wc -l || echo "0")
           
           if [ "$COMMITS_TO_PUSH" -eq 0 ]; then
@@ -286,16 +283,17 @@ jobs:
           else
             echo "📤 Push de $COMMITS_TO_PUSH commit(s)..."
             git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Changements poussés avec succès"
+            echo "✅ Poussé"
           fi
 
       - name: 📥 Installer dépendances
         run: |
-          echo "🔄 Installation des dépendances npm..."
+          echo "🔄 Installation des dépendances..."
+          echo "📦 NPM version: $(npm --version)"
           npm ci --no-audit --no-fund
           echo "✅ Dépendances installées"
 
-      - name: Vérifier dépendances critiques (SvelteKit)
+      - name: Vérifier dépendances critiques
         run: |
           REQUIRED_DEPS=(
             "svelte"
@@ -307,10 +305,10 @@ jobs:
           MISSING_DEPS=()
           for dep in "${REQUIRED_DEPS[@]}"; do
             if ! npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
-              echo "⚠️ Dépendance manquante: $dep"
+              echo "⚠️ Manquant: $dep"
               MISSING_DEPS+=("$dep")
             else
-              echo "✅ $dep installé"
+              echo "✅ $dep"
             fi
           done
           if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
@@ -320,45 +318,44 @@ jobs:
 
       - name: Build
         run: |
-          echo "🔄 Build du frontend..."
+          echo "🔄 Build..."
           npm run build
-          echo "✅ Build frontend terminé"
+          echo "✅ Build OK"
 
-      - name: Vérifier build/ (Structure SvelteKit)
+      - name: Vérifier build/
         run: |
           BUILD_DIR="build"
           if [ ! -d "$BUILD_DIR" ]; then
-            echo "❌ Dossier $BUILD_DIR absent"
+            echo "❌ $BUILD_DIR absent"
             exit 1
           fi
-          REQUIRED_FILES=(
-            "index.html"
-          )
+          
+          REQUIRED_FILES=("index.html")
           MISSING_FILES=()
-          echo "📁 Contenu du dossier build:"
+          
+          echo "📁 Contenu:"
           ls -la "$BUILD_DIR/"
           
           for file in "${REQUIRED_FILES[@]}"; do
             if [ ! -f "$BUILD_DIR/$file" ]; then
-              echo "❌ Fichier manquant: $BUILD_DIR/$file"
+              echo "❌ Manquant: $file"
               MISSING_FILES+=("$file")
             else
-              echo "✅ $file présent"
+              echo "✅ $file"
             fi
           done
           
           if [ ! -d "$BUILD_DIR/_app" ]; then
-            echo "⚠️ Dossier _app absent"
+            echo "⚠️ _app absent"
           else
-            echo "✅ Dossier _app présent"
-            ls -la "$BUILD_DIR/_app/"
+            echo "✅ _app présent"
           fi
           
           if [ ${#MISSING_FILES[@]} -gt 0 ]; then
             echo "❌ Fichiers manquants: ${MISSING_FILES[*]}"
             exit 1
           fi
-          echo "✅ Dossier $BUILD_DIR OK"
+          echo "✅ Build OK"
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
