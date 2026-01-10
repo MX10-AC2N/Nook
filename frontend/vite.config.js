@@ -8,8 +8,8 @@ export default defineConfig({
   resolve: {
     alias: {
       // Fix définitif pour libsodium-wrappers standard en Vite/Rollup CI
-      // Pointe vers le bundle browser unique et stable (pas d'imports internes cassés)
-      'libsodium-wrappers': 'libsodium-wrappers/dist/browsers/libsodium.js'
+      // Pointe vers l'entry ESM principal (existe et est stable, pas d'imports internes cassés)
+      'libsodium-wrappers': 'libsodium-wrappers/dist/modules-esm/libsodium-wrappers.mjs'
     }
   },
   optimizeDeps: {
