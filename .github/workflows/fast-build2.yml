@@ -248,27 +248,30 @@ jobs:
           ls -lh package-lock.json
 
       - name: 💾 Commit automatique de package-lock.json
-        if: steps.check-package.outputs.needs_generation == 'true'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          cd ..
-          
-          # Vérifier s'il y a des changements
-          if git diff --quiet frontend/package-lock.json && git diff --cached --quiet frontend/package-lock.json; then
-            echo "⚠️ Aucun changement dans package-lock.json (fichier identique au précédent)"
-          else
-            echo "📝 Changements détectés dans package-lock.json"
-            git add frontend/package-lock.json
-            
-            # Afficher les différences
-            echo "📊 Différences:"
-            git diff --cached --stat frontend/package-lock.json || true
-            
-            git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
-            echo "✅ package-lock.json commité"
-          fi
+  if: steps.check-package.outputs.needs_generation == 'true'
+  run: |
+    git config --local user.email "github-actions[bot]@users.noreply.github.com"
+    git config --local user.name "github-actions[bot]"
+    
+    cd ..
+    
+    # Ajouter le fichier (qu'il soit nouveau ou modifié)
+    git add frontend/package-lock.json
+    
+    # Vérifier s'il y a quelque chose à commiter
+    if git diff --staged --quiet; then
+      echo "⚠️ Aucun changement à commiter (le fichier est identique)"
+    else
+      echo "📝 Changements détectés dans package-lock.json"
+      
+      # Afficher les stats
+      echo "📊 Statistiques du fichier:"
+      git diff --staged --stat frontend/package-lock.json
+      
+      # Commiter
+      git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+      echo "✅ package-lock.json commité"
+    fi
 
       - name: 📤 Pousser les changements
         if: steps.check-package.outputs.needs_generation == 'true'
