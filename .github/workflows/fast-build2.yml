@@ -248,30 +248,30 @@ jobs:
           ls -lh package-lock.json
 
       - name: 💾 Commit automatique de package-lock.json
-          if: steps.check-package.outputs.needs_generation == 'true'
-          run: |
-            git config --local user.email "github-actions[bot]@users.noreply.github.com"
-            git config --local user.name "github-actions[bot]"
-    
-            cd ..
-    
-    # Ajouter le fichier (qu'il soit nouveau ou modifié)
-            git add frontend/package-lock.json
-    
-    # Vérifier s'il y a quelque chose à commiter
-            if git diff --staged --quiet; then
-              echo "⚠️ Aucun changement à commiter (le fichier est identique)"
-            else
-              echo "📝 Changements détectés dans package-lock.json"
-      
-      # Afficher les stats
-              echo "📊 Statistiques du fichier:"
-              git diff --staged --stat frontend/package-lock.json
-      
-      # Commiter
-              git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
-              echo "✅ package-lock.json commité"
-            fi
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          cd ..
+          
+          # Ajouter le fichier au staging (nouveau ou modifié)
+          git add frontend/package-lock.json
+          
+          # Vérifier s'il y a des changements dans le staging
+          if git diff --staged --quiet; then
+            echo "⚠️ Aucun changement à commiter (fichier identique ou inexistant)"
+          else
+            echo "📝 Nouveau fichier ou modifications détectées"
+            
+            # Afficher les stats
+            echo "📊 Statistiques:"
+            git diff --staged --stat frontend/package-lock.json || true
+            
+            # Commiter
+            git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+            echo "✅ package-lock.json commité"
+          fi
 
       - name: 📤 Pousser les changements
         if: steps.check-package.outputs.needs_generation == 'true'
@@ -279,10 +279,12 @@ jobs:
           cd ..
           
           # Vérifier s'il y a des commits à pousser
-          if git diff origin/${{ github.ref_name }} --quiet; then
+          COMMITS_TO_PUSH=$(git rev-list @{u}..HEAD 2>/dev/null | wc -l || echo "0")
+          
+          if [ "$COMMITS_TO_PUSH" -eq 0 ]; then
             echo "⚠️ Aucun commit à pousser"
           else
-            echo "📤 Push du commit..."
+            echo "📤 Push de $COMMITS_TO_PUSH commit(s)..."
             git push origin HEAD:${{ github.ref_name }}
             echo "✅ Changements poussés avec succès"
           fi
@@ -329,7 +331,6 @@ jobs:
             echo "❌ Dossier $BUILD_DIR absent"
             exit 1
           fi
-          # Vérifier les fichiers essentiels pour SvelteKit SPA
           REQUIRED_FILES=(
             "index.html"
           )
@@ -346,20 +347,18 @@ jobs:
             fi
           done
           
-          # Vérifier que le dossier _app existe (contenu compilé)
           if [ ! -d "$BUILD_DIR/_app" ]; then
-            echo "⚠️ Dossier _app absent - le build SvelteKit peut être différent"
+            echo "⚠️ Dossier _app absent"
           else
             echo "✅ Dossier _app présent"
-            echo "📁 Contenu de _app:"
             ls -la "$BUILD_DIR/_app/"
           fi
           
           if [ ${#MISSING_FILES[@]} -gt 0 ]; then
-            echo "❌ Fichiers manquants dans le build: ${MISSING_FILES[*]}"
+            echo "❌ Fichiers manquants: ${MISSING_FILES[*]}"
             exit 1
           fi
-          echo "✅ Dossier $BUILD_DIR OK (Structure SvelteKit)"
+          echo "✅ Dossier $BUILD_DIR OK"
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
