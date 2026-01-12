@@ -1,18 +1,26 @@
-// frontend/src/lib/types.ts
+// src/lib/types.ts
 
-// Types pour les utilisateurs
+/*=====================================================================
+  USER & PARTICIPANT
+=====================================================================*/
+/**
+ * Représente un utilisateur enregistré dans la base.
+ */
 export interface User {
   id: string;
   name: string;
   username: string;
   role: 'admin' | 'member';
   approved: boolean;
-  createdAt: number;
-  publicKey?: string;
-  privateKeyEncrypted?: string;
+  createdAt: number;               // timestamp (seconds depuis epoch)
+  publicKey?: string;              // clé publique (base64 ou hex)
+  privateKeyEncrypted?: string;    // clé privée chiffrée (base64)
 }
 
-// Types pour les conversations
+/**
+ * Participant d’une conversation (peut être le même type que `User` mais
+ * on le garde séparé pour éviter les dépendances circulaires).
+ */
 export interface Participant {
   id: string;
   name: string;
@@ -22,6 +30,9 @@ export interface Participant {
   publicKey?: string;
 }
 
+/*=====================================================================
+  CONVERSATION
+=====================================================================*/
 export interface Conversation {
   id: string;
   name: string | null;
@@ -33,32 +44,43 @@ export interface Conversation {
   participants: Participant[];
 }
 
-// Types pour les messages
+/*=====================================================================
+  MESSAGE & REACTION
+=====================================================================*/
 export interface Reaction {
+  /** emoji → nombre d’occurrences */
   [emoji: string]: number;
 }
 
+/**
+ * Message stocké côté serveur (chiffré si besoin).
+ */
 export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
   sender_name: string;
-  content: string;
-  encrypted_keys: Record<string, Uint8Array>;
-  nonce: string;
+  content: string;                                 // texte brut (chiffré côté client)
+  encrypted_keys: Record<string, Uint8Array>;       // { recipientId: nonce+encryptedKey }
+  nonce: string;                                   // base64 (nonce symétrique)
   media_type: 'text' | 'gif' | 'audio' | 'video' | null;
   media_url: string | null;
-  duration: number | null;
-  timestamp: number;
+  duration: number | null;                         // en secondes (audio/video)
+  timestamp: number;                               // epoch seconds
   reactions: Reaction;
 }
 
+/**
+ * Message déchiffré côté client (extension de `Message`).
+ */
 export interface DecryptedMessage extends Message {
   decryptedContent: string;
   decryptedMediaUrl?: string;
 }
 
-// Types pour le chiffrement
+/*=====================================================================
+  ENCRYPTION HELPERS
+=====================================================================*/
 export interface EncryptedData {
   ciphertext: Uint8Array;
   nonce: Uint8Array;
@@ -70,10 +92,13 @@ export interface KeyPair {
   privateKey: Uint8Array;
 }
 
-// Types pour WebRTC
+/*=====================================================================
+  WEBRTC SIGNALING & STATE
+=====================================================================*/
 export interface CallSignal {
   conversationId: string;
   from_user_id: string;
+  /** `null` → appel broadcast (ex. appel de groupe) */
   to_user_id: string | null;
   type: 'offer' | 'answer' | 'ice' | 'join' | 'leave' | 'decline';
   sdp: string | null;
@@ -81,6 +106,9 @@ export interface CallSignal {
   timestamp: number;
 }
 
+/**
+ * État complet d’un appel WebRTC.
+ */
 export interface CallState {
   isCalling: boolean;
   isAnswering: boolean;
@@ -95,13 +123,17 @@ export interface CallState {
   isVideoOff: boolean;
 }
 
-// Types pour le stockage
+/*=====================================================================
+  STORED KEYS (IndexedDB)
+=====================================================================*/
 export interface StoredKeys {
-  encryptedPrivateKey: string;
+  encryptedPrivateKey: string;   // base64
   publicKey: Uint8Array;
 }
 
-// Types pour les stores Svelte
+/*=====================================================================
+  AUTH STORE STATE
+=====================================================================*/
 export interface AuthState {
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -109,6 +141,9 @@ export interface AuthState {
   loading: boolean;
 }
 
+/*=====================================================================
+  THEME STORE STATE
+=====================================================================*/
 export interface ThemeState {
   currentTheme: 'jardin-secret' | 'space-hub' | 'maison-chaleureuse';
   themes: {
@@ -118,20 +153,25 @@ export interface ThemeState {
   };
 }
 
+/*=====================================================================
+  CONNECTION ERROR
+=====================================================================*/
 export interface ConnectionError {
   message: string;
   timestamp: number;
 }
 
-// Types pour les médias
+/*=====================================================================
+  MEDIA RECORDING & UPLOAD
+=====================================================================*/
 export interface RecordingState {
   isRecording: boolean;
   mediaType: 'audio' | 'video' | null;
   stream: MediaStream | null;
   recorder: MediaRecorder | null;
   chunks: Blob[];
-  duration: number;
-  startTime: number;
+  duration: number;   // en secondes
+  startTime: number;  // epoch ms
 }
 
 export interface MediaUpload {
@@ -143,11 +183,13 @@ export interface MediaUpload {
   recipientPublicKeys: Uint8Array[];
   senderPrivateKey: Uint8Array;
   status: 'pending' | 'uploading' | 'success' | 'error';
-  progress: number;
+  progress: number;   // 0‑100
   error?: string;
 }
 
-// Types pour les API responses
+/*=====================================================================
+  API RESPONSE WRAPPERS
+=====================================================================*/
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -169,91 +211,4 @@ export interface ConversationResponse {
 
 export interface MessageResponse {
   success: boolean;
-  message?: Message;
-  error?: string;
-}
-
-// Types utilitaires
-export type DeepPartial<T> = {
-  [P in keyof T]?: DeepPartial<T[P]>;
-};
-
-export type WritableDeep<T> = {
-  [P in keyof T]: T[P] extends object ? WritableDeep<T[P]> : T[P];
-};
-
-export type ThemeVariables = {
-  [key: string]: string;
-};
-
-// Constantes
-export const MAX_FILE_SIZE = 50 * 1024 * 1024;
-export const MAX_DURATION = 60 * 10;
-export const MAX_PARTICIPANTS = 6;
-
-// Enums pour les états
-export enum CallStatus {
-  IDLE = 'idle',
-  CALLING = 'calling',
-  IN_CALL = 'in_call',
-  ANSWERING = 'answering',
-  ERROR = 'error'
-}
-
-export enum MessageType {
-  TEXT = 'text',
-  GIF = 'gif',
-  AUDIO = 'audio',
-  VIDEO = 'video',
-  REACTION = 'reaction'
-}
-
-export enum ThemeName {
-  JARDIN_SECRET = 'jardin-secret',
-  SPACE_HUB = 'space-hub',
-  MAISON_CHALEUREUSE = 'maison-chaleureuse'
-}
-
-// Types pour les événements personnalisés
-export interface CustomEventMap {
-  'incoming-call': CustomEvent<{ from_user_id: string; conversation_id: string; }>;
-  'message-sent': CustomEvent;
-  'message-received': CustomEvent;
-  'call-ended': CustomEvent;
-  'theme-changed': CustomEvent<{ theme: ThemeName; variables: ThemeVariables; }>;
-}
-
-// Extension de Window pour les événements personnalisés
-declare global {
-  interface WindowEventMap extends CustomEventMap {}
-}
-
-// Export par défaut pour la compatibilité
-export default {
-  User,
-  Participant,
-  Conversation,
-  Message,
-  Reaction,
-  DecryptedMessage,
-  EncryptedData,
-  KeyPair,
-  CallSignal,
-  CallState,
-  StoredKeys,
-  AuthState,
-  ThemeState,
-  ConnectionError,
-  RecordingState,
-  MediaUpload,
-  ApiResponse,
-  LoginResponse,
-  ConversationResponse,
-  MessageResponse,
-  MAX_FILE_SIZE,
-  MAX_DURATION,
-  MAX_PARTICIPANTS,
-  CallStatus,
-  MessageType,
-  ThemeName
-};
+  message?
