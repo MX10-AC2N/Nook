@@ -1,0 +1,96 @@
+# .github/workflows/npm-update-deps.yml
+name: 🔄 Mise à jour des dépendances npm
+
+on:
+  schedule:
+    # Tous les lundis à 03:00 UTC
+    - cron: "0 3 * * 1"
+  workflow_dispatch:   # Permet de lancer manuellement depuis l’UI
+
+permissions:
+  contents: write      # pour créer/mettre à jour la branche et le PR
+  pull-requests: write # pour ouvrir le PR
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      # -------------------------------------------------
+      # 1️⃣ Checkout du dépôt
+      # -------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # besoin de l’historique complet pour le commit
+
+      # -------------------------------------------------
+      # 2️⃣ Configurer Node (version 20, comme dans ton workflow)
+      # -------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # -------------------------------------------------
+      # 3️⃣ Installer les dépendances actuelles (pour créer le lock‑file)
+      # -------------------------------------------------
+      - name: Install current deps
+        run: npm ci
+
+      # -------------------------------------------------
+      # 4️⃣ Mettre à jour les dépendances compatibles
+      # -------------------------------------------------
+      - name: Update dependencies
+        run: |
+          npm update
+          # Regénère le lock‑file proprement
+          npm install --package-lock-only
+
+      # -------------------------------------------------
+      # 5️⃣ Vérifier s’il y a eu des changements
+      # -------------------------------------------------
+      - name: Detect changes
+        id: gitdiff
+        run: |
+          git diff --exit-code || echo "changed=true" >> $GITHUB_OUTPUT
+
+      # -------------------------------------------------
+      # 6️⃣ Créer/mettre à jour une branche dédiée
+      # -------------------------------------------------
+      - name: Create branch
+        if: steps.gitdiff.outputs.changed == 'true'
+        run: |
+          BRANCH="deps/update-$(date +%Y%m%d)"
+          git checkout -b "$BRANCH"
+          git add package-lock.json
+          git commit -m "chore: npm update – $(date +%Y-%m-%d)"
+          git push origin "$BRANCH" --force
+
+      # -------------------------------------------------
+      # 7️⃣ Ouvrir (ou mettre à jour) la Pull Request
+      # -------------------------------------------------
+      - name: Open Pull Request
+        if: steps.gitdiff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "🤖 npm update – $(date +%Y-%m-%d)"
+          body: |
+            Cette PR regroupe les mises à jour automatiques des dépendances npm compatibles avec les contraintes `^` définies dans `package.json`.
+
+            - **CI** : les checks CI seront exécutés automatiquement.
+            - **Auto‑merge** : si tous les checks passent, la PR sera fusionnée (voir les paramètres de protection de branche).
+          branch: "deps/update-${{ github.run_id }}"
+          base: develop
+          labels: |
+            dependencies
+            automated
+          assignees: |
+            ${{ github.actor }}
+          draft: false
