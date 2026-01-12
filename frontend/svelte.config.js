@@ -19,7 +19,7 @@ const config = {
     accessors: true,
     // `immutable` à `false` signifie que Svelte ne suppose pas que tes props
     // sont immuables – c’est correct pour la plupart des apps.
-    immutable: false
+    immutable: false,
   },
 
   // -----------------------------------------------------------------
@@ -34,7 +34,7 @@ const config = {
       // fallback utilisé pour le routing client‑side (SPA)
       fallback: 'index.html',
       precompress: false,
-      strict: true
+      strict: true,
     }),
 
     // ---------- Dossiers de sortie ----------
@@ -47,20 +47,20 @@ const config = {
       $lib: './src/lib',
       $components: './src/components',
       $routes: './src/routes',
-      $assets: './static'
+      $assets: './static',
     },
 
     // ---------- Service worker ----------
     // Tu ne veux pas de SW auto‑register, donc on le désactive.
     serviceWorker: {
-      register: false
-    }
+      register: false,
+    },
 
     // -----------------------------------------------------------------
-    // NOTE : **`files.appTemplate` a été retiré** – SvelteKit utilise
+    // NOTE : `files.appTemplate` a été retiré – SvelteKit utilise
     // automatiquement `src/app.html` s’il existe.
     // -----------------------------------------------------------------
-  }
+  },
 };
 
 export default config;
