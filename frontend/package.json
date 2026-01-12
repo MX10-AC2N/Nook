@@ -15,7 +15,7 @@
     "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force"
   },
   "devDependencies": {
-    "@sveltejs/adapter-auto": "^3.2.5",
+    "@sveltejs/adapter-static": "^3.2.5",
     "@sveltejs/kit": "^2.7.7",
     "@sveltejs/vite-plugin-svelte": "^4.0.4",
     "@types/libsodium-wrappers": "^0.7.14",
