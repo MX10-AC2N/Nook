@@ -292,7 +292,11 @@ jobs:
         run: |
           echo "🔄 Installation des dépendances..."
           echo "📦 NPM version: $(npm --version)"
-          npm ci --no-audit --no-fund --legacy-peer-deps
+          if ! npm ci --no-audit --no-fund 2>/dev/null; then
+            echo "⚠️ npm ci a échoué, utilisation de npm install..."
+            npm install --no-audit --no-fund
+          fi
+#         npm ci --no-audit --no-fund --legacy-peer-deps
           echo "✅ Dépendances installées"
 
       - name: Vérifier dépendances critiques
