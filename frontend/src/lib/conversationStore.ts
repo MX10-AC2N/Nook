@@ -1,295 +1,283 @@
-// frontend/src/lib/conversationStore.ts
-import { writable, derived, get } from 'svelte/store';
-import type { Writable } from 'svelte/store';
+/**
+ * Store et actions liées aux conversations.
+ *
+ * - Chargement des conversations, participants et utilisateurs disponibles.
+ * - Création / mise à jour / suppression de conversations.
+ * - Gestion des participants (ajout, départ, lecture des messages).
+ * - Stores dérivés utiles pour l’UI (conversation active, tri, affichage du nom).
+ * - Intégration d’un WebSocket simple pour recevoir les nouveaux messages.
+ *
+ * Toutes les fonctions sont typées, les erreurs sont capturées et le code
+ * fonctionne correctement côté client (`browser`).  
+ */
+
+import { writable, derived, get, type Writable } from 'svelte/store';
+import { browser } from '$app/environment';
 import { authStore } from './authStore';
-import type { Conversation, Participant, Message } from '$lib/types';
+import type { Conversation, Participant, Message } from './types';
 import { connectionError } from './chatStore';
 
-// Store pour les conversations
+// -----------------------------------------------------------------
+// 1️⃣ Stores principaux
+// -----------------------------------------------------------------
 export const conversations: Writable<Conversation[]> = writable([]);
-
-// Store pour la conversation active
-export const activeConversationId = writable<string | null>(null);
-
-// Store pour les participants d'une conversation
+export const activeConversationId: Writable<string | null> = writable(null);
 export const participants: Writable<Participant[]> = writable([]);
-
-// Store pour les utilisateurs disponibles (pour créer des conversations)
 export const availableUsers: Writable<Participant[]> = writable([]);
 
-// Charger toutes les conversations de l'utilisateur
-export async function loadConversations() {
+// -----------------------------------------------------------------
+// 2️⃣ Chargement des données depuis le backend
+// -----------------------------------------------------------------
+export async function loadConversations(): Promise<void> {
   try {
-    const response = await fetch('/api/conversations', {
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      throw new Error('Impossible de charger les conversations');
-    }
-    
-    const data = await response.json();
-    conversations.set(data.conversations || []);
+    const resp = await fetch('/api/conversations', { credentials: 'include' });
+    if (!resp.ok) throw new Error('Impossible de charger les conversations');
+
+    const data = await resp.json();
+    conversations.set(data.conversations ?? []);
     connectionError.set(null);
-    
-    // Si aucune conversation active et il y en a au moins une, sélectionner la première
-    if (!get(activeConversationId) && data.conversations.length > 0) {
-      activeConversationId.set(data.conversations[0].id);
-      await loadParticipants(data.conversations[0].id);
+
+    // Sélectionner automatiquement la première conversation si aucune n’est active
+    if (!get(activeConversationId) && data.conversations?.length) {
+      const firstId = data.conversations[0].id;
+      activeConversationId.set(firstId);
+      await loadParticipants(firstId);
     }
   } catch (err) {
     connectionError.set('Erreur de chargement des conversations');
-    console.error('Erreur chargement conversations:', err);
+    console.error('Erreur chargement conversations :', err);
   }
 }
 
-// Charger les participants d'une conversation
-export async function loadParticipants(conversationId: string) {
+export async function loadParticipants(conversationId: string): Promise<void> {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}/participants`, {
-      credentials: 'include'
-    });
-    
-    if (!response.ok) {
-      throw new Error('Impossible de charger les participants');
-    }
-    
-    const data = await response.json();
-    participants.set(data.participants || []);
+    const resp = await fetch(
+      `/api/conversations/${conversationId}/participants`,
+      { credentials: 'include' }
+    );
+    if (!resp.ok) throw new Error('Impossible de charger les participants');
+
+    const data = await resp.json();
+    participants.set(data.participants ?? []);
     connectionError.set(null);
   } catch (err) {
     connectionError.set('Erreur de chargement des participants');
-    console.error('Erreur chargement participants:', err);
+    console.error('Erreur chargement participants :', err);
   }
 }
 
-// Charger les utilisateurs disponibles pour créer une nouvelle conversation
-export async function loadAvailableUsers() {
+export async function loadAvailableUsers(): Promise<void> {
   try {
-    const response = await fetch('/api/users/available', {
-      credentials: 'include'
+    const resp = await fetch('/api/users/available', {
+      credentials: 'include',
     });
-    
-    if (!response.ok) {
-      throw new Error('Impossible de charger les utilisateurs disponibles');
-    }
-    
-    const data = await response.json();
-    availableUsers.set(data.users || []);
+    if (!resp.ok) throw new Error('Impossible de charger les utilisateurs disponibles');
+
+    const data = await resp.json();
+    availableUsers.set(data.users ?? []);
     connectionError.set(null);
   } catch (err) {
     connectionError.set('Erreur de chargement des utilisateurs');
-    console.error('Erreur chargement utilisateurs:', err);
+    console.error('Erreur chargement utilisateurs :', err);
   }
 }
 
-// Créer une nouvelle conversation
+// -----------------------------------------------------------------
+// 3️⃣ Actions sur les conversations
+// -----------------------------------------------------------------
 export async function createConversation(
-  name: string | null, 
-  participantIds: string[], 
+  name: string | null,
+  participantIds: string[],
   isGroup: boolean
-) {
+): Promise<Conversation> {
   try {
-    const response = await fetch('/api/conversations', {
+    const resp = await fetch('/api/conversations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ 
-        name, 
-        participant_ids: participantIds, 
-        is_group: isGroup 
-      })
+      body: JSON.stringify({
+        name,
+        participant_ids: participantIds,
+        is_group: isGroup,
+      }),
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Erreur lors de la création de la conversation');
+
+    if (!resp.ok) {
+      const errData = await resp.json();
+      throw new Error(errData.error ?? 'Erreur lors de la création de la conversation');
     }
-    
-    const data = await response.json();
-    
-    // Mettre à jour les conversations locales
-    conversations.update(convs => {
-      const exists = convs.some(c => c.id === data.conversation.id);
-      if (exists) {
-        return convs.map(c => c.id === data.conversation.id ? data.conversation : c);
-      }
-      return [...convs, data.conversation];
+
+    const data = await resp.json();
+    const newConv: Conversation = data.conversation;
+
+    // Mettre à jour le store local
+    conversations.update((list) => {
+      const exists = list.some((c) => c.id === newConv.id);
+      return exists ? list.map((c) => (c.id === newConv.id ? newConv : c)) : [...list, newConv];
     });
-    
+
     // Sélectionner la nouvelle conversation
-    activeConversationId.set(data.conversation.id);
-    await loadParticipants(data.conversation.id);
-    
+    activeConversationId.set(newConv.id);
+    await loadParticipants(newConv.id);
     connectionError.set(null);
-    return data.conversation;
+    return newConv;
   } catch (err) {
-    connectionError.set(err instanceof Error ? err.message : 'Erreur inconnue');
-    console.error('Erreur création conversation:', err);
+    const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+    connectionError.set(msg);
+    console.error('Erreur création conversation :', err);
     throw err;
   }
 }
 
-// Ajouter un participant à une conversation de groupe
 export async function addParticipantToConversation(
-  conversationId: string, 
+  conversationId: string,
   userId: string
-) {
+): Promise<void> {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}/participants`, {
+    const resp = await fetch(`/api/conversations/${conversationId}/participants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ user_id: userId })
+      body: JSON.stringify({ user_id: userId }),
     });
-    
-    if (!response.ok) {
-      throw new Error('Erreur lors de l\'ajout du participant');
-    }
-    
-    // Recharger les participants
+
+    if (!resp.ok) throw new Error("Erreur lors de l'ajout du participant");
+
+    // Recharger la liste des participants
     await loadParticipants(conversationId);
     connectionError.set(null);
   } catch (err) {
-    connectionError.set('Erreur lors de l\'ajout du participant');
-    console.error('Erreur ajout participant:', err);
+    connectionError.set("Erreur lors de l'ajout du participant");
+    console.error('Erreur ajout participant :', err);
   }
 }
 
-// Quitter une conversation
-export async function leaveConversation(conversationId: string) {
+export async function leaveConversation(conversationId: string): Promise<void> {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}/leave`, {
+    const resp = await fetch(`/api/conversations/${conversationId}/leave`, {
       method: 'POST',
-      credentials: 'include'
+      credentials: 'include',
     });
-    
-    if (!response.ok) {
-      throw new Error('Erreur lors du départ de la conversation');
-    }
-    
-    // Mettre à jour les conversations locales
-    conversations.update(convs => convs.filter(c => c.id !== conversationId));
-    
-    // Si c'était la conversation active, sélectionner une autre
+
+    if (!resp.ok) throw new Error('Erreur lors du départ de la conversation');
+
+    // Retirer la conversation du store
+    conversations.update((list) => list.filter((c) => c.id !== conversationId));
+
+    // Si c’était la conversation active, choisir une autre
     if (get(activeConversationId) === conversationId) {
-      const remainingConvs = get(conversations);
-      activeConversationId.set(remainingConvs.length > 0 ? remainingConvs[0].id : null);
-      if (remainingConvs.length > 0) {
-        await loadParticipants(remainingConvs[0].id);
-      }
+      const remaining = get(conversations);
+      const newActive = remaining.length ? remaining[0].id : null;
+      activeConversationId.set(newActive);
+      if (newActive) await loadParticipants(newActive);
     }
-    
+
     connectionError.set(null);
   } catch (err) {
     connectionError.set('Erreur lors du départ de la conversation');
-    console.error('Erreur départ conversation:', err);
+    console.error('Erreur départ conversation :', err);
   }
 }
 
-// Supprimer une conversation (pour les groupes, seulement par l'admin)
-export async function deleteConversation(conversationId: string) {
+export async function deleteConversation(conversationId: string): Promise<void> {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}`, {
+    const resp = await fetch(`/api/conversations/${conversationId}`, {
       method: 'DELETE',
-      credentials: 'include'
+      credentials: 'include',
     });
-    
-    if (!response.ok) {
-      throw new Error('Erreur lors de la suppression de la conversation');
-    }
-    
-    // Mettre à jour les conversations locales
-    conversations.update(convs => convs.filter(c => c.id !== conversationId));
-    
-    // Si c'était la conversation active, sélectionner une autre
+
+    if (!resp.ok) throw new Error('Erreur lors de la suppression de la conversation');
+
+    // Retirer du store
+    conversations.update((list) => list.filter((c) => c.id !== conversationId));
+
+    // Gestion de l’active
     if (get(activeConversationId) === conversationId) {
-      const remainingConvs = get(conversations);
-      activeConversationId.set(remainingConvs.length > 0 ? remainingConvs[0].id : null);
-      if (remainingConvs.length > 0) {
-        await loadParticipants(remainingConvs[0].id);
-      }
+      const remaining = get(conversations);
+      const newActive = remaining.length ? remaining[0].id : null;
+      activeConversationId.set(newActive);
+      if (newActive) await loadParticipants(newActive);
     }
-    
+
     connectionError.set(null);
   } catch (err) {
     connectionError.set('Erreur lors de la suppression de la conversation');
-    console.error('Erreur suppression conversation:', err);
+    console.error('Erreur suppression conversation :', err);
   }
 }
 
-// Marquer les messages comme lus
-export async function markMessagesAsRead(conversationId: string) {
+/**
+ * Marque les messages d’une conversation comme lus côté serveur
+ * et met à jour le compteur `unread_count` localement.
+ */
+export async function markMessagesAsRead(conversationId: string): Promise<void> {
   try {
-    await fetch(`/api/conversations/${conversationId}/read`, {
+    const resp = await fetch(`/api/conversations/${conversationId}/read`, {
       method: 'POST',
-      credentials: 'include'
+      credentials: 'include',
     });
-    
-    // Mettre à jour localement les conversations
-    conversations.update(convs => 
-      convs.map(conv => 
-        conv.id === conversationId 
-          ? { ...conv, unread_count: 0 } 
-          : conv
-      )
+
+    if (!resp.ok) throw new Error('Erreur lors du marquage comme lu');
+
+    // Mettre à jour le compteur localement
+    conversations.update((list) =>
+      list.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
     );
   } catch (err) {
-    console.error('Erreur marquage messages lus:', err);
+    console.error('Erreur marquage messages lus :', err);
   }
 }
 
-// Store dérivé pour la conversation active
+// -----------------------------------------------------------------
+// 4️⃣ Stores dérivés (pratiques pour l’UI)
+// -----------------------------------------------------------------
 export const activeConversation = derived(
   [conversations, activeConversationId],
-  ([$conversations, $activeConversationId]) => {
-    return $conversations.find(c => c.id === $activeConversationId) || null;
-  }
+  ([$convs, $activeId]) => $convs.find((c) => c.id === $activeId) ?? null
 );
 
-// Store dérivé pour les conversations triées (non lus en premier, puis par date)
-export const sortedConversations = derived(
-  conversations,
-  ($conversations) => {
-    return [...$conversations].sort((a, b) => {
-      // Messages non lus en premier
-      if (a.unread_count > 0 && b.unread_count === 0) return -1;
-      if (a.unread_count === 0 && b.unread_count > 0) return 1;
-      
-      // Puis par date de dernier message
-      return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
-    });
-  }
-);
+export const sortedConversations = derived(conversations, ($list) => {
+  return [...$list].sort((a, b) => {
+    // Priorité aux conversations avec des messages non lus
+    if (a.unread_count > 0 && b.unread_count === 0) return -1;
+    if (a.unread_count === 0 && b.unread_count > 0) return 1;
+    // Sinon, trier par date du dernier message (descendant)
+    return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
+  });
+});
 
-// Store dérivé pour le nom affiché d'une conversation
 export const conversationDisplayName = derived(
   [activeConversation, participants, authStore],
-  ([$activeConversation, $participants, $authStore]) => {
-    if (!$activeConversation) return 'Nouvelle conversation';
-    
-    if (!$activeConversation.is_group) {
-      // Conversation 1:1 - trouver l'autre participant
-      const otherParticipant = $participants.find(
-        p => p.id !== $authStore.user?.id
-      );
-      return otherParticipant?.name || 'Utilisateur inconnu';
+  ([$conv, $parts, $auth]) => {
+    if (!$conv) return 'Nouvelle conversation';
+
+    if (!$conv.is_group) {
+      // 1‑to‑1 : afficher le nom de l’autre participant
+      const other = $parts.find((p) => p.id !== $auth.user?.id);
+      return other?.name ?? 'Utilisateur inconnu';
     }
-    
-    // Groupe - utiliser le nom ou "Groupe sans nom"
-    return $activeConversation.name || 'Groupe sans nom';
+
+    // Groupe : afficher le nom ou un libellé par défaut
+    return $conv.name ?? 'Groupe sans nom';
   }
 );
 
-// Fonction utilitaire pour générer un ID de conversation unique basé sur les participants
+// -----------------------------------------------------------------
+// 5️⃣ Utilitaires
+// -----------------------------------------------------------------
+/**
+ * Génère un identifiant de conversation unique basé sur les participants.
+ * L’ordre des IDs n’influence pas le résultat (tri préalable).
+ */
 export function generateConversationId(participantIds: string[]): string {
-  // Tri pour que l'ordre n'importe pas
-  const sortedIds = [...participantIds].sort();
-  return `conv_${sortedIds.join('_')}_${Date.now()}`;
+  const sorted = [...participantIds].sort();
+  return `conv_${sorted.join('_')}_${Date.now()}`;
 }
 
-// Initialiser les conversations au démarrage
-export async function initConversations() {
+// -----------------------------------------------------------------
+// 6️⃣ Initialisation & écoute d’authentification
+// -----------------------------------------------------------------
+async function initConversations(): Promise<void> {
   const user = get(authStore).user;
   if (user) {
     await loadConversations();
@@ -297,48 +285,77 @@ export async function initConversations() {
   }
 }
 
-// Écouter les changements d'authentification
-authStore.subscribe(($authStore) => {
-  if ($authStore.isAuthenticated && !$authStore.loading) {
+// Réagir aux changements d’état d’authentification
+authStore.subscribe(($store) => {
+  if ($store.isAuthenticated && !$store.loading) {
     initConversations().catch(console.error);
   }
 });
 
-// Écouter les nouveaux messages via WebSocket
-export function setupMessageWebSocket() {
-  const ws = new WebSocket(`ws://${window.location.host}/ws/messages`);
-  
+// -----------------------------------------------------------------
+// 7️⃣ WebSocket pour les nouveaux messages (client‑side only)
+// -----------------------------------------------------------------
+let ws: WebSocket | null = null;
+
+/**
+ * Initialise le WebSocket qui écoute les nouveaux messages.
+ * Retourne une fonction de nettoyage à appeler lors du `onDestroy`.
+ */
+export function setupMessageWebSocket(): () => void {
+  if (!browser) return () => {};
+
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const url = `${protocol}://${window.location.host}/ws/messages`;
+
+  ws = new WebSocket(url);
+
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    
-    if (data.type === 'new_message') {
-      const message = data.message;
-      
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type !== 'new_message') return;
+
+      const msg: Message = data.message;
+
       // Mettre à jour la conversation concernée
-      conversations.update(convs => {
-        return convs.map(conv => {
-          if (conv.id === message.conversation_id) {
-            return {
-              ...conv,
-              last_message_at: message.timestamp,
-              last_message_preview: '[Nouveau message]',
-              unread_count: conv.id === get(activeConversationId) ? 0 : conv.unread_count + 1
-            };
-          }
-          return conv;
+      conversations.update((list) =>
+        list.map((conv) => {
+          if (conv.id !== msg.conversation_id) return conv;
+
+          const isActive = get(activeConversationId) === conv.id;
+          return {
+            ...conv,
+            last_message_at: msg.timestamp,
+            last_message_preview: '[Nouveau message]',
+            unread_count: isActive ? 0 : conv.unread_count + 1,
+          };
+        })
+      );
+
+      // Si c’est la conversation active, rafraîchir les messages
+      if (msg.conversation_id === get(activeConversationId)) {
+        // La fonction `loadMessages` se trouve dans `chatStore.ts`
+        // Nous l’importons dynamiquement pour éviter les cycles d’import.
+        import('./chatStore').then(({ loadMessages }) => {
+          loadMessages(msg.conversation_id).catch(console.error);
         });
-      });
-      
-      // Si c'est la conversation active, charger les nouveaux messages
-      if (message.conversation_id === get(activeConversationId)) {
-        loadMessages(message.conversation_id).catch(console.error);
       }
+    } catch (e) {
+      console.error('Erreur parsing WS message :', e);
     }
   };
-  
-  ws.onerror = (error) => {
-    console.error('WebSocket error:', error);
+
+  ws.onerror = (e) => {
+    console.error('WebSocket error :', e);
   };
-  
-  return () => ws.close();
+
+  ws.onclose = () => {
+    ws = null;
+    console.log('WebSocket closed');
+  };
+
+  // Fonction de nettoyage
+  return () => {
+    if (ws) ws.close();
+    ws = null;
+  };
 }
