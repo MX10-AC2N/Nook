@@ -202,7 +202,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+                    # Cache désactivé temporairement car package-lock.json est généré pendant le build
+          # Une fois le fichier commité, réactiver avec: cache: 'npm'
+          # cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Vérifier dossier frontend
         run: |
