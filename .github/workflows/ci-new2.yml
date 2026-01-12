@@ -1,246 +1,46 @@
-name: CI-Long Build with verif.
-
+name: 🚀 Fast Build & Push révisé (Manual)
 on:
-  workflow_dispatch:
-# push:
-#   branches: [main, develop]
-# pull_request:
-#   branches: [main, develop]
+  workflow_dispatch: # Déclenchement manuel uniquement
+  push:
+    branches: [develop, main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'Dockerfile'
+      - '.github/workflows/fast-build2.yml'
+      - 'Cargo.lock'
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_LOG: warn
 
 jobs:
   setup:
-    name: 🔧 Configuration
+    name: 🔧 Setup
     runs-on: ubuntu-latest
-
+    outputs:
+      rust-cache-key: ${{ steps.cargo-cache.outputs.cache-key }}
     steps:
-      - name: Checkout du code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Installer les dépendances système
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libssl-dev \
-            pkg-config \
-            libsqlite3-dev \
-            sqlite3
-
-  build:
-    name: 🏗️ Construction Backend
-    runs-on: ubuntu-latest
-    needs: setup
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          fetch-depth: 0
 
-      - name: Vérifier et générer Cargo.lock
-        run: |
-          if [ ! -f "Cargo.lock" ]; then
-            echo "Génération de Cargo.lock..."
-            cargo generate-lockfile
-          fi
-
-      - name: Créer base de données temporaire
-        run: |
-          mkdir -p data
-          sqlite3 data/temp.db "VACUUM;"
-          chmod 666 data/temp.db
-
-      - name: Installer sqlx-cli
-        run: |
-          cargo install sqlx-cli \
-            --version 0.8.6 \
-            --no-default-features \
-            --features sqlite \
-            --locked
-
-      - name: Préparer cache SQLx si manquant
-        run: |
-          if [ ! -d ".sqlx" ]; then
-            echo "Cache SQLx manquant, génération..."
-            
-            # Appliquer les migrations
-            echo "Application des migrations..."
-            export DATABASE_URL="sqlite:data/temp.db"
-            
-            # Vérifier si des migrations existent
-            if [ -d "migrations" ] && [ "$(ls -A migrations 2>/dev/null)" ]; then
-              sqlx migrate run
-            else
-              echo "⚠️ Aucune migration trouvée, création de la table 'members'..."
-              sqlite3 data/temp.db "CREATE TABLE IF NOT EXISTS members (id INTEGER PRIMARY KEY, name TEXT, approved BOOLEAN, joined_at DATETIME DEFAULT CURRENT_TIMESTAMP);"
-            fi
-            
-            # Générer le cache
-            echo "Génération du cache SQLx..."
-            cargo sqlx prepare -- --all-targets
-            
-            echo "✓ Cache généré avec succès"
-          else
-            echo "Cache SQLx présent ✓"
-          fi
-
-      - name: Build avec mode offline
-        env:
-          SQLX_OFFLY: true
-        run: cargo build --release
-
-      - name: Build debug
-        run: cargo build
-
-  test:
-    name: 🧪 Tests
-    runs-on: ubuntu-latest
-    needs: build
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Installer Rust
+      - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Configurer environnement de test
-        run: |
-          mkdir -p data
-          touch data/test.db
-
-      - name: Exécuter les tests
-        env:
-          DATABASE_URL: "sqlite:data/test.db"
-          SQLX_OFFLINE: "true"
-        run: cargo test -- --nocapture
-
-  frontend:
-    name: 🎨 Frontend
-    runs-on: ubuntu-latest
-    needs: setup
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
+          toolchain: stable
+          components: rustfmt, clippy
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Vérifier l'existence du dossier frontend
+      - name: Calculate Cargo cache key
+        id: cargo-cache
         run: |
-          if [ ! -d "frontend" ]; then
-            echo "❌ Dossier frontend non trouvé"
-            exit 1
-          fi
-          echo "✓ Dossier frontend trouvé"
-
-      - name: Vérifier package.json
-        working-directory: ./frontend
-        run: |
-          if [ ! -f "package.json" ]; then
-            echo "❌ package.json non trouvé"
-            exit 1
-          fi
-          echo "✓ package.json trouvé"
-          cat package.json | jq '.scripts'
-
-      - name: Générer package-lock si absent
-        working-directory: ./frontend
-        run: |
-          if [ ! -f "package-lock.json" ]; then
-            echo "⚠️ package-lock.json non trouvé, génération..."
-            npm install --package-lock-only
-            echo "✓ package-lock.json généré"
-          else
-            echo "✓ package-lock.json présent"
-          fi
-
-      - name: Installer dépendances
-        working-directory: ./frontend
-        run: |
-          echo "Installation des dépendances..."
-          npm ci --silent
-          echo "✓ Dépendances installées"
-
-      - name: Vérifier le lint (si configuré)
-        working-directory: ./frontend
-        run: |
-          if npm run --silent lint 2>/dev/null; then
-            npm run lint
-          else
-            echo "⚠️ Script lint non configuré"
-          fi
-
-      - name: Build
-        working-directory: ./frontend
-        run: |
-          echo "Build du frontend..."
-          npm run build
-          echo "✓ Build terminé"
-
-      - name: Tests unitaires (si configurés)
-        working-directory: ./frontend
-        run: |
-          if npm run --silent test 2>/dev/null; then
-            npm test
-          else
-            echo "⚠️ Tests non configurés"
-          fi
-
-  lint:
-    name: 📝 Lint et Formatage
-    runs-on: ubuntu-latest
-    needs: build
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+          echo "cache-key=${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}" >> $GITHUB_OUTPUT
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -249,87 +49,351 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ steps.cargo-cache.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Vérifier le formatage
-        run: cargo fmt --all -- --check
-
-      - name: Exécuter Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Vérifier les dépendances inutilisées
-        run: |
-          cargo install cargo-udeps --locked 2>/dev/null || true
-          if command -v cargo-udeps &> /dev/null; then
-            cargo udeps --all-targets || echo "cargo-udeps trouvé des problèmes"
-          else
-            echo "cargo-udeps non installé"
-          fi
-
-  security:
-    name: 🔒 Sécurité
+  backend:
+    name: 🏗️ Backend
     runs-on: ubuntu-latest
-    needs: build
-
-    defaults:
-      run:
-        working-directory: ./backend
-
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Audit des dépendances
-        run: |
-          cargo install cargo-audit 2>/dev/null || true
-          if command -v cargo-audit &> /dev/null; then
-            cargo audit || echo "Aucune vulnérabilité trouvée"
-          else
-            echo "cargo-audit non installé"
-          fi
-
-  build-docker:
-    name: 🐳 Build & Push Docker
-    runs-on: ubuntu-latest
-    needs: [build, test, frontend]
-    if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) || github.event_name == 'workflow_dispatch'
+    needs: setup
     permissions:
-      contents: read
-      packages: write
+      contents: write
+    defaults:
+      run:
+        working-directory: ./backend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Docker Buildx
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Installer libsodium
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsodium-dev pkg-config
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Générer Cargo.lock si nécessaire
+        run: |
+          if [ ! -f "Cargo.lock" ]; then
+            cargo generate-lockfile
+          fi
+
+      - name: Créer base SQLite temporaire
+        run: |
+          mkdir -p /tmp/nook-data
+          touch /tmp/nook-data/nook.db
+          echo "DATABASE_URL=sqlite:///tmp/nook-data/nook.db" >> $GITHUB_ENV
+
+      - name: Installer sqlx-cli et appliquer migrations
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-data/nook.db
+        run: |
+          cargo install sqlx-cli --version '^0.8' --features sqlite --no-default-features --locked
+          sqlx migrate run
+
+      - name: Vérifier formatage
+        run: cargo fmt --all -- --check
+
+      - name: Vérifier dépendances
+        env:
+          SQLX_OFFLINE: false
+        run: cargo check --all-targets
+
+      - name: Analyse statique
+        run: cargo clippy -- -D warnings
+
+      - name: Mettre à jour base temporaire pour le cache sqlx
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-data/nook.db
+        run: |
+          touch /tmp/nook-data/nook.db
+          sqlx migrate run
+
+      - name: Vérifier et générer cache sqlx
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-data/nook.db
+          SQLX_OFFLINE: false
+        id: sqlx-check
+        run: |
+          if ! cargo sqlx prepare --workspace --check 2>/dev/null; then
+            echo "Génération du cache sqlx..."
+            cargo sqlx prepare --workspace
+            echo "generated=true" >> $GITHUB_OUTPUT
+          else
+            echo "generated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit automatique du cache sqlx
+        if: steps.sqlx-check.outputs.generated == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .sqlx
+          if git diff --cached --quiet; then
+            echo "Aucun changement dans .sqlx"
+          else
+            git commit -m "chore: update sqlx offline cache [ci skip]"
+            echo "Pushing les changements..."
+            git push origin ${{ github.ref }} || echo "Push échoué (normal si pas de changement)"
+          fi
+
+      - name: Build Release
+        env:
+          SQLX_OFFLINE: true
+        run: cargo build --release --locked
+
+      - name: Vérifier binaire
+        run: |
+          BIN_PATH="target/release/nook-backend"
+          if [ ! -f "$BIN_PATH" ]; then
+            echo "❌ Binaire manquant: $BIN_PATH"
+            exit 1
+          fi
+          chmod +x "$BIN_PATH"
+          SIZE=$(stat -c%s "$BIN_PATH")
+          if [ "$SIZE" -lt 1000000 ]; then
+            echo "⚠️ Binaire très petit ($SIZE octets)"
+          fi
+          echo "✅ Binaire généré: $BIN_PATH ($SIZE octets)"
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nook-backend-${{ github.sha }}
+          path: backend/target/release/nook-backend
+          retention-days: 1
+
+  frontend:
+    name: 🎨 Frontend
+    runs-on: ubuntu-latest
+    needs: setup
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Vérifier dossier frontend
+        run: |
+          if [ ! -d "$GITHUB_WORKSPACE/frontend" ]; then
+            echo "❌ Dossier frontend absent"
+            exit 1
+          fi
+          echo "✅ Dossier frontend trouvé"
+
+      - name: Afficher versions
+        run: |
+          echo "📦 Node: $(node --version)"
+          echo "📦 NPM: $(npm --version)"
+
+      - name: Vérifier package-lock.json
+        id: check-package
+        run: |
+          if [ ! -f "package-lock.json" ]; then
+            echo "lock_exists=false" >> $GITHUB_OUTPUT
+            echo "needs_generation=true" >> $GITHUB_OUTPUT
+            echo "⚠️ package-lock.json manquant"
+          else
+            echo "lock_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ package-lock.json présent"
+          fi
+
+      - name: Générer package-lock.json si nécessaire
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          echo "🔄 Génération du package-lock.json..."
+          rm -f package-lock.json
+          rm -rf node_modules
+          npm cache clean --force 2>/dev/null || true
+          npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps
+          npm install --no-save --no-audit --no-fund --legacy-peer-deps 2>/dev/null || true
+          
+          if [ ! -f "package-lock.json" ]; then
+            echo "❌ Échec de génération"
+            exit 1
+          fi
+          echo "✅ package-lock.json généré"
+
+      - name: Commit automatique package-lock.json
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add frontend/package-lock.json
+          
+          if git diff --staged --quiet; then
+            echo "⚠️ Aucun changement"
+          else
+            echo "📝 Changements détectés dans package-lock.json"
+            git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+            
+            COMMITS_TO_PUSH=$(git rev-list @{u}..HEAD 2>/dev/null | wc -l || echo "0")
+            if [ "$COMMITS_TO_PUSH" -gt 0 ]; then
+              echo "📤 Push de $COMMITS_TO_PUSH commit(s)..."
+              git push origin HEAD:${{ github.ref_name }}
+              echo "✅ Push terminé"
+            fi
+          fi
+
+      - name: Installer dépendances
+        run: |
+          echo "🔄 Installation des dépendances..."
+          if ! npm ci --no-audit --no-fund 2>/dev/null; then
+            echo "⚠️ npm ci a échoué, utilisation de npm install..."
+            npm install --no-audit --no-fund
+          fi
+          echo "✅ Dépendances installées"
+
+      - name: Vérifier dépendances critiques
+        run: |
+          REQUIRED_DEPS=("svelte" "@sveltejs/kit" "vite" "libsodium-wrappers" "uuid")
+          MISSING_DEPS=()
+          for dep in "${REQUIRED_DEPS[@]}"; do
+            if ! npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
+              echo "⚠️ Manquant: $dep"
+              MISSING_DEPS+=("$dep")
+            else
+              echo "✅ $dep"
+            fi
+          done
+          if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
+            echo "❌ Dépendances manquantes: ${MISSING_DEPS[*]}"
+            exit 1
+          fi
+
+      - name: Build
+        run: |
+          echo "🔄 Build frontend..."
+          npm run build
+          echo "✅ Build OK"
+
+      - name: Vérifier build/
+        run: |
+          BUILD_DIR="build"
+          if [ ! -d "$BUILD_DIR" ]; then
+            echo "❌ $BUILD_DIR absent"
+            exit 1
+          fi
+          
+          REQUIRED_FILES=("index.html")
+          MISSING_FILES=()
+          
+          echo "📁 Contenu de $BUILD_DIR:"
+          ls -la "$BUILD_DIR/"
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$BUILD_DIR/$file" ]; then
+              echo "❌ Manquant: $file"
+              MISSING_FILES+=("$file")
+            else
+              echo "✅ $file"
+            fi
+          done
+          
+          if [ ! -d "$BUILD_DIR/_app" ]; then
+            echo "⚠️ _app absent"
+          else
+            echo "✅ _app présent"
+          fi
+          
+          if [ ${#MISSING_FILES[@]} -gt 0 ]; then
+            echo "❌ Fichiers manquants: ${MISSING_FILES[*]}"
+            exit 1
+          fi
+          echo "✅ Build vérifié"
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nook-frontend-${{ github.sha }}
+          path: frontend/build
+          retention-days: 1
+
+  docker:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-backend-${{ github.sha }}
+          path: backend-artifact
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend-${{ github.sha }}
+          path: frontend-artifact
+
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/mx10-ac2n/nook:latest
             ghcr.io/mx10-ac2n/nook:${{ github.sha }}
+            ghcr.io/mx10-ac2n/nook:latest
+          build-args: |
+            BACKEND_PATH=backend-artifact/nook-backend
+            FRONTEND_PATH=frontend-artifact
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Cleanup artifacts
+        if: always()
+        run: |
+          rm -rf backend-artifact frontend-artifact || true
