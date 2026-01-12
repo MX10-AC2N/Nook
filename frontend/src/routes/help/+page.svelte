@@ -1,80 +1,114 @@
 <script lang="ts">
-  let searchQuery = $state('');
-  let openFaq = $state<number | null>(null);
+  import { state } from 'svelte'; // <-- Svelte 5 reactive state
 
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let searchQuery = state('');
+  let openFaq = state<number | null>(null);
+
+  // -----------------------------------------------------------------
+  // 2️⃣ FAQ data (static)
+  // -----------------------------------------------------------------
   const faqs = [
     {
       question: 'Comment créer un compte sur Nook ?',
-      answer: 'Il y a deux façons de créer un compte :\n' +
+      answer:
+        "Il y a deux façons de créer un compte :\n" +
         '• Inscription libre : Cliquez sur "Créer un compte" depuis la page de connexion. Votre compte sera créé en attente d\'approbation par l\'administrateur.\n' +
-        '• Via invitation : Utilisez un lien d\'invitation généré par l\'administrateur. Votre compte sera automatiquement approuvé et vous devrez définir un mot de passe à la première connexion.'
+        "• Via invitation : Utilisez un lien d'invitation généré par l'administrateur. Votre compte sera automatiquement approuvé et vous devrez définir un mot de passe à la première connexion.",
     },
     {
       question: 'Mes messages sont-ils vraiment chiffrés ?',
-      answer: 'Oui ! Nook utilise le chiffrement de bout en bout avec libsodium. Les messages sont chiffrés sur votre appareil avant envoi. Seul le destinataire peut les déchiffrer. Même les administrateurs du serveur ne peuvent pas lire vos conversations.'
+      answer:
+        "Oui ! Nook utilise le chiffrement de bout en bout avec libsodium. Les messages sont chiffrés sur votre appareil avant envoi. Seul le destinataire peut les déchiffrer. Même les administrateurs du serveur ne peuvent pas lire vos conversations.",
     },
     {
       question: 'Comment faire un appel vidéo ?',
-      answer: 'Dans une conversation, cliquez sur l\'icône 📞 pour lancer un appel. Nook utilise WebRTC en pair-à-pair (P2P) : les flux vidéo/audio passent directement entre les participants sans transiter par le serveur (sauf fallback si nécessaire).'
+      answer:
+        "Dans une conversation, cliquez sur l'icône 📞 pour lancer un appel. Nook utilise WebRTC en pair‑à‑pair (P2P) : les flux vidéo/audio passent directement entre les participants sans transiter par le serveur (sauf fallback si nécessaire).",
     },
     {
       question: 'Puis-je envoyer des fichiers volumineux ?',
-      answer: 'Oui, jusqu\'à 50 Mo par fichier via le serveur (chiffrés). Pour des fichiers plus gros, une fonctionnalité d\'envoi P2P direct est prévue dans une future mise à jour.'
+      answer:
+        "Oui, jusqu'à 50 Mo par fichier via le serveur (chiffrés). Pour des fichiers plus gros, une fonctionnalité d'envoi P2P direct est prévue dans une future mise à jour.",
     },
     {
       question: 'Comment fonctionnent les invitations ?',
-      answer: 'L\'administrateur peut générer des liens d\'invitation uniques depuis le tableau de bord. Ces liens permettent une inscription immédiate (compte approuvé automatiquement) et sont à usage unique avec expiration de 48 heures.'
+      answer:
+        "L'administrateur peut générer des liens d'invitation uniques depuis le tableau de bord. Ces liens permettent une inscription immédiate (compte approuvé automatiquement) et sont à usage unique avec expiration de 48 heures.",
     },
     {
       question: 'Puis-je utiliser Nook hors ligne ?',
-      answer: 'Nook nécessite une connexion pour la synchronisation et le chiffrement. Les messages déjà chargés restent lisibles hors ligne, mais les nouveaux messages et appels nécessitent une connexion internet.'
+      answer:
+        "Nook nécessite une connexion pour la synchronisation et le chiffrement. Les messages déjà chargés restent lisibles hors ligne, mais les nouveaux messages et appels nécessitent une connexion internet.",
     },
     {
       question: 'Comment installer Nook comme application ?',
-      answer: 'Nook est une PWA (Progressive Web App) :\n' +
+      answer:
+        "Nook est une PWA (Progressive Web App) :\n" +
         '• Mobile : Ouvrez dans Chrome/Safari → "Ajouter à l\'écran d\'accueil".\n' +
         '• Ordinateur : Dans Chrome/Edge → menu → "Installer Nook".\n' +
-        'Vous aurez une app native-like avec notifications push (en développement).'
+        "Vous aurez une app native‑like avec notifications push (en développement).",
     },
     {
       question: 'Mes données sont-elles sauvegardées ?',
-      answer: 'Vos données sont stockées sur votre serveur auto-hébergé (Docker volume). Configurez des sauvegardes régulières du volume Docker. Aucune donnée n\'est envoyée vers des serveurs externes.'
+      answer:
+        "Vos données sont stockées sur votre serveur auto‑hébergé (Docker volume). Configurez des sauvegardes régulières du volume Docker. Aucune donnée n'est envoyée vers des serveurs externes.",
     },
     {
-      question: 'Que faire si j\'ai oublié mon mot de passe ?',
-      answer: 'Contactez votre administrateur familial : il peut générer un nouveau lien d\'invitation pour vous permettre de recréer un compte (les anciens messages restent accessibles via le serveur).'
-    }
+      question: "Que faire si j'ai oublié mon mot de passe ?",
+      answer:
+        "Contactez votre administrateur familial : il peut générer un nouveau lien d'invitation pour vous permettre de recréer un compte (les anciens messages restent accessibles via le serveur).",
+    },
   ];
 
-  let filteredFaqs = $derived(
-    searchQuery.trim() 
-      ? faqs.filter(faq => 
+  // -----------------------------------------------------------------
+  // 3️⃣ Filtrage réactif des FAQs
+  // -----------------------------------------------------------------
+  /** Liste filtrée en fonction du texte de recherche. */
+  $: filteredFaqs = searchQuery.trim()
+    ? faqs.filter(
+        (faq) =>
           faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
           faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : faqs
-  );
+      )
+    : faqs;
 
+  // -----------------------------------------------------------------
+  // 4️⃣ Interaction (ouvrir/fermer FAQ)
+  // -----------------------------------------------------------------
   function toggleFaq(index: number) {
     openFaq = openFaq === index ? null : index;
   }
 
+  // -----------------------------------------------------------------
+  // 5️⃣ Contact support (ouvre GitHub Issues)
+  // -----------------------------------------------------------------
   function contactSupport() {
-    window.open('https://github.com/MX10-AC2N/Nook/issues', '_blank');
+    if (typeof window !== 'undefined') {
+      window.open('https://github.com/MX10-AC2N/Nook/issues', '_blank');
+    }
   }
 </script>
 
 <svelte:head>
-  <title>Aide & FAQ - Nook</title>
+  <title>Aide &amp; FAQ - Nook</title>
 </svelte:head>
 
 <div class="help-page">
   <div class="help-card">
+    <!-- -----------------------------------------------------------------
+         HEADER
+         ----------------------------------------------------------------- -->
     <div class="header">
-      <h1>❓ Aide & FAQ</h1>
+      <h1>❓ Aide &amp; FAQ</h1>
       <p class="subtitle">Tout ce que vous devez savoir pour utiliser Nook</p>
     </div>
 
+    <!-- -----------------------------------------------------------------
+         SEARCH BAR
+         ----------------------------------------------------------------- -->
     <div class="search-bar">
       <input
         type="text"
@@ -84,15 +118,22 @@
       />
     </div>
 
+    <!-- -----------------------------------------------------------------
+         FAQ LIST
+         ----------------------------------------------------------------- -->
     <div class="faq-section">
       {#if filteredFaqs.length === 0}
+        <!-- Aucun résultat -->
         <div class="no-results">
-          <p>Aucun résultat pour "<strong>{searchQuery}</strong>"</p>
+          <p>
+            Aucun résultat pour "<strong>{searchQuery}</strong>"
+          </p>
           <button on:click={contactSupport} class="btn-secondary">
             Contacter le support GitHub
           </button>
         </div>
       {:else}
+        <!-- Liste des FAQs -->
         <div class="faq-list">
           {#each filteredFaqs as faq, index}
             <div class="faq-item" class:open={openFaq === index}>
@@ -100,14 +141,15 @@
                 class="faq-question"
                 on:click={() => toggleFaq(index)}
                 aria-expanded={openFaq === index}
-                aria-controls={`faq-answer-${index}`}
+                aria-controls={"faq-answer-" + index}
               >
                 <span class="question-text">{faq.question}</span>
                 <span class="faq-toggle">{openFaq === index ? '−' : '+'}</span>
               </button>
+
               {#if openFaq === index}
-                <div class="faq-answer" id={`faq-answer-${index}`}>
-                  {@html faq.answer.replace(/\n/g, '<br>')}
+                <div class="faq-answer" id={"faq-answer-" + index}>
+                  {@html faq.answer.replace(/\n/g, ' ')}
                 </div>
               {/if}
             </div>
@@ -116,24 +158,47 @@
       {/if}
     </div>
 
+    <!-- -----------------------------------------------------------------
+         SUPPORT SECTION
+         ----------------------------------------------------------------- -->
     <div class="support-section">
+      <!-- Documentation & issue reporting -->
       <div class="support-card">
         <h3>💬 Besoin d'aide supplémentaire ?</h3>
         <p>Consultez la documentation ou signalez un problème sur GitHub.</p>
         <div class="support-links">
-          <a href="https://github.com/MX10-AC2N/Nook" target="_blank" rel="noopener" class="btn-outline">
+          <a
+            href="https://github.com/MX10-AC2N/Nook"
+            target="_blank"
+            rel="noopener"
+            class="btn-outline"
+          >
             📚 Documentation complète
           </a>
-          <a href="https://github.com/MX10-AC2N/Nook/issues" target="_blank" rel="noopener" class="btn-outline">
+          <a
+            href="https://github.com/MX10-AC2N/Nook/issues"
+            target="_blank"
+            rel="noopener"
+            class="btn-outline"
+          >
             🐛 Signaler un bug
           </a>
         </div>
       </div>
 
+      <!-- Security & open‑source info -->
       <div class="support-card security">
-        <h3>🔒 Sécurité & Confidentialité</h3>
-        <p>Nook est 100% open source. Le chiffrement de bout en bout protège vos données. Aucun serveur tiers n'accède à vos conversations.</p>
-        <a href="https://github.com/MX10-AC2N/Nook" target="_blank" rel="noopener" class="btn-primary">
+        <h3>🔒 Sécurité &amp; Confidentialité</h3>
+        <p>
+          Nook est 100 % open source. Le chiffrement de bout en bout protège vos
+          données. Aucun serveur tiers n'accède à vos conversations.
+        </p>
+        <a
+          href="https://github.com/MX10-AC2N/Nook"
+          target="_blank"
+          rel="noopener"
+          class="btn-primary"
+        >
           Voir le code source →
         </a>
       </div>
@@ -142,6 +207,9 @@
 </div>
 
 <style>
+  /* -----------------------------------------------------------------
+     PAGE LAYOUT
+     ----------------------------------------------------------------- */
   .help-page {
     min-height: 100vh;
     display: flex;
@@ -176,6 +244,9 @@
     font-size: 1.1rem;
   }
 
+  /* -----------------------------------------------------------------
+     SEARCH BAR
+     ----------------------------------------------------------------- */
   .search-bar {
     margin-bottom: 2rem;
   }
@@ -196,6 +267,9 @@
     box-shadow: 0 0 0 4px rgba(45, 90, 39, 0.15);
   }
 
+  /* -----------------------------------------------------------------
+     FAQ LIST
+     ----------------------------------------------------------------- */
   .faq-section {
     margin-bottom: 3rem;
   }
@@ -279,10 +353,19 @@
   }
 
   @keyframes slideDown {
-    from { opacity: 0; max-height: 0; }
-    to { opacity: 1; max-height: 500px; }
+    from {
+      opacity: 0;
+      max-height: 0;
+    }
+    to {
+      opacity: 1;
+      max-height: 500px;
+    }
   }
 
+  /* -----------------------------------------------------------------
+     SUPPORT SECTION
+     ----------------------------------------------------------------- */
   .support-section {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -353,11 +436,14 @@
     background: #1e4620;
   }
 
+  /* -----------------------------------------------------------------
+     RESPONSIVE
+     ----------------------------------------------------------------- */
   @media (max-width: 480px) {
     .help-card {
       padding: 2rem 1.5rem;
     }
-    
+
     h1 {
       font-size: 1.75rem;
     }
