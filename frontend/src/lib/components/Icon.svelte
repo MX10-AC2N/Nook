@@ -1,27 +1,30 @@
 <script lang="ts">
-  /* ------------------------------------------------------------------
-   * Récupération des propriétés en « runes mode ».
-   * $props() renvoie un objet contenant toutes les props passées au
-   * composant. Nous utilisons la déstructuration avec des valeurs par
-   * défaut pour reproduire le comportement habituel d’« export let ».
-   * ------------------------------------------------------------------ */
+  // -----------------------------------------------------------------
+  // 1️⃣ Récupération des props (Svelte 5 – $props())
+  // -----------------------------------------------------------------
+  // $props() renvoie un objet contenant toutes les props passées au
+  // composant. On le déstructure avec des valeurs par défaut.
   const {
     name,
     size = '1em',
     color = 'currentColor',
     className = ''
-  } = $props<{                     // typage générique (facultatif)
+  } = $props<{
     name: string;
     size?: string;
     color?: string;
     className?: string;
   }>();
 
-  // Chemin de base où se trouvent les SVG
+  // -----------------------------------------------------------------
+  // 2️⃣ Chemin de base où se trouvent les SVG
+  // -----------------------------------------------------------------
   const basePath = '/icons';
 
-  // Construction du chemin complet du fichier SVG
-  const src =
+  // -----------------------------------------------------------------
+  // 3️⃣ src est **réactif** – il se met à jour dès que `name` change
+  // -----------------------------------------------------------------
+  $: src =
     name === 'logo'
       ? '/logo-animated.svg'
       : `${basePath}/${name}.svg`;
