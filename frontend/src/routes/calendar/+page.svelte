@@ -2,43 +2,83 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
+  import { state } from 'svelte'; // <-- Svelte 5 reactive state
   import { isAuthenticated } from '$lib/authStore';
 
-  let currentDate = $state(new Date());
-  let events = $state<Array<{id: number; title: string; date: string; time: string; description: string}>>([]);
-  let showAddModal = $state(false);
-  let newEvent = $state({ title: '', date: '', time: '', description: '' });
-  let loading = $state(true);
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let currentDate = state(new Date()); // mois affiché
+  let events = state<Array<{ id: number; title: string; date: string; time: string; description: string }>>([]);
+  let showAddModal = state(false);
+  let newEvent = state({ title: '', date: '', time: '', description: '' });
+  let loading = state(true);
+  let error = state<string | null>(null);
 
-  const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+  const monthNames = [
+    'Janvier',
+    'Février',
+    'Mars',
+    'Avril',
+    'Mai',
+    'Juin',
+    'Juillet',
+    'Août',
+    'Septembre',
+    'Octobre',
+    'Novembre',
+    'Décembre',
+  ];
 
+  // -----------------------------------------------------------------
+  // 2️⃣ Cycle de vie – vérification auth + chargement des événements
+  // -----------------------------------------------------------------
   onMount(async () => {
     if (!$isAuthenticated) {
       goto('/login');
       return;
     }
-    await loadEvents();
-    loading = false;
+
+    try {
+      await loadEvents();
+    } catch (e) {
+      console.error('Erreur chargement événements :', e);
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading = false;
+    }
   });
 
+  // -----------------------------------------------------------------
+  // 3️⃣ Chargement des événements depuis le backend
+  // -----------------------------------------------------------------
   async function loadEvents() {
     try {
       const response = await fetch('/api/events', { credentials: 'include' });
-      if (response.ok) {
-        const data = await response.json();
-        events = data.events || [];
+      const raw = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`Erreur ${response.status}`);
       }
+
+      const data = raw.trim() ? JSON.parse(raw) : { events: [] };
+      events = data.events || [];
     } catch (err) {
-      console.error('Erreur chargement événements:', err);
+      console.error('Erreur chargement événements :', err);
       events = [];
+      throw err;
     }
   }
 
+  // -----------------------------------------------------------------
+  // 4️⃣ Ajout d’un nouvel événement
+  // -----------------------------------------------------------------
   async function addEvent() {
     if (!newEvent.title || !newEvent.date) {
       alert('Veuillez remplir le titre et la date');
       return;
     }
+
     try {
       const response = await fetch('/api/events', {
         method: 'POST',
@@ -48,19 +88,31 @@
           title: newEvent.title,
           date: newEvent.date,
           time: newEvent.time,
-          description: newEvent.description
-        })
+          description: newEvent.description,
+        }),
       });
-      if (response.ok) {
-        await loadEvents();
-        showAddModal = false;
-        newEvent = { title: '', date: '', time: '', description: '' };
+
+      if (!response.ok) {
+        const raw = await response.text();
+        const data = raw.trim() ? JSON.parse(raw) : {};
+        throw new Error(data.message ?? `Erreur ${response.status}`);
       }
+
+      // Recharger la liste après création réussie
+      await loadEvents();
+      showAddModal = false;
     } catch (err) {
-      console.error('Erreur création événement:', err);
+      console.error('Erreur création événement :', err);
+      alert(err instanceof Error ? err.message : 'Erreur serveur');
+    } finally {
+      // Reset du formulaire même en cas d’erreur
+      newEvent = { title: '', date: '', time: '', description: '' };
     }
   }
 
+  // -----------------------------------------------------------------
+  // 5️⃣ Gestion du modal (ouverture / fermeture)
+  // -----------------------------------------------------------------
   function closeModal() {
     showAddModal = false;
   }
@@ -71,6 +123,9 @@
     }
   }
 
+  // -----------------------------------------------------------------
+  // 6️⃣ Navigation entre les mois
+  // -----------------------------------------------------------------
   function prevMonth() {
     currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
   }
@@ -79,25 +134,32 @@
     currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
   }
 
+  // -----------------------------------------------------------------
+  // 7️⃣ Helpers calendrier
+  // -----------------------------------------------------------------
   function getDaysInMonth(date: Date): number {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
   }
 
   function getFirstDayOfMonth(date: Date): number {
+    // 0 = dimanche, 1 = lundi, …
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   }
 
-  function getEventsForDay(day: number): Array<{id: number; title: string; date: string; time: string; description: string}> {
+  /** Retourne les événements du jour (format ISO `YYYY-MM-DD`). */
+  function getEventsForDay(day: number) {
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
     const dateStr = `${year}-${month}-${dayStr}`;
-    return events.filter(e => e.date === dateStr);
+    return events.filter((e) => e.date === dateStr);
   }
 
-  function getUpcomingEvents(): Array<{id: number; title: string; date: string; time: string; description: string}> {
+  /** Retourne les prochains événements (aujourd’hui inclus). */
+  function getUpcomingEvents() {
+    const today = new Date();
     return events
-      .filter(e => new Date(e.date) >= new Date())
+      .filter((e) => new Date(e.date) >= today)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 </script>
@@ -107,23 +169,39 @@
 </svelte:head>
 
 <div class="calendar-page">
+  <!-- -----------------------------------------------------------------
+       HEADER
+       ----------------------------------------------------------------- -->
   <header class="page-header">
     <h1>📅 Calendrier Familial</h1>
     <p class="subtitle">=====================</p>
   </header>
 
-  <button onclick={() => showAddModal = true} class="add-event-btn">
+  <!-- -----------------------------------------------------------------
+       BOUTON AJOUT EVENT
+       ----------------------------------------------------------------- -->
+  <button on:click={() => (showAddModal = true)} class="add-event-btn">
     + Ajouter un événement
   </button>
 
+  <!-- -----------------------------------------------------------------
+       CALENDRIER
+       ----------------------------------------------------------------- -->
   <div class="calendar-container">
     <div class="calendar-nav">
-      <button onclick={prevMonth} class="nav-btn" aria-label="Mois précédent">◀</button>
-      <h2 class="current-month">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h2>
-      <button onclick={nextMonth} class="nav-btn" aria-label="Mois suivant">▶</button>
+      <button on:click={prevMonth} class="nav-btn" aria-label="Mois précédent">
+        ◀
+      </button>
+      <h2 class="current-month">
+        {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+      </h2>
+      <button on:click={nextMonth} class="nav-btn" aria-label="Mois suivant">
+        ▶
+      </button>
     </div>
 
     <div class="calendar-grid" role="grid">
+      <!-- Days of week header -->
       <div class="day-header" role="columnheader">Dim</div>
       <div class="day-header" role="columnheader">Lun</div>
       <div class="day-header" role="columnheader">Mar</div>
@@ -132,14 +210,22 @@
       <div class="day-header" role="columnheader">Ven</div>
       <div class="day-header" role="columnheader">Sam</div>
 
+      <!-- Empty cells before first day -->
       {#each Array(getFirstDayOfMonth(currentDate)) as _}
         <div class="calendar-day empty" role="gridcell"></div>
       {/each}
 
+      <!-- Days of month -->
       {#each Array(getDaysInMonth(currentDate)) as _, i}
         {@const dayEvents = getEventsForDay(i + 1)}
-        <div class="calendar-day" role="gridcell" tabindex="0">
+        <div
+          class="calendar-day"
+          role="gridcell"
+          tabindex="0"
+          aria-label={`Jour ${i + 1}, ${dayEvents.length} événement${dayEvents.length > 1 ? 's' : ''}`}
+        >
           <span class="day-number">{i + 1}</span>
+
           {#if dayEvents.length > 0}
             <div class="day-events">
               {#each dayEvents.slice(0, 2) as event}
@@ -155,9 +241,12 @@
     </div>
   </div>
 
+  <!-- -----------------------------------------------------------------
+       PROCHAINS ÉVÉNEMENTS
+       ----------------------------------------------------------------- -->
   <section class="upcoming-events">
     <h3>### Événements à venir</h3>
-    
+
     {#if getUpcomingEvents().length === 0}
       <p class="no-events">Aucun événement à venir</p>
     {:else}
@@ -168,6 +257,7 @@
               <span class="event-day">{new Date(event.date).getDate()}</span>
               <span class="event-month">{monthNames[new Date(event.date).getMonth()].slice(0, 3)}</span>
             </div>
+
             <div class="event-details">
               <h4>{event.title}</h4>
               <p class="event-time">{event.time || 'Toute la journée'}</p>
@@ -181,30 +271,33 @@
     {/if}
   </section>
 
+  <!-- -----------------------------------------------------------------
+       MODAL AJOUT EVENT
+       ----------------------------------------------------------------- -->
   {#if showAddModal}
-    <div 
-      class="modal-overlay" 
-      onclick={closeModal}
+    <div
+      class="modal-overlay"
+      on:click={closeModal}
       role="button"
       tabindex="0"
-      onkeydown={handleModalKeydown}
+      on:keydown={handleModalKeydown}
     >
-      <div 
-        class="modal" 
-        onclick={(e) => e.stopPropagation()}
+      <div
+        class="modal"
+        on:click|stopPropagation
         role="dialog"
         aria-label="Nouvel événement"
         tabindex="-1"
       >
         <h3>Nouvel événement</h3>
-        
-        <form onsubmit={(e) => { e.preventDefault(); addEvent(); }}>
+
+        <form on:submit|preventDefault={addEvent}>
           <div class="form-group">
             <label for="eventTitle">Titre</label>
-            <input 
-              type="text" 
-              id="eventTitle" 
-              bind:value={newEvent.title} 
+            <input
+              type="text"
+              id="eventTitle"
+              bind:value={newEvent.title}
               placeholder="Nom de l'événement"
               required
             />
@@ -212,27 +305,18 @@
 
           <div class="form-group">
             <label for="eventDate">Date</label>
-            <input 
-              type="date" 
-              id="eventDate" 
-              bind:value={newEvent.date}
-              required
-            />
+            <input type="date" id="eventDate" bind:value={newEvent.date} required />
           </div>
 
           <div class="form-group">
             <label for="eventTime">Heure</label>
-            <input 
-              type="time" 
-              id="eventTime" 
-              bind:value={newEvent.time}
-            />
+            <input type="time" id="eventTime" bind:value={newEvent.time} />
           </div>
 
           <div class="form-group">
             <label for="eventDescription">Description (optionnel)</label>
-            <textarea 
-              id="eventDescription" 
+            <textarea
+              id="eventDescription"
               bind:value={newEvent.description}
               placeholder="Détails de l'événement"
               rows="3"
@@ -240,12 +324,10 @@
           </div>
 
           <div class="form-actions">
-            <button type="button" onclick={closeModal} class="cancel-btn">
+            <button type="button" on:click={closeModal} class="cancel-btn">
               Annuler
             </button>
-            <button type="submit" class="submit-btn">
-              Créer
-            </button>
+            <button type="submit" class="submit-btn">Créer</button>
           </div>
         </form>
       </div>
@@ -254,6 +336,9 @@
 </div>
 
 <style>
+  /* -----------------------------------------------------------------
+     PAGE LAYOUT
+     ----------------------------------------------------------------- */
   .calendar-page {
     max-width: 900px;
     margin: 0 auto;
@@ -299,6 +384,9 @@
     transform: translateY(-1px);
   }
 
+  /* -----------------------------------------------------------------
+     CALENDAR CONTAINER
+     ----------------------------------------------------------------- */
   .calendar-container {
     background: white;
     border-radius: 1rem;
@@ -410,6 +498,9 @@
     text-align: center;
   }
 
+  /* -----------------------------------------------------------------
+     UPCOMING EVENTS
+     ----------------------------------------------------------------- */
   .upcoming-events h3 {
     font-size: 1.1rem;
     font-weight: 600;
@@ -439,177 +530,3 @@
     gap: 1rem;
     padding: 1rem;
     background: white;
-    border-radius: 0.75rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  }
-
-  .event-date {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-width: 50px;
-    padding: 0.5rem;
-    background: #4ade80;
-    border-radius: 0.5rem;
-    color: white;
-  }
-
-  .event-day {
-    font-size: 1.25rem;
-    font-weight: 700;
-    line-height: 1;
-  }
-
-  .event-month {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-  }
-
-  .event-details {
-    flex: 1;
-  }
-
-  .event-details h4 {
-    margin: 0 0 0.25rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1e293b;
-  }
-
-  .event-time {
-    margin: 0;
-    font-size: 0.85rem;
-    color: #64748b;
-  }
-
-  .event-desc {
-    margin: 0.5rem 0 0 0;
-    font-size: 0.85rem;
-    color: #64748b;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 1rem;
-  }
-
-  .modal {
-    background: white;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    width: 100%;
-    max-width: 420px;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-  }
-
-  .modal h3 {
-    margin: 0 0 1.25rem 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #1e293b;
-  }
-
-  .form-group {
-    margin-bottom: 1rem;
-  }
-
-  .form-group label {
-    display: block;
-    font-weight: 500;
-    color: #334155;
-    margin-bottom: 0.4rem;
-    font-size: 0.9rem;
-  }
-
-  .form-group input,
-  .form-group textarea {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1.5px solid #e2e8f0;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    transition: all 0.2s;
-    box-sizing: border-box;
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus {
-    outline: none;
-    border-color: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
-  }
-
-  .form-group textarea {
-    resize: vertical;
-    min-height: 80px;
-  }
-
-  .form-actions {
-    display: flex;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-  }
-
-  .cancel-btn,
-  .submit-btn {
-    flex: 1;
-    padding: 0.85rem;
-    border: none;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .cancel-btn {
-    background: #f1f5f9;
-    color: #64748b;
-  }
-
-  .cancel-btn:hover {
-    background: #e2e8f0;
-  }
-
-  .submit-btn {
-    background: #4ade80;
-    color: white;
-  }
-
-  .submit-btn:hover {
-    filter: brightness(1.1);
-  }
-
-  @media (max-width: 640px) {
-    .calendar-page {
-      padding: 1rem;
-    }
-
-    .calendar-container {
-      padding: 1rem;
-    }
-
-    .calendar-day {
-      min-height: 50px;
-      padding: 0.35rem;
-    }
-
-    .day-number {
-      font-size: 0.8rem;
-    }
-
-    .event-badge {
-      font-size: 0.6rem;
-      padding: 0.1rem 0.25rem;
-    }
-  }
-</style>
