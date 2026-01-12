@@ -2,6 +2,11 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 
+# 1️⃣ ARG qui sera fourni par `docker compose build` ou `docker build --build-arg`
+ARG PUBLIC_SITE_URL
+# 2️⃣ Exporter cet ARG comme variable d’environnement pour Vite
+ENV PUBLIC_SITE_URL=${PUBLIC_SITE_URL}
+
 COPY frontend/package*.json ./
 RUN npm install
 
