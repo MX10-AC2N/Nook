@@ -1,46 +1,76 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, authUser, updateUser } from '$lib/authStore';
+  import { state } from 'svelte'; // <-- Svelte 5 reactive state
+  import {
+    isAuthenticated,
+    authUser,
+    updateUser,
+  } from '$lib/authStore';
 
-  let userName = $state('');
-  let currentPassword = $state('');
-  let newPassword = $state('');
-  let confirmPassword = $state('');
-  let message = $state('');
-  let error = $state('');
-  let saving = $state(false);
-  let activeTab = $state<'profile' | 'security' | 'appearance'>('profile');
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let userName = state('');
+  let currentPassword = state('');
+  let newPassword = state('');
+  let confirmPassword = state('');
+  let message = state('');
+  let error = state('');
+  let saving = state(false);
+  let activeTab = state<'profile' | 'security' | 'appearance'>('profile');
 
+  // -----------------------------------------------------------------
+  // 2️⃣ Thèmes disponibles
+  // -----------------------------------------------------------------
   const themes = [
-    { id: 'jardin-secret', name: '🌿 Jardin Secret', description: 'Doux, naturel, aquarelle' },
-    { id: 'space-hub', name: '🚀 Space Hub', description: 'Futuriste, néon, épuré' },
-    { id: 'maison-chaleureuse', name: '🏠 Maison Chaleureuse', description: 'Feutre, crayon, bois' }
+    {
+      id: 'jardin-secret',
+      name: '🌿 Jardin Secret',
+      description: 'Doux, naturel, aquarelle',
+    },
+    {
+      id: 'space-hub',
+      name: '🚀 Space Hub',
+      description: 'Futuriste, néon, épuré',
+    },
+    {
+      id: 'maison-chaleureuse',
+      name: '🏠 Maison Chaleureuse',
+      description: 'Feutre, crayon, bois',
+    },
   ];
 
-  let selectedTheme = $state('jardin-secret');
-  let darkMode = $state(false);
+  let selectedTheme = state('jardin-secret');
+  let darkMode = state(false);
 
-  onMount(async () => {
+  // -----------------------------------------------------------------
+  // 3️⃣ Initialisation (auth + thème)
+  // -----------------------------------------------------------------
+  onMount(() => {
     if (!$isAuthenticated) {
       goto('/login');
       return;
     }
-    if (authUser) {
-      userName = authUser.name || '';
+
+    if ($authUser) {
+      userName = $authUser.name ?? '';
     }
+
     loadTheme();
   });
 
+  /** Charge le thème et le mode sombre depuis le `localStorage`. */
   function loadTheme() {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('nook-theme') || 'jardin-secret';
+      const saved = localStorage.getItem('nook-theme') ?? 'jardin-secret';
       selectedTheme = saved;
       darkMode = localStorage.getItem('nook-dark-mode') === 'true';
       applyTheme();
     }
   }
 
+  /** Applique le thème et le mode sombre sur le `<html>` et persiste. */
   function applyTheme() {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', selectedTheme);
@@ -50,21 +80,30 @@
     }
   }
 
+  /** Change le thème sélectionné. */
   function setTheme(themeId: string) {
     selectedTheme = themeId;
     applyTheme();
   }
 
+  /** Bascule le mode sombre. */
   function toggleDarkMode() {
     darkMode = !darkMode;
     applyTheme();
   }
 
+  // -----------------------------------------------------------------
+  // 4️⃣ Mise à jour du profil (nom uniquement)
+  // -----------------------------------------------------------------
+  /**
+   * Envoie le nouveau nom au backend et met à jour le store.
+   */
   async function updateProfile() {
     if (!userName.trim()) {
       error = 'Le nom ne peut pas être vide';
       return;
     }
+
     saving = true;
     error = '';
     message = '';
@@ -74,23 +113,41 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name: userName })
+        body: JSON.stringify({ name: userName }),
       });
 
+      const raw = await response.text();
+      let data: any = {};
+
+      if (raw.trim()) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          // ignore JSON parse error – keep data empty
+        }
+      }
+
       if (response.ok) {
+        // Met à jour le store local
         updateUser({ name: userName });
         message = 'Profil mis à jour avec succès';
       } else {
-        const data = await response.json();
-        error = data.message || 'Erreur lors de la mise à jour';
+        error = data?.message ?? `Erreur ${response.status}`;
       }
-    } catch (err) {
-      error = 'Erreur de connexion';
+    } catch (e) {
+      console.error('Erreur mise à jour profil :', e);
+      error = e instanceof Error ? e.message : 'Erreur de connexion';
     } finally {
       saving = false;
     }
   }
 
+  // -----------------------------------------------------------------
+  // 5️⃣ Changement de mot de passe
+  // -----------------------------------------------------------------
+  /**
+   * Envoie le nouveau mot de passe au backend.
+   */
   async function changePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
       error = 'Veuillez remplir tous les champs';
@@ -104,17 +161,32 @@
       error = 'Les mots de passe ne correspondent pas';
       return;
     }
+
     saving = true;
     error = '';
     message = '';
 
     try {
-      const response = await fetch('/api/change-password', {
+      const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
       });
+
+      const raw = await response.text();
+      let data: any = {};
+
+      if (raw.trim()) {
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          // ignore JSON parse error
+        }
+      }
 
       if (response.ok) {
         message = 'Mot de passe modifié avec succès';
@@ -122,11 +194,11 @@
         newPassword = '';
         confirmPassword = '';
       } else {
-        const data = await response.json();
-        error = data.message || 'Erreur lors du changement de mot de passe';
+        error = data?.message ?? `Erreur ${response.status}`;
       }
-    } catch (err) {
-      error = 'Erreur de connexion';
+    } catch (e) {
+      console.error('Erreur changement mdp :', e);
+      error = e instanceof Error ? e.message : 'Erreur de connexion';
     } finally {
       saving = false;
     }
@@ -138,45 +210,56 @@
 </svelte:head>
 
 <div class="settings-container">
+  <!-- -----------------------------------------------------------------
+       HEADER
+       ----------------------------------------------------------------- -->
   <header class="page-header">
     <h1>⚙️ Paramètres</h1>
   </header>
 
+  <!-- -----------------------------------------------------------------
+       TABS
+       ----------------------------------------------------------------- -->
   <nav class="tabs" role="tablist" aria-label="Sections des paramètres">
     <button
       role="tab"
       class="tab"
       class:active={activeTab === 'profile'}
       aria-selected={activeTab === 'profile'}
-      onclick={() => (activeTab = 'profile')}
+      on:click={() => (activeTab = 'profile')}
     >
       Profil
     </button>
+
     <button
       role="tab"
       class="tab"
       class:active={activeTab === 'security'}
       aria-selected={activeTab === 'security'}
-      onclick={() => (activeTab = 'security')}
+      on:click={() => (activeTab = 'security')}
     >
       Sécurité
     </button>
+
     <button
       role="tab"
       class="tab"
       class:active={activeTab === 'appearance'}
       aria-selected={activeTab === 'appearance'}
-      onclick={() => (activeTab = 'appearance')}
+      on:click={() => (activeTab = 'appearance')}
     >
       Apparence
     </button>
   </nav>
 
+  <!-- -----------------------------------------------------------------
+       PROFIL
+       ----------------------------------------------------------------- -->
   {#if activeTab === 'profile'}
     <section class="settings-section" role="tabpanel" aria-labelledby="profile-tab">
       <h2>Informations du profil</h2>
 
-      <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
+      <form on:submit|preventDefault={updateProfile}>
         <div class="form-group">
           <label for="userName">Prénom</label>
           <input
@@ -192,24 +275,29 @@
           <input
             type="text"
             id="userId"
-            value={authUser?.id || ''}
+            value={$authUser?.id ?? ''}
             disabled
             aria-describedby="userId-hint"
           />
-          <p id="userId-hint" class="help-text">L'identifiant ne peut pas être modifié</p>
+          <p id="userId-hint" class="help-text">
+            L'identifiant ne peut pas être modifié
+          </p>
         </div>
 
         <button type="submit" class="btn btn-primary" disabled={saving}>
-          {saving ? 'Enregistrement...' : 'Enregistrer'}
+          {saving ? 'Enregistrement…' : 'Enregistrer'}
         </button>
       </form>
     </section>
 
+    <!-- -----------------------------------------------------------------
+         SÉCURITÉ
+         ----------------------------------------------------------------- -->
   {:else if activeTab === 'security'}
     <section class="settings-section" role="tabpanel" aria-labelledby="security-tab">
       <h2>Changer le mot de passe</h2>
 
-      <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
+      <form on:submit|preventDefault={changePassword}>
         <div class="form-group">
           <label for="currentPassword">Mot de passe actuel</label>
           <input
@@ -242,11 +330,14 @@
         </div>
 
         <button type="submit" class="btn btn-primary" disabled={saving}>
-          {saving ? 'Modification...' : 'Changer le mot de passe'}
+          {saving ? 'Modification…' : 'Changer le mot de passe'}
         </button>
       </form>
     </section>
 
+    <!-- -----------------------------------------------------------------
+         APPARENCE
+         ----------------------------------------------------------------- -->
   {:else if activeTab === 'appearance'}
     <section class="settings-section" role="tabpanel" aria-labelledby="appearance-tab">
       <h2>Thème</h2>
@@ -256,11 +347,15 @@
           <button
             class="theme-card"
             class:selected={selectedTheme === theme.id}
-            onclick={() => setTheme(theme.id)}
+            on:click={() => setTheme(theme.id)}
             aria-pressed={selectedTheme === theme.id}
           >
             <span class="theme-icon">
-              {theme.id === 'jardin-secret' ? '🌿' : theme.id === 'space-hub' ? '🚀' : '🏠'}
+              {theme.id === 'jardin-secret'
+                ? '🌿'
+                : theme.id === 'space-hub'
+                ? '🚀'
+                : '🏠'}
             </span>
             <span class="theme-name">{theme.name}</span>
             <span class="theme-description">{theme.description}</span>
@@ -276,7 +371,7 @@
               type="checkbox"
               id="darkModeToggle"
               checked={darkMode}
-              onchange={toggleDarkMode}
+              on:change={toggleDarkMode}
             />
             <span class="toggle-slider"></span>
           </div>
@@ -285,10 +380,25 @@
     </section>
   {/if}
 
+  <!-- -----------------------------------------------------------------
+       FEEDBACK (message / error)
+       ----------------------------------------------------------------- -->
   {#if message}
     <div role="alert" class="alert alert-success">
-      <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="icon"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
       </svg>
       <span>{message}</span>
     </div>
@@ -296,8 +406,20 @@
 
   {#if error}
     <div role="alert" class="alert alert-error">
-      <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        class="icon"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+        />
       </svg>
       <span>{error}</span>
     </div>
@@ -305,6 +427,9 @@
 </div>
 
 <style>
+  /* -----------------------------------------------------------------
+     CONTAINER
+     ----------------------------------------------------------------- */
   .settings-container {
     max-width: 800px;
     margin: 0 auto;
@@ -322,6 +447,9 @@
     color: #1e293b;
   }
 
+  /* -----------------------------------------------------------------
+     TABS
+     ----------------------------------------------------------------- */
   .tabs {
     display: flex;
     gap: 8px;
@@ -352,6 +480,9 @@
     border-bottom-color: #4ade80;
   }
 
+  /* -----------------------------------------------------------------
+     SECTION
+     ----------------------------------------------------------------- */
   .settings-section {
     background: white;
     padding: 24px;
@@ -361,8 +492,14 @@
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .settings-section h2 {
@@ -372,6 +509,9 @@
     color: #1e293b;
   }
 
+  /* -----------------------------------------------------------------
+     FORM
+     ----------------------------------------------------------------- */
   .form-group {
     margin-bottom: 16px;
   }
@@ -383,8 +523,8 @@
     color: #334155;
   }
 
-  .form-group input[type="text"],
-  .form-group input[type="password"] {
+  .form-group input[type='text'],
+  .form-group input[type='password'] {
     width: 100%;
     padding: 12px 14px;
     border: 1.5px solid #e2e8f0;
@@ -393,210 +533,3 @@
     transition: all 0.2s;
     box-sizing: border-box;
     background: white;
-    color: #1e293b;
-  }
-
-  .form-group input:focus {
-    outline: none;
-    border-color: #4ade80;
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
-  }
-
-  .form-group input:disabled {
-    background-color: #f8fafc;
-    cursor: not-allowed;
-    color: #64748b;
-  }
-
-  .help-text {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin: 6px 0 0 0;
-  }
-
-  .btn {
-    padding: 12px 24px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    border: none;
-    font-size: 1rem;
-  }
-
-  .btn-primary {
-    background-color: #4ade80;
-    color: white;
-  }
-
-  .btn-primary:hover:not(:disabled) {
-    filter: brightness(1.1);
-    transform: translateY(-1px);
-  }
-
-  .btn-primary:disabled {
-    background-color: #9ca3af;
-    cursor: not-allowed;
-  }
-
-  .themes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .theme-card {
-    padding: 16px;
-    border: 2px solid #e2e8f0;
-    border-radius: 12px;
-    background: white;
-    cursor: pointer;
-    text-align: center;
-    transition: all 0.2s;
-  }
-
-  .theme-card:hover {
-    border-color: #cbd5e1;
-    transform: translateY(-2px);
-  }
-
-  .theme-card.selected {
-    border-color: #4ade80;
-    background-color: rgba(74, 222, 128, 0.08);
-  }
-
-  .theme-card:focus {
-    outline: 2px solid #4ade80;
-    outline-offset: 2px;
-  }
-
-  .theme-icon {
-    font-size: 2.5rem;
-    display: block;
-    margin-bottom: 10px;
-  }
-
-  .theme-name {
-    font-weight: 600;
-    display: block;
-    margin-bottom: 6px;
-    color: #1e293b;
-    font-size: 1rem;
-  }
-
-  .theme-description {
-    font-size: 0.85rem;
-    color: #64748b;
-    line-height: 1.4;
-  }
-
-  .toggle-label {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-  }
-
-  .toggle-label span {
-    font-weight: 500;
-    color: #334155;
-  }
-
-  .toggle-switch {
-    position: relative;
-    width: 52px;
-    height: 28px;
-  }
-
-  .toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    inset: 0;
-    background-color: #cbd5e1;
-    transition: 0.3s;
-    border-radius: 28px;
-  }
-
-  .toggle-slider::before {
-    position: absolute;
-    content: "";
-    height: 22px;
-    width: 22px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: 0.3s;
-    border-radius: 50%;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .toggle-switch input:checked + .toggle-slider {
-    background-color: #4ade80;
-  }
-
-  .toggle-switch input:checked + .toggle-slider::before {
-    transform: translateX(24px);
-  }
-
-  .toggle-switch input:focus + .toggle-slider {
-    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
-  }
-
-  .alert {
-    margin-top: 20px;
-    padding: 14px 18px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .alert .icon {
-    width: 22px;
-    height: 22px;
-    flex-shrink: 0;
-  }
-
-  .alert-success {
-    background-color: rgba(34, 197, 94, 0.1);
-    color: #16a34a;
-    border: 1px solid rgba(34, 197, 94, 0.25);
-  }
-
-  .alert-error {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(239, 68, 68, 0.25);
-  }
-
-  @media (max-width: 640px) {
-    .settings-container {
-      padding: 16px;
-    }
-
-    .tabs {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    .tab {
-      padding: 10px 16px;
-      white-space: nowrap;
-    }
-
-    .settings-section {
-      padding: 20px;
-    }
-
-    .themes-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>
