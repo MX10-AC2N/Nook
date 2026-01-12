@@ -2,14 +2,23 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
+  import { state } from 'svelte';               // <-- Svelte 5 reactive state
   import { isAuthenticated } from '$lib/authStore';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
   let currentDate = state(new Date()); // mois affiché
-  let events = state<Array<{ id: number; title: string; date: string; time: string; description: string }>>([]);
+  let events = state<
+    Array<{
+      id: number;
+      title: string;
+      date: string; // YYYY‑MM‑DD
+      time: string;
+      description: string;
+    }>
+  >([]);
+
   let showAddModal = state(false);
   let newEvent = state({ title: '', date: '', time: '', description: '' });
   let loading = state(true);
@@ -31,7 +40,7 @@
   ];
 
   // -----------------------------------------------------------------
-  // 2️⃣ Cycle de vie – vérification auth + chargement des événements
+  // 2️⃣ Cycle de vie – vérif auth + chargement des événements
   // -----------------------------------------------------------------
   onMount(async () => {
     if (!$isAuthenticated) {
@@ -530,3 +539,8 @@
     gap: 1rem;
     padding: 1rem;
     background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 2px 8px rgba(0, 0,
+Message précédent
+3 / 3
+Message suivant
