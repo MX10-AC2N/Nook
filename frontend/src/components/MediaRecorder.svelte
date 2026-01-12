@@ -1,4 +1,3 @@
-<!-- frontend/src/components/MediaRecorder.svelte -->
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
@@ -7,58 +6,95 @@
   import { getStoredKeys, decryptPrivateKey } from '$lib/crypto';
   import { activeConversationId, participants } from '$lib/conversationStore';
   import { connectionError } from '$lib/chatStore';
-  
+  import { browser } from '$app/environment';
+
+  // -----------------------------------------------------------------
+  // Props
+  // -----------------------------------------------------------------
   export let disabled: boolean = false;
-  
+
+  // -----------------------------------------------------------------
+  // UI state
+  // -----------------------------------------------------------------
   let isHovered = false;
   let countdown = 3;
   let showCountdown = false;
-  let recordingTimer: ReturnType<typeof setTimeout> | null = null;
-  
-  // Gestion du drag & drop pour les fichiers médias
+  let countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Drag‑and‑drop UI
   let isDragging = false;
   let dragTimeout: ReturnType<typeof setTimeout> | null = null;
-  
-  const hasPermission = writable<{
-    audio: boolean;
-    video: boolean;
-  }>({ audio: false, video: false });
-  
-  onMount(async () => {
-    // Vérifier les permissions au chargement
-    try {
-      const audioStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      const videoStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
-      
-      hasPermission.set({
-        audio: audioStatus.state === 'granted',
-        video: videoStatus.state === 'granted'
+
+  // Permissions (audio / video)
+  const hasPermission = writable<{ audio: boolean; video: boolean }>({
+    audio: false,
+    video: false,
+  });
+
+  // -----------------------------------------------------------------
+  // Lifecycle – permissions & drag‑and‑drop listeners
+  // -----------------------------------------------------------------
+  onMount(() => {
+    // ---- Permissions -------------------------------------------------
+    if (browser) {
+      // Certaines implémentations ne supportent pas `permissions.query`,
+      // on ignore les erreurs éventuelles.
+      Promise.allSettled([
+        navigator.permissions.query({ name: 'microphone' as PermissionName }),
+        navigator.permissions.query({ name: 'camera' as PermissionName })
+      ]).then((results) => {
+        const audioResult = results[0];
+        const videoResult = results[1];
+
+        if (audioResult.status === 'fulfilled')
+          hasPermission.update((p) => ({
+            ...p,
+            audio: audioResult.value.state === 'granted'
+          }));
+        if (videoResult.status === 'fulfilled')
+          hasPermission.update((p) => ({
+            ...p,
+            video: videoResult.value.state === 'granted'
+          }));
+
+        // Listen for changes
+        if (audioResult.status === 'fulfilled')
+          audioResult.value.onchange = () => {
+            hasPermission.update((p) => ({
+              ...p,
+              audio: audioResult.value.state === 'granted'
+            }));
+          };
+        if (videoResult.status === 'fulfilled')
+          videoResult.value.onchange = () => {
+            hasPermission.update((p) => ({
+              ...p,
+              video: videoResult.value.state === 'granted'
+            }));
+          };
       });
-      
-      audioStatus.onchange = () => {
-        hasPermission.update(h => ({ ...h, audio: audioStatus.state === 'granted' }));
-      };
-      
-      videoStatus.onchange = () => {
-        hasPermission.update(h => ({ ...h, video: videoStatus.state === 'granted' }));
-      };
-    } catch (err) {
-      console.warn('Impossible de vérifier les permissions:', err);
     }
-    
-    // Écouter les événements de drag & drop
-    window.addEventListener('dragover', handleDragOver);
-    window.addEventListener('dragleave', handleDragLeave);
-    window.addEventListener('drop', handleDrop);
-    
+
+    // ---- Drag & Drop ------------------------------------------------
+    if (browser) {
+      window.addEventListener('dragover', handleDragOver);
+      window.addEventListener('dragleave', handleDragLeave);
+      window.addEventListener('drop', handleDrop);
+    }
+
     return () => {
-      window.removeEventListener('dragover', handleDragOver);
-      window.removeEventListener('dragleave', handleDragLeave);
-      window.removeEventListener('drop', handleDrop);
+      if (browser) {
+        window.removeEventListener('dragover', handleDragOver);
+        window.removeEventListener('dragleave', handleDragLeave);
+        window.removeEventListener('drop', handleDrop);
+      }
       cleanupDrag();
     };
   });
-  
+
+  // -----------------------------------------------------------------
+  // Drag & Drop helpers
+  // -----------------------------------------------------------------
   function cleanupDrag() {
     if (dragTimeout) {
       clearTimeout(dragTimeout);
@@ -66,278 +102,276 @@
     }
     isDragging = false;
   }
-  
+
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
-    if (!isDragging) {
-      isDragging = true;
-    }
+    if (!isDragging) isDragging = true;
   }
-  
+
   function handleDragLeave(e: DragEvent) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      cleanupDrag();
-    }
+    // When leaving the window, `relatedTarget` is null → clean up
+    if (!e.relatedTarget) cleanupDrag();
   }
-  
+
   async function handleDrop(e: DragEvent) {
     e.preventDefault();
     cleanupDrag();
-    
-    if (!e.dataTransfer?.files?.length) return;
-    
-    const file = e.dataTransfer.files[0];
+
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
+    await processDroppedFile(file);
+  }
+
+  // -----------------------------------------------------------------
+  // File processing (drop OR file‑input)
+  // -----------------------------------------------------------------
+  async function processDroppedFile(file: File) {
     const conversationId = get(activeConversationId);
-    
     if (!conversationId) {
       connectionError.set('Aucune conversation sélectionnée');
       return;
     }
-    
-    // Vérifier le type de fichier
-    const isValidAudio = file.type.startsWith('audio/');
-    const isValidVideo = file.type.startsWith('video/');
-    
-    if (!isValidAudio && !isValidVideo) {
-      connectionError.set('Type de fichier non supporté. Seuls les fichiers audio et vidéo sont acceptés.');
+
+    // ---- Vérification du type ----
+    const isAudio = file.type.startsWith('audio/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isAudio && !isVideo) {
+      connectionError.set(
+        'Type de fichier non supporté : seuls les fichiers audio et vidéo sont acceptés.'
+      );
       return;
     }
-    
-    if (file.size > 50 * 1024 * 1024) { // 50 Mo
-      connectionError.set('Fichier trop volumineux. La limite est de 50 Mo.');
+
+    // ---- Taille maximale (50 Mo) ----
+    if (file.size > 50 * 1024 * 1024) {
+      connectionError.set('Fichier trop volumineux : la limite est de 50 Mo.');
       return;
     }
-    
-    // Obtenir les clés pour le chiffrement
+
+    // ---- Récupération des clés ----
     const user = get(authStore).user;
     if (!user) return;
-    
-    const storedKeys = await getStoredKeys(user.id);
-    if (!storedKeys) {
-      connectionError.set('Clés de chiffrement non trouvées');
+
+    const stored = await getStoredKeys(user.id);
+    if (!stored) {
+      connectionError.set('Clés de chiffrement introuvables');
       return;
     }
-    
-    const password = user.password || prompt('Entrez votre mot de passe pour chiffrer le média:');
+
+    // Demander le mot de passe si besoin
+    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le média :');
     if (!password) return;
-    
+
+    const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
+
+    // ---- Récupérer les clés publiques des destinataires ----
+    const convParticipants = get(participants);
+    const recipientPublicKeys = convParticipants
+      .filter((p) => p.id !== user.id)
+      .map(() => stored.publicKey); // 👉 TODO : remplacer par les vraies clés publiques du serveur
+
+    // ---- Créer le Blob et envoyer ----
+    const blob = new Blob([await file.arrayBuffer()], { type: file.type });
+    await sendMediaMessage(
+      blob,
+      isVideo ? 'video' : 'audio',
+      conversationId,
+      recipientPublicKeys,
+      privateKey
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // Permission helpers
+  // -----------------------------------------------------------------
+  async function requestPermission(kind: 'audio' | 'video'): Promise<boolean> {
     try {
-      const privateKey = await decryptPrivateKey(storedKeys.encryptedPrivateKey, password);
-      
-      // Obtenir les clés publiques des destinataires
-      const convParticipants = get(participants);
-      const recipientPublicKeys = convParticipants
-        .filter(p => p.id !== user.id)
-        .map(p => {
-          // Dans une vraie implémentation, récupérer la clé publique depuis le backend
-          return storedKeys.publicKey; // Placeholder
-        });
-      
-      // Envoyer le média
-      const blob = new Blob([await file.arrayBuffer()], { type: file.type });
-      await sendMediaMessage(
-        blob,
-        isValidVideo ? 'video' : 'audio',
-        conversationId,
-        recipientPublicKeys,
-        privateKey
-      );
-    } catch (err) {
-      connectionError.set('Erreur lors de l\'envoi du fichier');
-      console.error('Erreur envoi fichier média:', err);
+      if (kind === 'audio')
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      else
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+      hasPermission.update((p) => ({
+        ...p,
+        [kind]: true
+      }));
+      return true;
+    } catch (e) {
+      connectionError.set(`Permission ${kind} refusée`);
+      console.error(`Permission ${kind} refusée :`, e);
+      return false;
     }
   }
-  
-  async function startCountdown(mediaType: 'audio' | 'video') {
+
+  // -----------------------------------------------------------------
+  // Gestion du bouton d’enregistrement (audio / vidéo)
+  // -----------------------------------------------------------------
+  async function handleRecordClick(mediaType: 'audio' | 'video') {
+    const { audio, video } = get(hasPermission);
+
+    if (mediaType === 'audio' && !audio) {
+      if (!(await requestPermission('audio'))) return;
+    }
+    if (mediaType === 'video' && !video) {
+      if (!(await requestPermission('video'))) return;
+    }
+
+    startCountdown(mediaType);
+  }
+
+  function startCountdown(mediaType: 'audio' | 'video') {
     showCountdown = true;
     countdown = 3;
-    
-    const countdownInterval = setInterval(() => {
+
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
       countdown--;
       if (countdown <= 0) {
-        clearInterval(countdownInterval);
+        clearInterval(countdownInterval!);
+        countdownInterval = null;
         showCountdown = false;
         startRecording(mediaType);
       }
     }, 1000);
   }
-  
-  async function handleRecordClick(mediaType: 'audio' | 'video') {
-    const { audio, video } = get(hasPermission);
-    
-    if (mediaType === 'video' && !video) {
-      try {
-        // Demander explicitement la permission vidéo
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        hasPermission.update(h => ({ ...h, video: true }));
-        startCountdown('video');
-      } catch (err) {
-        connectionError.set('Permission caméra refusée');
-        console.error('Permission caméra refusée:', err);
-      }
-      return;
-    }
-    
-    if (mediaType === 'audio' && !audio) {
-      try {
-        // Demander explicitement la permission audio
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        hasPermission.update(h => ({ ...h, audio: true }));
-        startCountdown('audio');
-      } catch (err) {
-        connectionError.set('Permission microphone refusée');
-        console.error('Permission microphone refusée:', err);
-      }
-      return;
-    }
-    
-    startCountdown(mediaType);
-  }
-  
+
+  // -----------------------------------------------------------------
+  // Contrôles d’enregistrement
+  // -----------------------------------------------------------------
   function handleStopRecording() {
+    // `true` → on envoie le message
     stopRecording(true);
   }
-  
+
+  function handleCancelRecording() {
+    // `false` → on annule le message
+    stopRecording(false);
+  }
+
+  // -----------------------------------------------------------------
+  // Envoi d’un enregistrement déjà stoppé (si on veut le déclencher manuellement)
+  // -----------------------------------------------------------------
   async function handleSendRecording() {
     const state = get(recordingState);
     const conversationId = get(activeConversationId);
-    
     if (!conversationId) {
       connectionError.set('Aucune conversation sélectionnée');
       return;
     }
-    
-    if (state.chunks.length === 0) return;
-    
-    // Créer un blob à partir des chunks
-    const blob = new Blob(state.chunks, { 
-      type: state.mediaType === 'video' ? 'video/webm' : 'audio/webm' 
+
+    const blob = new Blob(state.chunks, {
+      type: state.mediaType === 'video' ? 'video/webm' : 'audio/webm'
     });
-    
-    // Obtenir les clés pour le chiffrement
+
     const user = get(authStore).user;
     if (!user) return;
-    
-    const storedKeys = await getStoredKeys(user.id);
-    if (!storedKeys) {
-      connectionError.set('Clés de chiffrement non trouvées');
+
+    const stored = await getStoredKeys(user.id);
+    if (!stored) {
+      connectionError.set('Clés de chiffrement introuvables');
       return;
     }
-    
-    const password = user.password || prompt('Entrez votre mot de passe pour chiffrer le message:');
+
+    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le message :');
     if (!password) return;
-    
-    try {
-      const privateKey = await decryptPrivateKey(storedKeys.encryptedPrivateKey, password);
-      
-      // Obtenir les clés publiques des destinataires
-      const convParticipants = get(participants);
-      const recipientPublicKeys = convParticipants
-        .filter(p => p.id !== user.id)
-        .map(p => {
-          // Dans une vraie implémentation, récupérer la clé publique depuis le backend
-          return storedKeys.publicKey; // Placeholder
-        });
-      
-      // Envoyer le média
-      await sendMediaMessage(
-        blob,
-        state.mediaType!,
-        conversationId,
-        recipientPublicKeys,
-        privateKey
-      );
-    } catch (err) {
-      connectionError.set('Erreur lors de l\'envoi du message vocal');
-      console.error('Erreur envoi message vocal:', err);
-    }
+
+    const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
+
+    const convParticipants = get(participants);
+    const recipientPublicKeys = convParticipants
+      .filter((p) => p.id !== user.id)
+      .map(() => stored.publicKey); // 👉 TODO : récupérer les vraies clés publiques
+
+    await sendMediaMessage(
+      blob,
+      state.mediaType!,
+      conversationId,
+      recipientPublicKeys,
+      privateKey
+    );
   }
-  
-  function handleCancelRecording() {
-    stopRecording(false);
+
+  // -----------------------------------------------------------------
+  // Gestion du champ <input type="file">
+  // -----------------------------------------------------------------
+  async function handleFileUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    await processDroppedFile(input.files[0]);
+    // Reset du champ pour pouvoir re‑uploader le même fichier
+    input.value = '';
   }
 </script>
 
-{#if get(recordingState).isRecording}
+{#if $recordingState.isRecording}
+  <!-- ==================== ENREGISTREMENT EN COURS ==================== -->
   <div class="recording-controls">
     <div class="recording-info">
       <span class="recording-indicator"></span>
-      <span class="recording-duration">
-        {get(recordingState).duration}s
-      </span>
+      <span class="recording-duration">{$recordingState.duration}s</span>
       <span class="recording-type">
-        {get(recordingState).mediaType === 'audio' ? '🎤' : '🎥'} Enregistrement...
+        {$recordingState.mediaType === 'audio' ? '🎤' : '🎥'} Enregistrement…
       </span>
     </div>
-    
+
     <div class="recording-buttons">
-      <button 
-        class="cancel-button" 
-        on:click={handleCancelRecording}
-        aria-label="Annuler l'enregistrement"
-      >
+      <button class="cancel-button" on:click={handleCancelRecording} aria-label="Annuler l'enregistrement">
         ✕
       </button>
-      <button 
-        class="stop-button" 
-        on:click={handleStopRecording}
-        aria-label="Arrêter l'enregistrement"
-      >
+      <button class="stop-button" on:click={handleStopRecording} aria-label="Arrêter l'enregistrement">
         ■
       </button>
     </div>
   </div>
+
 {:else if showCountdown}
+  <!-- ==================== COMPTE À REBOURS ==================== -->
   <div class="countdown-overlay">
-    <div class="countdown-circle">
-      {countdown}
-    </div>
+    <div class="countdown-circle">{countdown}</div>
   </div>
+
 {:else}
-  <div 
+  <!-- ==================== BOUTONS DE CONTROLE ==================== -->
+  <div
     class="media-controls {isDragging ? 'dragging' : ''}"
-    on:mouseenter={() => isHovered = true}
-    on:mouseleave={() => isHovered = false}
+    on:mouseenter={() => (isHovered = true)}
+    on:mouseleave={() => (isHovered = false)}
   >
     {#if isDragging}
       <div class="drag-overlay">
         <div class="drag-content">
           <span class="drag-icon">📁</span>
           <p>Déposez votre fichier audio/vidéo ici</p>
-          <p class="drag-subtext">Max 50 Mo - Sécurisé et chiffré</p>
+          <p class="drag-subtext">Max 50 Mo – sécurisé & chiffré</p>
         </div>
       </div>
     {/if}
-    
-    <button 
-      class="media-button audio" 
+
+    <button
+      class="media-button audio"
       on:click={() => handleRecordClick('audio')}
       disabled={disabled}
       aria-label="Enregistrer un message audio"
     >
       🎙️
     </button>
-    
-    <button 
-      class="media-button video" 
+
+    <button
+      class="media-button video"
       on:click={() => handleRecordClick('video')}
-      disabled={disabled || !get(hasPermission).video}
+      disabled={disabled || !$hasPermission.video}
       aria-label="Enregistrer un message vidéo"
     >
       🎥
     </button>
-    
-    <label 
-      class="media-button file" 
-      for="media-file-input"
-      aria-label="Uploader un fichier audio/vidéo"
-    >
+
+    <label class="media-button file" for="media-file-input" aria-label="Uploader un fichier audio/vidéo">
       📎
-      <input 
-        type="file" 
-        id="media-file-input" 
-        accept="audio/*,video/*" 
-        hidden 
+      <input
+        type="file"
+        id="media-file-input"
+        accept="audio/*,video/*"
+        hidden
         on:change={handleFileUpload}
       />
     </label>
@@ -345,6 +379,7 @@
 {/if}
 
 <style>
+  /* ----------------------- ENREGISTREMENT ----------------------- */
   .recording-controls {
     display: flex;
     align-items: center;
@@ -357,9 +392,15 @@
   }
 
   @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
-    70% { box-shadow: 0 0 0 8px rgba(255, 0, 0, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4);
+    }
+    70% {
+      box-shadow: 0 0 0 8px rgba(255, 0, 0, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+    }
   }
 
   .recording-info {
@@ -377,7 +418,9 @@
   }
 
   @keyframes blink {
-    50% { opacity: 0.5; }
+    50% {
+      opacity: 0.5;
+    }
   }
 
   .recording-duration {
@@ -396,7 +439,8 @@
     margin-left: auto;
   }
 
-  .cancel-button, .stop-button {
+  .cancel-button,
+  .stop-button {
     width: 36px;
     height: 36px;
     border-radius: 50%;
@@ -416,7 +460,7 @@
   }
 
   .stop-button {
-    background: #4CAF50;
+    background: #4caf50;
     color: white;
   }
 
@@ -430,12 +474,10 @@
     transform: scale(1.1);
   }
 
+  /* ----------------------- COMPTE À REBOURS ----------------------- */
   .countdown-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -459,10 +501,17 @@
   }
 
   @keyframes scaleUp {
-    0% { transform: scale(0.8); opacity: 0.5; }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+      transform: scale(0.8);
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 
+  /* ----------------------- BOUTONS DE CONTROLE ----------------------- */
   .media-controls {
     display: flex;
     gap: 0.5rem;
@@ -482,7 +531,6 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    position: relative;
   }
 
   .media-button:hover:not(:disabled) {
@@ -495,64 +543,23 @@
     cursor: not-allowed;
   }
 
-  .audio { background: linear-gradient(135deg, #4CAF50, #2E7D32); color: white; }
-  .video { background: linear-gradient(135deg, #2196F3, #1565C0); color: white; }
-  .file { background: linear-gradient(135deg, #FF9800, #E65100); color: white; }
+  .audio {
+    background: linear-gradient(135deg, #4caf50, #2e7d32);
+    color: white;
+  }
 
+  .video {
+    background: linear-gradient(135deg, #2196f3, #1565c0);
+    color: white;
+  }
+
+  .file {
+    background: linear-gradient(135deg, #ff9800, #e65100);
+    color: white;
+  }
+
+  /* ----------------------- DRAG OVERLAY ----------------------- */
   .drag-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(76, 175, 80, 0.9);
-    border-radius: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 20;
-    border: 3px dashed white;
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .drag-content {
-    text-align: center;
-    color: white;
-    padding: 1rem;
-  }
-
-  .drag-icon {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
-    animation: bounce 1s infinite;
-  }
-
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-
-  .drag-subtext {
-    font-size: 0.85rem;
-    opacity: 0.9;
-    margin-top: 0.25rem;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.9); }
-    to { opacity: 1; transform: scale(1); }
-  }
-
-  /* Thèmes */
-  .theme-jardin-secret .audio { background: linear-gradient(135deg, #4CAF50, #2E7D32); }
-  .theme-jardin-secret .video { background: linear-gradient(135deg, #2196F3, #0D47A1); }
-  .theme-jardin-secret .file { background: linear-gradient(135deg, #FF9800, #E65100); }
-
-  .theme-space-hub .audio { background: linear-gradient(135deg, #9C27B0, #6A1B9A); }
-  .theme-space-hub .video { background: linear-gradient(135deg, #3F51B5, #1A237E); }
-  .theme-space-hub .file { background: linear-gradient(135deg, #FF5722, #D84315); }
-
-  .theme-maison-chaleureuse .audio { background: linear-gradient(135deg, #E91E63, #C2185B); }
-  .theme-maison-chaleureuse .video { background: linear-gradient(135deg, #FF5722, #D84315); }
-  .theme-maison-chaleureuse .file { background: linear-gradient(135deg, #FF9800, #E65100); }
-</style>
+    inset: 0;
+    background:
