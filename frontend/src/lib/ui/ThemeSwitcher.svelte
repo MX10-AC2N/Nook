@@ -1,11 +1,21 @@
 <script lang="ts">
-  import { availableThemes, currentTheme, setTheme, type Theme } from '$lib/ui/ThemeStore';
+  import {
+    availableThemes,
+    currentTheme,
+    setTheme,
+    type Theme
+  } from '$lib/ui/ThemeStore';
+  import { state } from 'svelte'; // Svelte 5 reactive state
 
-  // État local avec Svelte 5 runes
-  let isOpen = $state(false);
-  let selectedTheme = $derived($currentTheme);
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let isOpen = state(false);          // ouverture du dropdown
+  let selectedTheme = $currentTheme;  // thème actuellement sélectionné
 
-  // Fonctions
+  // -----------------------------------------------------------------
+  // 2️⃣ Fonctions d’interaction
+  // -----------------------------------------------------------------
   function toggleDropdown() {
     isOpen = !isOpen;
   }
@@ -19,61 +29,82 @@
     closeDropdown();
   }
 
+  // Fermer le dropdown avec <Esc>
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && isOpen) {
       closeDropdown();
     }
   }
 
-  // Trouver le thème actuel pour l'affichage
-  let currentThemeInfo = $derived(availableThemes.find(t => t.id === selectedTheme));
-
-  // Fermer le dropdown lors d'un clic extérieur
+  // Fermer le dropdown lorsqu’on clique à l’extérieur du composant
   function handleClickOutside(event: MouseEvent) {
     const target = event.target as HTMLElement;
     if (!target.closest('.theme-switcher')) {
       closeDropdown();
     }
   }
+
+  // -----------------------------------------------------------------
+  // 3️⃣ Valeurs dérivées (déclarations réactives)
+  // -----------------------------------------------------------------
+  // Thème complet (objet) correspondant à l’id sélectionné
+  $: currentThemeInfo = availableThemes.find(t => t.id === selectedTheme);
+
+  // -----------------------------------------------------------------
+  // 4️⃣ Gestion du focus clavier (esc) et du clic extérieur
+  // -----------------------------------------------------------------
+  // (déclaré dans le markup via <svelte:window>)
 </script>
 
-<svelte:window onkeydown={handleKeydown} onclick={handleClickOutside} />
+<!-- -----------------------------------------------------------------
+     Gestion globale des événements clavier / clic extérieur
+----------------------------------------------------------------- -->
+<svelte:window on:keydown={handleKeydown} on:click={handleClickOutside} />
 
 <div class="theme-switcher">
-  <!-- Bouton principal du sélecteur de thème -->
+  <!-- -------------------------------------------------------------
+       Bouton principal du sélecteur de thème
+       ------------------------------------------------------------- -->
   <button
     class="theme-switcher-trigger"
-    onclick={toggleDropdown}
+    on:click={toggleDropdown}
     aria-expanded={isOpen}
     aria-haspopup="listbox"
     aria-label="Changer de thème"
   >
     <span class="theme-icon" aria-hidden="true">
-      {currentThemeInfo?.icon || '🎨'}
+      {#if currentThemeInfo}{currentThemeInfo.icon}{:else}🎨{/if}
     </span>
-    <span class="theme-name">{currentThemeInfo?.name || 'Thème'}</span>
-    <svg 
-      class="chevron" 
+
+    <span class="theme-name">
+      {#if currentThemeInfo}{currentThemeInfo.name}{:else}Thème{/if}
+    </span>
+
+    <!-- Chevron qui pivote quand le menu est ouvert -->
+    <svg
+      class="chevron"
       class:open={isOpen}
-      width="16" 
-      height="16" 
-      viewBox="0 0 16 16" 
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
       fill="none"
       aria-hidden="true"
     >
-      <path 
-        d="M4 6L8 10L12 6" 
-        stroke="currentColor" 
-        stroke-width="2" 
-        stroke-linecap="round" 
+      <path
+        d="M4 6L8 10L12 6"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
         stroke-linejoin="round"
       />
     </svg>
   </button>
 
-  <!-- Dropdown des thèmes -->
+  <!-- -------------------------------------------------------------
+       Dropdown contenant la liste des thèmes
+       ------------------------------------------------------------- -->
   {#if isOpen}
-    <div 
+    <div
       class="theme-dropdown"
       role="listbox"
       aria-label="Sélectionner un thème"
@@ -81,13 +112,13 @@
       <div class="dropdown-header">
         <span>Choisir un thème</span>
       </div>
-      
+
       <div class="themes-list" role="group">
         {#each availableThemes as theme (theme.id)}
           <button
             class="theme-option"
             class:active={selectedTheme === theme.id}
-            onclick={() => selectTheme(theme.id)}
+            on:click={() => selectTheme(theme.id)}
             role="option"
             aria-selected={selectedTheme === theme.id}
           >
@@ -97,28 +128,28 @@
               <div class="preview-circle secondary"></div>
               <div class="preview-circle accent"></div>
             </div>
-            
-            <!-- Informations du thème -->
+
+            <!-- Infos du thème -->
             <div class="theme-info">
               <span class="theme-option-name">{theme.icon} {theme.name}</span>
               <span class="theme-option-description">{theme.description}</span>
             </div>
-            
-            <!-- Indicateur de sélection -->
+
+            <!-- Icône de validation si ce thème est sélectionné -->
             {#if selectedTheme === theme.id}
-              <svg 
-                class="check-icon" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 16 16" 
+              <svg
+                class="check-icon"
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
                 fill="none"
                 aria-hidden="true"
               >
-                <path 
-                  d="M13 4L6 12L3 9" 
-                  stroke="currentColor" 
-                  stroke-width="2" 
-                  stroke-linecap="round" 
+                <path
+                  d="M13 4L6 12L3 9"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
                   stroke-linejoin="round"
                 />
               </svg>
@@ -126,8 +157,8 @@
           </button>
         {/each}
       </div>
-      
-      <!-- Footer avec indication du thème système -->
+
+      <!-- Footer informatif -->
       <div class="dropdown-footer">
         <span class="footer-text">💡 Le thème système est détecté automatiquement</span>
       </div>
@@ -136,18 +167,18 @@
 </div>
 
 <style>
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      CONTENEUR PRINCIPAL
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .theme-switcher {
     position: relative;
     display: inline-block;
     font-family: var(--font-primary, sans-serif);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      BOUTON PRINCIPAL
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .theme-switcher-trigger {
     display: flex;
     align-items: center;
@@ -191,9 +222,9 @@
     transform: rotate(180deg);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      DROPDOWN
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .theme-dropdown {
     position: absolute;
     top: calc(100% + var(--space-2, 0.5rem));
@@ -228,9 +259,9 @@
     background-color: var(--bg-secondary, #f8fafc);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      LISTE DES THÈMES
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .themes-list {
     padding: var(--space-2, 0.5rem);
     max-height: 300px;
@@ -266,9 +297,9 @@
     box-shadow: 0 0 0 2px var(--accent, #4ade80);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      APERÇU DU THÈME
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .theme-preview {
     display: flex;
     gap: 4px;
@@ -283,40 +314,22 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
-  /* Couleurs pour chaque thème */
-  .theme-preview[data-theme="jardin"] .preview-circle.primary {
-    background-color: #f0fdf4;
-  }
-  .theme-preview[data-theme="jardin"] .preview-circle.secondary {
-    background-color: #e0f2fe;
-  }
-  .theme-preview[data-theme="jardin"] .preview-circle.accent {
-    background-color: #4ade80;
-  }
+  /* Couleurs spécifiques à chaque thème */
+  .theme-preview[data-theme="jardin"] .preview-circle.primary   { background-color: #f0fdf4; }
+  .theme-preview[data-theme="jardin"] .preview-circle.secondary { background-color: #e0f2fe; }
+  .theme-preview[data-theme="jardin"] .preview-circle.accent    { background-color: #4ade80; }
 
-  .theme-preview[data-theme="space"] .preview-circle.primary {
-    background-color: #0f172a;
-  }
-  .theme-preview[data-theme="space"] .preview-circle.secondary {
-    background-color: #1e293b;
-  }
-  .theme-preview[data-theme="space"] .preview-circle.accent {
-    background-color: #8b5cf6;
-  }
+  .theme-preview[data-theme="space"] .preview-circle.primary   { background-color: #0f172a; }
+  .theme-preview[data-theme="space"] .preview-circle.secondary { background-color: #1e293b; }
+  .theme-preview[data-theme="space"] .preview-circle.accent    { background-color: #8b5cf6; }
 
-  .theme-preview[data-theme="maison"] .preview-circle.primary {
-    background-color: #fdf2e9;
-  }
-  .theme-preview[data-theme="maison"] .preview-circle.secondary {
-    background-color: #fef3c7;
-  }
-  .theme-preview[data-theme="maison"] .preview-circle.accent {
-    background-color: #ea580c;
-  }
+  .theme-preview[data-theme="maison"] .preview-circle.primary   { background-color: #fdf2e9; }
+  .theme-preview[data-theme="maison"] .preview-circle.secondary { background-color: #fef3c7; }
+  .theme-preview[data-theme="maison"] .preview-circle.accent    { background-color: #ea580c; }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      INFORMATIONS DU THÈME
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .theme-info {
     flex: 1;
     min-width: 0;
@@ -339,17 +352,17 @@
     text-overflow: ellipsis;
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      ICÔNE DE VALIDATION
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .check-icon {
     flex-shrink: 0;
     color: var(--accent, #4ade80);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      FOOTER
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   .dropdown-footer {
     padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
     border-top: 1px solid var(--border, #e2e8f0);
@@ -361,9 +374,9 @@
     color: var(--text-secondary, #64748b);
   }
 
-  /* --------------------------------------------------------------------------
+  /* -----------------------------------------------------------------
      RESPONSIVE
-     -------------------------------------------------------------------------- */
+     ----------------------------------------------------------------- */
   @media (max-width: 480px) {
     .theme-dropdown {
       position: fixed;
