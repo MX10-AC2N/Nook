@@ -1,68 +1,109 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, afterUpdate } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
   import { isAuthenticated, authUser } from '$lib/authStore';
-  import { 
-    messages, 
-    loadMessages, 
-    sendMessage, 
+  import {
+    messages,
+    loadMessages,
+    sendMessage,
     formatTimestamp,
     chatStore,
     showGifs,
     gifResults,
     gifLoading,
-    searchGifs
+    searchGifs,
   } from '$lib/chatStore';
+  import { state } from 'svelte'; // <-- Svelte 5 reactive state
 
-  let newMessage = $state('');
-  let conversationId = $state('default_global');
-  let chatContainer: HTMLElement;
-  let gifSearchQuery = $state('');
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let newMessage = state('');
+  let conversationId = state('default_global'); // identifiant de la conversation (global)
+  let chatContainer: HTMLElement;                // ref du conteneur de messages
+  let gifSearchQuery = state('');
 
+  // -----------------------------------------------------------------
+  // 2️⃣ Fonctions utilitaires
+  // -----------------------------------------------------------------
+  /** Ouvre/ferme le panneau GIF. */
   function toggleGifs() {
     chatStore.toggleGifs();
   }
 
-  onMount(async () => {
-    if ($isAuthenticated && conversationId) {
-      await loadMessages(conversationId);
-    }
-  });
-
-  async function handleSendMessage() {
-    if (!newMessage.trim()) return;
-    await sendMessage(newMessage, conversationId, [], new Uint8Array());
-    newMessage = '';
-  }
-
+  /** Recherche des GIFs via l’API Tenor. */
   async function handleSearchGifs() {
     if (gifSearchQuery.trim()) {
       await searchGifs(gifSearchQuery);
     }
   }
 
+  /** Sélection d’un GIF → insertion dans le champ texte. */
   function selectGif(gifUrl: string) {
-    console.log('GIF sélectionné:', gifUrl);
-    toggleGifs();
+    // On insère un `<img>` afin que le backend le traite comme média.
+    newMessage = `${newMessage}<img src="${gifUrl}" alt="GIF"/>`;
+    toggleGifs(); // refermer le panneau après sélection
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
+  /** Envoi du message (texte ou GIF). */
+  async function handleSendMessage() {
+    if (!newMessage.trim()) return;
+
+    // Pas de destinataires ni de clé privée dans le chat global (vide)
+    await sendMessage(newMessage, conversationId, [], new Uint8Array());
+
+    newMessage = ''; // reset du champ
+  }
+
+  /** Gestion du `Enter` dans le champ de recherche GIF. */
+  function handleGifKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter') {
       event.preventDefault();
       handleSearchGifs();
     }
   }
 
+  /** Gestion du `Enter` dans le champ de texte du chat (envoi du message). */
+  function handleMessageKeydown(event: KeyboardEvent) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  }
+
+  /** Soumission du formulaire (fallback au cas où le bouton serait utilisé). */
   function handleSubmit(event: Event) {
     event.preventDefault();
     handleSendMessage();
   }
 
+  /** Détermine si le message provient de l’utilisateur courant. */
   function isMyMessage(senderId: string): boolean {
     return $authUser?.id === senderId;
   }
+
+  // -----------------------------------------------------------------
+  // 3️⃣ Cycle de vie
+  // -----------------------------------------------------------------
+  onMount(async () => {
+    // Rediriger si l’utilisateur n’est pas authentifié
+    if (!$isAuthenticated) {
+      goto('/login');
+      return;
+    }
+
+    // Charger les messages de la conversation globale
+    await loadMessages(conversationId);
+  });
+
+  // Scroll automatique vers le bas à chaque nouveau message
+  afterUpdate(() => {
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  });
 </script>
 
 <svelte:head>
@@ -70,6 +111,9 @@
 </svelte:head>
 
 <div class="chat-page">
+  <!-- -----------------------------------------------------------------
+       SIDEBAR – LISTE DES CONVERSATIONS (pour le moment fixe)
+       ----------------------------------------------------------------- -->
   <aside class="conversations-sidebar">
     <h2>Conversations</h2>
     <div class="conversation-list">
@@ -77,29 +121,32 @@
         <span class="avatar">👨‍👩‍👧‍👦</span>
         <div class="conversation-info">
           <span class="name">Groupe Global</span>
-          <span class="preview">Bienvenue sur Nook !</span>
+          <span class="preview">Bienvenue sur Nook !</span>
         </div>
       </button>
     </div>
   </aside>
 
+  <!-- -----------------------------------------------------------------
+       ZONE DE CHAT
+       ----------------------------------------------------------------- -->
   <main class="chat-area">
     <header class="chat-header">
       <h2>👨‍👩‍👧‍👦 Groupe Global</h2>
     </header>
 
+    <!-- Messages -->
     <div class="messages-container" bind:this={chatContainer}>
       {#each $messages as message (message.id)}
         <div class="message" class:mine={isMyMessage(message.sender_id)}>
           <div class="message-sender">{message.sender_name}</div>
-          <div class="message-content">
-            {message.content}
-          </div>
+          <div class="message-content" innerHTML={message.content}></div>
           <div class="message-time">{formatTimestamp(String(message.timestamp))}</div>
         </div>
       {/each}
     </div>
 
+    <!-- Panneau GIF (affiché uniquement si $showGifs est true) -->
     {#if $showGifs}
       <div class="gif-panel">
         <div class="gif-search">
@@ -107,18 +154,18 @@
             type="text"
             placeholder="Rechercher des GIFs..."
             bind:value={gifSearchQuery}
-            onkeydown={handleKeydown}
+            on:keydown={handleGifKeydown}
             class="gif-input"
           />
-          <button onclick={handleSearchGifs} class="search-btn">🔍</button>
+          <button on:click={handleSearchGifs} class="search-btn">🔍</button>
         </div>
 
         {#if $gifLoading}
-          <div class="gif-loading">Chargement...</div>
+          <div class="gif-loading">Chargement…</div>
         {:else if $gifResults.length > 0}
           <div class="gif-results">
             {#each $gifResults as gif}
-              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.gif?.url)}>
+              <button class="gif-item" on:click={() => selectGif(gif.media?.[0]?.tinygif?.url)}>
                 <img src={gif.media?.[0]?.tinygif?.url} alt={gif.title} />
               </button>
             {/each}
@@ -129,14 +176,18 @@
       </div>
     {/if}
 
-    <form class="message-input-area" onsubmit={handleSubmit}>
-      <button type="button" class="gif-toggle" onclick={toggleGifs}>🎬</button>
+    <!-- Input du message -->
+    <form class="message-input-area" on:submit={handleSubmit}>
+      <button type="button" class="gif-toggle" on:click={toggleGifs}>🎬</button>
+
       <input
         type="text"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         class="message-input"
+        on:keydown={handleMessageKeydown}
       />
+
       <button type="submit" class="send-btn" disabled={!newMessage.trim()}>
         Envoyer
       </button>
@@ -145,12 +196,18 @@
 </div>
 
 <style>
+  /* -----------------------------------------------------------------
+     LAYOUT GLOBAL
+     ----------------------------------------------------------------- */
   .chat-page {
     display: flex;
     height: calc(100vh - 60px);
     max-height: calc(100vh - 60px);
   }
 
+  /* -----------------------------------------------------------------
+     SIDEBAR – CONVERSATIONS
+     ----------------------------------------------------------------- */
   .conversations-sidebar {
     width: 280px;
     background-color: var(--bg-secondary, #f1f5f9);
@@ -214,6 +271,9 @@
     text-overflow: ellipsis;
   }
 
+  /* -----------------------------------------------------------------
+     ZONE DE CHAT
+     ----------------------------------------------------------------- */
   .chat-area {
     flex: 1;
     display: flex;
@@ -286,6 +346,9 @@
     }
   }
 
+  /* -----------------------------------------------------------------
+     PANEL GIF
+     ----------------------------------------------------------------- */
   .gif-panel {
     border-top: 1px solid var(--border, #e2e8f0);
     padding: 1rem;
@@ -325,6 +388,13 @@
     background-color: var(--button-hover, #22c55e);
   }
 
+  .gif-loading,
+  .gif-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary, #64748b);
+  }
+
   .gif-results {
     display: flex;
     flex-wrap: wrap;
@@ -352,13 +422,9 @@
     object-fit: cover;
   }
 
-  .gif-loading,
-  .gif-empty {
-    text-align: center;
-    padding: 2rem;
-    color: var(--text-secondary, #64748b);
-  }
-
+  /* -----------------------------------------------------------------
+     INPUT MESSAGE
+     ----------------------------------------------------------------- */
   .message-input-area {
     display: flex;
     align-items: center;
@@ -417,6 +483,9 @@
     cursor: not-allowed;
   }
 
+  /* -----------------------------------------------------------------
+     RESPONSIVE
+     ----------------------------------------------------------------- */
   @media (max-width: 768px) {
     .chat-page {
       flex-direction: column;
@@ -424,7 +493,6 @@
 
     .conversations-sidebar {
       width: 100%;
-      height: auto;
       max-height: 150px;
       border-right: none;
       border-bottom: 1px solid var(--border, #e2e8f0);
