@@ -1,85 +1,110 @@
 // vite.config.js
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import replace from '@rollup/plugin-replace';   // <‑‑ AJOUT
 
 export default defineConfig({
   plugins: [
+    // -------------------------------------------------
+    // SvelteKit – le seul plugin nécessaire
+    // -------------------------------------------------
     sveltekit(),
-    // -------------------------------------------------
-    // 1️⃣ Remplacement du placeholder dans app.html
-    // -------------------------------------------------
-    replace({
-      // empêche que le plugin remplace des parties du code qui
-      // ressemblent à notre token par accident
-      preventAssignment: true,
-      // le token que l’on mettra dans src/app.html
-      values: {
-        // si PUBLIC_SITE_URL n’est pas définie, on met une chaîne vide
-        '%PUBLIC_SITE_URL%': JSON.stringify(process.env.PUBLIC_SITE_URL || '')
-      }
-    })
   ],
 
   // -------------------------------------------------
-  // 2️⃣ Tes réglages existants (chunks, alias, proxy, …)
+  // Tes réglages existants (chunks, alias, proxy, …)
   // -------------------------------------------------
-  assetsInclude: ['**/*.svg', '**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.ico'],
+  assetsInclude: [
+    '**/*.svg',
+    '**/*.png',
+    '**/*.jpg',
+    '**/*.jpeg',
+    '**/*.ico',
+  ],
 
   build: {
     target: 'es2020',
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Séparer libsodium dans son propre chunk pour le lazy‑loading
           if (id.includes('libsodium')) return 'libsodium';
+          // Vendor chunk pour les grosses librairies
           if (id.includes('node_modules')) return 'vendor';
-        }
-      }
-    }
+        },
+      },
+    },
   },
 
+  // -------------------------------------------------
+  // Optimisation des dépendances
+  // -------------------------------------------------
   optimizeDeps: {
+    // On pré‑bundle libsodium pour de meilleures perf en dev
     include: [
       'libsodium-wrappers',
-      'libsodium-wrappers/dist/modules/libsodium-wrappers.js'
+      'libsodium-wrappers/dist/modules/libsodium-wrappers.js',
     ],
-    exclude: []
+    exclude: [],
   },
 
+  // -------------------------------------------------
+  // Configuration du serveur de développement
+  // -------------------------------------------------
   server: {
     port: 5173,
     strictPort: false,
     host: true,
     fs: { strict: false },
     proxy: {
+      // API REST
       '/api': {
         target: 'http://127.0.0.1:3000',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '')
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      // WebSocket
       '/ws': {
         target: 'ws://127.0.0.1:3000',
         ws: true,
-        changeOrigin: true
-      }
-    }
+        changeOrigin: true,
+      },
+    },
   },
 
+  // -------------------------------------------------
+  // Résolution des modules
+  // -------------------------------------------------
   resolve: {
     alias: {
-      'libsodium-wrappers': 'libsodium-wrappers'
+      // Alias pour libsodium qui fonctionne partout
+      'libsodium-wrappers': 'libsodium-wrappers',
     },
-    extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.svelte']
+    // Extensions supportées
+    extensions: [
+      '.mjs',
+      '.js',
+      '.ts',
+      '.jsx',
+      '.tsx',
+      '.json',
+      '.svelte',
+    ],
   },
 
+  // -------------------------------------------------
+  // Variables globales (aucune URL publique ici)
+  // -------------------------------------------------
   define: {
     'import.meta.vitest': 'undefined',
-    global: 'globalThis'
+    global: 'globalThis',
   },
 
+  // -------------------------------------------------
+  // Configuration ESBuild
+  // -------------------------------------------------
   esbuild: {
     legalComments: 'inline',
-    target: 'es2020'
-  }
+    target: 'es2020',
+  },
 });
