@@ -37,7 +37,7 @@ services:
     # -------------------------------------------------
     environment:
       # ---- Base de données ----
-      - DATABASE_URL=sqlite:/app/data/members.db
+      - DATABASE_URL=sqlite:/app/data/nook.db
 
       # ---- Chemins internes ----
       - STATIC_FILES_DIR=/app/static
