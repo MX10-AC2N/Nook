@@ -296,7 +296,7 @@ jobs:
             echo "⚠️ npm ci a échoué, utilisation de npm install..."
             npm install --no-audit --no-fund
           fi
-#         npm ci --no-audit --no-fund --legacy-peer-deps
+
           echo "✅ Dépendances installées"
 
       - name: Vérifier dépendances critiques
