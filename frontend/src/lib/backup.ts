@@ -1,4 +1,4 @@
-import { sodium } from 'libsodium-wrappers-sumo';
+import { sodium } from 'libsodium-wrappers';
 import { browser } from '$app/environment';
 
 export async function exportBackup(messages: any, privateKey: string): Promise<void> {
