@@ -1,20 +1,32 @@
-// main.rs - Point d'entrée du serveur Nook Backend
-
-// Backend Axum pour gestion d'upload, WebRTC, et chiffrement
+// main.rs – Point d'entrée du serveur Nook Backend
+// -------------------------------------------------
+// Ce fichier a été modifié pour **injecter dynamiquement** le
+// `<base href="…">` (ou tout autre meta) en fonction du header
+// `Host` et du header `X‑Forwarded‑Proto` (fourni par Nginx Proxy Manager).
+// Aucun rebuild n’est plus nécessaire : le même conteneur fonctionne
+// en LAN (http://192.168.1.192:6300) et en production (https://mon‑site.exemple.com).
 
 use axum::{
+    body::{Body, Bytes},
+    extract::ConnectInfo,
+    http::{header, HeaderMap, HeaderValue, Request, Response, StatusCode},
+    middleware::{self, Next},
     routing::{get, post},
     Router,
 };
-use std::{fs, path::PathBuf, sync::Arc, net::SocketAddr};
-
+use futures::future::BoxFuture;
+use std::{convert::Infallible, net::SocketAddr, sync::Arc, path::PathBuf, fs};
 use sqlx::SqlitePool;
-use tower_http::cors::{CorsLayer, Any};
-use tower_http::services::{ServeDir, ServeFile};
-use axum::routing::get_service;
+use tower::ServiceBuilder;
+use tower_http::{
+    cors::{CorsLayer, Any},
+    services::{ServeDir, ServeFile},
+};
 use chrono::Utc;
 
-// Modules
+// ---------------------------------------------------------------------
+// Modules de l'application
+// ---------------------------------------------------------------------
 mod db;
 mod auth;
 mod webrtc;
@@ -23,12 +35,12 @@ mod prune;
 mod invites;
 mod admin;
 
-// Import des structures partagées
 use webrtc::{WebRtcState, FileManager};
-// Import de prune.rs
 use crate::prune::prune_old_data;
 
-/// Structure contenant l'état partagé entre les différents handlers.
+// ---------------------------------------------------------------------
+// Structure d'état partagé
+// ---------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SharedState {
     pub db: SqlitePool,
@@ -36,152 +48,94 @@ pub struct SharedState {
     pub file_manager: Arc<FileManager>,
 }
 
-// ---------------------------------------------------------------------------
-//  INITIALISATION DE LA BASE DE DONNÉES
-// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// 1️⃣ Middleware – injection du <base> (ou meta) à la volée
+// ---------------------------------------------------------------------
+async fn base_inject_middleware<B>(mut req: Request<B>, next: Next<B>) -> Result<Response<Body>, Infallible>
+where
+    B: Send + 'static,
+{
+    // -------------------------------------------------
+    // 1️⃣ Récupérer le scheme (http / https) et le host
+    // -------------------------------------------------
+    // NPM ajoute le header `X-Forwarded-Proto`. S’il n’est pas présent (LAN direct),
+    // on suppose `http`.
+    let scheme = req
+        .headers()
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("http");
+
+    // Le header `Host` est toujours présent (ex. 192.168.1.192:6300 ou mon-site.exemple.com)
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    let base_url = format!("{}://{}", scheme, host);
+    let replacement = format!(r#"<base href="{}">"#, base_url);
+
+    // -------------------------------------------------
+    // 2️⃣ Appeler le handler suivant (qui génère la réponse)
+    // -------------------------------------------------
+    let mut resp = next.run(req).await;
+
+    // -------------------------------------------------
+    // 3️⃣ Modifier uniquement les réponses HTML
+    // -------------------------------------------------
+    if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
+        if ct.to_str().unwrap_or("").starts_with("text/html") {
+            // Lire le corps complet
+            let whole_body = hyper::body::to_bytes(resp.body_mut())
+                .await
+                .unwrap_or_else(|_| Bytes::new());
+
+            // Convertir en String, remplacer le placeholder
+            let mut body_str = String::from_utf8_lossy(&whole_body).into_owned();
+            body_str = body_str.replace("<base-placeholder/>", &replacement);
+
+            // Reconstruire la réponse avec le nouveau corps
+            *resp.body_mut() = Body::from(body_str.clone());
+
+            // Mettre à jour Content‑Length (important pour HTTP/1.1)
+            resp.headers_mut().insert(
+                header::CONTENT_LENGTH,
+                HeaderValue::from_str(&body_str.len().to_string()).unwrap(),
+            );
+        }
+    }
+
+    Ok(resp)
+}
+
+// ---------------------------------------------------------------------
+// 2️⃣ Initialisation de la base de données
+// ---------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
 
-    // Créer les tables si elles n'existent pas
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            name TEXT,
-            role TEXT DEFAULT 'user',
-            approved BOOLEAN DEFAULT 0,
-            needs_password_change BOOLEAN DEFAULT 0,
-            token TEXT,
-            created_at INTEGER NOT NULL,
-            public_key TEXT  -- ← Virgule ajoutée avant cette ligne
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS conversations (
-            id TEXT PRIMARY KEY,
-            name TEXT,
-            is_group BOOLEAN DEFAULT 0,
-            created_at INTEGER NOT NULL,
-            created_by TEXT NOT NULL,
-            updated_at INTEGER NOT NULL
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS conversation_participants (
-            conversation_id TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            joined_at INTEGER NOT NULL,
-            PRIMARY KEY (conversation_id, user_id),
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-            FOREIGN KEY (user_id) REFERENCES users(id)
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            conversation_id TEXT NOT NULL,
-            sender_id TEXT NOT NULL,
-            content TEXT,
-            message_type TEXT DEFAULT 'text',
-            file_id TEXT,
-            encrypted BOOLEAN DEFAULT 0,
-            timestamp INTEGER NOT NULL,
-            created_at INTEGER NOT NULL,
-            edited_at INTEGER,
-            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-            FOREIGN KEY (sender_id) REFERENCES users(id),
-            FOREIGN KEY (file_id) REFERENCES uploads(id)
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS uploads (
-            id TEXT PRIMARY KEY,
-            conversation_id TEXT,
-            from_user_id TEXT,
-            file_name TEXT NOT NULL,
-            file_path TEXT NOT NULL,
-            file_size INTEGER NOT NULL,
-            content_type TEXT,
-            uploaded_at INTEGER NOT NULL,
-            encrypted BOOLEAN DEFAULT 0,
-            nonce TEXT,
-            key_text TEXT
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS invites (
-            id TEXT PRIMARY KEY,
-            token TEXT UNIQUE NOT NULL,
-            created_by TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            expires_at INTEGER NOT NULL,
-            used BOOLEAN DEFAULT 0,
-            used_by TEXT,
-            used_at INTEGER
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await?;
-
+    // Création des tables (omise ici pour concision – garde ton code actuel)
+    // …
     eprintln!("[DB] Base de données initialisée");
     Ok(pool)
 }
 
-// ---------------------------------------------------------------------------
-//  VÉRIFICATION / CRÉATION DE L'ADMINISTRATEUR INITIAL
-// ---------------------------------------------------------------------------
-/// Vérifie s'il existe déjà un utilisateur dans la table `users`.
-/// Si la table est vide, crée l'administrateur initial.
-///
-/// # Arguments
-/// * `pool` – Référence vers le `SqlitePool` déjà ouvert.
-///
-/// # Retour
-/// `Ok(())` si tout s'est bien passé, sinon l'erreur `sqlx::Error`.
+// ---------------------------------------------------------------------
+// 3️⃣ Création de l'administrateur initial (inchangé)
+// ---------------------------------------------------------------------
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    // 1️⃣ Compter le nombre d'utilisateurs
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
         .await?;
 
-    // 2️⃣ Si aucun utilisateur n'existe → créer l'admin
     if user_count.0 == 0 {
         let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
-        let default_password = "changeme2026"; // À changer dès le premier login
-        // Utilise ta fonction de hachage déjà définie dans le module `auth`
+        let default_password = "changeme2026";
         let password_hash = crate::auth::hash_password(default_password);
-
         let now_ts = Utc::now().timestamp();
+
         sqlx::query(
             r#"
             INSERT INTO users (
@@ -205,26 +159,28 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             admin_id
         );
     }
-
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-//  POINT D'ENTRÉE PRINCIPAL
-// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// 4️⃣ Point d'entrée principal
+// ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialise le logger
+    // -------------------------------------------------
+    // Logger
+    // -------------------------------------------------
     tracing_subscriber::fmt::init();
 
-    
-    // 1. S'assurer que le répertoire data existe
+    // -------------------------------------------------
+    // Création des dossiers persistants
+    // -------------------------------------------------
     tokio::fs::create_dir_all("/app/data").await?;
-    
-    // 2. S'assurer que le répertoire uploads existe
     tokio::fs::create_dir_all("/app/data/uploads").await?;
-    
-    // 3. Créer le fichier DB vide s'il n'existe pas
+
+    // -------------------------------------------------
+    // Création du fichier DB s'il n'existe pas
+    // -------------------------------------------------
     let db_file_path = std::path::Path::new("/app/data/nook.db");
     if !db_file_path.exists() {
         eprintln!("[Info] Création du fichier de base de données...");
@@ -232,71 +188,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // -------------------------------------------------
-    // 1️⃣ Initialisation de la base de données
+    // Initialisation DB + admin
     // -------------------------------------------------
-    let pool = match init_db().await {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("[Erreur] Échec de l'initialisation de la DB: {}", e);
-            std::process::exit(1);
-        }
-    };
+    let pool = init_db().await?;
+    check_initial_admin(&pool).await?;
 
     // -------------------------------------------------
-    // 2️⃣ Vérifier / créer l'administrateur initial
-    // -------------------------------------------------
-    if let Err(e) = check_initial_admin(&pool).await {
-        eprintln!("[Erreur] Création de l'admin initial échouée: {}", e);
-        std::process::exit(1);
-    }
-
-    // -------------------------------------------------
-    // 3️⃣ Préparer le répertoire d'uploads
+    // Gestion du répertoire d'uploads
     // -------------------------------------------------
     let uploads_dir = PathBuf::from("/app/data/uploads");
     if !uploads_dir.exists() {
-        if let Err(e) = fs::create_dir_all(&uploads_dir) {
-            eprintln!("[Erreur] Échec de la création du dossier uploads: {}", e);
-            std::process::exit(1);
-        }
+        fs::create_dir_all(&uploads_dir)?;
     }
 
     // -------------------------------------------------
-    // 4️⃣ Initialiser le FileManager et le WebRTC state
+    // Initialisation du FileManager & WebRTC state
     // -------------------------------------------------
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
 
-    // Lancer la tâche de nettoyage des fichiers expirés
-    let file_manager_clone = (*file_manager).clone();
+    // Tâche de nettoyage des fichiers expirés
+    let fm_clone = (*file_manager).clone();
     tokio::spawn(async move {
-        file_manager_clone.start_cleanup_task().await;
+        fm_clone.start_cleanup_task().await;
     });
 
-    // ===== Nettoyage automatique au bout de 7 jours =====
+    // -------------------------------------------------
+    // Tâche de pruning (7 jours) – tourne en arrière‑plan
+    // -------------------------------------------------
     let pool_clone = pool.clone();
-
-tokio::spawn(async move {
-    // Attente au démarrage pour laisser l'app se lancer
-    tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
-
-    // Prune immédiat au démarrage (utile si le container a été arrêté plusieurs jours)
-    if let Err(e) = prune_old_data(&pool_clone).await {
-        eprintln!("[Prune] Échec du pruning initial : {}", e);
-    }
-
-    loop {
+    tokio::spawn(async move {
+        // Petite pause au démarrage
+        tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+        // Prune immédiat (utile si le conteneur a été arrêté longtemps)
         if let Err(e) = prune_old_data(&pool_clone).await {
-            eprintln!("[Prune] Échec du pruning périodique : {}", e);
+            eprintln!("[Prune] Échec du pruning initial : {}", e);
         }
-
-        // Toutes les 24h → ajuste si tu veux plus souvent (ex: from_hours(6))
-        tokio::time::sleep(tokio::time::Duration::from_hours(24)).await;
-    }
-});
+        loop {
+            if let Err(e) = prune_old_data(&pool_clone).await {
+                eprintln!("[Prune] Échec du pruning périodique : {}", e);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_hours(24)).await;
+        }
+    });
 
     // -------------------------------------------------
-    // 5️⃣ Construire le SharedState
+    // Construction de l'état partagé
     // -------------------------------------------------
     let shared_state = Arc::new(SharedState {
         db: pool.clone(),
@@ -305,76 +242,81 @@ tokio::spawn(async move {
     });
 
     // -------------------------------------------------
-// 6️⃣ Configurer le routeur Axum
-// -------------------------------------------------
-let app = Router::new()
-    // Auth routes
-    .route("/api/auth/register", post(auth::register))
-    .route("/api/auth/login", post(auth::login))
-    .route("/api/auth/me", get(auth::me))
-    .route("/api/auth/logout", post(auth::logout))
-    .route("/api/auth/change-password", post(auth::change_password))
+    // 5️⃣ Construction du routeur API
+    // -------------------------------------------------
+    let api_router = Router::new()
+        // Auth
+        .route("/api/auth/register", post(auth::register))
+        .route("/api/auth/login", post(auth::login))
+        .route("/api/auth/me", get(auth::me))
+        .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/change-password", post(auth::change_password))
+        // Join
+        .route("/api/join", post(invites::join))
+        // Conversations
+        .route("/api/conversations", get(db::get_user_conversations))
+        .route("/api/conversations", post(db::create_conversation))
+        .route("/api/conversations/:id", get(db::get_conversation))
+        .route("/api/conversations/:id/join", post(db::join_conversation))
+        // Messages
+        .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
+        .route("/api/conversations/:id/messages", post(db::send_message))
+        // Uploads
+        .route("/api/upload", post(upload::upload_handler))
+        .route("/api/upload/chat", post(upload::upload_chat_file))
+        // Admin
+        .route("/api/pending-users-json", get(admin::pending_users))
+        .route("/api/all-users-json", get(admin::all_users))
+        .route("/api/approve", post(admin::approve_user))
+        .route("/api/list-invites", get(admin::list_invites))
+        .route("/api/generate-invite", post(invites::generate_invite))
+        .route("/api/delete-invite", post(admin::delete_invite))
+        // Health‑check
+        .route("/api/health", get(|| async { "OK" }))
+        // WebRTC
+        .merge(webrtc::webrtc_routes())
+        // Partage de l'état
+        .with_state(shared_state.clone())
+        // CORS (global)
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
-    // Join routes
-    .route("/api/join", post(invites::join))
+    // -------------------------------------------------
+    // 6️⃣ Service statique (frontend SPA) avec fallback
+    // -------------------------------------------------
+    let static_path = "/app/static";
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
-    // Conversation routes
-    .route("/api/conversations", get(db::get_user_conversations))
-    .route("/api/conversations", post(db::create_conversation))
-    .route("/api/conversations/:id", get(db::get_conversation))
-    .route("/api/conversations/:id/join", post(db::join_conversation))
-    // Message routes
-    .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
-    .route("/api/conversations/:id/messages", post(db::send_message))
-    // Upload routes
-    .route("/api/upload", post(upload::upload_handler))
-    .route("/api/upload/chat", post(upload::upload_chat_file))
-    // ajout pour admin.rs
-     .route("/api/pending-users-json", get(admin::pending_users))
-    .route("/api/all-users-json", get(admin::all_users))
-    .route("/api/approve", post(admin::approve_user))
-    .route("/api/list-invites", get(admin::list_invites))
-    .route("/api/generate-invite", post(invites::generate_invite))
-    .route("/api/delete-invite", post(admin::delete_invite))
-    // Health‑check
-    .route("/api/health", get(|| async { "OK" }))
+    let static_service = ServeDir::new(static_path)
+        .append_index_html_on_directories(true) // / → /index.html
+        .precompressed_gzip()
+        .precompressed_br()
+        .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
-    // WebRTC routes
-    .merge(webrtc::webrtc_routes())
+    // -------------------------------------------------
+    // 7️⃣ Assemblage final du router avec le middleware
+    // -------------------------------------------------
+    let app = Router::new()
+        // Middleware qui injecte le <base> (ou meta) dynamique
+        .layer(ServiceBuilder::new().layer(middleware::from_fn(base_inject_middleware)))
+        // Routes API
+        .nest("/", api_router)
+        // Service statique (fallback SPA)
+        .fallback_service(static_service);
 
-    // Inject the shared state
-    .with_state(shared_state)
-    // CORS configuration (appliqué à tout, y compris API)
-    .layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
-    );
+    // -------------------------------------------------
+    // 8️⃣ Démarrage du serveur HTTP
+    // -------------------------------------------------
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    eprintln!("[Serveur] Démarrage sur http://{}", addr);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+        .await?;
 
-// === SERVICE STATIQUE POUR LE FRONTEND (SvelteKit SPA) ===
-// Chemin où les fichiers du frontend sont copiés dans le container Docker
-// (via ton workflow : frontend-artifact → /app/static dans le Dockerfile)
-let static_path = "/app/static";
-eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
-
-// Configuration du service statique avec fallback SPA
-let static_files_service = ServeDir::new(static_path)
-    .append_index_html_on_directories(true)  // Gère / → /index.html
-    .precompressed_gzip()                    // Support gzip si généré par npm run build
-    .precompressed_br()                      // Support brotli
-    .fallback(ServeFile::new(format!("{static_path}/index.html"))); // Fallback crucial pour les routes client-side (SPA)
-
-// Ajout du fallback : tout ce qui n'est pas géré par les routes API → frontend
-let app = app.fallback(get_service(static_files_service));
-
-// -------------------------------------------------
-// 7️⃣ Démarrer le serveur HTTP
-// -------------------------------------------------
-let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-eprintln!("[Serveur] Démarrage sur http://{}", addr);
-let listener = tokio::net::TcpListener::bind(&addr).await?;
-axum::serve(listener, app).await?;
-
-Ok(())
+    Ok(())
 }
