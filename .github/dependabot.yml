@@ -1,0 +1,42 @@
+# .github/dependabot.yml
+version: 2
+updates:
+  # ==== Front‑end (Node) ====
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"          # toutes les semaines
+      day: "sunday"
+      time: "04:00"
+    open-pull-requests-limit: 5
+    # Sécurité uniquement : crée des PR dès qu’une vulnérabilité est détectée
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    # Optionnel : ignore les grosses montées de version majeures
+    ignore:
+      - dependency-name: "eslint"
+        versions: ["9.x"]
+      - dependency-name: "rimraf"
+        versions: ["4.x"]
+    # Labels utiles
+    labels:
+      - "dependabot"
+      - "auto‑merge"
+    # Auto‑merge si les checks passent (GitHub Settings → Branch protection)
+    automerge: true
+    automerge-type: "pr"
+
+  # ==== Back‑end (Rust) – si vous avez un Cargo.toml ====
+  - package-ecosystem: "cargo"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+      time: "04:30"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependabot"
+      - "auto‑merge"
+    automerge: true
+    automerge-type: "pr"
