@@ -1,0 +1,111 @@
+# .github/workflows/npm-audit-report.yml
+name: 🔎 Audit de sécurité npm
+
+on:
+  schedule:
+    # Tous les jours à 02:30 UTC
+    - cron: "30 2 * * *"
+  workflow_dispatch:   # lancement manuel possible
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  security-events: write   # pour uploader le SARIF (optionnel)
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      # -------------------------------------------------
+      # 1️⃣ Checkout du code
+      # -------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -------------------------------------------------
+      # 2️⃣ Installer Node (v20) + dépendances
+      # -------------------------------------------------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # -------------------------------------------------
+      # 3️⃣ Exécuter npm audit (JSON + SARIF)
+      # -------------------------------------------------
+      - name: Run npm audit (JSON)
+        id: audit-json
+        run: |
+          npm audit --json > audit-report.json || true   # npm audit renvoie 1 si vulnérabilités, on ignore le code d’erreur
+          # Convertir en SARIF (format exploitable par CodeQL / GitHub Security)
+          npx @microsoft/sarif-multitool convert -i audit-report.json -f sarif -o audit-report.sarif || true
+
+      # -------------------------------------------------
+      # 4️⃣ Publier le rapport comme artefact
+      # -------------------------------------------------
+      - name: Upload audit report (JSON)
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report-json
+          path: audit-report.json
+          retention-days: 30
+
+      - name: Upload audit report (SARIF)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report-sarif
+          path: audit-report.sarif
+          retention-days: 30
+
+      # -------------------------------------------------
+      # 5️⃣ Analyser le niveau de sévérité et notifier
+      # -------------------------------------------------
+      - name: Parse audit JSON & set outputs
+        id: parse
+        run: |
+          SEVERITY=$(jq -r '
+            .metadata.vulnerabilities |
+            if .critical > 0 then "critical"
+            elif .high > 0 then "high"
+            elif .moderate > 0 then "moderate"
+            elif .low > 0 then "low"
+            else "none"
+            end' audit-report.json)
+          echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
+          echo "critical=$(jq .metadata.vulnerabilities.critical audit-report.json)" >> $GITHUB_OUTPUT
+
+      # -------------------------------------------------
+      # 6️⃣ Créer / commenter une Issue si critique
+      # -------------------------------------------------
+      - name: Create/Update security issue
+        if: steps.parse.outputs.severity != 'none'
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[SECURITY] npm audit – ${{ steps.parse.outputs.severity }} vulnerabilities"
+          content-filepath: ./audit-report.json
+          labels: |
+            security
+            audit
+          assignees: ${{ github.actor }}
+
+      # -------------------------------------------------
+      # 7️⃣ (Optionnel) Ajouter le SARIF au tableau Security
+      # -------------------------------------------------
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: audit-report.sarif
