@@ -1,35 +1,49 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { authStore, needsPasswordChange } from '$lib/authStore';
+  import { state } from 'svelte'; // <-- Svelte 5 reactive state
   import { onMount } from 'svelte';
-  import { get } from 'svelte/store';
 
-  let newPassword = $state('');
-  let confirmPassword = $state('');
-  let error = $state('');
-  let success = $state('');
-  let isLoading = $state(false);
+  // -----------------------------------------------------------------
+  // 1️⃣ États locaux (Svelte 5)
+  // -----------------------------------------------------------------
+  let newPassword = state('');
+  let confirmPassword = state('');
+  let error = state('');
+  let success = state('');
+  let isLoading = state(false);
 
+  // -----------------------------------------------------------------
+  // 2️⃣ Redirection automatique si l’utilisateur n’est pas autorisé
+  // -----------------------------------------------------------------
   onMount(() => {
-    const store = get(authStore);
-    if (!store.isAuthenticated) {
+    // Si l’utilisateur n’est pas authentifié → retour à la page login
+    if (!$authStore.isAuthenticated) {
       goto('/login');
     }
-    if (store.isAuthenticated && !store.needsPasswordChange) {
+
+    // Si l’utilisateur n’a pas besoin de changer son mot de passe → chat
+    if ($authStore.isAuthenticated && !$needsPasswordChange) {
       goto('/chat');
     }
   });
 
-  async function handleSubmit(event: Event) {
-    event.preventDefault();
+  // -----------------------------------------------------------------
+  // 3️⃣ Soumission du formulaire
+  // -----------------------------------------------------------------
+  /**
+   * Envoie la requête de changement de mot de passe au backend.
+   */
+  async function handleSubmit() {
+    // Réinitialiser les messages
     error = '';
     success = '';
 
+    // Validation côté client
     if (newPassword !== confirmPassword) {
       error = 'Les mots de passe ne correspondent pas.';
       return;
     }
-
     if (newPassword.length < 8) {
       error = 'Le mot de passe doit contenir au moins 8 caractères.';
       return;
@@ -38,79 +52,68 @@
     isLoading = true;
 
     try {
-      const store = get(authStore);
-      const userId = store.user?.id;
-      
+      // L’identifiant de l’utilisateur provient du store
+      const userId = $authStore.user?.id;
       if (!userId) throw new Error('Utilisateur non identifié');
 
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           new_password: newPassword,
-          user_id: userId 
-        })
+          user_id: userId,
+        }),
       });
 
-      const result = await response.json();
+      // Le corps peut être vide → on le traite en texte d’abord
+      const raw = await response.text();
 
-      if (response.ok && result.success) {
-        success = 'Votre mot de passe a été mis à jour avec succès !';
-        await verifySessionAndRedirect(userId);
-      } else {
-        error = result.message || 'Échec du changement de mot de passe.';
-      }
-    } catch (e: any) {
-      error = e.message || 'Une erreur est survenue.';
-    } finally {
-      isLoading = false;
-    }
-  }
-
-  async function verifySessionAndRedirect(userId: string) {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const meResponse = await fetch('/api/auth/me', { credentials: 'include' });
-      
-      if (meResponse.ok) {
-        const meData = await meResponse.json();
-        
-        if (meData.authenticated && meData.user) {
-          authStore.setAuthenticated(meData.user, meData.user.role === 'admin');
-          
-          setTimeout(() => {
-            goto(meData.user.role === 'admin' ? '/admin' : '/chat');
-          }, 2000);
-          return;
+      let payload: any = {};
+      if (raw.trim()) {
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          // Si le JSON est invalide, on garde le texte brut comme message
+          payload.message = raw;
         }
       }
-      
-      error = 'Session expirée. Veuillez vous reconnecter.';
-      setTimeout(() => goto('/login'), 3000);
-      
-    } catch (err) {
-      console.error('Erreur vérification session:', err);
-      error = 'Erreur de session. Veuillez vous reconnecter.';
-      setTimeout(() => goto('/login'), 3000);
+
+      if (!response.ok) {
+        error = payload.message ?? `Erreur ${response.status}`;
+        return;
+      }
+
+      // Succès
+      success = payload.message ?? 'Mot de passe mis à jour avec succès !';
+      // Met à jour le store (le backend indique que le flag `needs_password_change` est maintenant `false`)
+      if ($authStore.user) {
+        $authStore.user.needs_password_change = false;
+      }
+
+      // Redirection après un court délai (pour laisser le message s’afficher)
+      setTimeout(() => {
+        // Rediriger selon le rôle (admin → /admin, sinon → /chat)
+        const target = $authStore.user?.role === 'admin' ? '/admin' : '/chat';
+        goto(target);
+      }, 2000);
+    } catch (e: any) {
+      error = e?.message ?? 'Une erreur est survenue.';
+    } finally {
+      isLoading = false;
     }
   }
 </script>
 
 <svelte:head>
-  <title>
-    {$needsPasswordChange ? 'Définir' : 'Changer'} votre mot de passe — Nook
-  </title>
+  <title>{$needsPasswordChange ? 'Définir' : 'Changer'} votre mot de passe — Nook</title>
 </svelte:head>
 
 <div class="page-container">
   <div class="card">
     <div class="header">
       <div class="icon">🔐</div>
-      <h1>
-        {$needsPasswordChange ? 'Première connexion' : 'Changer le mot de passe'}
-      </h1>
+      <h1>{$needsPasswordChange ? 'Première connexion' : 'Changer le mot de passe'}</h1>
       <p class="description">
         {$needsPasswordChange
           ? 'Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.'
@@ -119,32 +122,32 @@
     </div>
 
     {#if error}
-      <div class="alert error" role="alert">
+      <div class="alert error" role="alert" aria-live="polite">
         <span class="alert-icon">⚠️</span>
         <span>{error}</span>
       </div>
     {/if}
 
     {#if success}
-      <div class="alert success" role="alert">
+      <div class="alert success" role="alert" aria-live="polite">
         <span class="alert-icon">✅</span>
         <span>{success}</span>
       </div>
-      <p class="info-text">Redirection en cours...</p>
+      <p class="info-text">Redirection en cours…</p>
     {:else}
-      <form class="form" on:submit={handleSubmit}>
+      <form class="form" on:submit|preventDefault={handleSubmit}>
         <div class="input-group">
           <label for="new-password">Nouveau mot de passe</label>
           <input
             id="new-password"
             type="password"
-            bind:value={newPassword}
+            bind:value={$newPassword}
             placeholder="Au moins 8 caractères"
             required
             disabled={isLoading}
             autocomplete="new-password"
           />
-          <p class="help-text">Utilisez lettres, chiffres et symboles pour plus de sécurité</p>
+          <p class="help-text">Utilisez lettres, chiffres et symboles pour plus de sécurité.</p>
         </div>
 
         <div class="input-group">
@@ -152,7 +155,7 @@
           <input
             id="confirm-password"
             type="password"
-            bind:value={confirmPassword}
+            bind:value={$confirmPassword}
             placeholder="Répétez le mot de passe"
             required
             disabled={isLoading}
@@ -163,7 +166,7 @@
         <button type="submit" class="btn-primary" disabled={isLoading}>
           {#if isLoading}
             <span class="spinner"></span>
-            Enregistrement...
+            Enregistrement…
           {:else}
             {$needsPasswordChange ? 'Définir le mot de passe' : 'Changer le mot de passe'}
           {/if}
@@ -172,14 +175,15 @@
     {/if}
 
     <div class="footer">
-      <a href="/login" class="back-link">
-        ← Retour à la connexion
-      </a>
+      <a href="/login" class="back-link">← Retour à la connexion</a>
     </div>
   </div>
 </div>
 
 <style>
+  /* -----------------------------------------------------------------
+     PAGE LAYOUT
+     ----------------------------------------------------------------- */
   .page-container {
     min-height: 100vh;
     display: flex;
@@ -222,6 +226,9 @@
     margin: 0;
   }
 
+  /* -----------------------------------------------------------------
+     ALERTS
+     ----------------------------------------------------------------- */
   .alert {
     display: flex;
     align-items: center;
@@ -256,6 +263,9 @@
     margin-top: 1rem;
   }
 
+  /* -----------------------------------------------------------------
+     FORM
+     ----------------------------------------------------------------- */
   .form {
     display: flex;
     flex-direction: column;
@@ -338,9 +348,14 @@
   }
 
   @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
+  /* -----------------------------------------------------------------
+     FOOTER
+     ----------------------------------------------------------------- */
   .footer {
     margin-top: 2rem;
     padding-top: 1rem;
@@ -358,15 +373,18 @@
     color: #2d5a27;
   }
 
+  /* -----------------------------------------------------------------
+     RESPONSIVE
+     ----------------------------------------------------------------- */
   @media (max-width: 480px) {
     .card {
       padding: 2rem 1.5rem;
     }
-    
+
     .icon {
       font-size: 3rem;
     }
-    
+
     h1 {
       font-size: 1.5rem;
     }
