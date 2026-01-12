@@ -3,59 +3,63 @@
   import { authStore } from '$lib/authStore';
   import { login } from '$lib/auth.js';
   import { onMount } from 'svelte';
+  import { state } from 'svelte'; // <- Svelte 5 reactive state
   import Icon from '$lib/components/Icon.svelte';
 
-  let username = $state('');
-  let password = $state('');
-  let error = $state('');
-  let loading = $state(false);
+  // -----------------------------------------------------------------
+  // Reactive state (Svelte 5)
+  // -----------------------------------------------------------------
+  let username = state('');
+  let password = state('');
+  let error = state('');
+  let loading = state(false);
 
+  // -----------------------------------------------------------------
+  // Fonction de connexion
+  // -----------------------------------------------------------------
   async function handleLogin() {
     if (!username || !password) {
-        error = 'Veuillez remplir tous les champs';
-        return;
+      error = 'Veuillez remplir tous les champs';
+      return;
     }
 
     loading = true;
     error = '';
 
     try {
-        // Utiliser la fonction login corrigée
-        const user = await login(username, password);
-        console.log('Utilisateur connecté:', user);
+      // login() renvoie l’objet utilisateur (voir $lib/auth.js)
+      const user = await login(username, password);
+      console.log('Utilisateur connecté :', user);
 
-        // Mettre à jour le store d'authentification
-        authStore.setAuthenticated(user, user.role === 'admin');
-        
-        // Rediriger selon le besoin
-        if (user.needs_password_change) {
-            goto('/change-password');
-        } else {
-            goto('/chat');
-        }
+      // Met à jour le store d’authentification
+      authStore.setAuthenticated(user, user.role === 'admin');
 
-    } catch (err) {
-        // Afficher le message d'erreur spécifique du backend
-        console.error('Erreur de connexion:', err);
-        error = err.message || 'Erreur de connexion au serveur.';
-    } finally {
-        loading = false;
-    }
-}
-
-  onMount(() => {
-    // 6. Correction de l'accès au store dans onMount
-    const unsubscribe = authStore.subscribe(store => {
-      if (store.isAuthenticated) {
-        if (store.needsPasswordChange) {
-          goto('/change-password');
-        } else {
-          goto('/chat');
-        }
-        unsubscribe(); // Arrête l'écoute après redirection
+      // Redirection selon le besoin
+      if (user.needs_password_change) {
+        goto('/change-password');
+      } else {
+        goto('/chat');
       }
-    });
-  });
+    } catch (err: any) {
+      console.error('Erreur de connexion :', err);
+      // Le backend renvoie souvent { message: '…' }
+      error = err?.message ?? 'Erreur de connexion au serveur.';
+    } finally {
+      loading = false;
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Redirection automatique si l’utilisateur est déjà authentifié
+  // -----------------------------------------------------------------
+  // $authStore est la forme auto‑subscribed du store
+  $: if ($authStore.isAuthenticated) {
+    if ($authStore.needsPasswordChange) {
+      goto('/change-password');
+    } else {
+      goto('/chat');
+    }
+  }
 </script>
 
 <svelte:head>
@@ -68,11 +72,11 @@
       <Icon name="logo" size={80} />
       <h1>Nook</h1>
     </div>
-    
+
     <p class="subtitle">Bienvenue dans votre espace familial sécurisé</p>
 
     {#if error}
-      <div class="alert error" role="alert">
+      <div class="alert error" role="alert" aria-live="polite">
         <Icon name="error" size={24} class="alert-icon" />
         <span>{error}</span>
       </div>
@@ -127,7 +131,7 @@
         <Icon name="add-user" size={20} />
         Créer un compte (attente approbation admin)
       </a>
-      
+
       <a href="/help" class="action-link subtle">
         <Icon name="help" size={20} />
         Besoin d'aide ?
@@ -137,7 +141,7 @@
 </div>
 
 <style>
-  * { box-sizing: border-box; }  /* ← Fix global overflow */
+  * { box-sizing: border-box; } /* ← Fix global overflow */
 
   .login-page {
     min-height: 100vh;
@@ -158,27 +162,13 @@
     text-align: center;
   }
 
-  .logo {
-    margin-bottom: 1.5rem;
-  }
+  .logo { margin-bottom: 1.5rem; }
 
-  .logo-icon {
-    font-size: 3.5rem;
-    display: block;
-    margin-bottom: 0.5rem;
-  }
+  .logo-icon { font-size: 3.5rem; display: block; margin-bottom: 0.5rem; }
 
-  h1 {
-    font-size: 2rem;
-    margin: 0;
-    color: #1e293b;
-  }
+  h1 { font-size: 2rem; margin: 0; color: #1e293b; }
 
-  .subtitle {
-    color: #64748b;
-    margin-bottom: 2rem;
-    font-size: 1rem;
-  }
+  .subtitle { color: #64748b; margin-bottom: 2rem; font-size: 1rem; }
 
   .alert {
     display: flex;
@@ -197,9 +187,7 @@
     color: #dc2626;
   }
 
-  .alert-icon {
-    font-size: 1.25rem;
-  }
+  .alert-icon { font-size: 1.25rem; }
 
   .login-form {
     display: flex;
@@ -208,12 +196,12 @@
     margin-bottom: 2rem;
   }
 
-  .input-group {
-    text-align: left;
-  }
+  .input-group { text-align: left; }
 
   label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin-bottom: 0.5rem;
     font-weight: 600;
     color: #374151;
@@ -234,10 +222,7 @@
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
   }
 
-  input:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn-primary {
     width: 100%;
@@ -261,23 +246,18 @@
     transform: translateY(-1px);
   }
 
-  .btn-primary:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
+  .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
 
   .spinner {
     width: 20px;
     height: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255,255,255,0.3);
     border-top-color: white;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .actions {
     display: flex;
@@ -289,53 +269,19 @@
     font-size: 0.95rem;
     text-decoration: none;
     transition: opacity 0.2s;
-  }
-
-  .action-link:hover {
-    opacity: 0.8;
-  }
-
-  .action-link.primary {
-    color: #2d5a27;
-    font-weight: 600;
-  }
-
-  .action-link.subtle {
-    color: #64748b;
-    font-size: 0.85rem;
-  }
-
-   @media (max-width: 380px) {
-    .login-card {
-      padding: 1.5rem;
-    }
-    input {
-      padding: 0.65rem;
-    }
-  }
- .input-group label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-    color: #374151;
-    font-size: 0.95rem;
   }
 
-  .alert {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
+  .action-link:hover { opacity: 0.8; }
 
-  .btn-primary {
-    gap: 0.75rem;
-  }
+  .action-link.primary { color: #2d5a27; font-weight: 600; }
 
-  .action-link {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .action-link.subtle { color: #64748b; font-size: 0.85rem; }
+
+  @media (max-width: 380px) {
+    .login-card { padding: 1.5rem; }
+    input { padding: 0.65rem; }
   }
 </style>
