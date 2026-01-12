@@ -1,4 +1,4 @@
-import { sodium } from 'libsodium-wrappers-sumo';
+import { sodium } from 'libsodium-wrappers';
 
 // Initialisation du stockage
 export async function initStorage() {
