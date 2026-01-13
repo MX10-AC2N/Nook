@@ -1,48 +1,22 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
-    // Autorise les fichiers *.js et *.ts dans le projet
     "allowJs": true,
     "checkJs": true,
-
-    // Compatibilité ES‑Modules + interop avec les packages CommonJS
     "esModuleInterop": true,
-
-    // Enforce le respect de la casse des chemins de fichiers
     "forceConsistentCasingInFileNames": true,
-
-    // Permet d’importer des fichiers JSON directement
     "resolveJsonModule": true,
-
-    // Accélère la compilation en ignorant les vérifications de lib
     "skipLibCheck": true,
-
-    // Génère les sourcemaps (utile en dev)
     "sourceMap": true,
-
-    // Mode strict – meilleure sécurité de type
     "strict": true,
-
-    // Résolution des modules via le bundler (Vite)
     "moduleResolution": "bundler",
-
-    // Utilise les modules ESNext (compatible avec Vite)
     "module": "ESNext",
-
-    // Cible le JavaScript le plus récent
     "target": "ESNext",
-
-    // Bibliothèques disponibles (ESNext + DOM)
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-
-    // Types fournis par Vite (pour `import.meta.env`, etc.)
     "types": ["vite/client"]
+    // **PAS DE** "baseUrl"/"paths" ici – ils seront fournis via `kit.alias`
   },
 
-  // -----------------------------------------------------------------
-  // Quels fichiers doivent être analysés par TypeScript ?
-  // -----------------------------------------------------------------
   "include": [
     "src/**/*.d.ts",
     "src/**/*.ts",
@@ -50,8 +24,5 @@
     "src/**/*.svelte"
   ],
 
-  // -----------------------------------------------------------------
-  // Exclusions – on ne veut pas que le compilateur scrute les dossiers générés ou les dépendances externes.
-  // -----------------------------------------------------------------
   "exclude": ["node_modules", "build", ".svelte-kit"]
 }
