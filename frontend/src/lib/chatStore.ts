@@ -1,8 +1,8 @@
 /**
- * Store et actions du chat.
+ * Store et actions du chat (Svelte 5 avec runes).
  *
  * - Gestion du tableau de messages (chargement, ajout, réactions).
- * - Gestion de l’interface GIF (recherche, affichage, toggle).
+ * - Gestion de l'interface GIF (recherche, affichage, toggle).
  * - Chiffrement / déchiffrement des messages via les fonctions du module `crypto.ts`.
  * - Gestion des erreurs de connexion.
  *
@@ -10,9 +10,8 @@
  * fonctionne uniquement côté client (`browser`).  
  */
 
-import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
-import { authStore } from './authStore';
+import { authUser, isAuthenticated } from './authStore';
 import {
   encryptForRecipients,
   decryptMessage,
@@ -22,7 +21,7 @@ import {
 import type { Message, EncryptedData, KeyPair } from './types';
 
 // -----------------------------------------------------------------
-// 1️⃣ Types & état initial du store
+// 1️⃣ État réactif du chat (Svelte 5)
 // -----------------------------------------------------------------
 export interface ChatState {
   messages: Message[];
@@ -32,7 +31,7 @@ export interface ChatState {
   gifLoading: boolean;
 }
 
-/** Valeur de départ du store. */
+/** Valeur de départ de l'état. */
 function createInitialState(): ChatState {
   return {
     messages: [],
@@ -43,69 +42,69 @@ function createInitialState(): ChatState {
   };
 }
 
-/** Store principal contenant tout l’état du chat. */
-function createChatStore() {
-  const { subscribe, set, update } = writable<ChatState>(createInitialState());
+/** État principal du chat (Svelte 5 rune) */
+export const chatStore = $state<ChatState>(createInitialState());
 
-  return {
-    subscribe,
-
-    /** Remplace complètement la liste de messages. */
-    setMessages: (messages: Message[]) =>
-      update((state) => ({ ...state, messages })),
-
-    /** Ajoute un message à la fin du tableau. */
-    addMessage: (message: Message) =>
-      update((state) => ({
-        ...state,
-        messages: [...state.messages, message],
-      })),
-
-    /** Met à jour le champ d’erreur de connexion. */
-    setConnectionError: (error: string | null) =>
-      update((state) => ({ ...state, connectionError: error })),
-
-    /** Remplace les résultats de recherche GIF. */
-    setGifResults: (results: any[]) =>
-      update((state) => ({ ...state, gifResults: results })),
-
-    /** Active / désactive l’affichage du panel GIF. */
-    toggleGifs: () =>
-      update((state) => ({
-        ...state,
-        showGifs: !state.showGifs,
-        // on vide les résultats quand on ferme le panel
-        gifResults: state.showGifs ? [] : state.gifResults,
-      })),
-
-    /** Met à jour le flag de chargement des GIF. */
-    setGifLoading: (loading: boolean) =>
-      update((state) => ({ ...state, gifLoading: loading })),
-
-    /** Réinitialise le store (ex. déconnexion). */
-    reset: () => set(createInitialState()),
-  };
+// -----------------------------------------------------------------
+// 2️⃣ API pour modifier l'état
+// -----------------------------------------------------------------
+/** Remplace complètement la liste de messages. */
+export function setMessages(messages: Message[]): void {
+  chatStore.messages = messages;
 }
 
-export const chatStore = createChatStore();
+/** Ajoute un message à la fin du tableau. */
+export function addMessage(message: Message): void {
+  chatStore.messages = [...chatStore.messages, message];
+}
+
+/** Met à jour le champ d'erreur de connexion. */
+export function setConnectionError(error: string | null): void {
+  chatStore.connectionError = error;
+}
+
+/** Remplace les résultats de recherche GIF. */
+export function setGifResults(results: any[]): void {
+  chatStore.gifResults = results;
+}
+
+/** Active / désactive l'affichage du panel GIF. */
+export function toggleGifs(): void {
+  const newShowGifs = !chatStore.showGifs;
+  chatStore.showGifs = newShowGifs;
+  // On vide les résultats quand on ferme le panel
+  if (!newShowGifs) {
+    chatStore.gifResults = [];
+  }
+}
+
+/** Met à jour le flag de chargement des GIF. */
+export function setGifLoading(loading: boolean): void {
+  chatStore.gifLoading = loading;
+}
+
+/** Réinitialise l'état (ex. déconnexion). */
+export function resetChat(): void {
+  Object.assign(chatStore, createInitialState());
+}
 
 // -----------------------------------------------------------------
-// 2️⃣ Stores dérivés (accès facile depuis les composants)
+// 3️⃣ Variables dérivées (accès facile depuis les composants)
 // -----------------------------------------------------------------
-export const messages = derived(chatStore, ($s) => $s.messages);
-export const connectionError = derived(chatStore, ($s) => $s.connectionError);
-export const gifResults = derived(chatStore, ($s) => $s.gifResults);
-export const showGifs = derived(chatStore, ($s) => $s.showGifs);
-export const gifLoading = derived(chatStore, ($s) => $s.gifLoading);
+export const messages = $derived(chatStore.messages);
+export const connectionError = $derived(chatStore.connectionError);
+export const gifResults = $derived(chatStore.gifResults);
+export const showGifs = $derived(chatStore.showGifs);
+export const gifLoading = $derived(chatStore.gifLoading);
 
 // -----------------------------------------------------------------
-// 3️⃣ Helpers utilitaires
+// 4️⃣ Helpers utilitaires
 // -----------------------------------------------------------------
 export function formatTimestamp(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
 
-  // Aujourd’hui → on n’affiche que l’heure
+  // Aujourd'hui → on n'affiche que l'heure
   if (date.toDateString() === now.toDateString()) {
     return date.toLocaleTimeString(undefined, {
       hour: '2-digit',
@@ -130,10 +129,10 @@ export function formatTimestamp(timestamp: string): string {
 }
 
 // -----------------------------------------------------------------
-// 4️⃣ Actions du chat (API)
+// 5️⃣ Actions du chat (API)
 // -----------------------------------------------------------------
 /**
- * Charge les messages d’une conversation depuis le backend.
+ * Charge les messages d'une conversation depuis le backend.
  */
 export async function loadMessages(conversationId: string) {
   try {
@@ -145,11 +144,11 @@ export async function loadMessages(conversationId: string) {
     if (!response.ok) throw new Error('Impossible de charger les messages');
 
     const data = await response.json();
-    chatStore.setMessages(data.messages ?? []);
-    chatStore.setConnectionError(null);
+    setMessages(data.messages ?? []);
+    setConnectionError(null);
   } catch (err) {
-    chatStore.setConnectionError('Erreur de chargement des messages');
-    console.error('Erreur chargement messages :', err);
+    setConnectionError('Erreur de chargement des messages');
+    console.error('Erreur chargement messages :', err);
   }
 }
 
@@ -159,7 +158,7 @@ export async function loadMessages(conversationId: string) {
  * @param content               Texte du message.
  * @param conversationId        ID de la conversation.
  * @param recipientPublicKeys   Tableau des clés publiques (Uint8Array) des participants.
- * @param senderPrivateKey      Clé privée (Uint8Array) de l’expéditeur.
+ * @param senderPrivateKey      Clé privée (Uint8Array) de l'expéditeur.
  */
 export async function sendMessage(
   content: string,
@@ -174,7 +173,7 @@ export async function sendMessage(
       senderPrivateKey
     );
 
-    // Le backend attend des tableaux d’octets (pas de Uint8Array directement)
+    // Le backend attend des tableaux d'octets (pas de Uint8Array directement)
     const messagePayload = {
       conversation_id: conversationId,
       content: Array.from(encrypted.encryptedContent),
@@ -200,10 +199,10 @@ export async function sendMessage(
 
     // Rafraîchir la liste après envoi
     await loadMessages(conversationId);
-    chatStore.setConnectionError(null);
+    setConnectionError(null);
   } catch (err) {
-    chatStore.setConnectionError("Erreur lors de l'envoi du message");
-    console.error('Erreur envoi message :', err);
+    setConnectionError("Erreur lors de l'envoi du message");
+    console.error('Erreur envoi message :', err);
   }
 }
 
@@ -213,7 +212,7 @@ export async function sendMessage(
  * @param gifUrl                URL du GIF sélectionné.
  * @param conversationId        ID de la conversation.
  * @param recipientPublicKeys   Clés publiques des destinataires.
- * @param senderPrivateKey      Clé privée de l’expéditeur.
+ * @param senderPrivateKey      Clé privée de l'expéditeur.
  */
 export async function sendGif(
   gifUrl: string,
@@ -252,22 +251,22 @@ export async function sendGif(
     if (!response.ok) throw new Error("Erreur lors de l'envoi du GIF");
 
     await loadMessages(conversationId);
-    chatStore.setConnectionError(null);
+    setConnectionError(null);
   } catch (err) {
-    chatStore.setConnectionError("Erreur lors de l'envoi du GIF");
-    console.error('Erreur envoi GIF :', err);
+    setConnectionError("Erreur lors de l'envoi du GIF");
+    console.error('Erreur envoi GIF :', err);
   }
 }
 
 /**
- * Recherche des GIFs via l’API Tenor.
+ * Recherche des GIFs via l'API Tenor.
  *
  * @param query   Chaîne de recherche.
  */
 export async function searchGifs(query: string) {
   try {
-    chatStore.setGifLoading(true);
-    chatStore.setGifResults([]);
+    setGifLoading(true);
+    setGifResults([]);
 
     const response = await fetch(
       `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(
@@ -278,11 +277,11 @@ export async function searchGifs(query: string) {
     if (!response.ok) throw new Error('Erreur lors de la recherche de GIFs');
 
     const data = await response.json();
-    chatStore.setGifResults(data.results ?? []);
+    setGifResults(data.results ?? []);
   } catch (err) {
-    console.error('Erreur recherche GIFs :', err);
+    console.error('Erreur recherche GIFs :', err);
   } finally {
-    chatStore.setGifLoading(false);
+    setGifLoading(false);
   }
 }
 
@@ -303,8 +302,8 @@ export async function addReaction(messageId: string, emoji: string) {
 
     if (!response.ok) throw new Error("Erreur lors de l'ajout de la réaction");
 
-    // Met à jour le store localement (optimistic UI)
-    const updated = get(messages).map((msg) => {
+    // Met à jour l'état localement (optimistic UI)
+    const updated = chatStore.messages.map((msg) => {
       if (msg.id !== messageId) return msg;
 
       const newReactions = { ...(msg.reactions ?? {}) };
@@ -312,19 +311,19 @@ export async function addReaction(messageId: string, emoji: string) {
       return { ...msg, reactions: newReactions };
     });
 
-    chatStore.setMessages(updated);
+    chatStore.messages = updated;
   } catch (err) {
-    console.error('Erreur ajout réaction :', err);
+    console.error('Erreur ajout réaction :', err);
   }
 }
 
 /**
- * Déchiffre le contenu d’un message.
+ * Déchiffre le contenu d'un message.
  *
  * @param message          Message brut reçu du serveur.
- * @param privateKey       Clé privée (Uint8Array) de l’utilisateur courant.
- * @param senderPublicKey  Clé publique (Uint8Array) de l’expéditeur.
- * @returns                Texte déchiffré (ou indication d’erreur).
+ * @param privateKey       Clé privée (Uint8Array) de l'utilisateur courant.
+ * @param senderPublicKey  Clé publique (Uint8Array) de l'expéditeur.
+ * @returns                Texte déchiffré (ou indication d'erreur).
  */
 export async function decryptMessageContent(
   message: Message,
@@ -336,7 +335,7 @@ export async function decryptMessageContent(
     if (message.media_type === 'gif') return `[GIF]${message.media_url}`;
 
     const encryptedContent = new Uint8Array(message.content);
-    const userId = get(authStore).user?.id ?? '';
+    const userId = authUser?.id ?? '';
     const encryptedKeyData = new Uint8Array(
       message.encrypted_keys[userId] ?? []
     );
@@ -350,30 +349,29 @@ export async function decryptMessageContent(
       nonce
     );
   } catch (err) {
-    console.error('Erreur déchiffrement message :', err);
+    console.error('Erreur déchiffrement message :', err);
     return '[Message illisible]';
   }
 }
 
 /**
- * Initialise les clés de l’utilisateur (déchiffrement de la clé privée stockée).
+ * Initialise les clés de l'utilisateur (déchiffrement de la clé privée stockée).
  *
  * @returns `{ privateKey, publicKey }` ou `null` si impossible.
  */
 export async function initUserKeys(): Promise<
   { privateKey: Uint8Array; publicKey: Uint8Array } | null
 > {
-  const user = get(authStore).user;
-  if (!user) return null;
+  if (!authUser) return null;
 
-  const stored = await getStoredKeys(user.id);
+  const stored = await getStoredKeys(authUser.id);
   if (!stored) return null;
 
   try {
-    // Demander le mot de passe à l’utilisateur (si besoin)
+    // Demander le mot de passe à l'utilisateur (si besoin)
     const password =
-      user.password ??
-      (browser && prompt('Entrez votre mot de passe pour déchiffrer vos messages :'));
+      authUser.password ??
+      (browser && prompt('Entrez votre mot de passe pour déchiffrer vos messages :'));
 
     if (!password) return null;
 
@@ -384,10 +382,10 @@ export async function initUserKeys(): Promise<
 
     return { privateKey, publicKey: stored.publicKey };
   } catch (err) {
-    chatStore.setConnectionError(
+    setConnectionError(
       'Erreur de déchiffrement des clés – vérifiez votre mot de passe'
     );
-    console.error('Erreur déchiffrement clés :', err);
+    console.error('Erreur déchiffrement clés :', err);
     return null;
   }
 }
