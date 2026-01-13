@@ -2,7 +2,7 @@
    NOOK Theme - Jardin Secret
    ========================================================================== */
 
-.theme-jardin {
+.theme-jardin-secret {
   /* --------------------------------------------------------------------------
      PALETTE DE COULEURS
      -------------------------------------------------------------------------- */
@@ -69,51 +69,51 @@
   --info-light: #dbeafe;
 }
 
-/* Overrides spécifiques pour le thème Jardin */
-.theme-jardin .btn-primary {
+/* Overrides spécifiques pour le thème Jardin secret*/
+.theme-jardin-secret .btn-primary {
   background: linear-gradient(135deg, #4ade80, #22c55e);
   box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
 }
 
-.theme-jardin .btn-primary:hover {
+.theme-jardin-secret .btn-primary:hover {
   background: linear-gradient(135deg, #86efac, #4ade80);
   box-shadow: 0 6px 20px rgba(74, 222, 128, 0.5);
   transform: translateY(-2px);
 }
 
-.theme-jardin .card {
+.theme-jardin-secret .card {
   border: 1px solid #dcfce7;
   background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
 }
 
-.theme-jardin .chat-mine {
+.theme-jardin-secret .chat-mine {
   background: linear-gradient(135deg, #dcfce7, #bbf7d0);
   border-bottom-right-radius: 20px;
 }
 
-.theme-jardin .chat-theirs {
+.theme-jardin-secret .chat-theirs {
   background: linear-gradient(135deg, #ffffff, #f0fdf4);
   border-bottom-left-radius: 20px;
 }
 
-.theme-jardin .status-online {
+.theme-jardin-secret .status-online {
   box-shadow: 0 0 12px rgba(74, 222, 128, 0.6);
 }
 
-.theme-jardin .header {
+.theme-jardin-secret .header {
   background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
 }
 
-.theme-jardin .nav-bar {
+.theme-jardin-secret .nav-bar {
   background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
   border-top: 1px solid #dcfce7;
 }
 
-.theme-jardin .modal {
+.theme-jardin-secret .modal {
   background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
   border: 1px solid #dcfce7;
 }
 
-.theme-jardin .input:focus {
+.theme-jardin-secret .input:focus {
   box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.2);
 }
