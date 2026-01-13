@@ -4,7 +4,7 @@ import { browser } from '$app/environment';
 // ---------------------------------------------------------------------
 // Types & constantes
 // ---------------------------------------------------------------------
-export type Theme = 'jardin' | 'space' | 'maison';
+export type Theme = 'jardin-secret' | 'space-hub' | 'maison-chaleureuse';
 
 export interface ThemeInfo {
   id: Theme;
@@ -39,7 +39,7 @@ export const availableThemes: ThemeInfo[] = [
 // État réactif du thème (Svelte 5 runes)
 // ---------------------------------------------------------------------
 /** Thème actuel - état réactif Svelte 5 */
-let currentTheme = $state<Theme>('jardin');
+let currentTheme = $state<Theme>('jardin-secret');
 
 // ---------------------------------------------------------------------
 // Clé de stockage local & thème par défaut
@@ -54,7 +54,7 @@ function applyTheme(theme: Theme): void {
   if (!browser) return;
 
   // 1️⃣ Supprimer les classes de thème précédentes
-  document.body.classList.remove('theme-jardin', 'theme-space', 'theme-maison');
+  document.body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse');
 
   // 2️⃣ Ajouter la classe du nouveau thème
   document.body.classList.add(`theme-${theme}`);
