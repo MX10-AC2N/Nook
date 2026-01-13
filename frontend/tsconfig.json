@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "./.svelte-kit/tsconfig.json",
   "compilerOptions": {
     // Autorise les fichiers *.js et *.ts dans le projet
@@ -36,27 +37,11 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
 
     // Types fournis par Vite (pour `import.meta.env`, etc.)
-    "types": ["vite/client"],
-
-    // -----------------------------------------------------------------
-    // 1️⃣ Aliases – ils permettent d’écrire `$lib/...` au lieu de
-    //    chemins relatifs lourds.  Ajoute les alias que tu utilises
-    //    dans ton code (ex. `$components`, `$routes`, `$assets`).
-    // -----------------------------------------------------------------
-    "baseUrl": ".",
-    "paths": {
-      "$lib": ["./src/lib"],
-      "$lib/*": ["./src/lib/*"],
-      "$components": ["./src/components"],
-      "$components/*": ["./src/components/*"],
-      "$routes": ["./src/routes"],
-      "$routes/*": ["./src/routes/*"],
-      "$assets": ["./static"]
-    }
+    "types": ["vite/client"]
   },
 
   // -----------------------------------------------------------------
-  // 2️⃣ Quels fichiers doivent être analysés par TypeScript ?
+  // Quels fichiers doivent être analysés par TypeScript ?
   // -----------------------------------------------------------------
   "include": [
     "src/**/*.d.ts",
@@ -66,8 +51,7 @@
   ],
 
   // -----------------------------------------------------------------
-  // 3️⃣ Exclusions – on ne veut pas que le compilateur scrute
-  //    les dossiers générés ou les dépendances externes.
+  // Exclusions – on ne veut pas que le compilateur scrute les dossiers générés ou les dépendances externes.
   // -----------------------------------------------------------------
   "exclude": ["node_modules", "build", ".svelte-kit"]
 }
