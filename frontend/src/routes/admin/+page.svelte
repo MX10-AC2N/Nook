@@ -488,4 +488,268 @@
     text-align: center;
     padding: 3rem;
     background: #fff;
-    border-radius:
+    border-radius: 1rem;
+  }
+
+    .not-authorized h2 {
+    color: #dc2626;
+    margin-bottom: 1rem;
+  }
+
+  .not-authorized button {
+    margin-top: 1rem;
+    padding: 0.75rem 1.5rem;
+    background: #2d5a27;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .not-authorized button:hover {
+    background: #3d7a37;
+  }
+
+  /* -----------------------------------------------------------------
+     USER LISTS (pending / all)
+     ----------------------------------------------------------------- */
+  .user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .user-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+  }
+
+  .user-card.pending {
+    background: #fff8e1;
+    border-color: #fde68a;
+  }
+
+  .user-card.admin {
+    background: #e3f2fd;
+    border-color: #90caf9;
+  }
+
+  .user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .user-name {
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .user-name .admin-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    background: #2196f3;
+    color: white;
+    border-radius: 4px;
+  }
+
+  .user-username,
+  .user-date,
+  .user-status {
+    font-size: 0.85rem;
+    color: #64748b;
+  }
+
+  .user-status.approved {
+    color: #4caf50;
+  }
+
+  .approve-btn {
+    padding: 0.5rem 1rem;
+    background: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .approve-btn:hover {
+    background: #43a047;
+  }
+
+  /* -----------------------------------------------------------------
+     INVITES TABLE
+     ----------------------------------------------------------------- */
+  .invites-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+  }
+
+  .invites-table th,
+  .invites-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.9rem;
+  }
+
+  .invites-table th {
+    background: #f1f5f9;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .invites-table tr:hover td {
+    background: #f9fafb;
+  }
+
+  .status {
+    font-weight: 500;
+  }
+
+  .link code {
+    font-size: 0.85rem;
+    background: #f0f0f0;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .link button {
+    margin-left: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    background: #2d5a27;
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.2s;
+  }
+
+  .link button:hover {
+    background: #3d7a37;
+  }
+
+  .delete-btn {
+    padding: 0.25rem 0.6rem;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.2s;
+  }
+
+  .delete-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .delete-btn:hover:not(:disabled) {
+    background: #dc2626;
+  }
+
+  /* -----------------------------------------------------------------
+     MISC ELEMENTS
+     ----------------------------------------------------------------- */
+  .loading-message,
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #888;
+  }
+
+  .admin-actions {
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+
+  .invite-btn {
+    padding: 0.75rem 1.5rem;
+    background: #2d5a27;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .invite-btn:hover:not(:disabled) {
+    background: #3d7a37;
+  }
+
+  .invite-link {
+    margin-top: 0.8rem;
+    word-break: break-all;
+  }
+
+  .invite-link code {
+    background: #f0f0f0;
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+  }
+
+  .admin-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .tab {
+    padding: 0.75rem 1.25rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    border-radius: 8px 8px 0 0;
+  }
+
+  .tab.active {
+    background: #2d5a27;
+    color: white;
+  }
+
+  .admin-content {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    overflow: hidden;
+  }
+
+  .loading-fullpage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    color: #666;
+  }
+
+  .spinner-large {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(45,90,39,0.1);
+    border-top-color: #2d5a27;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
