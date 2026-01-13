@@ -1,6 +1,7 @@
 // svelte.config.js
 import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import { vitePreprocess } from '@sveltejs/kit/vite';
+import { resolve } from 'node:path';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -44,11 +45,14 @@ const config = {
     // ---------- Alias ----------
     // Les chemins relatifs sont résolus depuis la racine du repo.
     alias: {
-      $lib: './src/lib',
-      $components: './src/components',
-      $routes: './src/routes',
-      $assets: './static',
+      $lib: resolve('src/lib'),
+      $components: resolve('src/components'),
+      $routes: resolve('src/routes'),
+      $assets: resolve('static')
     },
+
+    // ---------- Optionnel : pré‑rendu ----------
+    prerender: { default: true },   // <-- décommente si tu veux du SSG
 
     // ---------- Service worker ----------
     // Tu ne veux pas de SW auto‑register, donc on le désactive.
