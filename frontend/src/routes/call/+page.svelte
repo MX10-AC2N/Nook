@@ -46,9 +46,10 @@
   // -----------------------------------------------------------------
   onMount(async () => {
     // Rediriger si l’utilisateur n’est pas authentifié
-    if (!$authStore.isAuthenticated) {
-      goto('/login');
-      return;
+    if (!$isAuthenticated) {
+  goto('/login');
+  return;
+}
     }
 
     try {
