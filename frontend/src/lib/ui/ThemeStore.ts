@@ -1,5 +1,5 @@
-// src/lib/ui/ThemeStore.ts
-import { writable, readonly, get } from 'svelte/store';
+// src/lib/ui/ThemeStore.ts (Svelte 5 avec runes)
+import { browser } from '$app/environment';
 
 // ---------------------------------------------------------------------
 // Types & constantes
@@ -36,15 +36,10 @@ export const availableThemes: ThemeInfo[] = [
 ];
 
 // ---------------------------------------------------------------------
-// Store du thème actuel (mutable – utilisé en interne)
+// État réactif du thème (Svelte 5 runes)
 // ---------------------------------------------------------------------
-const _currentTheme = writable<Theme>('jardin');
-
-/** Export en lecture‑seule pour les composants Svelte */
-export const currentTheme = readonly(_currentTheme);
-
-/** Alias pratique (si tu as besoin de la version mutable en interne) */
-export const _currentThemeMutable = _currentTheme;
+/** Thème actuel - état réactif Svelte 5 */
+let currentTheme = $state<Theme>('jardin');
 
 // ---------------------------------------------------------------------
 // Clé de stockage local & thème par défaut
@@ -53,10 +48,10 @@ const THEME_STORAGE_KEY = 'nook-theme';
 const DEFAULT_THEME: Theme = 'jardin';
 
 // ---------------------------------------------------------------------
-// 1️⃣ Fonction d’application du thème (modifie le DOM & le store)
+// 1️⃣ Fonction d'application du thème (modifie le DOM & l'état)
 // ---------------------------------------------------------------------
 function applyTheme(theme: Theme): void {
-  if (typeof window === 'undefined') return;
+  if (!browser) return;
 
   // 1️⃣ Supprimer les classes de thème précédentes
   document.body.classList.remove('theme-jardin', 'theme-space', 'theme-maison');
@@ -67,15 +62,15 @@ function applyTheme(theme: Theme): void {
   // 3️⃣ Persister le choix dans le localStorage
   localStorage.setItem(THEME_STORAGE_KEY, theme);
 
-  // 4️⃣ Mettre à jour le store Svelte
-  _currentTheme.set(theme);
+  // 4️⃣ Mettre à jour l'état réactif (Svelte 5)
+  currentTheme = theme;
 }
 
 // ---------------------------------------------------------------------
-// 2️⃣ Initialisation du thème au chargement du module (client‑only)
+// 2️⃣ Initialisation du thème au chargement (client-only)
 // ---------------------------------------------------------------------
 function initTheme(): void {
-  if (typeof window === 'undefined') return;
+  if (!browser) return;
 
   // Récupérer le thème sauvegardé ou, à défaut, le thème système
   const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
@@ -85,7 +80,7 @@ function initTheme(): void {
 }
 
 // ---------------------------------------------------------------------
-// 3️⃣ Exported helpers (public API)
+// 3️⃣ API publique (exportée)
 // ---------------------------------------------------------------------
 
 /** Change le thème et persiste le choix. */
@@ -95,25 +90,26 @@ export function setTheme(theme: Theme): void {
 
 /** Bascule cycliquement entre les thèmes disponibles. */
 export function toggleTheme(): void {
-  const current = get(_currentTheme);
-  const currentIdx = availableThemes.findIndex((t) => t.id === current);
+  const currentIdx = availableThemes.findIndex((t) => t.id === currentTheme);
   const nextIdx = (currentIdx + 1) % availableThemes.length;
   const nextTheme = availableThemes[nextIdx].id;
   applyTheme(nextTheme);
 }
 
-/** Retourne le thème « système » (dark → space, light → jardin). */
+/** Retourne le thème « système » (dark → space, light → jardin). */
 export function getSystemTheme(): Theme {
-  if (typeof window === 'undefined') return DEFAULT_THEME;
+  if (!browser) return DEFAULT_THEME;
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   return prefersDark ? 'space' : 'jardin';
 }
 
-/** Initialise un listener qui réagit aux changements du thème système.  
- *  Retourne une fonction de nettoyage à appeler si besoin. */
+/** 
+ * Initialise un listener qui réagit aux changements du thème système.  
+ * Retourne une fonction de nettoyage à appeler si besoin. 
+ */
 export function initSystemThemeListener(): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (!browser) return () => {};
 
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -127,19 +123,29 @@ export function initSystemThemeListener(): () => void {
 
   mediaQuery.addEventListener('change', handler);
 
-  // Fonction de nettoyage (utile en cas de hot‑module‑replacement)
+  // Fonction de nettoyage
   return () => {
     mediaQuery.removeEventListener('change', handler);
   };
 }
 
 // ---------------------------------------------------------------------
-// 4️⃣ Initialisation immédiate (client‑only)
+// 4️⃣ Export de l'état réactif
 // ---------------------------------------------------------------------
-if (typeof window !== 'undefined') {
+/** 
+ * Thème actuel - en lecture seule pour les composants.
+ * Usage dans un composant : `import { currentTheme } from '$lib/ui/ThemeStore'`
+ * Puis dans le template : `{currentTheme}` ou `{#if currentTheme === 'jardin'}`
+ */
+export { currentTheme };
+
+// ---------------------------------------------------------------------
+// 5️⃣ Initialisation immédiate (client-only)
+// ---------------------------------------------------------------------
+if (browser) {
   initTheme();
 
-  // On garde le cleanup au cas où le module serait re‑chargé (HMR, SSR…)
+  // On garde le cleanup au cas où le module serait re-chargé (HMR, SSR…)
   const cleanupSystemThemeListener = initSystemThemeListener();
 
   // Si tu utilises un bundler qui supporte le HMR, tu peux exposer le cleanup :
