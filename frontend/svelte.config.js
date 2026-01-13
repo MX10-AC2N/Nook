@@ -51,9 +51,6 @@ const config = {
       $assets: resolve('static')
     },
 
-    // ---------- Optionnel : pré‑rendu ----------
-    prerender: { default: true },   // <-- décommente si tu veux du SSG
-
     // ---------- Service worker ----------
     // Tu ne veux pas de SW auto‑register, donc on le désactive.
     serviceWorker: {
