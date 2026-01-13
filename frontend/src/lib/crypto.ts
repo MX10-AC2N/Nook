@@ -1,35 +1,44 @@
-// src/lib/crypto.ts
-import { sodiumStore, loadSodium } from './sodium';
-import { authStore } from './authStore';
-import { get } from 'svelte/store';
+// src/lib/crypto.ts (Svelte 5 avec runes)
+import { sodium } from './sodium'; // <-- Supposé migré en runes Svelte 5
+import { authUser } from './authStore';
 
 /* -----------------------------------------------------------------
    Helpers internes
    ----------------------------------------------------------------- */
 
 /**
- * Attend que le store `sodiumStore` contienne une instance de libsodium.
- * Retourne immédiatement si l’instance est déjà disponible.
+ * Attend que l'instance de libsodium soit disponible.
+ * Retourne immédiatement si l'instance est déjà disponible.
  *
- * @returns {Promise<any>} Instance de libsodium (type any car libsodium n’a pas de typings TS natives)
+ * @returns {Promise<any>} Instance de libsodium
  */
 async function waitForSodium(): Promise<any> {
-  const maybe = get(sodiumStore);
-  if (maybe) return maybe;
+  if (sodium) return sodium;
 
-  // Sinon, on attend la première mise à jour du store
+  // Si sodium n'est pas encore chargé, attendre
   return new Promise((resolve) => {
-    const unsub = sodiumStore.subscribe((sodium) => {
-      if (sodium) {
-        unsub();
+    let resolved = false;
+    
+    // Créer un effet pour surveiller le chargement
+    const checkSodium = () => {
+      if (sodium && !resolved) {
+        resolved = true;
         resolve(sodium);
       }
-    });
+    };
+    
+    // Vérifier immédiatement
+    checkSodium();
+    
+    // Si toujours pas chargé, attendre le prochain tick
+    if (!resolved) {
+      setTimeout(checkSodium, 10);
+    }
   });
 }
 
 /* -----------------------------------------------------------------
-   1️⃣ Génération d’une paire de clés (à faire à l’inscription)
+   1️⃣ Génération d'une paire de clés (à faire à l'inscription)
    ----------------------------------------------------------------- */
 export async function generateKeyPair(): Promise<{
   publicKey: Uint8Array;
@@ -70,7 +79,7 @@ export async function encryptForRecipients(
   const encryptedKeys: Record<string, Uint8Array> = {};
 
   recipientPublicKeys.forEach((pubKey, idx) => {
-    // Dans une vraie appli, utilisez l’ID réel du destinataire.
+    // Dans une vraie appli, utilisez l'ID réel du destinataire.
     const recipientId = `recipient_${idx}`;
 
     // Nonce dédié au chiffrement asymétrique
@@ -175,16 +184,17 @@ export async function decryptPrivateKey(
     sodium.base64_variants.ORIGINAL
   );
 
-  // Extraction des composants
+  // Extraire salt, nonce et ciphertext
   const salt = data.slice(0, sodium.crypto_pwhash_SALTBYTES);
-  const nonceStart = sodium.crypto_pwhash_SALTBYTES;
   const nonce = data.slice(
-    nonceStart,
-    nonceStart + sodium.crypto_secretbox_NONCEBYTES
+    sodium.crypto_pwhash_SALTBYTES,
+    sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
   );
-  const encrypted = data.slice(nonceStart + sodium.crypto_secretbox_NONCEBYTES);
+  const ciphertext = data.slice(
+    sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
+  );
 
-  // Dérivation de la clé à partir du mot de passe
+  // Dériver la clé à partir du mot de passe
   const key = sodium.crypto_pwhash(
     sodium.crypto_secretbox_KEYBYTES,
     password,
@@ -194,113 +204,66 @@ export async function decryptPrivateKey(
     sodium.crypto_pwhash_ALG_DEFAULT
   );
 
-  // Déchiffrement
-  return sodium.crypto_secretbox_open_easy(encrypted, nonce, key);
+  // Déchiffrer la clé privée
+  const privateKey = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
+  
+  return privateKey;
 }
 
 /* -----------------------------------------------------------------
-   5️⃣ Stockage sécurisé des clés dans IndexedDB
+   5️⃣ Stockage et récupération des clés
    ----------------------------------------------------------------- */
-export async function storeEncryptedKeys(
+
+/**
+ * Stocke les clés de l'utilisateur dans le localStorage.
+ */
+export async function storeUserKeys(
   userId: string,
-  encryptedPrivateKey: string,
-  publicKey: Uint8Array
+  publicKey: Uint8Array,
+  encryptedPrivateKey: string
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const dbReq = indexedDB.open('nook_crypto', 1);
+  if (typeof window === 'undefined') return;
 
-    dbReq.onupgradeneeded = (event) => {
-      const db = (event.target as IDBRequest<IDBDatabase>).result;
-      if (!db.objectStoreNames.contains('keys')) {
-        db.createObjectStore('keys', { keyPath: 'userId' });
-      }
-    };
+  const key = `nook_keys_${userId}`;
+  const data = {
+    publicKey: Array.from(publicKey),
+    encryptedPrivateKey,
+    timestamp: Date.now(),
+  };
 
-    dbReq.onsuccess = () => {
-      const db = dbReq.result;
-      const tx = db.transaction('keys', 'readwrite');
-      const store = tx.objectStore('keys');
-
-      const putReq = store.put({
-        userId,
-        encryptedPrivateKey,
-        publicKey: Array.from(publicKey), // IndexedDB ne stocke pas directement Uint8Array
-      });
-
-      putReq.onsuccess = () => {
-        tx.oncomplete = () => {
-          db.close();
-          resolve();
-        };
-      };
-
-      putReq.onerror = () => {
-        db.close();
-        reject(putReq.error);
-      };
-    };
-
-    dbReq.onerror = () => reject(dbReq.error);
-  });
+  localStorage.setItem(key, JSON.stringify(data));
 }
 
 /**
- * Récupère les clés stockées pour un utilisateur donné.
- *
- * @param {string} userId
- * @returns {Promise<{ encryptedPrivateKey: string; publicKey: Uint8Array } | null>}
+ * Récupère les clés de l'utilisateur depuis le localStorage.
  */
 export async function getStoredKeys(
   userId: string
-): Promise<
-  | {
-      encryptedPrivateKey: string;
-      publicKey: Uint8Array;
-    }
-  | null
-> {
-  return new Promise((resolve, reject) => {
-    const dbReq = indexedDB.open('nook_crypto', 1);
+): Promise<{ publicKey: Uint8Array; encryptedPrivateKey: string } | null> {
+  if (typeof window === 'undefined') return null;
 
-    dbReq.onsuccess = () => {
-      const db = dbReq.result;
-      const tx = db.transaction('keys', 'readonly');
-      const store = tx.objectStore('keys');
+  const key = `nook_keys_${userId}`;
+  const raw = localStorage.getItem(key);
+  
+  if (!raw) return null;
 
-      const getReq = store.get(userId);
-
-      getReq.onsuccess = () => {
-        const data = getReq.result;
-        if (!data) {
-          resolve(null);
-          return;
-        }
-        resolve({
-          encryptedPrivateKey: data.encryptedPrivateKey,
-          publicKey: new Uint8Array(data.publicKey),
-        });
-      };
-
-      getReq.onerror = () => reject(getReq.error);
-      tx.oncomplete = () => db.close();
+  try {
+    const data = JSON.parse(raw);
+    return {
+      publicKey: new Uint8Array(data.publicKey),
+      encryptedPrivateKey: data.encryptedPrivateKey,
     };
-
-    dbReq.onerror = () => reject(dbReq.error);
-  });
+  } catch {
+    return null;
+  }
 }
 
-/* -----------------------------------------------------------------
-   6️⃣ Initialisation globale du système cryptographique
-   ----------------------------------------------------------------- */
-export async function initCryptoSystem(): Promise<boolean> {
-  try {
-    // `loadSodium` provient du module `sodium.ts` et garantit que
-    // libsodium est chargé avant toute utilisation.
-    await loadSodium();
-    console.log('✅ Système cryptographique initialisé');
-    return true;
-  } catch (err) {
-    console.error('❌ Erreur d\'initialisation du système crypto :', err);
-    return false;
-  }
+/**
+ * Supprime les clés de l'utilisateur du localStorage.
+ */
+export function clearStoredKeys(userId: string): void {
+  if (typeof window === 'undefined') return;
+  
+  const key = `nook_keys_${userId}`;
+  localStorage.removeItem(key);
 }
