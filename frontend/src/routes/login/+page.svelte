@@ -1,18 +1,17 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore } from '$lib/authStore';
+  import { isAuthenticated, needsPasswordChange, setAuthenticated } from '$lib/authStore';
   import { login } from '$lib/auth.js';
   import { onMount } from 'svelte';
-  import { state } from 'svelte'; // <- Svelte 5 reactive state
   import Icon from '$lib/components/Icon.svelte';
 
   // -----------------------------------------------------------------
   // Reactive state (Svelte 5)
   // -----------------------------------------------------------------
-  let username = state('');
-  let password = state('');
-  let error = state('');
-  let loading = state(false);
+  let username = $state('');
+  let password = $state('');
+  let error = $state('');
+  let loading = $state(false);
 
   // -----------------------------------------------------------------
   // Fonction de connexion
@@ -27,12 +26,12 @@
     error = '';
 
     try {
-      // login() renvoie l’objet utilisateur (voir $lib/auth.js)
+      // login() renvoie l'objet utilisateur (voir $lib/auth.js)
       const user = await login(username, password);
       console.log('Utilisateur connecté :', user);
 
-      // Met à jour le store d’authentification
-      authStore.setAuthenticated(user, user.role === 'admin');
+      // Met à jour le store d'authentification
+      setAuthenticated(user, user.role === 'admin');
 
       // Redirection selon le besoin
       if (user.needs_password_change) {
@@ -50,16 +49,18 @@
   }
 
   // -----------------------------------------------------------------
-  // Redirection automatique si l’utilisateur est déjà authentifié
+  // Redirection automatique si l'utilisateur est déjà authentifié
   // -----------------------------------------------------------------
-  // $authStore est la forme auto‑subscribed du store
-  $: if ($authStore.isAuthenticated) {
-    if ($authStore.needsPasswordChange) {
-      goto('/change-password');
-    } else {
-      goto('/chat');
+  // Utilisation d'un effet pour la redirection conditionnelle
+  $effect(() => {
+    if (isAuthenticated) {
+      if (needsPasswordChange) {
+        goto('/change-password');
+      } else {
+        goto('/chat');
+      }
     }
-  }
+  });
 </script>
 
 <svelte:head>
