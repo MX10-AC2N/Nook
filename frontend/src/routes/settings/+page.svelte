@@ -800,27 +800,4 @@
     }
   }
 
-  /* -----------------------------------------------------------------
-     UTILITY CLASSES
-     ----------------------------------------------------------------- */
-  .text-center {
-    text-align: center;
-  }
-
-  .mt-1 { margin-top: 0.25rem; }
-  .mt-2 { margin-top: 0.5rem; }
-  .mt-3 { margin-top: 1rem; }
-  .mt-4 { margin-top: 1.5rem; }
-
-  .sr-only {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
 </style>
