@@ -2,7 +2,7 @@
    NOOK Theme - Maison Chaleureuse
    ========================================================================== */
 
-.theme-maison {
+.theme-maison-chaleureuse {
   /* --------------------------------------------------------------------------
      PALETTE DE COULEURS
      -------------------------------------------------------------------------- */
@@ -70,66 +70,66 @@
 }
 
 /* Overrides spécifiques pour le thème Maison */
-.theme-maison .btn-primary {
+.theme-maison-chaleureuse .btn-primary {
   background: linear-gradient(135deg, #ea580c, #f97316);
   box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
 }
 
-.theme-maison .btn-primary:hover {
+.theme-maison-chaleureuse .btn-primary:hover {
   background: linear-gradient(135deg, #f97316, #fb923c);
   box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
   transform: translateY(-2px);
 }
 
-.theme-maison .card {
+.theme-maison-chaleureuse .card {
   background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
   border: 1px solid #fed7aa;
   border-radius: var(--radius-xl);
 }
 
-.theme-maison .chat-mine {
+.theme-maison-chaleureuse .chat-mine {
   background: linear-gradient(135deg, #ffedd5, #fed7aa);
   border-bottom-right-radius: 20px;
 }
 
-.theme-maison .chat-theirs {
+.theme-maison-chaleureuse .chat-theirs {
   background: linear-gradient(135deg, #fef3c7, #fde68a);
   border-bottom-left-radius: 20px;
 }
 
-.theme-maison .status-online {
+.theme-maison-chaleureuse .status-online {
   box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
 }
 
-.theme-maison .header {
+.theme-maison-chaleureuse .header {
   background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
   border-bottom: 1px solid #fed7aa;
 }
 
-.theme-maison .nav-bar {
+.theme-maison-chaleureuse .nav-bar {
   background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
   border-top: 1px solid #fed7aa;
 }
 
-.theme-maison .modal {
+.theme-maison-chaleureuse .modal {
   background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
   border: 1px solid #fed7aa;
 }
 
-.theme-maison .input:focus {
+.theme-maison-chaleureuse .input:focus {
   box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
 }
 
-.theme-maison .list-item:hover {
+.theme-maison-chaleureuse .list-item:hover {
   background-color: #ffedd5;
 }
 
-.theme-maison .badge {
+.theme-maison-chaleureuse .badge {
   background: linear-gradient(135deg, #ea580c, #f97316);
 }
 
 /* Effet chaleureux subtil */
-.theme-maison::before {
+.theme-maison-chaleureuse::before {
   content: '';
   position: fixed;
   inset: 0;
