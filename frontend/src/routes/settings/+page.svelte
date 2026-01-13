@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
   import {
     isAuthenticated,
     authUser,
@@ -11,14 +10,16 @@
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let userName = state('');
-  let currentPassword = state('');
-  let newPassword = state('');
-  let confirmPassword = state('');
-  let message = state('');
-  let error = state('');
-  let saving = state(false);
-  let activeTab = state<'profile' | 'security' | 'appearance'>('profile');
+  let userName = $state('');
+  let currentPassword = $state('');
+  let newPassword = $state('');
+  let confirmPassword = $state('');
+  let message = $state('');
+  let error = $state('');
+  let saving = $state(false);
+  let activeTab = $state<'profile' | 'security' | 'appearance'>('profile');
+  let selectedTheme = $state('jardin-secret');
+  let darkMode = $state(false);
 
   // -----------------------------------------------------------------
   // 2️⃣ Thèmes disponibles
