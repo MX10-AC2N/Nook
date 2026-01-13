@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
-
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let searchQuery = state('');
-  let openFaq = state<number | null>(null);
+  let searchQuery = $state('');
+  let openFaq = $state<number | null>(null);
 
   // -----------------------------------------------------------------
   // 2️⃣ FAQ data (static)
@@ -64,16 +62,18 @@
   ];
 
   // -----------------------------------------------------------------
-  // 3️⃣ Filtrage réactif des FAQs
+  // 3️⃣ Filtrage réactif des FAQs (Svelte 5)
   // -----------------------------------------------------------------
   /** Liste filtrée en fonction du texte de recherche. */
-  $: filteredFaqs = searchQuery.trim()
-    ? faqs.filter(
-        (faq) =>
-          faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : faqs;
+  const filteredFaqs = $derived(
+    searchQuery.trim()
+      ? faqs.filter(
+          (faq) =>
+            faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : faqs
+  );
 
   // -----------------------------------------------------------------
   // 4️⃣ Interaction (ouvrir/fermer FAQ)
