@@ -3,12 +3,11 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
 
   // -----------------------------------------------------------------
   // Stores
   // -----------------------------------------------------------------
-  import { authStore, isAuthenticated } from '$lib/authStore';
+  import { isAuthenticated } from '$lib/authStore'; // <-- rune Svelte 5
   import { currentTheme } from '$lib/ui/ThemeStore';
   import {
     startGroupCall,
@@ -25,31 +24,29 @@
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let loading = state(true);
-  let error = state<string | null>(null);
-  let showIncomingCallModal = state(false);
-  let incomingCallFrom = state('');
-  let incomingCallConvId = state('');
+  let loading = $state(true);
+  let error = $state<string | null>(null);
+  let showIncomingCallModal = $state(false);
+  let incomingCallFrom = $state('');
+  let incomingCallConvId = $state('');
 
   // -----------------------------------------------------------------
-  // 2️⃣ Paramètres d’URL (reactif)
+  // 2️⃣ Paramètres d'URL (reactif)
   // -----------------------------------------------------------------
   /** Id de la conversation (ex. /call/[id]) */
   const conversationId = $derived($page.params?.id ?? '');
 
-  /** Type d’appel demandé dans l’URL (`?type=audio|video`) – défaut video */
+  /** Type d'appel demandé dans l'URL (`?type=audio|video`) - défaut video */
   const callType = $derived($page.url?.searchParams?.get('type') ?? 'video');
-</script>
 
   // -----------------------------------------------------------------
-  // 3️⃣ Cycle de vie – chargement et écouteurs
+  // 3️⃣ Cycle de vie - chargement et écouteurs
   // -----------------------------------------------------------------
   onMount(async () => {
-    // Rediriger si l’utilisateur n’est pas authentifié
-    if (!$isAuthenticated) {
-  goto('/login');
-  return;
-}
+    // Rediriger si l'utilisateur n'est pas authentifié
+    if (!isAuthenticated) {
+      goto('/login');
+      return;
     }
 
     try {
@@ -59,7 +56,7 @@
       // Charger les participants de la conversation
       await loadParticipants(conversationId);
 
-      // Si l’URL contient `?call` → démarrer immédiatement l’appel
+      // Si l'URL contient `?call` → démarrer immédiatement l'appel
       if ($page.url?.searchParams?.has('call')) {
         const ids = $participants.map((p) => p.id);
         await startGroupCall(conversationId, ids, callType);
@@ -67,7 +64,7 @@
 
       loading = false;
 
-      // ----- Écouteurs globaux (uniquement côté client) -----
+      // Écouteurs globaux (uniquement côté client)
       if (browser) {
         window.addEventListener('incoming-call', handleIncomingCall as EventListener);
         window.addEventListener('keydown', handleKeydown);
@@ -76,7 +73,7 @@
       error =
         err instanceof Error ? err.message : String(err) || "Erreur d'initialisation de l'appel";
       loading = false;
-      console.error('Erreur appel :', err);
+      console.error('Erreur appel :', err);
     }
   });
 
@@ -88,12 +85,8 @@
   });
 
   // -----------------------------------------------------------------
-  // 4️⃣ Gestion d’un appel entrant (custom event)
+  // 4️⃣ Gestion d'un appel entrant (custom event)
   // -----------------------------------------------------------------
-  /**
-   * Payload attendu :
-   * `{ from_user_id: string, conversationId: string }`
-   */
   function handleIncomingCall(event: CustomEvent) {
     const { from_user_id, conversationId: convId } = event.detail;
     incomingCallFrom = from_user_id;
@@ -101,7 +94,7 @@
     showIncomingCallModal = true;
   }
 
-  /** Ferme le modal d’appel entrant. */
+  /** Ferme le modal d'appel entrant. */
   function closeIncomingCallModal() {
     showIncomingCallModal = false;
     incomingCallFrom = '';
@@ -116,7 +109,7 @@
   }
 
   // -----------------------------------------------------------------
-  // 5️⃣ Acceptation / rejet d’un appel entrant
+  // 5️⃣ Acceptation / rejet d'un appel entrant
   // -----------------------------------------------------------------
   async function acceptCall() {
     if (!incomingCallConvId) return;
@@ -126,7 +119,7 @@
       await startGroupCall(incomingCallConvId, ids, 'audio');
       closeIncomingCallModal();
     } catch (err) {
-      console.error('Erreur acceptation appel :', err);
+      console.error('Erreur acceptation appel :', err);
     }
   }
 
@@ -135,7 +128,7 @@
   }
 
   // -----------------------------------------------------------------
-  // 6️⃣ Contrôles de l’appel en cours
+  // 6️⃣ Contrôles de l'appel en cours
   // -----------------------------------------------------------------
   function toggleMute() {
     callManager.toggleMute();
