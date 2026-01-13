@@ -16,19 +16,19 @@ export interface ThemeInfo {
 /** Liste des thèmes disponibles (utilisée par le ThemeSwitcher) */
 export const availableThemes: ThemeInfo[] = [
   {
-    id: 'jardin',
+    id: 'jardin-secret',
     name: 'Jardin Secret',
     description: 'Un thème apaisant aux tons verts et naturels',
     icon: '🌿',
   },
   {
-    id: 'space',
+    id: 'space-hub',
     name: 'Space Hub',
     description: 'Un thème sombre et moderne aux couleurs cosmiques',
     icon: '🌌',
   },
   {
-    id: 'maison',
+    id: 'maison-chaleureuse',
     name: 'Maison Chaleureuse',
     description: "Un thème chaleureux aux nuances d'ambre et de feu",
     icon: '🏠',
@@ -45,7 +45,7 @@ let currentTheme = $state<Theme>('jardin');
 // Clé de stockage local & thème par défaut
 // ---------------------------------------------------------------------
 const THEME_STORAGE_KEY = 'nook-theme';
-const DEFAULT_THEME: Theme = 'jardin';
+const DEFAULT_THEME: Theme = 'jardin-secret';
 
 // ---------------------------------------------------------------------
 // 1️⃣ Fonction d'application du thème (modifie le DOM & l'état)
@@ -101,7 +101,7 @@ export function getSystemTheme(): Theme {
   if (!browser) return DEFAULT_THEME;
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? 'space' : 'jardin';
+  return prefersDark ? 'space-hub' : 'jardin-secret';
 }
 
 /** 
@@ -118,7 +118,7 @@ export function initSystemThemeListener(): () => void {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
     if (saved) return;
 
-    applyTheme(e.matches ? 'space' : 'jardin');
+    applyTheme(e.matches ? 'space-hub' : 'jardin-secret');
   };
 
   mediaQuery.addEventListener('change', handler);
@@ -135,7 +135,7 @@ export function initSystemThemeListener(): () => void {
 /** 
  * Thème actuel - en lecture seule pour les composants.
  * Usage dans un composant : `import { currentTheme } from '$lib/ui/ThemeStore'`
- * Puis dans le template : `{currentTheme}` ou `{#if currentTheme === 'jardin'}`
+ * Puis dans le template : `{currentTheme}` ou `{#if currentTheme === 'jardin-secret'}`
  */
 export { currentTheme };
 
