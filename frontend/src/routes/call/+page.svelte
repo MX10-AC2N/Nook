@@ -1,22 +1,21 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-
+  
   // -----------------------------------------------------------------
-  // Stores
+  // Import des runes (Svelte 5)
   // -----------------------------------------------------------------
-  import { isAuthenticated } from '$lib/authStore'; // <-- rune Svelte 5
+  import { isAuthenticated } from '$lib/authStore';
   import { currentTheme } from '$lib/ui/ThemeStore';
   import {
     startGroupCall,
     endCurrentCall,
-    callStore,
+    callStore,  // Supposé migré en runes Svelte 5
     callManager,
   } from '$lib/webrtc-calls';
   import {
-    participants,
+    participants,  // Supposé migré en runes Svelte 5
     loadParticipants,
     activeConversationId,
   } from '$lib/conversationStore';
@@ -31,7 +30,7 @@
   let incomingCallConvId = $state('');
 
   // -----------------------------------------------------------------
-  // 2️⃣ Paramètres d'URL (reactif)
+  // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
   // -----------------------------------------------------------------
   /** Id de la conversation (ex. /call/[id]) */
   const conversationId = $derived($page.params?.id ?? '');
@@ -58,7 +57,7 @@
 
       // Si l'URL contient `?call` → démarrer immédiatement l'appel
       if ($page.url?.searchParams?.has('call')) {
-        const ids = $participants.map((p) => p.id);
+        const ids = participants.map((p) => p.id);
         await startGroupCall(conversationId, ids, callType);
       }
 
@@ -70,8 +69,7 @@
         window.addEventListener('keydown', handleKeydown);
       }
     } catch (err) {
-      error =
-        err instanceof Error ? err.message : String(err) || "Erreur d'initialisation de l'appel";
+      error = err instanceof Error ? err.message : String(err) || "Erreur d'initialisation de l'appel";
       loading = false;
       console.error('Erreur appel :', err);
     }
@@ -115,7 +113,7 @@
     if (!incomingCallConvId) return;
 
     try {
-      const ids = $participants.map((p) => p.id);
+      const ids = participants.map((p) => p.id);
       await startGroupCall(incomingCallConvId, ids, 'audio');
       closeIncomingCallModal();
     } catch (err) {
@@ -154,7 +152,7 @@
          ----------------------------------------------------------------- -->
     <div class="loading-container">
       <div class="loading-spinner"></div>
-      <p>Préparation de l’appel…</p>
+      <p>Préparation de l'appel…</p>
     </div>
 
   {:else if error}
@@ -173,15 +171,15 @@
 
   {:else}
     <!-- -----------------------------------------------------------------
-         CONTENU DE L’APPEL
+         CONTENU DE L'APPEL
          ----------------------------------------------------------------- -->
     <div class="call-container">
       <!-- HEADER -->
       <header class="call-header">
         <div class="header-theme">
-          {#if $currentTheme === 'jardin-secret'}
+          {#if currentTheme === 'jardin-secret'}
             🌿 Appel Jardin Secret
-          {:else if $currentTheme === 'space-hub'}
+          {:else if currentTheme === 'space-hub'}
             🚀 Appel Space Hub
           {:else}
             🏠 Appel Maison Chaleureuse
@@ -190,8 +188,8 @@
 
         <h1 class="call-title">Appel avec {conversationId}</h1>
 
-        {#if $participants.length > 1}
-          <p class="participants-count">{$participants.length} participants</p>
+        {#if participants.length > 1}
+          <p class="participants-count">{participants.length} participants</p>
         {/if}
 
         <button
@@ -204,16 +202,16 @@
       </header>
 
       <!-- -----------------------------------------------------------------
-           ÉTAT DE L’APPEL (en cours / en attente)
+           ÉTAT DE L'APPEL (en cours / en attente)
            ----------------------------------------------------------------- -->
-      {#if $callStore.isInCall}
+      {#if callStore.isInCall}
         <!-- ------------------- CALL ACTIVE ------------------- -->
-        <div class="video-grid" role="region" aria-label="Participants à l’appel">
+        <div class="video-grid" role="region" aria-label="Participants à l'appel">
           <!-- Local stream (self) -->
-          {#if $callStore.localStream}
+          {#if callStore.localStream}
             <div class="video-participant local">
               <video
-                bind:this={$callStore.localVideoElement}
+                bind:this={callStore.localVideoElement}
                 autoplay
                 muted
                 playsinline
@@ -224,33 +222,33 @@
                 <span class="participant-name">Vous</span>
                 <span
                   class="icon"
-                  aria-label={$callStore.isMuted ? 'Microphone coupé' : 'Microphone activé'}
+                  aria-label={callStore.isMuted ? 'Microphone coupé' : 'Microphone activé'}
                 >
-                  {$callStore.isMuted ? '🔇' : '🔊'}
+                  {callStore.isMuted ? '🔇' : '🔊'}
                 </span>
                 <span
                   class="icon"
-                  aria-label={$callStore.isVideoOff ? 'Vidéo désactivée' : 'Vidéo activée'}
+                  aria-label={callStore.isVideoOff ? 'Vidéo désactivée' : 'Vidéo activée'}
                 >
-                  {$callStore.isVideoOff ? '📹❌' : '📹'}
+                  {callStore.isVideoOff ? '📹❌' : '📹'}
                 </span>
               </div>
             </div>
           {/if}
 
           <!-- Remote streams -->
-          {#each Array.from($callStore.remoteStreams.entries()) as [userId, stream]}
+          {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
             <div class="video-participant remote">
               <video srcObject={stream} autoplay playsinline class="remote-video"></video>
               <div class="participant-info">
                 <span class="participant-name">
-                  {$participants.find((p) => p.id === userId)?.name || userId}
+                  {participants.find((p) => p.id === userId)?.name || userId}
                 </span>
               </div>
             </div>
           {/each}
 
-          {#if $callStore.remoteStreams.size === 0 && !$callStore.localStream}
+          {#if callStore.remoteStreams.size === 0 && !callStore.localStream}
             <div class="waiting-message">
               <p>Connexion aux participants…</p>
               <div class="spinner"></div>
@@ -259,21 +257,21 @@
         </div>
 
         <!-- Controls -->
-        <div class="call-controls" role="toolbar" aria-label="Contrôles de l’appel">
+        <div class="call-controls" role="toolbar" aria-label="Contrôles de l'appel">
           <button
             on:click={toggleMute}
             class="control-button"
-            aria-label={$callStore.isMuted ? 'Activer le son' : 'Couper le son'}
+            aria-label={callStore.isMuted ? 'Activer le son' : 'Couper le son'}
           >
-            {$callStore.isMuted ? '🔇' : '🔊'}
+            {callStore.isMuted ? '🔇' : '🔊'}
           </button>
 
           <button
             on:click={toggleVideo}
             class="control-button"
-            aria-label={$callStore.isVideoOff ? 'Activer la vidéo' : 'Désactiver la vidéo'}
+            aria-label={callStore.isVideoOff ? 'Activer la vidéo' : 'Désactiver la vidéo'}
           >
-            {$callStore.isVideoOff ? '📹❌' : '📹'}
+            {callStore.isVideoOff ? '📹❌' : '📹'}
           </button>
 
           <button on:click={endCall} class="control-button hangup" aria-label="Raccrocher">
@@ -281,17 +279,17 @@
           </button>
 
           <div class="call-info">
-            <span>💬 {$callStore.remoteStreams.size + 1} participants</span>
+            <span>💬 {callStore.remoteStreams.size + 1} participants</span>
             <span class="secure-badge">✅ Connexion sécurisée P2P</span>
           </div>
         </div>
 
-      {:else if $callStore.isCalling || $callStore.isAnswering}
+      {:else if callStore.isCalling || callStore.isAnswering}
         <!-- ------------------- CALL EN COURS DE SETUP ------------------- -->
         <div class="call-status" role="status" aria-live="polite">
           <span class="icon large" aria-hidden="true">✆</span>
 
-          {#if $callStore.isCalling}
+          {#if callStore.isCalling}
             <p>Appel en cours vers les participants…</p>
           {:else}
             <p>Appel entrant de {incomingCallFrom}</p>
@@ -305,9 +303,9 @@
         <!-- ------------------- AUCUN APPEL EN COURS ------------------- -->
         <div class="no-call">
           <div class="theme-icon" aria-hidden="true">
-            {#if $currentTheme === 'jardin-secret'}
+            {#if currentTheme === 'jardin-secret'}
               🌸
-            {:else if $currentTheme === 'space-hub'}
+            {:else if currentTheme === 'space-hub'}
               🌌
             {:else}
               🏡
@@ -323,7 +321,7 @@
             <button
               class="start-audio-call"
               on:click={async () => {
-                const ids = $participants.map((p) => p.id);
+                const ids = participants.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'audio');
               }}
               aria-label="Démarrer un appel audio avec les participants"
@@ -334,7 +332,7 @@
             <button
               class="start-video-call"
               on:click={async () => {
-                const ids = $participants.map((p) => p.id);
+                const ids = participants.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'video');
               }}
               aria-label="Démarrer un appel vidéo avec les participants"
@@ -348,11 +346,11 @@
       <!-- -----------------------------------------------------------------
            ERREUR CALL STORE (ex. problème WebRTC)
            ----------------------------------------------------------------- -->
-      {#if $callStore.error}
+      {#if callStore.error}
         <div class="error-modal" role="alertdialog" aria-label="Erreur">
-          <p>{$callStore.error}</p>
+          <p>{callStore.error}</p>
           <button
-            on:click={() => callStore.update((s) => ({ ...s, error: null }))}
+            on:click={() => callStore.error = null}
             aria-label="Fermer"
           >
             ✕
@@ -383,14 +381,14 @@
             </div>
 
             <h2 class="caller-name">Appel entrant</h2>
-            <p class="caller-from">De : {incomingCallFrom}</p>
+            <p class="caller-from">De : {incomingCallFrom}</p>
             <p class="call-info-text">Vous avez un appel entrant</p>
 
             <div class="call-actions">
               <button
                 on:click={acceptCall}
                 class="accept-btn"
-                aria-label="Accepter l’appel"
+                aria-label="Accepter l'appel"
               >
                 ✅ Accepter
               </button>
@@ -398,7 +396,7 @@
               <button
                 on:click={rejectCall}
                 class="reject-btn"
-                aria-label="Rejeter l’appel"
+                aria-label="Rejeter l'appel"
               >
                 ❌ Rejeter
               </button>
