@@ -1,183 +1,105 @@
-// src/lib/authStore.js
-import { writable, derived } from 'svelte/store';
+// src/lib/authStore.js (version Svelte 5)
 import { checkAuth, logout as apiLogout } from './auth.js';
 
-/**
- * @typedef {Object} AuthUser
- * @property {string} id
- * @property {string} username
- * @property {string} email
- * @property {string} role
- * @property {boolean} needs_password_change
- */
+// ---------------------------------------------------------------------
+// État réactif avec runes
+// ---------------------------------------------------------------------
 
-/**
- * @typedef {Object} AuthState
- * @property {boolean} isAuthenticated
- * @property {boolean} isAdmin
- * @property {AuthUser|null} user
- * @property {boolean} loading
- * @property {boolean} needsPasswordChange
- */
+/** @type {AuthState} */
+const authState = $state({
+  isAuthenticated: false,
+  isAdmin: false,
+  user: null,
+  loading: true,
+  needsPasswordChange: false
+});
 
-/**
- * Crée le store d’authentification avec des helpers.
- *
- * @returns {{ subscribe: Function, set: Function, update: Function,
- *           setLoading: Function, setAuthenticated: Function,
- *           setGuest: Function, setError: Function,
- *           updateUser: Function }}
- */
-function createAuthStore() {
-  /** @type {AuthState} */
-  const initialState = {
+// ---------------------------------------------------------------------
+// Getters publics (exportés)
+// ---------------------------------------------------------------------
+export const isAuthenticated = $derived(authState.isAuthenticated);
+export const isAdmin = $derived(authState.isAdmin);
+export const authUser = $derived(authState.user);
+export const authLoading = $derived(authState.loading);
+export const needsPasswordChange = $derived(authState.needsPasswordChange);
+
+// ---------------------------------------------------------------------
+// Actions (fonctions pour modifier l'état)
+// ---------------------------------------------------------------------
+
+/** Met le store en état de chargement. */
+export function setLoading() {
+  authState.loading = true;
+}
+
+/** Marque l'utilisateur comme authentifié. */
+export function setAuthenticated(user, isAdmin = false) {
+  Object.assign(authState, {
+    isAuthenticated: true,
+    isAdmin,
+    user,
+    loading: false,
+    needsPasswordChange: !!user?.needs_password_change
+  });
+}
+
+/** Marque l'état comme invité (non-authentifié). */
+export function setGuest() {
+  Object.assign(authState, {
     isAuthenticated: false,
     isAdmin: false,
     user: null,
-    loading: true,
-    needsPasswordChange: false,
-  };
+    loading: false,
+    needsPasswordChange: false
+  });
+}
 
-  const { subscribe, set, update } = writable(initialState);
+/** En cas d'erreur. */
+export function setError() {
+  setGuest(); // Même état que guest pour l'instant
+}
 
-  /**
-   * Helper interne – merge un état partiel avec l’état actuel.
-   *
-   * @param {Partial<AuthState>} partial
-   */
-  function setState(partial) {
-    update((prev) => ({
-      ...prev,
-      ...partial,
-    }));
+/** Met à jour les informations de l'utilisateur. */
+export function updateUser(userData) {
+  if (authState.user) {
+    authState.user = { ...authState.user, ...userData };
   }
-
-  return {
-    subscribe,
-    set,
-    update,
-
-    /** Met le store en état de chargement. */
-    setLoading: () => setState({ loading: true }),
-
-    /**
-     * Marque l’utilisateur comme authentifié.
-     *
-     * @param {AuthUser} user
-     * @param {boolean} [isAdmin=false]
-     */
-    setAuthenticated: (user, isAdmin = false) =>
-      setState({
-        isAuthenticated: true,
-        isAdmin,
-        user,
-        loading: false,
-        needsPasswordChange: !!user.needs_password_change,
-      }),
-
-    /** Marque l’état comme invité (non‑authentifié). */
-    setGuest: () =>
-      setState({
-        isAuthenticated: false,
-        isAdmin: false,
-        user: null,
-        loading: false,
-        needsPasswordChange: false,
-      }),
-
-    /** En cas d’erreur (ex. appel API qui échoue). */
-    setError: () =>
-      setState({
-        isAuthenticated: false,
-        isAdmin: false,
-        user: null,
-        loading: false,
-        needsPasswordChange: false,
-      }),
-
-    /**
-     * Met à jour les informations de l’utilisateur (ex. changement de pseudo).
-     *
-     * @param {Partial<AuthUser>} userData
-     */
-    updateUser: (userData) =>
-      update((state) => ({
-        ...state,
-        user: state.user ? { ...state.user, ...userData } : null,
-      })),
-  };
 }
 
 // ---------------------------------------------------------------------
-// Export du store principal
-// ---------------------------------------------------------------------
-export const authStore = createAuthStore();
-
-// ---------------------------------------------------------------------
-// Stores dérivés (facilitent l’accès dans les composants)
-// ---------------------------------------------------------------------
-export const isAuthenticated = derived(authStore, ($s) => $s.isAuthenticated);
-export const isAdmin = derived(authStore, ($s) => $s.isAdmin);
-export const authUser = derived(authStore, ($s) => $s.user);
-export const authLoading = derived(authStore, ($s) => $s.loading);
-export const needsPasswordChange = derived(
-  authStore,
-  ($s) => $s.needsPasswordChange
-);
-
-// ---------------------------------------------------------------------
-// Initialisation de l’authentification (appelée une seule fois côté client)
+// Initialisation (identique à votre code)
 // ---------------------------------------------------------------------
 let initialized = false;
 
-/**
- * Initialise le store en interrogeant le backend.
- * Met à jour le store selon le résultat (`authenticated` ou `guest`).
- */
 export async function initAuth() {
-  if (initialized) return; // évite les doubles appels (ex. HMR)
+  if (initialized) return;
   initialized = true;
 
   try {
-    authStore.setLoading();
-
+    setLoading();
     const result = await checkAuth();
 
     if (result.status === 'authenticated' && result.user) {
-      authStore.setAuthenticated(result.user, result.isAdmin);
+      setAuthenticated(result.user, result.isAdmin);
     } else {
-      authStore.setGuest();
+      setGuest();
     }
   } catch (err) {
     console.error('Auth initialization failed:', err);
-    authStore.setError();
+    setError();
   }
 }
 
-/**
- * Déconnexion – appelle l’API puis remet le store en état de guest.
- */
 export async function logout() {
   try {
     await apiLogout();
   } catch (err) {
     console.error('Logout error:', err);
   }
-  authStore.setGuest();
+  setGuest();
 }
 
-/**
- * Met à jour les données de l’utilisateur dans le store.
- *
- * @param {Partial<AuthUser>} userData
- */
-export function updateUser(userData) {
-  authStore.updateUser(userData);
-}
-
-// ---------------------------------------------------------------------
-// Lancement de l’initialisation côté client uniquement
-// ---------------------------------------------------------------------
+// Initialisation côté client
 if (typeof window !== 'undefined') {
   initAuth();
 }
