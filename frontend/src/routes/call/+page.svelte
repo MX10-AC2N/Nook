@@ -35,10 +35,11 @@
   // 2️⃣ Paramètres d’URL (reactif)
   // -----------------------------------------------------------------
   /** Id de la conversation (ex. /call/[id]) */
-  $: conversationId = $page.params?.id ?? '';
+  const conversationId = $derived($page.params?.id ?? '');
 
   /** Type d’appel demandé dans l’URL (`?type=audio|video`) – défaut video */
-  $: callType = $page.url?.searchParams?.get('type') ?? 'video';
+  const callType = $derived($page.url?.searchParams?.get('type') ?? 'video');
+</script>
 
   // -----------------------------------------------------------------
   // 3️⃣ Cycle de vie – chargement et écouteurs
