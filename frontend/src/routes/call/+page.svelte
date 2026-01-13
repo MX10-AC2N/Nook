@@ -8,7 +8,7 @@
   // -----------------------------------------------------------------
   // Stores
   // -----------------------------------------------------------------
-  import { authStore } from '$lib/authStore';
+  import { authStore, isAuthenticated } from '$lib/authStore';
   import { currentTheme } from '$lib/ui/ThemeStore';
   import {
     startGroupCall,
