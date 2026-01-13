@@ -1,29 +1,28 @@
 /**
- * Store et actions liées aux conversations.
+ * Store et actions liées aux conversations (Svelte 5 avec runes).
  *
  * - Chargement des conversations, participants et utilisateurs disponibles.
  * - Création / mise à jour / suppression de conversations.
  * - Gestion des participants (ajout, départ, lecture des messages).
- * - Stores dérivés utiles pour l’UI (conversation active, tri, affichage du nom).
- * - Intégration d’un WebSocket simple pour recevoir les nouveaux messages.
+ * - Variables dérivées utiles pour l'UI (conversation active, tri, affichage du nom).
+ * - Intégration d'un WebSocket simple pour recevoir les nouveaux messages.
  *
  * Toutes les fonctions sont typées, les erreurs sont capturées et le code
  * fonctionne correctement côté client (`browser`).  
  */
 
-import { writable, derived, get, type Writable } from 'svelte/store';
 import { browser } from '$app/environment';
-import { authStore } from './authStore';
-import type { Conversation, Participant, Message } from './types';
+import { authUser, isAuthenticated } from './authStore';
 import { connectionError } from './chatStore';
+import type { Conversation, Participant, Message } from './types';
 
 // -----------------------------------------------------------------
-// 1️⃣ Stores principaux
+// 1️⃣ États réactifs (Svelte 5)
 // -----------------------------------------------------------------
-export const conversations: Writable<Conversation[]> = writable([]);
-export const activeConversationId: Writable<string | null> = writable(null);
-export const participants: Writable<Participant[]> = writable([]);
-export const availableUsers: Writable<Participant[]> = writable([]);
+export let conversations = $state<Conversation[]>([]);
+export let activeConversationId = $state<string | null>(null);
+export let participants = $state<Participant[]>([]);
+export let availableUsers = $state<Participant[]>([]);
 
 // -----------------------------------------------------------------
 // 2️⃣ Chargement des données depuis le backend
@@ -34,18 +33,18 @@ export async function loadConversations(): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les conversations');
 
     const data = await resp.json();
-    conversations.set(data.conversations ?? []);
-    connectionError.set(null);
+    conversations = data.conversations ?? [];
+    connectionError = null;
 
-    // Sélectionner automatiquement la première conversation si aucune n’est active
-    if (!get(activeConversationId) && data.conversations?.length) {
+    // Sélectionner automatiquement la première conversation si aucune n'est active
+    if (!activeConversationId && data.conversations?.length) {
       const firstId = data.conversations[0].id;
-      activeConversationId.set(firstId);
+      activeConversationId = firstId;
       await loadParticipants(firstId);
     }
   } catch (err) {
-    connectionError.set('Erreur de chargement des conversations');
-    console.error('Erreur chargement conversations :', err);
+    connectionError = 'Erreur de chargement des conversations';
+    console.error('Erreur chargement conversations :', err);
   }
 }
 
@@ -58,11 +57,11 @@ export async function loadParticipants(conversationId: string): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les participants');
 
     const data = await resp.json();
-    participants.set(data.participants ?? []);
-    connectionError.set(null);
+    participants = data.participants ?? [];
+    connectionError = null;
   } catch (err) {
-    connectionError.set('Erreur de chargement des participants');
-    console.error('Erreur chargement participants :', err);
+    connectionError = 'Erreur de chargement des participants';
+    console.error('Erreur chargement participants :', err);
   }
 }
 
@@ -74,11 +73,11 @@ export async function loadAvailableUsers(): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les utilisateurs disponibles');
 
     const data = await resp.json();
-    availableUsers.set(data.users ?? []);
-    connectionError.set(null);
+    availableUsers = data.users ?? [];
+    connectionError = null;
   } catch (err) {
-    connectionError.set('Erreur de chargement des utilisateurs');
-    console.error('Erreur chargement utilisateurs :', err);
+    connectionError = 'Erreur de chargement des utilisateurs';
+    console.error('Erreur chargement utilisateurs :', err);
   }
 }
 
@@ -110,21 +109,23 @@ export async function createConversation(
     const data = await resp.json();
     const newConv: Conversation = data.conversation;
 
-    // Mettre à jour le store local
-    conversations.update((list) => {
-      const exists = list.some((c) => c.id === newConv.id);
-      return exists ? list.map((c) => (c.id === newConv.id ? newConv : c)) : [...list, newConv];
-    });
+    // Mettre à jour l'état local
+    const exists = conversations.some((c) => c.id === newConv.id);
+    if (exists) {
+      conversations = conversations.map((c) => (c.id === newConv.id ? newConv : c));
+    } else {
+      conversations = [...conversations, newConv];
+    }
 
     // Sélectionner la nouvelle conversation
-    activeConversationId.set(newConv.id);
+    activeConversationId = newConv.id;
     await loadParticipants(newConv.id);
-    connectionError.set(null);
+    connectionError = null;
     return newConv;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    connectionError.set(msg);
-    console.error('Erreur création conversation :', err);
+    connectionError = msg;
+    console.error('Erreur création conversation :', err);
     throw err;
   }
 }
@@ -145,10 +146,10 @@ export async function addParticipantToConversation(
 
     // Recharger la liste des participants
     await loadParticipants(conversationId);
-    connectionError.set(null);
+    connectionError = null;
   } catch (err) {
-    connectionError.set("Erreur lors de l'ajout du participant");
-    console.error('Erreur ajout participant :', err);
+    connectionError = "Erreur lors de l'ajout du participant";
+    console.error("Erreur ajout participant :", err);
   }
 }
 
@@ -161,21 +162,20 @@ export async function leaveConversation(conversationId: string): Promise<void> {
 
     if (!resp.ok) throw new Error('Erreur lors du départ de la conversation');
 
-    // Retirer la conversation du store
-    conversations.update((list) => list.filter((c) => c.id !== conversationId));
+    // Retirer la conversation de l'état
+    conversations = conversations.filter((c) => c.id !== conversationId);
 
-    // Si c’était la conversation active, choisir une autre
-    if (get(activeConversationId) === conversationId) {
-      const remaining = get(conversations);
-      const newActive = remaining.length ? remaining[0].id : null;
-      activeConversationId.set(newActive);
+    // Si c'était la conversation active, choisir une autre
+    if (activeConversationId === conversationId) {
+      const newActive = conversations.length ? conversations[0].id : null;
+      activeConversationId = newActive;
       if (newActive) await loadParticipants(newActive);
     }
 
-    connectionError.set(null);
+    connectionError = null;
   } catch (err) {
-    connectionError.set('Erreur lors du départ de la conversation');
-    console.error('Erreur départ conversation :', err);
+    connectionError = 'Erreur lors du départ de la conversation';
+    console.error('Erreur départ conversation :', err);
   }
 }
 
@@ -188,26 +188,25 @@ export async function deleteConversation(conversationId: string): Promise<void> 
 
     if (!resp.ok) throw new Error('Erreur lors de la suppression de la conversation');
 
-    // Retirer du store
-    conversations.update((list) => list.filter((c) => c.id !== conversationId));
+    // Retirer de l'état
+    conversations = conversations.filter((c) => c.id !== conversationId);
 
-    // Gestion de l’active
-    if (get(activeConversationId) === conversationId) {
-      const remaining = get(conversations);
-      const newActive = remaining.length ? remaining[0].id : null;
-      activeConversationId.set(newActive);
+    // Gestion de l'active
+    if (activeConversationId === conversationId) {
+      const newActive = conversations.length ? conversations[0].id : null;
+      activeConversationId = newActive;
       if (newActive) await loadParticipants(newActive);
     }
 
-    connectionError.set(null);
+    connectionError = null;
   } catch (err) {
-    connectionError.set('Erreur lors de la suppression de la conversation');
-    console.error('Erreur suppression conversation :', err);
+    connectionError = 'Erreur lors de la suppression de la conversation';
+    console.error('Erreur suppression conversation :', err);
   }
 }
 
 /**
- * Marque les messages d’une conversation comme lus côté serveur
+ * Marque les messages d'une conversation comme lus côté serveur
  * et met à jour le compteur `unread_count` localement.
  */
 export async function markMessagesAsRead(conversationId: string): Promise<void> {
@@ -220,24 +219,23 @@ export async function markMessagesAsRead(conversationId: string): Promise<void> 
     if (!resp.ok) throw new Error('Erreur lors du marquage comme lu');
 
     // Mettre à jour le compteur localement
-    conversations.update((list) =>
-      list.map((c) => (c.id === conversationId ? { ...c, unread_count: 0 } : c))
+    conversations = conversations.map((c) => 
+      c.id === conversationId ? { ...c, unread_count: 0 } : c
     );
   } catch (err) {
-    console.error('Erreur marquage messages lus :', err);
+    console.error('Erreur marquage messages lus :', err);
   }
 }
 
 // -----------------------------------------------------------------
-// 4️⃣ Stores dérivés (pratiques pour l’UI)
+// 4️⃣ Variables dérivées (pratiques pour l'UI - Svelte 5)
 // -----------------------------------------------------------------
-export const activeConversation = derived(
-  [conversations, activeConversationId],
-  ([$convs, $activeId]) => $convs.find((c) => c.id === $activeId) ?? null
+export const activeConversation = $derived(() => 
+  conversations.find((c) => c.id === activeConversationId) ?? null
 );
 
-export const sortedConversations = derived(conversations, ($list) => {
-  return [...$list].sort((a, b) => {
+export const sortedConversations = $derived(() => {
+  return [...conversations].sort((a, b) => {
     // Priorité aux conversations avec des messages non lus
     if (a.unread_count > 0 && b.unread_count === 0) return -1;
     if (a.unread_count === 0 && b.unread_count > 0) return 1;
@@ -246,28 +244,25 @@ export const sortedConversations = derived(conversations, ($list) => {
   });
 });
 
-export const conversationDisplayName = derived(
-  [activeConversation, participants, authStore],
-  ([$conv, $parts, $auth]) => {
-    if (!$conv) return 'Nouvelle conversation';
+export const conversationDisplayName = $derived(() => {
+  if (!activeConversation) return 'Nouvelle conversation';
 
-    if (!$conv.is_group) {
-      // 1‑to‑1 : afficher le nom de l’autre participant
-      const other = $parts.find((p) => p.id !== $auth.user?.id);
-      return other?.name ?? 'Utilisateur inconnu';
-    }
-
-    // Groupe : afficher le nom ou un libellé par défaut
-    return $conv.name ?? 'Groupe sans nom';
+  if (!activeConversation.is_group) {
+    // 1‑to‑1 : afficher le nom de l'autre participant
+    const other = participants.find((p) => p.id !== authUser?.id);
+    return other?.name ?? 'Utilisateur inconnu';
   }
-);
+
+  // Groupe : afficher le nom ou un libellé par défaut
+  return activeConversation.name ?? 'Groupe sans nom';
+});
 
 // -----------------------------------------------------------------
 // 5️⃣ Utilitaires
 // -----------------------------------------------------------------
 /**
  * Génère un identifiant de conversation unique basé sur les participants.
- * L’ordre des IDs n’influence pas le résultat (tri préalable).
+ * L'ordre des IDs n'influence pas le résultat (tri préalable).
  */
 export function generateConversationId(participantIds: string[]): string {
   const sorted = [...participantIds].sort();
@@ -275,22 +270,37 @@ export function generateConversationId(participantIds: string[]): string {
 }
 
 // -----------------------------------------------------------------
-// 6️⃣ Initialisation & écoute d’authentification
+// 6️⃣ Initialisation & réaction à l'authentification (Svelte 5)
 // -----------------------------------------------------------------
 async function initConversations(): Promise<void> {
-  const user = get(authStore).user;
-  if (user) {
+  if (authUser) {
     await loadConversations();
     await loadAvailableUsers();
   }
 }
 
-// Réagir aux changements d’état d’authentification
-authStore.subscribe(($store) => {
-  if ($store.isAuthenticated && !$store.loading) {
-    initConversations().catch(console.error);
+// Réagir aux changements d'état d'authentification
+// En Svelte 5, nous pouvons utiliser un effet pour cela
+// Mais dans un module, nous ne pouvons pas utiliser $effect directement
+// Nous allons donc exposer une fonction d'initialisation que les composants appelleront
+let initialized = false;
+
+/**
+ * Initialise le store de conversations. Doit être appelé dans onMount d'un composant.
+ */
+export async function initConversationStore(): Promise<void> {
+  if (initialized || !browser) return;
+  initialized = true;
+
+  // Initialisation au démarrage
+  if (isAuthenticated) {
+    await initConversations();
   }
-});
+
+  // Surveiller les changements d'authentification
+  // En Svelte 5, nous pourrions utiliser un effet, mais ici nous utilisons une approche plus simple
+  // Les composants peuvent réagir à `isAuthenticated` directement
+}
 
 // -----------------------------------------------------------------
 // 7️⃣ WebSocket pour les nouveaux messages (client‑side only)
@@ -317,35 +327,33 @@ export function setupMessageWebSocket(): () => void {
       const msg: Message = data.message;
 
       // Mettre à jour la conversation concernée
-      conversations.update((list) =>
-        list.map((conv) => {
-          if (conv.id !== msg.conversation_id) return conv;
+      conversations = conversations.map((conv) => {
+        if (conv.id !== msg.conversation_id) return conv;
 
-          const isActive = get(activeConversationId) === conv.id;
-          return {
-            ...conv,
-            last_message_at: msg.timestamp,
-            last_message_preview: '[Nouveau message]',
-            unread_count: isActive ? 0 : conv.unread_count + 1,
-          };
-        })
-      );
+        const isActive = activeConversationId === conv.id;
+        return {
+          ...conv,
+          last_message_at: msg.timestamp,
+          last_message_preview: '[Nouveau message]',
+          unread_count: isActive ? 0 : conv.unread_count + 1,
+        };
+      });
 
-      // Si c’est la conversation active, rafraîchir les messages
-      if (msg.conversation_id === get(activeConversationId)) {
+      // Si c'est la conversation active, rafraîchir les messages
+      if (msg.conversation_id === activeConversationId) {
         // La fonction `loadMessages` se trouve dans `chatStore.ts`
-        // Nous l’importons dynamiquement pour éviter les cycles d’import.
+        // Nous l'importons dynamiquement pour éviter les cycles d'import.
         import('./chatStore').then(({ loadMessages }) => {
           loadMessages(msg.conversation_id).catch(console.error);
         });
       }
     } catch (e) {
-      console.error('Erreur parsing WS message :', e);
+      console.error('Erreur parsing WS message :', e);
     }
   };
 
   ws.onerror = (e) => {
-    console.error('WebSocket error :', e);
+    console.error('WebSocket error :', e);
   };
 
   ws.onclose = () => {
@@ -358,4 +366,12 @@ export function setupMessageWebSocket(): () => void {
     if (ws) ws.close();
     ws = null;
   };
+}
+
+// -----------------------------------------------------------------
+// 8️⃣ Initialisation au chargement du module (client‑side only)
+// -----------------------------------------------------------------
+if (browser && isAuthenticated) {
+  // Initialisation automatique si déjà authentifié
+  initConversations().catch(console.error);
 }
