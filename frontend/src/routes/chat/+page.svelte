@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, afterUpdate } from 'svelte';
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { browser } from '$app/environment';
@@ -15,15 +15,14 @@
     gifLoading,
     searchGifs,
   } from '$lib/chatStore';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let newMessage = state('');
-  let conversationId = state('default_global'); // identifiant de la conversation (global)
+  let newMessage = $state('');
+  let conversationId = $state('default_global'); // identifiant de la conversation (global)
   let chatContainer: HTMLElement;                // ref du conteneur de messages
-  let gifSearchQuery = state('');
+  let gifSearchQuery = $state('');
 
   // -----------------------------------------------------------------
   // 2️⃣ Fonctions utilitaires
@@ -33,14 +32,14 @@
     chatStore.toggleGifs();
   }
 
-  /** Recherche des GIFs via l’API Tenor. */
+  /** Recherche des GIFs via l'API Tenor. */
   async function handleSearchGifs() {
     if (gifSearchQuery.trim()) {
       await searchGifs(gifSearchQuery);
     }
   }
 
-  /** Sélection d’un GIF → insertion dans le champ texte. */
+  /** Sélection d'un GIF → insertion dans le champ texte. */
   function selectGif(gifUrl: string) {
     // On insère un `<img>` afin que le backend le traite comme média.
     newMessage = `${newMessage}<img src="${gifUrl}" alt="GIF"/>`;
@@ -79,17 +78,17 @@
     handleSendMessage();
   }
 
-  /** Détermine si le message provient de l’utilisateur courant. */
+  /** Détermine si le message provient de l'utilisateur courant. */
   function isMyMessage(senderId: string): boolean {
-    return $authUser?.id === senderId;
+    return authUser?.id === senderId;
   }
 
   // -----------------------------------------------------------------
   // 3️⃣ Cycle de vie
   // -----------------------------------------------------------------
   onMount(async () => {
-    // Rediriger si l’utilisateur n’est pas authentifié
-    if (!$isAuthenticated) {
+    // Rediriger si l'utilisateur n'est pas authentifié
+    if (!isAuthenticated) {
       goto('/login');
       return;
     }
@@ -99,8 +98,8 @@
   });
 
   // Scroll automatique vers le bas à chaque nouveau message
-  afterUpdate(() => {
-    if (chatContainer) {
+  $effect(() => {
+    if (chatContainer && messages.length > 0) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
     }
   });
@@ -121,7 +120,7 @@
         <span class="avatar">👨‍👩‍👧‍👦</span>
         <div class="conversation-info">
           <span class="name">Groupe Global</span>
-          <span class="preview">Bienvenue sur Nook !</span>
+          <span class="preview">Bienvenue sur Nook !</span>
         </div>
       </button>
     </div>
@@ -137,7 +136,7 @@
 
     <!-- Messages -->
     <div class="messages-container" bind:this={chatContainer}>
-      {#each $messages as message (message.id)}
+      {#each messages as message (message.id)}
         <div class="message" class:mine={isMyMessage(message.sender_id)}>
           <div class="message-sender">{message.sender_name}</div>
           <div class="message-content" innerHTML={message.content}></div>
@@ -146,8 +145,8 @@
       {/each}
     </div>
 
-    <!-- Panneau GIF (affiché uniquement si $showGifs est true) -->
-    {#if $showGifs}
+    <!-- Panneau GIF (affiché uniquement si showGifs est true) -->
+    {#if showGifs}
       <div class="gif-panel">
         <div class="gif-search">
           <input
@@ -160,11 +159,11 @@
           <button on:click={handleSearchGifs} class="search-btn">🔍</button>
         </div>
 
-        {#if $gifLoading}
+        {#if gifLoading}
           <div class="gif-loading">Chargement…</div>
-        {:else if $gifResults.length > 0}
+        {:else if gifResults.length > 0}
           <div class="gif-results">
-            {#each $gifResults as gif}
+            {#each gifResults as gif}
               <button class="gif-item" on:click={() => selectGif(gif.media?.[0]?.tinygif?.url)}>
                 <img src={gif.media?.[0]?.tinygif?.url} alt={gif.title} />
               </button>
