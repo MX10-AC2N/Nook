@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { page } from '$app/stores'; // <-- IMPORT AJOUTÉ
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   
@@ -11,13 +12,12 @@
   import {
     startGroupCall,
     endCurrentCall,
-    callStore,  // Supposé migré en runes Svelte 5
+    callStore,
     callManager,
   } from '$lib/webrtc-calls';
   import {
-    participants,  // Supposé migré en runes Svelte 5
+    participants,
     loadParticipants,
-    activeConversationId,
   } from '$lib/conversationStore';
 
   // -----------------------------------------------------------------
@@ -181,7 +181,7 @@
             🌿 Appel Jardin Secret
           {:else if currentTheme === 'space-hub'}
             🚀 Appel Space Hub
-          {:else}
+          {:else if currentTheme === 'maison-chaleureuse'}
             🏠 Appel Maison Chaleureuse
           {/if}
         </div>
@@ -307,7 +307,7 @@
               🌸
             {:else if currentTheme === 'space-hub'}
               🌌
-            {:else}
+            {:else if currentTheme === 'maison-chaleureuse'}
               🏡
             {/if}
           </div>
