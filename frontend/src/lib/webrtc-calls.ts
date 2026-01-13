@@ -1,12 +1,11 @@
-// src/lib/webrtc-calls.ts
-import { writable, get } from 'svelte/store';
+// src/lib/webrtc-calls.ts (Svelte 5 avec runes)
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import type { CallSignal } from './types';
-import { authStore } from './authStore';
+import { authUser } from './authStore';
 
 // -----------------------------------------------------------------
-// 1️⃣ Types & état initial
+// 1️⃣ Types & état réactif (Svelte 5)
 // -----------------------------------------------------------------
 export interface CallState {
   isCalling: boolean;
@@ -20,6 +19,7 @@ export interface CallState {
   error: string | null;
   isMuted: boolean;
   isVideoOff: boolean;
+  localVideoElement: HTMLVideoElement | null; // Ajout pour Svelte 5
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
@@ -36,40 +36,38 @@ function createInitialState(): CallState {
     error: null,
     isMuted: false,
     isVideoOff: false,
+    localVideoElement: null,
   };
 }
 
-/** Store global contenant l’état de l’appel. */
-export const callStore = writable<CallState>(createInitialState());
+/** État global réactif de l'appel (Svelte 5) */
+export const callStore = $state<CallState>(createInitialState());
 
 // -----------------------------------------------------------------
 // 2️⃣ Classe de gestion WebRTC
 // -----------------------------------------------------------------
 class WebRTCCallManager {
   private ws: WebSocket | null = null;
-  private localStream: MediaStream | null = null;
   private conversationId: string = '';
   private userId: string = '';
-  private peerConnections: Map<string, RTCPeerConnection> = new Map();
-  private remoteStreams: Map<string, MediaStream> = new Map();
 
   constructor() {
-    const user = get(authStore).user;
-    this.userId = user?.id ?? 'anonymous';
+    // Accès direct à la rune authUser (Svelte 5)
+    this.userId = authUser?.id ?? 'anonymous';
   }
 
   // -----------------------------------------------------------------
   // Helpers internes
   // -----------------------------------------------------------------
   private updateState(partial: Partial<CallState>) {
-    const newState = { ...get(callStore), ...partial };
-    callStore.set(newState);
+    // Mutation directe de l'état réactif (Svelte 5)
+    Object.assign(callStore, partial);
   }
 
   private async setupLocalStream(type: 'audio' | 'video'): Promise<MediaStream> {
-    // Arrêter le flux précédent s’il existe
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => t.stop());
+    // Arrêter le flux précédent s'il existe
+    if (callStore.localStream) {
+      callStore.localStream.getTracks().forEach((t) => t.stop());
     }
 
     const constraints: MediaStreamConstraints = {
@@ -78,14 +76,23 @@ class WebRTCCallManager {
     };
 
     try {
-      this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
-      this.applyMuteVideoState(); // applique mute / videoOff selon l’état actuel
-      return this.localStream;
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // Mise à jour de l'état réactif
+      callStore.localStream = stream;
+      this.applyMuteVideoState(); // applique mute / videoOff selon l'état actuel
+      
+      // Si un élément vidéo existe, lui attribuer le flux
+      if (callStore.localVideoElement) {
+        callStore.localVideoElement.srcObject = stream;
+      }
+      
+      return stream;
     } catch (err: any) {
       throw new Error(
         `Impossible d'accéder au ${
           type === 'video' ? 'caméra' : 'microphone'
-        } : ${err.message}`
+        } : ${err.message}`
       );
     }
   }
@@ -101,8 +108,8 @@ class WebRTCCallManager {
     });
 
     // Ajouter le flux local (audio/vidéo) à la connexion
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => pc.addTrack(track, this.localStream!));
+    if (callStore.localStream) {
+      callStore.localStream.getTracks().forEach((track) => pc.addTrack(track, callStore.localStream!));
     }
 
     // -------------------------------------------------------------
@@ -123,11 +130,11 @@ class WebRTCCallManager {
     // -------------------------------------------------------------
     pc.ontrack = (event) => {
       const stream = event.streams[0];
-      this.remoteStreams.set(remoteUserId, stream);
-      const state = get(callStore);
-      const newRemote = new Map(state.remoteStreams);
-      newRemote.set(remoteUserId, stream);
-      this.updateState({ remoteStreams: newRemote });
+      
+      // Mise à jour réactive du Map remoteStreams
+      const newRemoteStreams = new Map(callStore.remoteStreams);
+      newRemoteStreams.set(remoteUserId, stream);
+      callStore.remoteStreams = newRemoteStreams;
     };
 
     // -------------------------------------------------------------
@@ -139,7 +146,11 @@ class WebRTCCallManager {
       }
     };
 
-    this.peerConnections.set(remoteUserId, pc);
+    // Mise à jour réactive du Map peerConnections
+    const newPeerConnections = new Map(callStore.peerConnections);
+    newPeerConnections.set(remoteUserId, pc);
+    callStore.peerConnections = newPeerConnections;
+    
     return pc;
   }
 
@@ -164,7 +175,7 @@ class WebRTCCallManager {
   // Signal handling (receiving)
   // -----------------------------------------------------------------
   private async handleSignal(signal: CallSignal) {
-    // Ignorer les signaux provenant de soi‑même
+    // Ignorer les signaux provenant de soi-même
     if (signal.from_user_id === this.userId) return;
 
     switch (signal.type) {
@@ -187,12 +198,12 @@ class WebRTCCallManager {
         this.handleDecline(signal);
         break;
       default:
-        console.warn('Signal inconnu reçu :', signal);
+        console.warn('Signal inconnu reçu :', signal);
     }
   }
 
   private async handleOffer(signal: CallSignal) {
-    if (!signal.sdp || !signal.from_user_id || !this.localStream) return;
+    if (!signal.sdp || !signal.from_user_id || !callStore.localStream) return;
 
     const pc = this.createPeerConnection(signal.from_user_id);
     try {
@@ -208,9 +219,10 @@ class WebRTCCallManager {
 
       this.sendSignal({ type: 'answer', to_user_id: signal.from_user_id, sdp: answer.sdp });
 
-      this.updateState({ isAnswering: false, isInCall: true });
+      callStore.isAnswering = false;
+      callStore.isInCall = true;
     } catch (err) {
-      console.error('Erreur lors du traitement de l’offre :', err);
+      console.error('Erreur lors du traitement de l\'offre :', err);
       this.endCallForUser(signal.from_user_id);
     }
   }
@@ -218,7 +230,7 @@ class WebRTCCallManager {
   private async handleAnswer(signal: CallSignal) {
     if (!signal.sdp || !signal.from_user_id) return;
 
-    const pc = this.peerConnections.get(signal.from_user_id);
+    const pc = callStore.peerConnections.get(signal.from_user_id);
     if (!pc) return;
 
     try {
@@ -226,7 +238,7 @@ class WebRTCCallManager {
         new RTCSessionDescription({ type: 'answer', sdp: signal.sdp })
       );
     } catch (err) {
-      console.error('Erreur lors du traitement de la réponse :', err);
+      console.error('Erreur lors du traitement de la réponse :', err);
       this.endCallForUser(signal.from_user_id);
     }
   }
@@ -234,22 +246,21 @@ class WebRTCCallManager {
   private async handleIceCandidate(signal: CallSignal) {
     if (!signal.candidate || !signal.from_user_id) return;
 
-    const pc = this.peerConnections.get(signal.from_user_id);
+    const pc = callStore.peerConnections.get(signal.from_user_id);
     if (!pc) return;
 
     try {
       await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
     } catch (err) {
-      console.error('Erreur ICE candidate :', err);
+      console.error('Erreur ICE candidate :', err);
     }
   }
 
   private async handleJoin(signal: CallSignal) {
-    if (signal.from_user_id === this.userId || !this.localStream) return;
+    if (signal.from_user_id === this.userId || !callStore.localStream) return;
 
     // Si on est déjà en appel, initier une connexion vers le nouveau participant
-    const state = get(callStore);
-    if (state.isInCall && !this.peerConnections.has(signal.from_user_id)) {
+    if (callStore.isInCall && !callStore.peerConnections.has(signal.from_user_id)) {
       await this.initiateCallWithUser(signal.from_user_id);
     }
   }
@@ -274,17 +285,15 @@ class WebRTCCallManager {
     type: 'audio' | 'video'
   ): Promise<void> {
     try {
-      // Met à jour le store
-      this.updateState({
-        isCalling: true,
-        callType: type,
-        currentConversationId: conversationId,
-        error: null,
-      });
+      // Met à jour l'état réactif
+      callStore.isCalling = true;
+      callStore.callType = type;
+      callStore.currentConversationId = conversationId;
+      callStore.error = null;
 
       this.conversationId = conversationId;
-      this.localStream = await this.setupLocalStream(type);
-      this.updateState({ localStream: this.localStream, isCalling: true });
+      await this.setupLocalStream(type);
+      callStore.isCalling = true;
 
       // --- WebSocket (signalling) ---
       const wsUrl = `wss://${browser ? window.location.host : 'localhost:3000'}/ws/call?conv=${conversationId}`;
@@ -297,18 +306,16 @@ class WebRTCCallManager {
         // Initier les appels vers chaque participant (hors self)
         const targets = participantIds.filter((id) => id !== this.userId);
         if (targets.length === 0) {
-          this.updateState({
-            isCalling: false,
-            isInCall: true,
-            error: 'Aucun participant à appeler',
-          });
+          callStore.isCalling = false;
+          callStore.isInCall = true;
+          callStore.error = 'Aucun participant à appeler';
           return;
         }
 
         targets.forEach((uid) => {
           this.initiateCallWithUser(uid).catch((err) => {
-            console.error(`Erreur appel vers ${uid} :`, err);
-            this.updateState({ error: `Impossible d’appeler ${uid}` });
+            console.error(`Erreur appel vers ${uid} :`, err);
+            callStore.error = `Impossible d'appeler ${uid}`;
           });
         });
       };
@@ -318,23 +325,21 @@ class WebRTCCallManager {
           const signal = JSON.parse(ev.data) as CallSignal;
           this.handleSignal(signal);
         } catch (err) {
-          console.error('Erreur parsing signal :', err);
+          console.error('Erreur parsing signal :', err);
         }
       };
 
       this.ws.onerror = () => {
-        this.updateState({ error: 'Erreur de connexion WebSocket' });
+        callStore.error = 'Erreur de connexion WebSocket';
       };
 
       this.ws.onclose = () => {
         console.log('WebSocket fermé');
-        if (get(callStore).isInCall) this.endCall();
+        if (callStore.isInCall) this.endCall();
       };
     } catch (err: any) {
-      this.updateState({
-        error: err instanceof Error ? err.message : 'Erreur inconnue',
-        isCalling: false,
-      });
+      callStore.error = err instanceof Error ? err.message : 'Erreur inconnue';
+      callStore.isCalling = false;
       this.endCall();
       throw err;
     }
@@ -346,58 +351,59 @@ class WebRTCCallManager {
     try {
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: this.localStream?.getVideoTracks().length! > 0,
+        offerToReceiveVideo: callStore.localStream?.getVideoTracks().length! > 0,
       });
       await pc.setLocalDescription(offer);
       this.sendSignal({ type: 'offer', to_user_id: remoteUserId, sdp: offer.sdp });
     } catch (err) {
-      console.error('Erreur création offre :', err);
+      console.error('Erreur création offre :', err);
       this.endCallForUser(remoteUserId);
     }
   }
 
   /** Répond à une offre (callee). */
   public async answerCall(conversationId: string, participantIds: string[], type: 'audio' | 'video') {
-    // Cette méthode peut être appelée depuis l’interface si on veut répondre manuellement.
+    // Cette méthode peut être appelée depuis l'interface si on veut répondre manuellement.
     // Pour le moment, on réutilise `startCall` avec `isAnswering` à true.
-    this.updateState({ isAnswering: true, currentConversationId: conversationId });
+    callStore.isAnswering = true;
+    callStore.currentConversationId = conversationId;
     await this.startCall(conversationId, participantIds, type);
   }
 
   /** Bascule le mute du microphone. */
   public toggleMute(): void {
-    const state = get(callStore);
-    const newMuted = !state.isMuted;
-    this.updateState({ isMuted: newMuted });
+    callStore.isMuted = !callStore.isMuted;
     this.applyMuteVideoState();
   }
 
   /** Bascule la vidéo (on/off). */
   public toggleVideo(): void {
-    const state = get(callStore);
-    const newVideoOff = !state.isVideoOff;
-    this.updateState({ isVideoOff: newVideoOff });
+    callStore.isVideoOff = !callStore.isVideoOff;
     this.applyMuteVideoState();
   }
 
   /** Applique les états `isMuted` et `isVideoOff` sur le flux local. */
   private applyMuteVideoState() {
-    if (!this.localStream) return;
-    const state = get(callStore);
-    this.localStream.getAudioTracks().forEach((t) => (t.enabled = !state.isMuted));
-    this.localStream.getVideoTracks().forEach((t) => (t.enabled = !state.isVideoOff));
+    if (!callStore.localStream) return;
+    callStore.localStream.getAudioTracks().forEach((t) => (t.enabled = !callStore.isMuted));
+    callStore.localStream.getVideoTracks().forEach((t) => (t.enabled = !callStore.isVideoOff));
   }
 
-  /** Termine l’appel en cours et nettoie toutes les ressources. */
+  /** Termine l'appel en cours et nettoie toutes les ressources. */
   public endCall(): void {
-    // Fermer toutes les connexions peer‑to‑peer
-    this.peerConnections.forEach((pc) => pc.close());
-    this.peerConnections.clear();
+    // Fermer toutes les connexions peer-to-peer
+    callStore.peerConnections.forEach((pc) => pc.close());
+    callStore.peerConnections = new Map();
 
     // Arrêter le flux local
-    if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => t.stop());
-      this.localStream = null;
+    if (callStore.localStream) {
+      callStore.localStream.getTracks().forEach((t) => t.stop());
+      callStore.localStream = null;
+      
+      // Nettoyer l'élément vidéo
+      if (callStore.localVideoElement) {
+        callStore.localVideoElement.srcObject = null;
+      }
     }
 
     // Fermer le WebSocket
@@ -406,26 +412,27 @@ class WebRTCCallManager {
       this.ws = null;
     }
 
-    // Reset du store
-    callStore.set(createInitialState());
+    // Reset de l'état réactif
+    Object.assign(callStore, createInitialState());
   }
 
-  /** Termine l’appel avec un participant précis (déconnexion ou erreur). */
+  /** Termine l'appel avec un participant précis (déconnexion ou erreur). */
   private endCallForUser(remoteUserId: string): void {
-    const pc = this.peerConnections.get(remoteUserId);
+    const pc = callStore.peerConnections.get(remoteUserId);
     if (pc) {
       pc.close();
-      this.peerConnections.delete(remoteUserId);
+      const newPeerConnections = new Map(callStore.peerConnections);
+      newPeerConnections.delete(remoteUserId);
+      callStore.peerConnections = newPeerConnections;
     }
 
-    // Retirer le flux distant du store
-    const state = get(callStore);
-    const newRemote = new Map(state.remoteStreams);
-    newRemote.delete(remoteUserId);
-    this.updateState({ remoteStreams: newRemote });
+    // Retirer le flux distant
+    const newRemoteStreams = new Map(callStore.remoteStreams);
+    newRemoteStreams.delete(remoteUserId);
+    callStore.remoteStreams = newRemoteStreams;
 
-    // Si plus aucun participant, on termine l’appel complet
-    if (this.peerConnections.size === 0 && state.isInCall) {
+    // Si plus aucun participant, on termine l'appel complet
+    if (callStore.peerConnections.size === 0 && callStore.isInCall) {
       this.endCall();
     }
   }
@@ -440,8 +447,8 @@ export const callManager = new WebRTCCallManager();
  * Démarre un appel de groupe (caller) pour la conversation donnée.
  *
  * @param conversationId   Identifiant de la conversation (ex. `/call/[id]`).
- * @param participantIds   Tableau d’identifiants des participants (exclut l’appelant).
- * @param type             `audio` ou `video` (défaut : `audio`).
+ * @param participantIds   Tableau d'identifiants des participants (exclut l'appelant).
+ * @param type             `audio` ou `video` (défaut : `audio`).
  */
 export async function startGroupCall(
   conversationId: string,
@@ -451,12 +458,12 @@ export async function startGroupCall(
   await callManager.startCall(conversationId, participantIds, type);
 }
 
-/** Termine l’appel en cours (appelé depuis l’UI). */
+/** Termine l'appel en cours (appelé depuis l'UI). */
 export function endCurrentCall(): void {
   callManager.endCall();
 }
 
-/** Retourne l’état actuel du store (convenient pour les tests). */
+/** Retourne l'état actuel (alias pour compatibilité). */
 export function getCallState(): CallState {
-  return get(callStore);
+  return callStore;
 }
