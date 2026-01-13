@@ -315,17 +315,17 @@
   }
 
   /* Couleurs spécifiques à chaque thème */
-  .theme-preview[data-theme="jardin"] .preview-circle.primary   { background-color: #f0fdf4; }
-  .theme-preview[data-theme="jardin"] .preview-circle.secondary { background-color: #e0f2fe; }
-  .theme-preview[data-theme="jardin"] .preview-circle.accent    { background-color: #4ade80; }
+  .theme-preview[data-theme="jardin-secret"] .preview-circle.primary   { background-color: #f0fdf4; }
+  .theme-preview[data-theme="jardin-secret"] .preview-circle.secondary { background-color: #e0f2fe; }
+  .theme-preview[data-theme="jardin-secret"] .preview-circle.accent    { background-color: #4ade80; }
 
-  .theme-preview[data-theme="space"] .preview-circle.primary   { background-color: #0f172a; }
-  .theme-preview[data-theme="space"] .preview-circle.secondary { background-color: #1e293b; }
-  .theme-preview[data-theme="space"] .preview-circle.accent    { background-color: #8b5cf6; }
+  .theme-preview[data-theme="space-hub"] .preview-circle.primary   { background-color: #0f172a; }
+  .theme-preview[data-theme="space-hub"] .preview-circle.secondary { background-color: #1e293b; }
+  .theme-preview[data-theme="space-hub"] .preview-circle.accent    { background-color: #8b5cf6; }
 
-  .theme-preview[data-theme="maison"] .preview-circle.primary   { background-color: #fdf2e9; }
-  .theme-preview[data-theme="maison"] .preview-circle.secondary { background-color: #fef3c7; }
-  .theme-preview[data-theme="maison"] .preview-circle.accent    { background-color: #ea580c; }
+  .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.primary   { background-color: #fdf2e9; }
+  .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.secondary { background-color: #fef3c7; }
+  .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.accent    { background-color: #ea580c; }
 
   /* -----------------------------------------------------------------
      INFORMATIONS DU THÈME
