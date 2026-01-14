@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { state } from 'svelte';                 // <-- Svelte 5 reactive state
   import { currentTheme } from '$lib/ui/ThemeStore';
 
   // -----------------------------------------------------------------
@@ -9,18 +8,18 @@
   interface EventItem {
     id: number;
     title: string;
-    date: string; // format ISO YYYY‑MM‑DD
+    date: string; // format ISO YYYY‑MM‑DD
     time: string; // format HH:mm
   }
 
-  // Liste d’événements (persistée dans le `localStorage`)
-  let events = state<EventItem[]>([]);
+  // Liste d'événements (persistée dans le `localStorage`)
+  let events = $state<EventItem[]>([]);
 
-  // Formulaire d’ajout d’un événement
-  let newEvent = state({ title: '', date: '', time: '' });
+  // Formulaire d'ajout d'un événement
+  let newEvent = $state({ title: '', date: '', time: '' });
 
   // Petit feedback visuel après ajout
-  let showAddFeedback = state(false);
+  let showAddFeedback = $state(false);
 
   // -----------------------------------------------------------------
   // 2️⃣ Helpers de persistance (localStorage)
@@ -49,18 +48,18 @@
     }
   }
 
-  /** Sauvegarde la liste d’événements dans le `localStorage`. */
+  /** Sauvegarde la liste d'événements dans le `localStorage`. */
   function saveEvents() {
     localStorage.setItem('nook-events', JSON.stringify(events));
   }
 
   // -----------------------------------------------------------------
-  // 3️⃣ Ajout d’un nouvel événement
+  // 3️⃣ Ajout d'un nouvel événement
   // -----------------------------------------------------------------
   function addEvent() {
     // Validation minimale
     if (!newEvent.title.trim() || !newEvent.date || !newEvent.time) {
-      alert('Veuillez remplir le titre, la date et l’heure.');
+      alert('Veuillez remplir le titre, la date et l'heure.');
       return;
     }
 
@@ -77,7 +76,7 @@
     // Reset du formulaire
     newEvent = { title: '', date: '', time: '' };
 
-    // Feedback visuel (2 s)
+    // Feedback visuel (2 s)
     showAddFeedback = true;
     setTimeout(() => (showAddFeedback = false), 2000);
   }
@@ -120,7 +119,7 @@
     </div>
 
     <!-- ---------------------------------------------------------------
-         FORMULAIRE D’AJOUT
+         FORMULAIRE D'AJOUT
          --------------------------------------------------------------- -->
     <div
       class="mb-10 p-6 bg-white/20 dark:bg-black/20 rounded-2xl border border-white/30 backdrop-blur-md"
@@ -132,7 +131,7 @@
       <input
         type="text"
         bind:value={newEvent.title}
-        placeholder="ex : Dîner de Noël, Appel visio, Sortie parc…"
+        placeholder="ex : Dîner de Noël, Appel visio, Sortie parc…"
         class="w-full p-4 mb-4 rounded-xl bg-white/30 dark:bg-black/30 border border-white/40 text-[var(--text-primary)] placeholder-[var(--text-secondary)/70] focus:outline-none focus:ring-4 focus:ring-[var(--accent)/40] transition-all"
       />
 
@@ -150,7 +149,7 @@
       </div>
 
       <button
-        on:click={addEvent}
+        onclick={addEvent}
         class="w-full py-4 bg-[var(--accent)] text-white font-semibold rounded-2xl shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300"
       >
         Ajouter ce rendez‑vous
@@ -160,7 +159,7 @@
         <div
           class="mt-4 text-center text-green-400 font-medium text-lg animate-pulse"
         >
-          ✓ Rendez‑vous ajouté avec succès !
+          ✓ Rendez‑vous ajouté avec succès !
         </div>
       {/if}
     </div>
