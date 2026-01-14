@@ -1,28 +1,27 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { authStore, needsPasswordChange } from '$lib/authStore';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
   import { onMount } from 'svelte';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let newPassword = state('');
-  let confirmPassword = state('');
-  let error = state('');
-  let success = state('');
-  let isLoading = state(false);
+  let newPassword = $state('');
+  let confirmPassword = $state('');
+  let error = $state('');
+  let success = $state('');
+  let isLoading = $state(false);
 
   // -----------------------------------------------------------------
-  // 2️⃣ Redirection automatique si l’utilisateur n’est pas autorisé
+  // 2️⃣ Redirection automatique si l'utilisateur n'est pas autorisé
   // -----------------------------------------------------------------
   onMount(() => {
-    // Si l’utilisateur n’est pas authentifié → retour à la page login
+    // Si l'utilisateur n'est pas authentifié → retour à la page login
     if (!$authStore.isAuthenticated) {
       goto('/login');
     }
 
-    // Si l’utilisateur n’a pas besoin de changer son mot de passe → chat
+    // Si l'utilisateur n'a pas besoin de changer son mot de passe → chat
     if ($authStore.isAuthenticated && !$needsPasswordChange) {
       goto('/chat');
     }
@@ -52,7 +51,7 @@
     isLoading = true;
 
     try {
-      // L’identifiant de l’utilisateur provient du store
+      // L'identifiant de l'utilisateur provient du store
       const userId = $authStore.user?.id;
       if (!userId) throw new Error('Utilisateur non identifié');
 
@@ -66,7 +65,7 @@
         }),
       });
 
-      // Le corps peut être vide → on le traite en texte d’abord
+      // Le corps peut être vide → on le traite en texte d'abord
       const raw = await response.text();
 
       let payload: any = {};
@@ -85,13 +84,13 @@
       }
 
       // Succès
-      success = payload.message ?? 'Mot de passe mis à jour avec succès !';
+      success = payload.message ?? 'Mot de passe mis à jour avec succès !';
       // Met à jour le store (le backend indique que le flag `needs_password_change` est maintenant `false`)
       if ($authStore.user) {
         $authStore.user.needs_password_change = false;
       }
 
-      // Redirection après un court délai (pour laisser le message s’afficher)
+      // Redirection après un court délai (pour laisser le message s'afficher)
       setTimeout(() => {
         // Rediriger selon le rôle (admin → /admin, sinon → /chat)
         const target = $authStore.user?.role === 'admin' ? '/admin' : '/chat';
@@ -135,13 +134,13 @@
       </div>
       <p class="info-text">Redirection en cours…</p>
     {:else}
-      <form class="form" on:submit|preventDefault={handleSubmit}>
+      <form class="form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         <div class="input-group">
           <label for="new-password">Nouveau mot de passe</label>
           <input
             id="new-password"
             type="password"
-            bind:value={$newPassword}
+            bind:value={newPassword}
             placeholder="Au moins 8 caractères"
             required
             disabled={isLoading}
@@ -155,7 +154,7 @@
           <input
             id="confirm-password"
             type="password"
-            bind:value={$confirmPassword}
+            bind:value={confirmPassword}
             placeholder="Répétez le mot de passe"
             required
             disabled={isLoading}
