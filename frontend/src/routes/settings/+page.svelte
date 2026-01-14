@@ -8,7 +8,7 @@
   } from '$lib/authStore';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
   let userName = $state('');
   let currentPassword = $state('');
@@ -41,9 +41,6 @@
       description: 'Feutre, crayon, bois',
     },
   ];
-
-  let selectedTheme = state('jardin-secret');
-  let darkMode = state(false);
 
   // -----------------------------------------------------------------
   // 3️⃣ Initialisation (auth + thème)
@@ -136,7 +133,7 @@
         error = data?.message ?? `Erreur ${response.status}`;
       }
     } catch (e) {
-      console.error('Erreur mise à jour profil :', e);
+      console.error('Erreur mise à jour profil :', e);
       error = e instanceof Error ? e.message : 'Erreur de connexion';
     } finally {
       saving = false;
@@ -198,7 +195,7 @@
         error = data?.message ?? `Erreur ${response.status}`;
       }
     } catch (e) {
-      console.error('Erreur changement mdp :', e);
+      console.error('Erreur changement mdp :', e);
       error = e instanceof Error ? e.message : 'Erreur de connexion';
     } finally {
       saving = false;
@@ -227,7 +224,7 @@
       class="tab"
       class:active={activeTab === 'profile'}
       aria-selected={activeTab === 'profile'}
-      on:click={() => (activeTab = 'profile')}
+      onclick={() => (activeTab = 'profile')}
     >
       Profil
     </button>
@@ -237,7 +234,7 @@
       class="tab"
       class:active={activeTab === 'security'}
       aria-selected={activeTab === 'security'}
-      on:click={() => (activeTab = 'security')}
+      onclick={() => (activeTab = 'security')}
     >
       Sécurité
     </button>
@@ -247,7 +244,7 @@
       class="tab"
       class:active={activeTab === 'appearance'}
       aria-selected={activeTab === 'appearance'}
-      on:click={() => (activeTab = 'appearance')}
+      onclick={() => (activeTab = 'appearance')}
     >
       Apparence
     </button>
@@ -260,7 +257,7 @@
     <section class="settings-section" role="tabpanel" aria-labelledby="profile-tab">
       <h2>Informations du profil</h2>
 
-      <form on:submit|preventDefault={updateProfile}>
+      <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
         <div class="form-group">
           <label for="userName">Prénom</label>
           <input
@@ -298,7 +295,7 @@
     <section class="settings-section" role="tabpanel" aria-labelledby="security-tab">
       <h2>Changer le mot de passe</h2>
 
-      <form on:submit|preventDefault={changePassword}>
+      <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
         <div class="form-group">
           <label for="currentPassword">Mot de passe actuel</label>
           <input
@@ -348,7 +345,7 @@
           <button
             class="theme-card"
             class:selected={selectedTheme === theme.id}
-            on:click={() => setTheme(theme.id)}
+            onclick={() => setTheme(theme.id)}
             aria-pressed={selectedTheme === theme.id}
           >
             <span class="theme-icon">
@@ -372,7 +369,7 @@
               type="checkbox"
               id="darkModeToggle"
               checked={darkMode}
-              on:change={toggleDarkMode}
+              onchange={toggleDarkMode}
             />
             <span class="toggle-slider"></span>
           </div>
@@ -428,7 +425,7 @@
 </div>
 
 <style>
-  * { box-sizing: border-box; } /* ← Fix global overflow */
+  * { box-sizing: border-box; }
 
   .settings-container {
     min-height: 100vh;
@@ -438,9 +435,6 @@
     margin: 0 auto;
   }
 
-  /* -----------------------------------------------------------------
-     HEADER
-     ----------------------------------------------------------------- */
   .page-header {
     text-align: center;
     margin-bottom: 2rem;
@@ -453,9 +447,6 @@
     color: #1e293b;
   }
 
-  /* -----------------------------------------------------------------
-     TABS
-     ----------------------------------------------------------------- */
   .tabs {
     display: flex;
     gap: 0.5rem;
@@ -490,9 +481,6 @@
     box-shadow: 0 2px 8px rgba(45, 90, 39, 0.2);
   }
 
-  /* -----------------------------------------------------------------
-     SECTION
-     ----------------------------------------------------------------- */
   .settings-section {
     background: white;
     padding: 2rem;
@@ -522,9 +510,6 @@
     border-bottom: 2px solid #f1f5f9;
   }
 
-  /* -----------------------------------------------------------------
-     FORM
-     ----------------------------------------------------------------- */
   .form-group {
     margin-bottom: 1.5rem;
     text-align: left;
@@ -554,6 +539,7 @@
     border-color: #2d5a27;
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
     background: white;
+    outline: none;
   }
 
   .form-group input[type='text']:disabled {
@@ -568,9 +554,6 @@
     color: #64748b;
   }
 
-  /* -----------------------------------------------------------------
-     BUTTONS
-     ----------------------------------------------------------------- */
   .btn {
     padding: 0.75rem 1.5rem;
     border: none;
@@ -599,9 +582,6 @@
     transform: none !important;
   }
 
-  /* -----------------------------------------------------------------
-     THEMES
-     ----------------------------------------------------------------- */
   .themes-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -656,9 +636,6 @@
     text-align: center;
   }
 
-  /* -----------------------------------------------------------------
-     DARK MODE TOGGLE
-     ----------------------------------------------------------------- */
   .toggle-label {
     display: flex;
     justify-content: space-between;
@@ -721,9 +698,6 @@
     transform: translateX(24px);
   }
 
-  /* -----------------------------------------------------------------
-     ALERTS
-     ----------------------------------------------------------------- */
   .alert {
     display: flex;
     align-items: center;
@@ -754,9 +728,6 @@
     flex-shrink: 0;
   }
 
-  /* -----------------------------------------------------------------
-     RESPONSIVE
-     ----------------------------------------------------------------- */
   @media (max-width: 768px) {
     .settings-container {
       padding: 1rem 0.75rem;
@@ -800,5 +771,4 @@
       width: 100%;
     }
   }
-
 </style>
