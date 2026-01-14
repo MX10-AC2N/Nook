@@ -2,14 +2,13 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { state } from 'svelte';               // <-- Svelte 5 reactive state
   import { isAuthenticated } from '$lib/authStore';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let currentDate = state(new Date()); // mois affiché
-  let events = state<
+  let currentDate = $state(new Date()); // mois affiché
+  let events = $state<
     Array<{
       id: number;
       title: string;
@@ -19,10 +18,10 @@
     }>
   >([]);
 
-  let showAddModal = state(false);
-  let newEvent = state({ title: '', date: '', time: '', description: '' });
-  let loading = state(true);
-  let error = state<string | null>(null);
+  let showAddModal = $state(false);
+  let newEvent = $state({ title: '', date: '', time: '', description: '' });
+  let loading = $state(true);
+  let error = $state<string | null>(null);
 
   const monthNames = [
     'Janvier',
@@ -51,7 +50,7 @@
     try {
       await loadEvents();
     } catch (e) {
-      console.error('Erreur chargement événements :', e);
+      console.error('Erreur chargement événements :', e);
       error = e instanceof Error ? e.message : String(e);
     } finally {
       loading = false;
@@ -73,14 +72,14 @@
       const data = raw.trim() ? JSON.parse(raw) : { events: [] };
       events = data.events || [];
     } catch (err) {
-      console.error('Erreur chargement événements :', err);
+      console.error('Erreur chargement événements :', err);
       events = [];
       throw err;
     }
   }
 
   // -----------------------------------------------------------------
-  // 4️⃣ Ajout d’un nouvel événement
+  // 4️⃣ Ajout d'un nouvel événement
   // -----------------------------------------------------------------
   async function addEvent() {
     if (!newEvent.title || !newEvent.date) {
@@ -111,10 +110,10 @@
       await loadEvents();
       showAddModal = false;
     } catch (err) {
-      console.error('Erreur création événement :', err);
+      console.error('Erreur création événement :', err);
       alert(err instanceof Error ? err.message : 'Erreur serveur');
     } finally {
-      // Reset du formulaire même en cas d’erreur
+      // Reset du formulaire même en cas d'erreur
       newEvent = { title: '', date: '', time: '', description: '' };
     }
   }
@@ -164,7 +163,7 @@
     return events.filter((e) => e.date === dateStr);
   }
 
-  /** Retourne les prochains événements (aujourd’hui inclus). */
+  /** Retourne les prochains événements (aujourd'hui inclus). */
   function getUpcomingEvents() {
     const today = new Date();
     return events
@@ -189,7 +188,7 @@
   <!-- -----------------------------------------------------------------
        BOUTON AJOUT EVENT
        ----------------------------------------------------------------- -->
-  <button on:click={() => (showAddModal = true)} class="add-event-btn">
+  <button onclick={() => (showAddModal = true)} class="add-event-btn">
     + Ajouter un événement
   </button>
 
@@ -198,13 +197,13 @@
        ----------------------------------------------------------------- -->
   <div class="calendar-container">
     <div class="calendar-nav">
-      <button on:click={prevMonth} class="nav-btn" aria-label="Mois précédent">
+      <button onclick={prevMonth} class="nav-btn" aria-label="Mois précédent">
         ◀
       </button>
       <h2 class="current-month">
         {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
       </h2>
-      <button on:click={nextMonth} class="nav-btn" aria-label="Mois suivant">
+      <button onclick={nextMonth} class="nav-btn" aria-label="Mois suivant">
         ▶
       </button>
     </div>
@@ -286,21 +285,21 @@
   {#if showAddModal}
     <div
       class="modal-overlay"
-      on:click={closeModal}
+      onclick={closeModal}
       role="button"
       tabindex="0"
-      on:keydown={handleModalKeydown}
+      onkeydown={handleModalKeydown}
     >
       <div
         class="modal"
-        on:click|stopPropagation
+        onclick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label="Nouvel événement"
         tabindex="-1"
       >
         <h3>Nouvel événement</h3>
 
-        <form on:submit|preventDefault={addEvent}>
+        <form onsubmit={(e) => { e.preventDefault(); addEvent(); }}>
           <div class="form-group">
             <label for="eventTitle">Titre</label>
             <input
@@ -333,7 +332,7 @@
           </div>
 
           <div class="form-actions">
-            <button type="button" on:click={closeModal} class="cancel-btn">
+            <button type="button" onclick={closeModal} class="cancel-btn">
               Annuler
             </button>
             <button type="submit" class="submit-btn">Créer</button>
@@ -345,7 +344,7 @@
 </div>
 
 <style>
-  * { box-sizing: border-box; } /* ← Fix global overflow */
+  * { box-sizing: border-box; }
 
   .calendar-page {
     min-height: 100vh;
@@ -481,11 +480,6 @@
   .calendar-day:focus {
     outline: 2px solid #2d5a27;
     outline-offset: 2px;
-  }
-
-  .calendar-day.today {
-    background: #e8f5e8;
-    border-color: #2d5a27;
   }
 
   .calendar-day.empty {
@@ -700,6 +694,7 @@
     border-color: #2d5a27;
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
     background: white;
+    outline: none;
   }
 
   .form-group textarea {
@@ -746,55 +741,6 @@
   .submit-btn:hover {
     background: #3d7a37;
     transform: translateY(-1px);
-  }
-
-  /* -----------------------------------------------------------------
-     LOADING & ERROR STATES
-     ----------------------------------------------------------------- */
-  .loading-container,
-  .error-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    gap: 1rem;
-    padding: 1.5rem;
-  }
-
-  .loading-spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e2e8f0;
-    border-top-color: #2d5a27;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .error-content {
-    background: white;
-    padding: 2rem;
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    text-align: center;
-    max-width: 400px;
-    width: 100%;
-  }
-
-  .error-content h2 {
-    font-size: 1.25rem;
-    margin: 0 0 0.5rem 0;
-    color: #1e293b;
-  }
-
-  .error-message {
-    color: #dc2626;
-    margin: 0 0 1.5rem 0;
-    line-height: 1.5;
   }
 
   /* -----------------------------------------------------------------
@@ -861,20 +807,4 @@
       width: 100%;
     }
   }
-
-  /* -----------------------------------------------------------------
-     UTILITY CLASSES
-     ----------------------------------------------------------------- */
-  .hidden {
-    display: none !important;
-  }
-
-  .text-center {
-    text-align: center;
-  }
-
-  .mt-1 { margin-top: 0.25rem; }
-  .mt-2 { margin-top: 0.5rem; }
-  .mt-3 { margin-top: 1rem; }
-  .mt-4 { margin-top: 1.5rem; }
 </style>
