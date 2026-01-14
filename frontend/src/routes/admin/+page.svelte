@@ -2,23 +2,21 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore, isAdmin } from '$lib/authStore';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
-  import { get } from 'svelte/store';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let pendingUsers = state<any[]>([]);
-  let allUsers = state<any[]>([]);
-  let invites = state<any[]>([]);
-  let loading = state(true);
-  let activeTab = state<'pending' | 'all' | 'invites'>('pending');
-  let generatingInvite = state(false);
-  let inviteLink = state<string | null>(null);
-  let authChecked = state(false);
+  let pendingUsers = $state<any[]>([]);
+  let allUsers = $state<any[]>([]);
+  let invites = $state<any[]>([]);
+  let loading = $state(true);
+  let activeTab = $state<'pending' | 'all' | 'invites'>('pending');
+  let generatingInvite = $state(false);
+  let inviteLink = $state<string | null>(null);
+  let authChecked = $state(false);
 
   // -----------------------------------------------------------------
-  // 2️⃣ Vérification d’authentification + droits admin
+  // 2️⃣ Vérification d'authentification + droits admin
   // -----------------------------------------------------------------
   onMount(async () => {
     const ok = await checkAuthAndRedirect();
@@ -29,10 +27,10 @@
   });
 
   /**
-   * Vérifie que l’utilisateur est bien connecté **et** possède le rôle admin.
+   * Vérifie que l'utilisateur est bien connecté **et** possède le rôle admin.
    * Met à jour le store `authStore` et effectue les redirections nécessaires.
    *
-   * @returns {Promise<boolean>} `true` si l’utilisateur est admin, sinon redirige.
+   * @returns {Promise<boolean>} `true` si l'utilisateur est admin, sinon redirige.
    */
   async function checkAuthAndRedirect(): Promise<boolean> {
     try {
@@ -62,20 +60,20 @@
       goto('/login');
       return false;
     } catch (e) {
-      console.error('Erreur auth admin :', e);
+      console.error('Erreur auth admin :', e);
       goto('/login');
       return false;
     }
   }
 
   // -----------------------------------------------------------------
-  // 3️⃣ Chargement des données d’administration
+  // 3️⃣ Chargement des données d'administration
   // -----------------------------------------------------------------
   async function loadAdminData() {
     try {
       await Promise.all([loadUsers(), loadInvites()]);
     } catch (e) {
-      console.error('Erreur chargement admin :', e);
+      console.error('Erreur chargement admin :', e);
     } finally {
       loading = false;
     }
@@ -98,7 +96,7 @@
         allUsers = data.users || [];
       }
     } catch (e) {
-      console.error('Erreur chargement utilisateurs :', e);
+      console.error('Erreur chargement utilisateurs :', e);
     }
   }
 
@@ -110,12 +108,12 @@
         invites = data.invites || [];
       }
     } catch (e) {
-      console.error('Erreur chargement invitations :', e);
+      console.error('Erreur chargement invitations :', e);
     }
   }
 
   // -----------------------------------------------------------------
-  // 4️⃣ Actions (approbation, génération d’invitation, suppression)
+  // 4️⃣ Actions (approbation, génération d'invitation, suppression)
   // -----------------------------------------------------------------
   async function approveUser(userId: string) {
     try {
@@ -129,10 +127,10 @@
       if (response.ok) {
         await loadUsers();
       } else {
-        alert('Erreur lors de l’approbation');
+        alert('Erreur lors de l'approbation');
       }
     } catch (e) {
-      console.error('Erreur approbation :', e);
+      console.error('Erreur approbation :', e);
       alert('Erreur réseau');
     }
   }
@@ -153,7 +151,7 @@
         // Copie dans le presse‑papier (protégé côté SSR)
         if (typeof window !== 'undefined') {
           await navigator.clipboard.writeText(inviteLink);
-          alert('Lien copié dans le presse‑papiers !');
+          alert('Lien copié dans le presse‑papiers !');
         }
 
         await loadInvites();
@@ -161,7 +159,7 @@
         alert('Erreur lors de la génération');
       }
     } catch (e) {
-      console.error('Erreur génération invite :', e);
+      console.error('Erreur génération invite :', e);
       alert('Erreur réseau');
     } finally {
       generatingInvite = false;
@@ -169,7 +167,7 @@
   }
 
   async function deleteInvite(id: string) {
-    if (!confirm('Supprimer cette invitation ?')) return;
+    if (!confirm('Supprimer cette invitation ?')) return;
     try {
       await fetch('/api/delete-invite', {
         method: 'POST',
@@ -184,7 +182,7 @@
   }
 
   // -----------------------------------------------------------------
-  // 5️⃣ Helpers d’affichage
+  // 5️⃣ Helpers d'affichage
   // -----------------------------------------------------------------
   function formatDate(ts: number | string): string {
     const date = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
@@ -223,44 +221,44 @@
     <!-- Utilisateur authentifié mais pas admin -->
     <div class="not-authorized">
       <h2>Accès non autorisé</h2>
-      <p>Vous n’avez pas les permissions nécessaires pour accéder à cette page.</p>
-      <button on:click={() => goto('/chat')}>Aller au chat</button>
+      <p>Vous n'avez pas les permissions nécessaires pour accéder à cette page.</p>
+      <button onclick={() => goto('/chat')}>Aller au chat</button>
     </div>
   {:else}
     <!-- Interface admin -->
     <div class="admin-header">
       <h1>👑 Administration</h1>
       <div class="auth-status">
-        <span class="admin-badge">Connecté en tant qu’admin</span>
+        <span class="admin-badge">Connecté en tant qu'admin</span>
       </div>
       <p>Gérez les membres et les invitations de votre espace familial</p>
     </div>
 
     {#if loading}
-      <div class="loading-message">Chargement des données d’administration…</div>
+      <div class="loading-message">Chargement des données d'administration…</div>
     {:else}
       <!-- Actions globales -->
       <div class="admin-actions">
-        <button class="invite-btn" on:click={generateInvite} disabled={generatingInvite}>
-          {generatingInvite ? 'Génération…' : '➕ Générer un lien d’invitation'}
+        <button class="invite-btn" onclick={generateInvite} disabled={generatingInvite}>
+          {generatingInvite ? 'Génération…' : '➕ Générer un lien d'invitation'}
         </button>
 
         {#if inviteLink}
           <p class="invite-link">
-            Dernier lien généré : <code>{inviteLink}</code>
+            Dernier lien généré : <code>{inviteLink}</code>
           </p>
         {/if}
       </div>
 
       <!-- Onglets -->
       <div class="admin-tabs">
-        <button class="tab" class:active={activeTab === 'pending'} on:click={() => (activeTab = 'pending')}>
+        <button class="tab" class:active={activeTab === 'pending'} onclick={() => (activeTab = 'pending')}>
           En attente ({pendingUsers.length})
         </button>
-        <button class="tab" class:active={activeTab === 'all'} on:click={() => (activeTab = 'all')}>
+        <button class="tab" class:active={activeTab === 'all'} onclick={() => (activeTab = 'all')}>
           Membres ({allUsers.length})
         </button>
-        <button class="tab" class:active={activeTab === 'invites'} on:click={() => (activeTab = 'invites')}>
+        <button class="tab" class:active={activeTab === 'invites'} onclick={() => (activeTab = 'invites')}>
           Invitations ({invites.length})
         </button>
       </div>
@@ -279,7 +277,7 @@
                     <span class="user-username">@{user.username}</span>
                     <span class="user-date">Inscrit le {formatDate(user.created_at)}</span>
                   </div>
-                  <button class="approve-btn" on:click={() => approveUser(user.id)}>✅ Approuver</button>
+                  <button class="approve-btn" onclick={() => approveUser(user.id)}>✅ Approuver</button>
                 </div>
               {/each}
             </div>
@@ -326,7 +324,7 @@
                     <td class="link">
                       <code>{invite.token.slice(0, 12)}…</code>
                       <button
-                        on:click={() => {
+                        onclick={() => {
                           if (typeof window !== 'undefined')
                             navigator.clipboard.writeText(
                               `${window.location.origin}/join?token=${invite.token}`
@@ -339,7 +337,7 @@
                     <td>
                       <button
                         class="delete-btn"
-                        on:click={() => deleteInvite(invite.id)}
+                        onclick={() => deleteInvite(invite.id)}
                         disabled={invite.used || isExpired(invite)}
                       >
                         Supprimer
@@ -431,10 +429,16 @@
     border: none;
     border-radius: 8px;
     cursor: pointer;
+    transition: background 0.2s;
   }
 
   .invite-btn:hover:not(:disabled) {
     background: #3d7a37;
+  }
+
+  .invite-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .invite-link {
@@ -458,11 +462,16 @@
 
   .tab {
     padding: 0.75rem 1.25rem;
-    background: none;
+    background: #f1f5f9;
     border: none;
     cursor: pointer;
     color: #666;
     border-radius: 8px 8px 0 0;
+    transition: all 0.2s;
+  }
+
+  .tab:hover {
+    background: #e2e8f0;
   }
 
   .tab.active {
@@ -489,9 +498,10 @@
     padding: 3rem;
     background: #fff;
     border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 
-    .not-authorized h2 {
+  .not-authorized h2 {
     color: #dc2626;
     margin-bottom: 1rem;
   }
@@ -614,6 +624,14 @@
     background: #f9fafb;
   }
 
+  .invites-table tr.expired td {
+    opacity: 0.6;
+  }
+
+  .invites-table tr.used td {
+    color: #9ca3af;
+  }
+
   .status {
     font-weight: 500;
   }
@@ -662,94 +680,29 @@
   }
 
   /* -----------------------------------------------------------------
-     MISC ELEMENTS
+     RESPONSIVE
      ----------------------------------------------------------------- */
-  .loading-message,
-  .empty-state {
-    text-align: center;
-    padding: 3rem;
-    color: #888;
-  }
+  @media (max-width: 768px) {
+    .admin-container {
+      padding: 0.75rem;
+    }
 
-  .admin-actions {
-    text-align: center;
-    margin-bottom: 1.5rem;
-  }
+    .admin-tabs {
+      flex-direction: column;
+    }
 
-  .invite-btn {
-    padding: 0.75rem 1.5rem;
-    background: #2d5a27;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
+    .tab {
+      width: 100%;
+      text-align: center;
+    }
 
-  .invite-btn:hover:not(:disabled) {
-    background: #3d7a37;
-  }
+    .invites-table {
+      font-size: 0.8rem;
+    }
 
-  .invite-link {
-    margin-top: 0.8rem;
-    word-break: break-all;
-  }
-
-  .invite-link code {
-    background: #f0f0f0;
-    padding: 0.3rem 0.6rem;
-    border-radius: 4px;
-  }
-
-  .admin-tabs {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .tab {
-    padding: 0.75rem 1.25rem;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #666;
-    border-radius: 8px 8px 0 0;
-  }
-
-  .tab.active {
-    background: #2d5a27;
-    color: white;
-  }
-
-  .admin-content {
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,.1);
-    overflow: hidden;
-  }
-
-  .loading-fullpage {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 60vh;
-    color: #666;
-  }
-
-  .spinner-large {
-    width: 40px;
-    height: 40px;
-    border: 4px solid rgba(45,90,39,0.1);
-    border-top-color: #2d5a27;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 1rem;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
+    .invites-table th,
+    .invites-table td {
+      padding: 0.5rem;
+    }
   }
 </style>
