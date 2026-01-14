@@ -17,7 +17,7 @@
   } from '$lib/chatStore';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
   let newMessage = $state('');
   let conversationId = $state('default_global'); // identifiant de la conversation (global)
@@ -80,7 +80,7 @@
 
   /** Détermine si le message provient de l'utilisateur courant. */
   function isMyMessage(senderId: string): boolean {
-    return authUser?.id === senderId;
+    return $authUser?.id === senderId;
   }
 
   // -----------------------------------------------------------------
@@ -88,7 +88,7 @@
   // -----------------------------------------------------------------
   onMount(async () => {
     // Rediriger si l'utilisateur n'est pas authentifié
-    if (!isAuthenticated) {
+    if (!$isAuthenticated) {
       goto('/login');
       return;
     }
@@ -139,32 +139,32 @@
       {#each messages as message (message.id)}
         <div class="message" class:mine={isMyMessage(message.sender_id)}>
           <div class="message-sender">{message.sender_name}</div>
-          <div class="message-content" innerHTML={message.content}></div>
+          <div class="message-content">{@html message.content}</div>
           <div class="message-time">{formatTimestamp(String(message.timestamp))}</div>
         </div>
       {/each}
     </div>
 
     <!-- Panneau GIF (affiché uniquement si showGifs est true) -->
-    {#if showGifs}
+    {#if $showGifs}
       <div class="gif-panel">
         <div class="gif-search">
           <input
             type="text"
             placeholder="Rechercher des GIFs..."
             bind:value={gifSearchQuery}
-            on:keydown={handleGifKeydown}
+            onkeydown={handleGifKeydown}
             class="gif-input"
           />
-          <button on:click={handleSearchGifs} class="search-btn">🔍</button>
+          <button onclick={handleSearchGifs} class="search-btn">🔍</button>
         </div>
 
-        {#if gifLoading}
+        {#if $gifLoading}
           <div class="gif-loading">Chargement…</div>
-        {:else if gifResults.length > 0}
+        {:else if $gifResults.length > 0}
           <div class="gif-results">
-            {#each gifResults as gif}
-              <button class="gif-item" on:click={() => selectGif(gif.media?.[0]?.tinygif?.url)}>
+            {#each $gifResults as gif}
+              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.tinygif?.url)}>
                 <img src={gif.media?.[0]?.tinygif?.url} alt={gif.title} />
               </button>
             {/each}
@@ -176,15 +176,15 @@
     {/if}
 
     <!-- Input du message -->
-    <form class="message-input-area" on:submit={handleSubmit}>
-      <button type="button" class="gif-toggle" on:click={toggleGifs}>🎬</button>
+    <form class="message-input-area" onsubmit={handleSubmit}>
+      <button type="button" class="gif-toggle" onclick={toggleGifs}>🎬</button>
 
       <input
         type="text"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         class="message-input"
-        on:keydown={handleMessageKeydown}
+        onkeydown={handleMessageKeydown}
       />
 
       <button type="submit" class="send-btn" disabled={!newMessage.trim()}>
