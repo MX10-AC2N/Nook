@@ -1,24 +1,23 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { state } from 'svelte'; // <-- Svelte 5 reactive state
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
-  let name = state('');
-  let username = state('');
-  let email = state('');
-  let password = state('');
-  let confirmPassword = state('');
-  let error = state('');
-  let success = state(false);
-  let loading = state(false);
+  let name = $state('');
+  let username = $state('');
+  let email = $state('');
+  let password = $state('');
+  let confirmPassword = $state('');
+  let error = $state('');
+  let success = $state(false);
+  let loading = $state(false);
 
   // -----------------------------------------------------------------
-  // 2️⃣ Fonction d’inscription
+  // 2️⃣ Fonction d'inscription
   // -----------------------------------------------------------------
   /**
-   * Envoie les données d’inscription au backend.
+   * Envoie les données d'inscription au backend.
    * Met à jour les états `error`, `success` et `loading`.
    */
   async function handleRegister() {
@@ -66,7 +65,7 @@
         error = data.message ?? `Erreur ${response.status}: inscription refusée`;
       }
     } catch (e) {
-      console.error('Erreur inscription :', e);
+      console.error('Erreur inscription :', e);
       error = e instanceof Error ? e.message : 'Erreur de connexion au serveur';
     } finally {
       loading = false;
@@ -101,7 +100,7 @@
         <div class="error-message" role="alert" aria-live="polite">{error}</div>
       {/if}
 
-      <form on:submit|preventDefault={handleRegister}>
+      <form onsubmit={(e) => { e.preventDefault(); handleRegister(); }}>
         <div class="form-group">
           <label for="name">Prénom/Nom</label>
           <input
@@ -168,7 +167,7 @@
       </form>
 
       <div class="links">
-        <a href="/login">Déjà un compte ? Se connecter</a>
+        <a href="/login">Déjà un compte ? Se connecter</a>
       </div>
     </div>
   {/if}
@@ -262,6 +261,7 @@
     font-size: 1rem;
     font-weight: 500;
     cursor: pointer;
+    transition: background 0.2s;
   }
 
   .register-btn:hover:not(:disabled) {
@@ -281,6 +281,11 @@
     color: white;
     text-decoration: none;
     border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .back-btn:hover {
+    background: #3d7a37;
   }
 
   .links {
@@ -291,5 +296,10 @@
     color: #2d5a27;
     text-decoration: none;
     font-size: 0.9rem;
+    transition: color 0.2s;
+  }
+
+  .links a:hover {
+    color: #3d7a37;
   }
 </style>
