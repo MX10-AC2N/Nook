@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { page } from '$app/stores'; // <-- IMPORT AJOUTÉ
+  import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   
@@ -21,7 +21,7 @@
   } from '$lib/conversationStore';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -163,7 +163,7 @@
       <div class="error-content">
         <h1>❌ Erreur</h1>
         <p class="error-message">{error}</p>
-        <button on:click={() => goto('/chat')} class="back-button">
+        <button onclick={() => goto('/chat')} class="back-button">
           ← Retour au chat
         </button>
       </div>
@@ -177,11 +177,11 @@
       <!-- HEADER -->
       <header class="call-header">
         <div class="header-theme">
-          {#if currentTheme === 'jardin-secret'}
+          {#if $currentTheme === 'jardin-secret'}
             🌿 Appel Jardin Secret
-          {:else if currentTheme === 'space-hub'}
+          {:else if $currentTheme === 'space-hub'}
             🚀 Appel Space Hub
-          {:else if currentTheme === 'maison-chaleureuse'}
+          {:else if $currentTheme === 'maison-chaleureuse'}
             🏠 Appel Maison Chaleureuse
           {/if}
         </div>
@@ -193,7 +193,7 @@
         {/if}
 
         <button
-          on:click={() => goto('/chat')}
+          onclick={() => goto('/chat')}
           class="back-button"
           aria-label="Retour au chat"
         >
@@ -259,7 +259,7 @@
         <!-- Controls -->
         <div class="call-controls" role="toolbar" aria-label="Contrôles de l'appel">
           <button
-            on:click={toggleMute}
+            onclick={toggleMute}
             class="control-button"
             aria-label={callStore.isMuted ? 'Activer le son' : 'Couper le son'}
           >
@@ -267,14 +267,14 @@
           </button>
 
           <button
-            on:click={toggleVideo}
+            onclick={toggleVideo}
             class="control-button"
             aria-label={callStore.isVideoOff ? 'Activer la vidéo' : 'Désactiver la vidéo'}
           >
             {callStore.isVideoOff ? '📹❌' : '📹'}
           </button>
 
-          <button on:click={endCall} class="control-button hangup" aria-label="Raccrocher">
+          <button onclick={endCall} class="control-button hangup" aria-label="Raccrocher">
             📵
           </button>
 
@@ -303,11 +303,11 @@
         <!-- ------------------- AUCUN APPEL EN COURS ------------------- -->
         <div class="no-call">
           <div class="theme-icon" aria-hidden="true">
-            {#if currentTheme === 'jardin-secret'}
+            {#if $currentTheme === 'jardin-secret'}
               🌸
-            {:else if currentTheme === 'space-hub'}
+            {:else if $currentTheme === 'space-hub'}
               🌌
-            {:else if currentTheme === 'maison-chaleureuse'}
+            {:else if $currentTheme === 'maison-chaleureuse'}
               🏡
             {/if}
           </div>
@@ -320,7 +320,7 @@
           <div class="start-call-buttons">
             <button
               class="start-audio-call"
-              on:click={async () => {
+              onclick={async () => {
                 const ids = participants.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'audio');
               }}
@@ -331,7 +331,7 @@
 
             <button
               class="start-video-call"
-              on:click={async () => {
+              onclick={async () => {
                 const ids = participants.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'video');
               }}
@@ -350,7 +350,7 @@
         <div class="error-modal" role="alertdialog" aria-label="Erreur">
           <p>{callStore.error}</p>
           <button
-            on:click={() => callStore.error = null}
+            onclick={() => (callStore.error = null)}
             aria-label="Fermer"
           >
             ✕
@@ -364,16 +364,16 @@
       {#if showIncomingCallModal}
         <div
           class="modal-overlay"
-          on:click={closeIncomingCallModal}
+          onclick={closeIncomingCallModal}
           role="dialog"
           aria-modal="true"
           aria-label="Appel entrant"
           tabindex="0"
-          on:keydown={handleKeydown}
+          onkeydown={handleKeydown}
         >
           <div
             class="incoming-call-modal"
-            on:click|stopPropagation
+            onclick={(e) => e.stopPropagation()}
             tabindex="-1"
           >
             <div class="caller-avatar" aria-hidden="true">
@@ -386,7 +386,7 @@
 
             <div class="call-actions">
               <button
-                on:click={acceptCall}
+                onclick={acceptCall}
                 class="accept-btn"
                 aria-label="Accepter l'appel"
               >
@@ -394,7 +394,7 @@
               </button>
 
               <button
-                on:click={rejectCall}
+                onclick={rejectCall}
                 class="reject-btn"
                 aria-label="Rejeter l'appel"
               >
@@ -409,7 +409,7 @@
 </div>
 
 <style>
-  * { box-sizing: border-box; } /* ← Fix global overflow */
+  * { box-sizing: border-box; }
 
   .call-page {
     min-height: 100vh;
@@ -481,9 +481,6 @@
     transform: translateY(-1px);
   }
 
-  /* -----------------------------------------------------------------
-     HEADER
-     ----------------------------------------------------------------- */
   .call-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -500,10 +497,10 @@
     margin-bottom: 1.5rem;
   }
 
-  .call-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+  .header-theme {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #2d5a27;
   }
 
   .call-title {
@@ -513,144 +510,77 @@
     margin: 0;
   }
 
-  .call-status {
+  .participants-count {
     font-size: 0.875rem;
     color: #64748b;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
   }
 
-  .status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #2d5a27;
-    animation: pulse 2s infinite;
-  }
-
-  .status-indicator.connecting {
-    background: #f59e0b;
-  }
-
-  .status-indicator.disconnected {
-    background: #dc2626;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-  }
-
-  /* -----------------------------------------------------------------
-     VIDEO SECTION
-     ----------------------------------------------------------------- */
-  .video-section {
+  .video-grid {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
   }
 
-  @media (min-width: 1024px) {
-    .video-section {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  .video-container {
+  .video-participant {
     position: relative;
     background: #1e293b;
     border-radius: 16px;
     overflow: hidden;
     aspect-ratio: 16/9;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   }
 
   video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    background: #0f172a;
   }
 
-  .video-overlay {
+  .participant-info {
     position: absolute;
     bottom: 1rem;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 1.5rem;
-  }
-
-  .user-info {
+    left: 1rem;
     background: rgba(0, 0, 0, 0.7);
     color: white;
     padding: 0.5rem 1rem;
-    border-radius: 2rem;
-    font-size: 0.875rem;
+    border-radius: 0.5rem;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    backdrop-filter: blur(8px);
   }
 
-  .user-avatar {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #2d5a27;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
+  .participant-name {
     font-weight: 600;
   }
 
-  .video-stats {
-    background: rgba(0, 0, 0, 0.7);
-    color: #cbd5e1;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.75rem;
-    backdrop-filter: blur(8px);
+  .icon {
+    font-size: 1.125rem;
   }
 
-  .muted-indicator {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: rgba(220, 38, 38, 0.8);
-    color: white;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    font-size: 0.75rem;
+  .waiting-message {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.25rem;
-    backdrop-filter: blur(8px);
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem;
+    background: white;
+    border-radius: 16px;
+    color: #64748b;
   }
 
-  /* -----------------------------------------------------------------
-     CONTROLS
-     ----------------------------------------------------------------- */
-  .controls-container {
+  .call-controls {
     position: fixed;
     bottom: 2rem;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
+    align-items: center;
     gap: 1rem;
-    z-index: 100;
-  }
-
-  @media (max-width: 768px) {
-    .controls-container {
-      bottom: 1rem;
-      gap: 0.75rem;
-    }
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 3rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   }
 
   .control-button {
@@ -658,298 +588,272 @@
     height: 56px;
     border-radius: 50%;
     border: none;
+    background: #f1f5f9;
+    color: #1e293b;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: white;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-  }
-
-  @media (max-width: 768px) {
-    .control-button {
-      width: 48px;
-      height: 48px;
-    }
   }
 
   .control-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+    background: #e2e8f0;
+    transform: scale(1.05);
   }
 
-  .control-button:active {
-    transform: translateY(0);
-  }
-
-  .control-button.active {
-    background: #2d5a27;
-    color: white;
-  }
-
-  .control-button.active:hover {
-    background: #3d7a37;
-  }
-
-  .control-button.muted {
+  .control-button.hangup {
     background: #dc2626;
     color: white;
   }
 
-  .control-button.muted:hover {
+  .control-button.hangup:hover {
     background: #b91c1c;
   }
 
-  .control-icon {
-    width: 24px;
-    height: 24px;
-  }
-
-  @media (max-width: 768px) {
-    .control-icon {
-      width: 20px;
-      height: 20px;
-    }
-  }
-
-  .end-call-button {
-    background: #dc2626;
-    color: white;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    border: none;
+  .call-info {
     display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-left: 1rem;
+    font-size: 0.875rem;
+    color: #64748b;
+  }
+
+  .secure-badge {
+    color: #2d5a27;
+    font-weight: 500;
+  }
+
+  .call-status {
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+    min-height: 60vh;
+    gap: 1.5rem;
+    text-align: center;
   }
 
-  @media (max-width: 768px) {
-    .end-call-button {
-      width: 48px;
-      height: 48px;
-    }
+  .icon.large {
+    font-size: 4rem;
   }
 
-  .end-call-button:hover {
-    background: #b91c1c;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(220, 38, 38, 0.4);
-  }
-
-  /* -----------------------------------------------------------------
-     PARTICIPANTS
-     ----------------------------------------------------------------- */
-  .participants-container {
-    background: white;
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    margin-bottom: 5rem; /* Pour éviter que les contrôles ne cachent */
-  }
-
-  .participants-header {
+  .no-call {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
+    justify-content: center;
+    min-height: 60vh;
+    gap: 2rem;
+    text-align: center;
   }
 
-  .participants-title {
-    font-size: 1.125rem;
-    font-weight: 600;
+  .theme-icon {
+    font-size: 5rem;
+  }
+
+  .no-call-title {
+    font-size: 2rem;
+    font-weight: 700;
     color: #1e293b;
     margin: 0;
   }
 
-  .participants-count {
-    background: #f1f5f9;
+  .no-call-description {
     color: #64748b;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-size: 0.875rem;
-    font-weight: 500;
+    font-size: 1.125rem;
+    margin: 0;
   }
 
-  .participants-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  .start-call-buttons {
+    display: flex;
     gap: 1rem;
-  }
-
-  @media (max-width: 768px) {
-    .participants-list {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .participant-card {
-    background: #f8fafc;
-    border-radius: 12px;
-    padding: 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    transition: all 0.2s;
-  }
-
-  .participant-card:hover {
-    background: #f1f5f9;
-    transform: translateY(-2px);
-  }
-
-  .participant-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #2d5a27;
-    display: flex;
-    align-items: center;
+    flex-wrap: wrap;
     justify-content: center;
-    font-weight: 600;
-    color: white;
-    flex-shrink: 0;
   }
 
-  .participant-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .participant-name {
-    font-weight: 600;
-    color: #1e293b;
-    margin: 0 0 0.25rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .participant-status {
-    font-size: 0.75rem;
-    color: #64748b;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .status-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #2d5a27;
-  }
-
-  .status-dot.muted {
-    background: #dc2626;
-  }
-
-  /* -----------------------------------------------------------------
-     CHAT TOGGLE (OPTIONNEL)
-     ----------------------------------------------------------------- */
-  .chat-toggle {
-    position: fixed;
-    right: 2rem;
-    bottom: 2rem;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: white;
+  .start-audio-call,
+  .start-video-call {
+    padding: 1rem 2rem;
     border: none;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border-radius: 1rem;
+    font-size: 1.125rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    z-index: 100;
   }
 
-  @media (max-width: 768px) {
-    .chat-toggle {
-      right: 1rem;
-      bottom: 1rem;
-      width: 48px;
-      height: 48px;
-    }
-  }
-
-  .chat-toggle:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 24px rgba(0,0,0,0.2);
-  }
-
-  .chat-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: #dc2626;
+  .start-audio-call {
+    background: #2d5a27;
     color: white;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    font-size: 0.75rem;
+  }
+
+  .start-video-call {
+    background: #0ea5e9;
+    color: white;
+  }
+
+  .start-audio-call:hover,
+  .start-video-call:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
+
+  .error-modal {
+    position: fixed;
+    top: 2rem;
+    right: 2rem;
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    max-width: 400px;
+    z-index: 1000;
+  }
+
+  .error-modal button {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  /* -----------------------------------------------------------------
-     RESPONSIVE
-     ----------------------------------------------------------------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .incoming-call-modal {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+  }
+
+  .caller-avatar {
+    width: 80px;
+    height: 80px;
+    background: #2d5a27;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    margin: 0 auto 1.5rem;
+  }
+
+  .caller-name {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 0.5rem 0;
+  }
+
+  .caller-from {
+    color: #64748b;
+    margin: 0 0 1rem 0;
+  }
+
+  .call-info-text {
+    color: #64748b;
+    margin: 0 0 2rem 0;
+  }
+
+  .call-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+  }
+
+  .accept-btn,
+  .reject-btn {
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .accept-btn {
+    background: #2d5a27;
+    color: white;
+  }
+
+  .reject-btn {
+    background: #dc2626;
+    color: white;
+  }
+
+  .accept-btn:hover {
+    background: #3d7a37;
+  }
+
+  .reject-btn:hover {
+    background: #b91c1c;
+  }
+
   @media (max-width: 768px) {
     .call-header {
       padding: 1rem;
       flex-direction: column;
       gap: 0.75rem;
-      align-items: stretch;
+      text-align: center;
     }
 
-    .video-section {
-      gap: 1rem;
+    .video-grid {
+      grid-template-columns: 1fr;
     }
 
-    .video-overlay {
-      padding: 0 1rem;
-      flex-direction: column;
+    .call-controls {
+      bottom: 1rem;
+      padding: 0.75rem 1rem;
       gap: 0.5rem;
-      align-items: flex-start;
     }
 
-    .participants-container {
-      padding: 1rem;
-      margin-bottom: 4rem;
+    .control-button {
+      width: 48px;
+      height: 48px;
+      font-size: 1.25rem;
     }
-  }
 
-  /* -----------------------------------------------------------------
-     UTILITY CLASSES
-     ----------------------------------------------------------------- */
-  .hidden {
-    display: none !important;
-  }
+    .call-info {
+      display: none;
+    }
 
-  .text-success { color: #2d5a27; }
-  .text-warning { color: #f59e0b; }
-  .text-error { color: #dc2626; }
+    .start-call-buttons {
+      flex-direction: column;
+      width: 100%;
+      padding: 0 1rem;
+    }
 
-  .bg-success { background: #2d5a27; }
-  .bg-warning { background: #f59e0b; }
-  .bg-error { background: #dc2626; }
-
-  .flex-center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .flex-between {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    .start-audio-call,
+    .start-video-call {
+      width: 100%;
+    }
   }
 </style>
