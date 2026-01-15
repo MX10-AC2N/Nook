@@ -53,8 +53,8 @@
   // -----------------------------------------------------------------
   // Utilisation d'un effet pour la redirection conditionnelle
   $effect(() => {
-    if (isAuthenticated) {
-      if (needsPasswordChange) {
+    if ($isAuthenticated) {
+      if ($needsPasswordChange) {
         goto('/change-password');
       } else {
         goto('/chat');
@@ -83,7 +83,7 @@
       </div>
     {/if}
 
-    <form on:submit|preventDefault={handleLogin} class="login-form">
+    <form onsubmit={(e) => { e.preventDefault(); handleLogin(); }} class="login-form">
       <div class="input-group">
         <label for="username">
           <Icon name="user" size={20} />
@@ -142,7 +142,7 @@
 </div>
 
 <style>
-  * { box-sizing: border-box; } /* ← Fix global overflow */
+  * { box-sizing: border-box; }
 
   .login-page {
     min-height: 100vh;
@@ -163,13 +163,21 @@
     text-align: center;
   }
 
-  .logo { margin-bottom: 1.5rem; }
+  .logo { 
+    margin-bottom: 1.5rem; 
+  }
 
-  .logo-icon { font-size: 3.5rem; display: block; margin-bottom: 0.5rem; }
+  h1 { 
+    font-size: 2rem; 
+    margin: 0; 
+    color: #1e293b; 
+  }
 
-  h1 { font-size: 2rem; margin: 0; color: #1e293b; }
-
-  .subtitle { color: #64748b; margin-bottom: 2rem; font-size: 1rem; }
+  .subtitle { 
+    color: #64748b; 
+    margin-bottom: 2rem; 
+    font-size: 1rem; 
+  }
 
   .alert {
     display: flex;
@@ -188,8 +196,6 @@
     color: #dc2626;
   }
 
-  .alert-icon { font-size: 1.25rem; }
-
   .login-form {
     display: flex;
     flex-direction: column;
@@ -197,7 +203,9 @@
     margin-bottom: 2rem;
   }
 
-  .input-group { text-align: left; }
+  .input-group { 
+    text-align: left; 
+  }
 
   label {
     display: flex;
@@ -221,9 +229,13 @@
   input:focus {
     border-color: #2d5a27;
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
+    outline: none;
   }
 
-  input:disabled { opacity: 0.6; cursor: not-allowed; }
+  input:disabled { 
+    opacity: 0.6; 
+    cursor: not-allowed; 
+  }
 
   .btn-primary {
     width: 100%;
@@ -247,7 +259,10 @@
     transform: translateY(-1px);
   }
 
-  .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+  .btn-primary:disabled { 
+    opacity: 0.7; 
+    cursor: not-allowed; 
+  }
 
   .spinner {
     width: 20px;
@@ -258,7 +273,9 @@
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spin { 
+    to { transform: rotate(360deg); } 
+  }
 
   .actions {
     display: flex;
@@ -273,16 +290,30 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    justify-content: center;
   }
 
-  .action-link:hover { opacity: 0.8; }
+  .action-link:hover { 
+    opacity: 0.8; 
+  }
 
-  .action-link.primary { color: #2d5a27; font-weight: 600; }
+  .action-link.primary { 
+    color: #2d5a27; 
+    font-weight: 600; 
+  }
 
-  .action-link.subtle { color: #64748b; font-size: 0.85rem; }
+  .action-link.subtle { 
+    color: #64748b; 
+    font-size: 0.85rem; 
+  }
 
   @media (max-width: 380px) {
-    .login-card { padding: 1.5rem; }
-    input { padding: 0.65rem; }
+    .login-card { 
+      padding: 1.5rem; 
+    }
+    
+    input { 
+      padding: 0.65rem; 
+    }
   }
 </style>
