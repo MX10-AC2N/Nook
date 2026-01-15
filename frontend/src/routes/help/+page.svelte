@@ -1,6 +1,6 @@
 <script lang="ts">
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // 1️⃣ États locaux (Svelte 5)
   // -----------------------------------------------------------------
   let searchQuery = $state('');
   let openFaq = $state<number | null>(null);
@@ -29,12 +29,12 @@
     {
       question: 'Puis-je envoyer des fichiers volumineux ?',
       answer:
-        "Oui, jusqu'à 50 Mo par fichier via le serveur (chiffrés). Pour des fichiers plus gros, une fonctionnalité d'envoi P2P direct est prévue dans une future mise à jour.",
+        "Oui, jusqu'à 50 Mo par fichier via le serveur (chiffrés). Pour des fichiers plus gros, une fonctionnalité d'envoi P2P direct est prévue dans une future mise à jour.",
     },
     {
       question: 'Comment fonctionnent les invitations ?',
       answer:
-        "L'administrateur peut générer des liens d'invitation uniques depuis le tableau de bord. Ces liens permettent une inscription immédiate (compte approuvé automatiquement) et sont à usage unique avec expiration de 48 heures.",
+        "L'administrateur peut générer des liens d'invitation uniques depuis le tableau de bord. Ces liens permettent une inscription immédiate (compte approuvé automatiquement) et sont à usage unique avec expiration de 48 heures.",
     },
     {
       question: 'Puis-je utiliser Nook hors ligne ?',
@@ -128,7 +128,7 @@
           <p>
             Aucun résultat pour "<strong>{searchQuery}</strong>"
           </p>
-          <button on:click={contactSupport} class="btn-secondary">
+          <button onclick={contactSupport} class="btn-secondary">
             Contacter le support GitHub
           </button>
         </div>
@@ -139,7 +139,7 @@
             <div class="faq-item" class:open={openFaq === index}>
               <button
                 class="faq-question"
-                on:click={() => toggleFaq(index)}
+                onclick={() => toggleFaq(index)}
                 aria-expanded={openFaq === index}
                 aria-controls={"faq-answer-" + index}
               >
@@ -149,7 +149,7 @@
 
               {#if openFaq === index}
                 <div class="faq-answer" id={"faq-answer-" + index}>
-                  {@html faq.answer.replace(/\n/g, ' ')}
+                  {@html faq.answer.replace(/\n/g, '<br>')}
                 </div>
               {/if}
             </div>
@@ -190,7 +190,7 @@
       <div class="support-card security">
         <h3>🔒 Sécurité &amp; Confidentialité</h3>
         <p>
-          Nook est 100 % open source. Le chiffrement de bout en bout protège vos
+          Nook est 100 % open source. Le chiffrement de bout en bout protège vos
           données. Aucun serveur tiers n'accède à vos conversations.
         </p>
         <a
@@ -292,6 +292,11 @@
     border: none;
     border-radius: 0.75rem;
     cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover {
+    background: #3d7a37;
   }
 
   .faq-list {
