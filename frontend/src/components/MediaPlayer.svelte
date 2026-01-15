@@ -21,23 +21,23 @@
   export let isCurrentUser: boolean = false;
 
   // -----------------------------------------------------------------
-  // Reactive state
+  // Reactive state (Svelte 5)
   // -----------------------------------------------------------------
-  let audioEl: HTMLAudioElement | null = null;   // pour les audios
-  let previewUrl: string | null = null;         // URL blob du média déchiffré
-  let isPlaying = false;
-  let isLoaded = false;
-  let isLoading = false;
-  let error: string | null = null;
+  let audioEl: HTMLAudioElement | null = $state(null);   // pour les audios
+  let previewUrl: string | null = $state(null);         // URL blob du média déchiffré
+  let isPlaying = $state(false);
+  let isLoaded = $state(false);
+  let isLoading = $state(false);
+  let error: string | null = $state(null);
 
   // time / progress
-  let currentTime = 0;
-  let duration = 0;
-  let progress = 0;
+  let currentTime = $state(0);
+  let duration = $state(0);
+  let progress = $state(0);
 
   // playback speed (audio only)
   const playbackRateOptions = [0.5, 1, 1.5, 2];
-  let currentPlaybackRate = 1;
+  let currentPlaybackRate = $state(1);
 
   // -----------------------------------------------------------------
   // Lifecycle
@@ -71,7 +71,7 @@
       previewUrl = URL.createObjectURL(blob);
       duration = message.duration || 0;
 
-      // 3️⃣ Instancier l’élément audio (si besoin)
+      // 3️⃣ Instancier l'élément audio (si besoin)
       if (message.media_type === 'audio') {
         audioEl = new Audio(previewUrl);
         audioEl.preload = 'metadata';
@@ -98,13 +98,13 @@
           isLoaded = false;
         };
       } else {
-        // Vidéo → on considère le média chargé dès que l’URL est prête
+        // Vidéo → on considère le média chargé dès que l'URL est prête
         isLoaded = true;
         isLoading = false;
       }
     } catch (e) {
       error = e instanceof Error ? e.message : 'Erreur lors du chargement du média';
-      console.error('Erreur chargement média :', e);
+      console.error('Erreur chargement média :', e);
       isLoading = false;
     }
   }
@@ -120,7 +120,7 @@
       audioEl = null;
     }
 
-    // Révoquer l’URL blob
+    // Révoquer l'URL blob
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       previewUrl = null;
@@ -131,7 +131,7 @@
   // UI actions
   // -----------------------------------------------------------------
   function togglePlay() {
-    // Si le média n’est pas encore chargé, on le charge d’abord
+    // Si le média n'est pas encore chargé, on le charge d'abord
     if (!isLoaded && !isLoading) {
       loadMedia();
       return;
@@ -147,7 +147,7 @@
         .play()
         .then(() => (isPlaying = true))
         .catch((err) => {
-          console.error('Erreur lecture audio :', err);
+          console.error('Erreur lecture audio :', err);
           connectionError.set('Impossible de lire le média');
         });
     }
@@ -172,7 +172,7 @@
     return formatDuration(sec);
   }
 
-  // Fermer le lecteur lorsqu’on clique à l’extérieur du composant
+  // Fermer le lecteur lorsqu'on clique à l'extérieur du composant
   function handleClickOutside() {
     if (isPlaying && audioEl) {
       audioEl.pause();
@@ -183,12 +183,12 @@
 
 <div
   class="media-player {message.media_type}"
-  on:click|stopPropagation={handleClickOutside}
+  onclick={(e) => { e.stopPropagation(); handleClickOutside(); }}
 >
   {#if error}
     <div class="media-error">
       <span>❌ {error}</span>
-      <button on:click={loadMedia} class="retry-button">⟳ Réessayer</button>
+      <button onclick={loadMedia} class="retry-button">⟳ Réessayer</button>
     </div>
 
   {:else if isLoading}
@@ -198,7 +198,7 @@
     </div>
 
   {:else if !isLoaded && !isLoading}
-    <button class="load-button" on:click={loadMedia}>
+    <button class="load-button" onclick={loadMedia}>
       {message.media_type === 'audio' ? '🔊' : '🎬'} Charger le média
     </button>
 
@@ -211,7 +211,7 @@
             src={previewUrl}
             controls
             class="video-element"
-            on:loadedmetadata={(e) => {
+            onloadedmetadata={(e) => {
               const v = e.target as HTMLVideoElement;
               duration = v.duration || message.duration || 0;
             }}
@@ -222,7 +222,7 @@
       {:else}
         <!-- Audio -->
         <div class="audio-controls">
-          <button class="play-button" on:click={togglePlay}>
+          <button class="play-button" onclick={togglePlay}>
             {isPlaying ? '⏸️' : '▶️'}
           </button>
 
@@ -233,7 +233,7 @@
               max={duration}
               step="0.01"
               bind:value={currentTime}
-              on:input={handleSeek}
+              oninput={handleSeek}
               class="progress-slider"
               aria-label="Progression de lecture"
             />
@@ -248,7 +248,7 @@
             <span>{formatTime(duration)}</span>
           </div>
 
-          <button class="speed-button" on:click={changePlaybackRate}>
+          <button class="speed-button" onclick={changePlaybackRate}>
             {currentPlaybackRate}x
           </button>
         </div>
@@ -297,6 +297,11 @@
     border: none;
     border-radius: 8px;
     cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .retry-button:hover {
+    background: #d32f2f;
   }
 
   .spinner {
