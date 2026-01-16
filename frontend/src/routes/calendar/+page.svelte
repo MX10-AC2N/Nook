@@ -217,40 +217,39 @@
     </div>
 
     <!-- -----------------------------------------------------------------
-         CALENDAR GRID
-         ----------------------------------------------------------------- -->
-    <div class="calendar-grid">
-      <div class="day-header">Lun</div>
-      <div class="day-header">Mar</div>
-      <div class="day-header">Mer</div>
-      <div class="day-header">Jeu</div>
-      <div class="day-header">Ven</div>
-      <div class="day-header">Sam</div>
-      <div class="day-header">Dim</div>
+     CALENDAR GRID
+     ----------------------------------------------------------------- -->
+<div class="calendar-grid">
+  <div class="day-header">Lun</div>
+  <div class="day-header">Mar</div>
+  <div class="day-header">Mer</div>
+  <div class="day-header">Jeu</div>
+  <div class="day-header">Ven</div>
+  <div class="day-header">Sam</div>
+  <div class="day-header">Dim</div>
 
-      <!-- Jours vides du début du mois -->
-      {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
-        <div class="calendar-day empty"></div>
-      {/each}
+  <!-- Jours vides du début du mois -->
+  {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
+    <div class="calendar-day empty"></div>
+  {/each}
 
-      <!-- Jours du mois -->
-      {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
-        {#const day = i + 1}
-        {#const dayEvents = getEventsForDay(day)}
-        <div class="calendar-day">
-          <div class="day-number">{day}</div>
-          <div class="day-events">
-            {#each dayEvents.slice(0, 2) as event}
-              <div class="event-badge">{event.title}</div>
-            {/each}
-            {#if dayEvents.length > 2}
-              <div class="event-more">+{dayEvents.length - 2}</div>
-            {/if}
-          </div>
-        </div>
-      {/each}
+  <!-- Jours du mois - CORRIGÉ -->
+  {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
+    {#const day = i + 1}
+    {#const dayEvents = getEventsForDay(day)}
+    <div class="calendar-day">
+      <div class="day-number">{day}</div>
+      <div class="day-events">
+        {#each dayEvents.slice(0, 2) as event}
+          <div class="event-badge">{event.title}</div>
+        {/each}
+        {#if dayEvents.length > 2}
+          <div class="event-more">+{dayEvents.length - 2}</div>
+        {/if}
+      </div>
     </div>
-  </div>
+  {/each}
+</div>
 
   <!-- -----------------------------------------------------------------
        UPCOMING EVENTS
