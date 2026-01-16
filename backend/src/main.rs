@@ -2,26 +2,26 @@
 // -------------------------------------------------
 // Ce fichier a été modifié pour **injecter dynamiquement** le
 // `<base href="…">` (ou tout autre meta) en fonction du header
-// `Host` et du header `X‑Forwarded‑Proto` (fourni par Nginx Proxy Manager).
+// `Host` et du header `X‑Forwarded‑Proto` (fourni par Nginx Proxy Manager).
 // Aucun rebuild n'est plus nécessaire : le même conteneur fonctionne
 // en LAN (http://192.168.1.192:6300) et en production (https://mon-site.exemple.com).
 
 use axum::{
     body::{to_bytes, Body, Bytes},
     extract::ConnectInfo,
-    http::{header, HeaderMap, HeaderValue, Request, Response, StatusCode},
+    http::{header, HeaderValue, Request, Response},
     middleware::{self, Next},
     routing::{get, post},
     Router,
 };
 use chrono::Utc;
 use sqlx::SqlitePool;
-use std::convert::Infallible;
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
+use std::convert::Infallible;
 
 // ---------------------------------------------------------------------
 // Modules de l'application
@@ -51,7 +51,7 @@ pub struct SharedState {
 // 1️⃣ Middleware – injection du <base> (ou meta) à la volée
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
-    mut req: Request<Body>,
+    req: Request<Body>,
     next: Next,
 ) -> Result<Response<Body>, Infallible> {
     // -------------------------------------------------
@@ -78,15 +78,18 @@ async fn base_inject_middleware(
     // -------------------------------------------------
     // 2️⃣ Appeler le handler suivant (qui génère la réponse)
     // -------------------------------------------------
-    let mut resp = next.run(req).await;
+    let resp = next.run(req).await;
 
     // -------------------------------------------------
     // 3️⃣ Modifier uniquement les réponses HTML
     // -------------------------------------------------
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
+            // Décomposer la réponse pour récupérer les parties
+            let (parts, body) = resp.into_parts();
+            
             // Lire le corps complet
-            let whole_body = to_bytes(resp.body_mut(), 10_000_000) // 10MB limit
+            let whole_body = to_bytes(body, 10_000_000) // 10MB limit
                 .await
                 .unwrap_or_else(|_| Bytes::new());
 
@@ -95,13 +98,15 @@ async fn base_inject_middleware(
             body_str = body_str.replace("<base-placeholder/>", &replacement);
 
             // Reconstruire la réponse avec le nouveau corps
-            *resp.body_mut() = Body::from(body_str.clone());
+            let mut new_response = Response::from_parts(parts, Body::from(body_str.clone()));
 
             // Mettre à jour Content-Length (important pour HTTP/1.1)
-            resp.headers_mut().insert(
+            new_response.headers_mut().insert(
                 header::CONTENT_LENGTH,
                 HeaderValue::from_str(&body_str.len().to_string()).unwrap(),
             );
+
+            return Ok(new_response);
         }
     }
 
@@ -115,14 +120,92 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
 
-    // Création des tables (omise ici pour concision – garde ton code actuel)
-    // …
+    // Création des tables
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            approved INTEGER NOT NULL DEFAULT 0,
+            needs_password_change INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS conversation_members (
+            conversation_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            joined_at INTEGER NOT NULL,
+            PRIMARY KEY (conversation_id, user_id),
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS invites (
+            code TEXT PRIMARY KEY,
+            created_by TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            expires_at INTEGER,
+            max_uses INTEGER,
+            current_uses INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (created_by) REFERENCES users(id)
+        )
+        "#,
+    )
+    .execute(&pool)
+    .await?;
+
     eprintln!("[DB] Base de données initialisée");
     Ok(pool)
 }
 
 // ---------------------------------------------------------------------
-// 3️⃣ Création de l'administrateur initial (inchangé)
+// 3️⃣ Création de l'administrateur initial
 // ---------------------------------------------------------------------
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
@@ -227,7 +310,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = prune_old_data(&pool_clone).await {
                 eprintln!("[Prune] Échec du pruning périodique : {}", e);
             }
-            tokio::time::sleep(tokio::time::Duration::from_hours(24)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(24 * 3600)).await;
         }
     });
 
@@ -320,9 +403,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener, app)
-        .with_connect_info::<SocketAddr>(ConnectInfo)
-        .await?;
+    
+    // Plus besoin de with_connect_info dans Axum 0.7
+    axum::serve(listener, app).await?;
 
     Ok(())
 }
