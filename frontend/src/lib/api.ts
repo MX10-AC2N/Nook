@@ -148,11 +148,7 @@ export function setPendingInviteToken(token: string): void {
     sessionStorage.setItem('pending_invite_token', token);
   }
 }
-/**
- * Valide un token d'invitation et retourne ses données (nom de la famille, etc.).
- * @param {string} token - Le token à valider.
- * @returns {Promise<{ valid: boolean; familyName?: string; name?: string; expiresAt?: string }>}
- */
+
 export async function validateInviteToken(
   token: string
 ): Promise<{ valid: boolean; familyName?: string; name?: string; expiresAt?: string }> {
@@ -161,21 +157,19 @@ export async function validateInviteToken(
       credentials: 'include',
     });
     const { ok, data } = await parseResponse(response);
-    return { valid: ok, ...data };
+    
+    return { 
+      valid: ok, 
+      familyName: data?.familyName,
+      name: data?.name,
+      expiresAt: data?.expiresAt
+    };
   } catch (err) {
     console.error('Erreur validateInviteToken:', err);
     return { valid: false };
   }
 }
 
-/**
- * Accepte une invitation et crée le compte utilisateur.
- * @param {string} token
- * @param {string} username
- * @param {string} name
- * @param {string} password
- * @returns {Promise<{ success: boolean; message: string }>}
- */
 export async function acceptInvite(
   token: string,
   username: string,
