@@ -29,6 +29,9 @@
   let incomingCallFrom = $state('');
   let incomingCallConvId = $state('');
 
+  // Ajout pour l'accessibilité : référence au contenu du modal
+  let incomingModalElement = $state<HTMLElement | undefined>(undefined);
+
   // -----------------------------------------------------------------
   // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
   // -----------------------------------------------------------------
@@ -105,6 +108,13 @@
       closeIncomingCallModal();
     }
   }
+
+  // Focus automatique sur le contenu du modal quand il s'ouvre
+  $effect(() => {
+    if (showIncomingCallModal && incomingModalElement) {
+      incomingModalElement.focus();
+    }
+  });
 
   // -----------------------------------------------------------------
   // 5️⃣ Acceptation / rejet d'un appel entrant
@@ -359,7 +369,7 @@
       {/if}
 
       <!-- -----------------------------------------------------------------
-           MODAL APPEL ENTRANT
+           MODAL APPEL ENTRANT (corrigé pour a11y)
            ----------------------------------------------------------------- -->
       {#if showIncomingCallModal}
         <div
@@ -368,13 +378,16 @@
           role="dialog"
           aria-modal="true"
           aria-label="Appel entrant"
-          tabindex="0"
+          tabindex="-1"
           onkeydown={handleKeydown}
         >
           <div
+            bind:this={incomingModalElement}
             class="incoming-call-modal"
+            role="document"
+            tabindex="0"
+            onkeydown={handleKeydown}
             onclick={(e) => e.stopPropagation()}
-            tabindex="-1"
           >
             <div class="caller-avatar" aria-hidden="true">
               <span>✆</span>
