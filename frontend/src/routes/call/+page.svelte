@@ -32,15 +32,16 @@
   // Ajout pour l'accessibilité : référence au contenu du modal
   let modalOverlay = $state<HTMLElement | undefined>(undefined);
 
-$effect(() => {
-  if (showIncomingCallModal && modalOverlay) {
-    // Focus sur le bouton Accepter (premier interactif)
-    const acceptBtn = modalOverlay.querySelector('.accept-btn') as HTMLButtonElement | null;
-    if (acceptBtn) {
-      acceptBtn.focus();
+  // Focus automatique sur le bouton Accepter quand le modal s'ouvre
+  $effect(() => {
+    if (showIncomingCallModal && modalOverlay) {
+      // Focus sur le bouton Accepter (premier interactif)
+      const acceptBtn = modalOverlay.querySelector('.accept-btn') as HTMLButtonElement | null;
+      if (acceptBtn) {
+        acceptBtn.focus();
+      }
     }
-  }
-});
+  });
 
   // -----------------------------------------------------------------
   // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
@@ -119,13 +120,6 @@ $effect(() => {
     }
   }
 
-  // Focus automatique sur le contenu du modal quand il s'ouvre
-  $effect(() => {
-    if (showIncomingCallModal && incomingModalElement) {
-      incomingModalElement.focus();
-    }
-  });
-
   // -----------------------------------------------------------------
   // 5️⃣ Acceptation / rejet d'un appel entrant
   // -----------------------------------------------------------------
@@ -167,18 +161,14 @@ $effect(() => {
 
 <div class="call-page">
   {#if loading}
-    <!-- -----------------------------------------------------------------
-         LOADING
-         ----------------------------------------------------------------- -->
+    <!-- LOADING -->
     <div class="loading-container">
       <div class="loading-spinner"></div>
       <p>Préparation de l'appel…</p>
     </div>
 
   {:else if error}
-    <!-- -----------------------------------------------------------------
-         ERREUR GLOBALE
-         ----------------------------------------------------------------- -->
+    <!-- ERREUR GLOBALE -->
     <div class="error-container">
       <div class="error-content">
         <h1>❌ Erreur</h1>
@@ -190,9 +180,7 @@ $effect(() => {
     </div>
 
   {:else}
-    <!-- -----------------------------------------------------------------
-         CONTENU DE L'APPEL
-         ----------------------------------------------------------------- -->
+    <!-- CONTENU DE L'APPEL -->
     <div class="call-container">
       <!-- HEADER -->
       <header class="call-header">
@@ -221,11 +209,9 @@ $effect(() => {
         </button>
       </header>
 
-      <!-- -----------------------------------------------------------------
-           ÉTAT DE L'APPEL (en cours / en attente)
-           ----------------------------------------------------------------- -->
+      <!-- ÉTAT DE L'APPEL (en cours / en attente) -->
       {#if callStore.isInCall}
-        <!-- ------------------- CALL ACTIVE ------------------- -->
+        <!-- CALL ACTIVE -->
         <div class="video-grid" role="region" aria-label="Participants à l'appel">
           <!-- Local stream (self) -->
           {#if callStore.localStream}
@@ -305,7 +291,7 @@ $effect(() => {
         </div>
 
       {:else if callStore.isCalling || callStore.isAnswering}
-        <!-- ------------------- CALL EN COURS DE SETUP ------------------- -->
+        <!-- CALL EN COURS DE SETUP -->
         <div class="call-status" role="status" aria-live="polite">
           <span class="icon large" aria-hidden="true">✆</span>
 
@@ -320,7 +306,7 @@ $effect(() => {
         </div>
 
       {:else}
-        <!-- ------------------- AUCUN APPEL EN COURS ------------------- -->
+        <!-- AUCUN APPEL EN COURS -->
         <div class="no-call">
           <div class="theme-icon" aria-hidden="true">
             {#if $currentTheme === 'jardin-secret'}
@@ -363,9 +349,7 @@ $effect(() => {
         </div>
       {/if}
 
-      <!-- -----------------------------------------------------------------
-           ERREUR CALL STORE (ex. problème WebRTC)
-           ----------------------------------------------------------------- -->
+      <!-- ERREUR CALL STORE (ex. problème WebRTC) -->
       {#if callStore.error}
         <div class="error-modal" role="alertdialog" aria-label="Erreur">
           <p>{callStore.error}</p>
@@ -377,47 +361,47 @@ $effect(() => {
           </button>
         </div>
       {/if}
-
-      <!-- -----------------------------------------------------------------
-           MODAL APPEL ENTRANT (corrigé pour a11y)
-           ----------------------------------------------------------------- -->
-      {#if showIncomingCallModal}
-  <div
-    bind:this={modalOverlay} <!-- nouvelle référence -->
-    class="modal-overlay"
-    onclick={closeIncomingCallModal}
-    role="dialog"
-    aria-modal="true"
-    aria-label="Appel entrant"
-    tabindex="-1"
-    onkeydown={handleKeydown}
-  >
-    <div
-      class="incoming-call-modal"
-      role="document"
-      onclick={(e) => e.stopPropagation()}
-    >
-      <!-- Le contenu reste identique -->
-      <div class="caller-avatar" aria-hidden="true">
-        <span>✆</span>
-      </div>
-
-      <h2 class="caller-name">Appel entrant</h2>
-      <p class="caller-from">De : {incomingCallFrom}</p>
-      <p class="call-info-text">Vous avez un appel entrant</p>
-
-      <div class="call-actions">
-        <button onclick={acceptCall} class="accept-btn" aria-label="Accepter l'appel">
-          ✅ Accepter
-        </button>
-
-        <button onclick={rejectCall} class="reject-btn" aria-label="Rejeter l'appel">
-          ❌ Rejeter
-        </button>
-      </div>
     </div>
-  </div>
-{/if}
+
+    <!-- MODAL APPEL ENTRANT -->
+    {#if showIncomingCallModal}
+      <div
+        bind:this={modalOverlay}
+        class="modal-overlay"
+        onclick={closeIncomingCallModal}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Appel entrant"
+        tabindex="-1"
+        onkeydown={handleKeydown}
+      >
+        <div
+          class="incoming-call-modal"
+          role="document"
+          onclick={(e) => e.stopPropagation()}
+        >
+          <div class="caller-avatar" aria-hidden="true">
+            <span>✆</span>
+          </div>
+
+          <h2 class="caller-name">Appel entrant</h2>
+          <p class="caller-from">De : {incomingCallFrom}</p>
+          <p class="call-info-text">Vous avez un appel entrant</p>
+
+          <div class="call-actions">
+            <button onclick={acceptCall} class="accept-btn" aria-label="Accepter l'appel">
+              ✅ Accepter
+            </button>
+
+            <button onclick={rejectCall} class="reject-btn" aria-label="Rejeter l'appel">
+              ❌ Rejeter
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+  {/if}
+</div>
 
 <style>
   * { box-sizing: border-box; }
