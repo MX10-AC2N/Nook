@@ -112,6 +112,7 @@ jobs:
           sqlx migrate run
 
       - name: Vérifier formatage
+        run: cargo fmt --all
         run: cargo fmt --all -- --check
 
       - name: Vérifier dépendances
