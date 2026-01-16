@@ -375,10 +375,14 @@
         tabindex="-1"
         onkeydown={handleKeydown}
       >
+        <!-- eslint-disable-next-line svelte/a11y-click-events-have-key-events -->
+        <!-- eslint-disable-next-line svelte/a11y-no-noninteractive-element-interactions -->
         <div
           class="incoming-call-modal"
           role="document"
           onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          tabindex="-1"
         >
           <div class="caller-avatar" aria-hidden="true">
             <span>✆</span>
