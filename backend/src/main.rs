@@ -84,10 +84,10 @@ async fn base_inject_middleware(
     // -------------------------------------------------
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
-            complet
+            // Lire le corps complet
             let whole_body = to_bytes(resp.body_mut())
                 .await
-                .unwrap // Lire le corps_or_else(|_| Bytes::new());
+                .unwrap_or_else(|_| Bytes::new());
 
             // Convertir en String, remplacer le placeholder
             let mut body_str = String::from_utf8_lossy(&whole_body).into_owned();
@@ -249,11 +249,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/change-password", post(auth::change_password))
-        .route("/api/auth/register", post(auth::register))
         // Join
         .route("/api/join", post(invites::join))
-        // .route("/api/invite/validate", get(invites::validate_invite))
-        // .route("/api/invite/accept", post(invites::accept_invite))
+        .route("/api/invite/validate", get(invites::validate_invite))
         // Conversations
         .route("/api/conversations", get(db::get_user_conversations))
         .route("/api/conversations", post(db::create_conversation))
