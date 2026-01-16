@@ -29,6 +29,89 @@ pub struct JoinResponse {
     pub user: Option<UserInfo>,
 }
 
+// Handler : Valider un token d'invitation (sans l'utiliser)
+pub async fn validate_invite(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let token = match params.get("token") {
+        Some(t) => t,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "success": false,
+                    "message": "Token manquant"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let now = Utc::now().timestamp();
+
+    let invite: Option<(String, bool, i64, String)> =
+        sqlx::query_as("SELECT id, used, expires_at, created_by FROM invites WHERE token = ?")
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+    match invite {
+        Some((_id, used, expires_at, created_by)) => {
+            if used {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "success": false,
+                        "message": "Token déjà utilisé",
+                        "valid": false
+                    })),
+                )
+                    .into_response();
+            }
+
+            if now > expires_at {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "success": false,
+                        "message": "Token expiré",
+                        "valid": false
+                    })),
+                )
+                    .into_response();
+            }
+
+            // Calculer le temps restant
+            let remaining = expires_at - now;
+            let hours_left = remaining / 3600;
+
+            (
+                StatusCode::OK,
+                Json(json!({
+                    "success": true,
+                    "valid": true,
+                    "message": "Token valide",
+                    "hours_remaining": hours_left,
+                    "created_by": created_by
+                })),
+            )
+                .into_response()
+        }
+        None => (
+            StatusCode::BAD_REQUEST,
+            Json(json!({
+                "success": false,
+                "message": "Token invalide",
+                "valid": false
+            })),
+        )
+            .into_response(),
+    }
+}
+
 // Handler : Créer un token d'invitation (ADMIN ONLY, 48h expiration)
 pub async fn generate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -89,7 +172,7 @@ pub async fn generate_invite(
     let expires_at = now + (48 * 3600); // 48 heures
 
     let result = sqlx::query(
-        "INSERT INTO invites (id, token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO invites (id, token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
     )
     .bind(&invite_id)
     .bind(&token)
@@ -107,7 +190,7 @@ pub async fn generate_invite(
                 Json(json!({
                     "success": true,
                     "message": "Invitation créée (expire dans 48h)",
-                    "invite_link": invite_link
+                    "invite_link": invite_link,
                 })),
             )
                 .into_response()
@@ -118,7 +201,7 @@ pub async fn generate_invite(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({
                     "success": false,
-                    "message": "Erreur serveur"
+                    "message": "Erreur serveur",
                 })),
             )
                 .into_response()
@@ -139,7 +222,7 @@ pub async fn join(
                 StatusCode::BAD_REQUEST,
                 Json(json!({
                     "success": false,
-                    "message": "Token manquant"
+                    "message": "Token manquant",
                 })),
             )
                 .into_response();
@@ -163,7 +246,7 @@ pub async fn join(
                 StatusCode::BAD_REQUEST,
                 Json(json!({
                     "success": false,
-                    "message": "Token invalide"
+                    "message": "Token invalide",
                 })),
             )
                 .into_response();
@@ -175,7 +258,7 @@ pub async fn join(
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "success": false,
-                "message": "Token déjà utilisé"
+                "message": "Token déjà utilisé",
             })),
         )
             .into_response();
@@ -186,7 +269,7 @@ pub async fn join(
             StatusCode::BAD_REQUEST,
             Json(json!({
                 "success": false,
-                "message": "Token expiré"
+                "message": "Token expiré",
             })),
         )
             .into_response();
@@ -223,7 +306,7 @@ pub async fn join(
             StatusCode::CONFLICT,
             Json(json!({
                 "success": false,
-                "message": "Nom d'utilisateur déjà pris"
+                "message": "Nom d'utilisateur déjà pris",
             })),
         )
             .into_response();
@@ -265,7 +348,7 @@ pub async fn join(
         http::header::SET_COOKIE,
         format!(
             "auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
-            user_id, session_token
+            user_id, session_token,
         )
         .parse()
         .unwrap(),
