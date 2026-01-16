@@ -111,8 +111,37 @@ jobs:
           cargo install sqlx-cli --version '^0.8' --features sqlite --no-default-features --locked
           sqlx migrate run
 
-      - name: Vérifier formatage
-        run: cargo fmt --all
+      - name: Vérifier et corriger formatage
+        id: fmt-check
+        run: |
+          # Appliquer le formatage automatique
+          cargo fmt --all
+          
+          # Vérifier s'il y a des changements
+          if git diff --quiet; then
+            echo "formatted=false" >> $GITHUB_OUTPUT
+            echo "✅ Formatage déjà correct"
+          else
+            echo "formatted=true" >> $GITHUB_OUTPUT
+            echo "📝 Formatage corrigé"
+          fi
+
+      - name: Commit automatique du formatage
+        if: steps.fmt-check.outputs.formatted == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          
+          if git diff --cached --quiet; then
+            echo "Aucun changement de formatage à commit"
+          else
+            git commit -m "style: auto-format code with cargo fmt [ci skip]"
+            echo "Pushing les changements..."
+            git push origin ${{ github.ref }} || echo "Push échoué (normal si pas de droits)"
+          fi
+
+      - name: Vérifier formatage (après correction)
         run: cargo fmt --all -- --check
 
       - name: Vérifier dépendances
@@ -203,9 +232,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-                    # Cache désactivé temporairement car package-lock.json est généré pendant le build
-          # Une fois le fichier commité, réactiver avec: cache: 'npm'
-          # cache-dependency-path: 'frontend/package-lock.json'
 
       - name: Vérifier dossier frontend
         run: |
