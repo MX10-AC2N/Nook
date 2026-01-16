@@ -1,5 +1,5 @@
 // src/lib/crypto.ts (Svelte 5 avec runes)
-import { sodium } from './sodium'; // <-- Supposé migré en runes Svelte 5
+import { getSodium, waitForSodium } from './sodium';
 import { authUser } from './authStore';
 
 /* -----------------------------------------------------------------
@@ -12,8 +12,6 @@ import { authUser } from './authStore';
  *
  * @returns {Promise<any>} Instance de libsodium
  */
-async function waitForSodium(): Promise<any> {
-  if (sodium) return sodium;
 
   // Si sodium n'est pas encore chargé, attendre
   return new Promise((resolve) => {
