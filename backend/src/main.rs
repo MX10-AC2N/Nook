@@ -21,6 +21,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
+use std::convert::Infallible;
 
 // ---------------------------------------------------------------------
 // Modules de l'application
@@ -85,7 +86,7 @@ async fn base_inject_middleware(
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
             // Lire le corps complet
-            let whole_body = to_bytes(resp.body_mut())
+            let whole_body = to_bytes(/* Body */, /* usize */)
                 .await
                 .unwrap_or_else(|_| Bytes::new());
 
