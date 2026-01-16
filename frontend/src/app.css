@@ -2,9 +2,9 @@
 @import './lib/ui/themes/themes.css';
 
 /* Import des 3 thèmes */
-@import './lib/ui/themes/jardin.css';
-@import './lib/ui/themes/space.css';
-@import './lib/ui/themes/maison.css';
+@import './lib/ui/themes/jardin-secret.css';
+@import './lib/ui/themes/space-hub.css';
+@import './lib/ui/themes/maison-chaleureuse.css';
 
 /* Reset global */
 *, *::before, *::after {
