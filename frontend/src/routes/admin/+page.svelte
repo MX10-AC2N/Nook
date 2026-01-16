@@ -145,8 +145,9 @@
       });
 
       if (response.ok) {
-        const data = await response.json();
-        inviteLink = data.invite_link;
+  const data = await response.json();
+  // Construire le nouveau lien vers la page /invite
+  inviteLink = `${window.location.origin}/invite?token=${data.token}`;
 
         // Copie dans le presse‑papier (protégé côté SSR)
         if (typeof window !== 'undefined') {
