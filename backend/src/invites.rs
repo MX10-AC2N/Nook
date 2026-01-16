@@ -102,7 +102,7 @@ pub async fn generate_invite(
 
     match result {
         Ok(_) => {
-            let invite_link = format!("https://ton-domaine.com/?invite={}", token); // Adapte ton domaine réel
+            let invite_link = format!("/invite?token={}", token);
             (
                 StatusCode::OK,
                 Json(json!({
