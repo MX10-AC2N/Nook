@@ -189,24 +189,18 @@
 </svelte:head>
 
 <div class="calendar-page">
-  <!-- -----------------------------------------------------------------
-       HEADER
-       ----------------------------------------------------------------- -->
+  <!-- HEADER -->
   <div class="page-header">
     <h1>📅 Calendrier</h1>
     <p class="subtitle">Gérez les événements familiaux</p>
   </div>
 
-  <!-- -----------------------------------------------------------------
-       ADD EVENT BUTTON
-       ----------------------------------------------------------------- -->
+  <!-- ADD EVENT BUTTON -->
   <button class="add-event-btn" onclick={() => (showAddModal = true)}>
     ➕ Ajouter un événement
   </button>
 
-  <!-- -----------------------------------------------------------------
-       CALENDAR CONTAINER
-       ----------------------------------------------------------------- -->
+  <!-- CALENDAR CONTAINER -->
   <div class="calendar-container">
     <div class="calendar-nav">
       <button class="nav-btn" onclick={prevMonth}>←</button>
@@ -216,44 +210,41 @@
       <button class="nav-btn" onclick={nextMonth}>→</button>
     </div>
 
-      <!-- -----------------------------------------------------------------
-     CALENDAR GRID
-     ----------------------------------------------------------------- -->
-<div class="calendar-grid">
-  <div class="day-header">Lun</div>
-  <div class="day-header">Mar</div>
-  <div class="day-header">Mer</div>
-  <div class="day-header">Jeu</div>
-  <div class="day-header">Ven</div>
-  <div class="day-header">Sam</div>
-  <div class="day-header">Dim</div>
+    <!-- CALENDAR GRID -->
+    <div class="calendar-grid">
+      <div class="day-header">Lun</div>
+      <div class="day-header">Mar</div>
+      <div class="day-header">Mer</div>
+      <div class="day-header">Jeu</div>
+      <div class="day-header">Ven</div>
+      <div class="day-header">Sam</div>
+      <div class="day-header">Dim</div>
 
-  <!-- Jours vides du début du mois -->
-  {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
-    <div class="calendar-day empty"></div>
-  {/each}
+      <!-- Jours vides du début du mois -->
+      {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
+        <div class="calendar-day empty"></div>
+      {/each}
 
-  <!-- Jours du mois -->
-  {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
-    {@const day = i + 1}
-    {@const dayEvents = getEventsForDay(day)}
-    <div class="calendar-day">
-      <div class="day-number">{day}</div>
-      <div class="day-events">
-        {#each dayEvents.slice(0, 2) as event}
-          <div class="event-badge">{event.title}</div>
-        {/each}
-        {#if dayEvents.length > 2}
-          <div class="event-more">+{dayEvents.length - 2}</div>
-        {/if}
-      </div>
+      <!-- Jours du mois -->
+      {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
+        {@const day = i + 1}
+        {@const dayEvents = getEventsForDay(day)}
+        <div class="calendar-day">
+          <div class="day-number">{day}</div>
+          <div class="day-events">
+            {#each dayEvents.slice(0, 2) as event}
+              <div class="event-badge">{event.title}</div>
+            {/each}
+            {#if dayEvents.length > 2}
+              <div class="event-more">+{dayEvents.length - 2}</div>
+            {/if}
+          </div>
+        </div>
+      {/each}
     </div>
-  {/each}
-</div>
+  </div>
 
-  <!-- -----------------------------------------------------------------
-       UPCOMING EVENTS
-       ----------------------------------------------------------------- -->
+  <!-- UPCOMING EVENTS -->
   <div class="upcoming-events">
     <h3>🕓 Événements à venir</h3>
     {#if getUpcomingEvents().length === 0}
@@ -279,9 +270,7 @@
     {/if}
   </div>
 
-  <!-- -----------------------------------------------------------------
-       MODAL D'AJOUT D'ÉVÉNEMENT
-       ----------------------------------------------------------------- -->
+  <!-- MODAL D'AJOUT D'ÉVÉNEMENT -->
   {#if showAddModal}
     <div
       bind:this={modalOverlay}
@@ -351,7 +340,6 @@
 </div>
 
 <style>
-  /* Ton style reste 100% inchangé */
   * { box-sizing: border-box; }
 
   .calendar-page {
@@ -360,9 +348,6 @@
     padding: 1.5rem 1rem;
   }
 
-  /* -----------------------------------------------------------------
-     HEADER
-     ----------------------------------------------------------------- */
   .page-header {
     text-align: center;
     margin-bottom: 2rem;
@@ -381,9 +366,6 @@
     font-size: 1rem;
   }
 
-  /* -----------------------------------------------------------------
-     ADD EVENT BUTTON
-     ----------------------------------------------------------------- */
   .add-event-btn {
     display: block;
     width: 100%;
@@ -407,9 +389,6 @@
     box-shadow: 0 6px 16px rgba(45, 90, 39, 0.3);
   }
 
-  /* -----------------------------------------------------------------
-     CALENDAR CONTAINER
-     ----------------------------------------------------------------- */
   .calendar-container {
     background: white;
     border-radius: 16px;
@@ -448,9 +427,6 @@
     color: #1e293b;
   }
 
-  /* -----------------------------------------------------------------
-     CALENDAR GRID
-     ----------------------------------------------------------------- */
   .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -534,9 +510,6 @@
     font-weight: 500;
   }
 
-  /* -----------------------------------------------------------------
-     UPCOMING EVENTS
-     ----------------------------------------------------------------- */
   .upcoming-events {
     background: white;
     border-radius: 16px;
@@ -639,9 +612,6 @@
     line-height: 1.4;
   }
 
-  /* -----------------------------------------------------------------
-     MODAL
-     ----------------------------------------------------------------- */
   .modal-overlay {
     position: fixed;
     top: 0;
@@ -751,9 +721,6 @@
     transform: translateY(-1px);
   }
 
-  /* -----------------------------------------------------------------
-     RESPONSIVE
-     ----------------------------------------------------------------- */
   @media (max-width: 768px) {
     .calendar-page {
       padding: 1rem 0.75rem;
