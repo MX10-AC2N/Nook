@@ -1,20 +1,27 @@
 <script lang="ts">
+  // -----------------------------------------------------------------
+  // Imports du store de thème
+  // -----------------------------------------------------------------
   import {
     availableThemes,
-    currentTheme,
+    currentTheme,   // état réactif exporté depuis ThemeStore.ts
     setTheme,
     type Theme
   } from '$lib/ui/ThemeStore';
-  import { state } from 'svelte'; // Svelte 5 reactive state
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // États locaux du composant (Svelte 5 runes)
   // -----------------------------------------------------------------
-  let isOpen = state(false);          // ouverture du dropdown
-  let selectedTheme = $currentTheme;  // thème actuellement sélectionné
+  // Ouverture/fermeture du dropdown
+  let isOpen = $state(false);
+
+  // Pas besoin de copier le thème : on utilise directement $currentTheme
+  // Si vous avez besoin d’une valeur dérivée, utilisez $derived.
+  // Exemple (non obligatoire ici) :
+  // let selectedTheme = $derived(() => $currentTheme);
 
   // -----------------------------------------------------------------
-  // 2️⃣ Fonctions d’interaction
+  // Fonctions d’interaction
   // -----------------------------------------------------------------
   function toggleDropdown() {
     isOpen = !isOpen;
@@ -45,13 +52,16 @@
   }
 
   // -----------------------------------------------------------------
-  // 3️⃣ Valeurs dérivées (déclarations réactives)
+  // Valeur dérivée : l’objet complet du thème sélectionné
   // -----------------------------------------------------------------
-  // Thème complet (objet) correspondant à l’id sélectionné
-  let currentThemeInfo = $derived(availableThemes.find(t => t.id === selectedTheme));
+  // `$currentTheme` contient l’identifiant du thème actif.
+  // On le transforme en l’objet complet présent dans `availableThemes`.
+  let currentThemeInfo = $derived(
+    () => availableThemes.find(t => t.id === $currentTheme)
+  );
 
   // -----------------------------------------------------------------
-  // 4️⃣ Gestion du focus clavier (esc) et du clic extérieur
+  // Gestion globale des événements (esc + click extérieur)
   // -----------------------------------------------------------------
   // (déclaré dans le markup via <svelte:window>)
 </script>
@@ -117,10 +127,10 @@
         {#each availableThemes as theme (theme.id)}
           <button
             class="theme-option"
-            class:active={selectedTheme === theme.id}
+            class:active={$currentTheme === theme.id}
             on:click={() => selectTheme(theme.id)}
             role="option"
-            aria-selected={selectedTheme === theme.id}
+            aria-selected={$currentTheme === theme.id}
           >
             <!-- Aperçu colorimétrique du thème -->
             <div class="theme-preview" data-theme={theme.id}>
@@ -136,7 +146,7 @@
             </div>
 
             <!-- Icône de validation si ce thème est sélectionné -->
-            {#if selectedTheme === theme.id}
+            {#if $currentTheme === theme.id}
               <svg
                 class="check-icon"
                 width="16"
@@ -193,31 +203,25 @@
     transition: all 150ms ease;
     min-width: 140px;
   }
-
   .theme-switcher-trigger:hover {
     background-color: var(--bg-tertiary, #e2e8f0);
     border-color: var(--accent, #4ade80);
   }
-
   .theme-switcher-trigger:focus {
     outline: none;
     box-shadow: 0 0 0 2px var(--accent, #4ade80);
   }
-
   .theme-icon {
     font-size: 1.125rem;
   }
-
   .theme-name {
     flex: 1;
     text-align: left;
   }
-
   .chevron {
     transition: transform 200ms ease;
     color: var(--text-secondary, #64748b);
   }
-
   .chevron.open {
     transform: rotate(180deg);
   }
@@ -238,7 +242,6 @@
     animation: dropdown-enter 200ms ease forwards;
     overflow: hidden;
   }
-
   @keyframes dropdown-enter {
     from {
       opacity: 0;
@@ -249,7 +252,6 @@
       transform: translateY(0);
     }
   }
-
   .dropdown-header {
     padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
     font-weight: 600;
@@ -267,7 +269,6 @@
     max-height: 300px;
     overflow-y: auto;
   }
-
   .theme-option {
     display: flex;
     align-items: center;
@@ -282,17 +283,13 @@
     transition: all 150ms ease;
     color: var(--text-primary, #1e293b);
   }
-
   .theme-option:hover {
     background-color: var(--bg-secondary, #f1f5f9);
   }
-
-  .theme-option.active {
+  .theme-option.active,
+  .theme-option:focus {
     background-color: var(--bg-tertiary, #e2e8f0);
     border-color: var(--accent, #4ade80);
-  }
-
-  .theme-option:focus {
     outline: none;
     box-shadow: 0 0 0 2px var(--accent, #4ade80);
   }
@@ -305,7 +302,6 @@
     gap: 4px;
     flex-shrink: 0;
   }
-
   .preview-circle {
     width: 24px;
     height: 24px;
@@ -313,16 +309,13 @@
     border: 2px solid white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
-
   /* Couleurs spécifiques à chaque thème */
   .theme-preview[data-theme="jardin-secret"] .preview-circle.primary   { background-color: #f0fdf4; }
   .theme-preview[data-theme="jardin-secret"] .preview-circle.secondary { background-color: #e0f2fe; }
   .theme-preview[data-theme="jardin-secret"] .preview-circle.accent    { background-color: #4ade80; }
-
   .theme-preview[data-theme="space-hub"] .preview-circle.primary   { background-color: #0f172a; }
   .theme-preview[data-theme="space-hub"] .preview-circle.secondary { background-color: #1e293b; }
   .theme-preview[data-theme="space-hub"] .preview-circle.accent    { background-color: #8b5cf6; }
-
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.primary   { background-color: #fdf2e9; }
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.secondary { background-color: #fef3c7; }
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.accent    { background-color: #ea580c; }
@@ -334,14 +327,12 @@
     flex: 1;
     min-width: 0;
   }
-
   .theme-option-name {
     display: block;
     font-weight: 500;
     font-size: var(--text-sm, 0.875rem);
     color: var(--text-primary, #1e293b);
   }
-
   .theme-option-description {
     display: block;
     font-size: var(--text-xs, 0.75rem);
@@ -368,7 +359,6 @@
     border-top: 1px solid var(--border, #e2e8f0);
     background-color: var(--bg-secondary, #f8fafc);
   }
-
   .footer-text {
     font-size: var(--text-xs, 0.75rem);
     color: var(--text-secondary, #64748b);
@@ -388,7 +378,6 @@
       border-radius: var(--radius-xl, 1rem) var(--radius-xl, 1rem) 0 0;
       animation: slide-up-mobile 300ms ease forwards;
     }
-
     @keyframes slide-up-mobile {
       from {
         opacity: 0;
@@ -399,12 +388,10 @@
         transform: translateY(0);
       }
     }
-
     .theme-switcher-trigger {
       min-width: auto;
       padding: var(--space-2, 0.5rem);
     }
-
     .theme-name {
       display: none;
     }
