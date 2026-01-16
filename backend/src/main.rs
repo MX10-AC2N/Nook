@@ -7,7 +7,7 @@
 // en LAN (http://192.168.1.192:6300) et en production (https://mon-site.exemple.com).
 
 use axum::{
-    body::{Body, Bytes, to_bytes},
+    body::{to_bytes, Body, Bytes},
     extract::ConnectInfo,
     http::{header, HeaderMap, HeaderValue, Request, Response, StatusCode},
     middleware::{self, Next},
