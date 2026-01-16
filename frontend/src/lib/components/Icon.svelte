@@ -27,7 +27,8 @@
   let src = $derived(
     name === 'logo'
       ? '/logo-animated.svg'
-      : `${basePath}/${name}.svg`;
+      : `${basePath}/${name}.svg`
+    );
 </script>
 
 <!--
