@@ -418,7 +418,6 @@ $effect(() => {
     </div>
   </div>
 {/if}
-{/if}
 
 <style>
   * { box-sizing: border-box; }
