@@ -282,7 +282,15 @@
       tabindex="-1"
       onkeydown={handleModalKeydown}
     >
-      <div class="modal" role="document" onclick={(e) => e.stopPropagation()}>
+      <!-- eslint-disable-next-line svelte/a11y-click-events-have-key-events -->
+      <!-- eslint-disable-next-line svelte/a11y-no-noninteractive-element-interactions -->
+      <div 
+        class="modal" 
+        role="document" 
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        tabindex="-1"
+      >
         <h3>Nouvel événement</h3>
 
         <form onsubmit={(e) => { e.preventDefault(); addEvent(); }}>
