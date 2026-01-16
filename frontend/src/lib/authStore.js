@@ -1,76 +1,89 @@
-// src/lib/authStore.js (version Svelte 5)
+// src/lib/authStore.js (Svelte 5 – store d’authentification)
+
 import { checkAuth, logout as apiLogout } from './auth.js';
 
 // ---------------------------------------------------------------------
-// État réactif avec runes
+// Store réactif principal
 // ---------------------------------------------------------------------
+/**
+ * @typedef {Object} AuthState
+ * @property {boolean} isAuthenticated
+ * @property {boolean} isAdmin
+ * @property {Object|null} user
+ * @property {boolean} loading
+ * @property {boolean} needsPasswordChange
+ */
 
 /** @type {AuthState} */
-const authState = $state({
+export const authStore = $state({
   isAuthenticated: false,
   isAdmin: false,
   user: null,
   loading: true,
-  needsPasswordChange: false
+  needsPasswordChange: false,
 });
 
 // ---------------------------------------------------------------------
-// Getters publics (exportés)
+// Getters publics (exposés sous forme de derived stores)
 // ---------------------------------------------------------------------
-export const isAuthenticated = $derived(authState.isAuthenticated);
-export const isAdmin = $derived(authState.isAdmin);
-export const authUser = $derived(authState.user);
-export const authLoading = $derived(authState.loading);
-export const needsPasswordChange = $derived(authState.needsPasswordChange);
+export const isAuthenticated   = $derived(authStore.isAuthenticated);
+export const isAdmin           = $derived(authStore.isAdmin);
+export const authUser          = $derived(authStore.user);
+export const authLoading       = $derived(authStore.loading);
+export const needsPasswordChange = $derived(authStore.needsPasswordChange);
 
 // ---------------------------------------------------------------------
-// Actions (fonctions pour modifier l'état)
+// Actions – fonctions qui mutent le store
 // ---------------------------------------------------------------------
-
 /** Met le store en état de chargement. */
 export function setLoading() {
-  authState.loading = true;
+  authStore.loading = true;
 }
 
-/** Marque l'utilisateur comme authentifié. */
+/**
+ * Marque l'utilisateur comme authentifié.
+ * @param {Object} user   – objet utilisateur retourné par l’API
+ * @param {boolean} [isAdmin=false]
+ */
 export function setAuthenticated(user, isAdmin = false) {
-  Object.assign(authState, {
+  Object.assign(authStore, {
     isAuthenticated: true,
     isAdmin,
     user,
     loading: false,
-    needsPasswordChange: !!user?.needs_password_change
+    needsPasswordChange: !!user?.needs_password_change,
   });
 }
 
-/** Marque l'état comme invité (non-authentifié). */
+/** Marque l'état comme invité (non‑authentifié). */
 export function setGuest() {
-  Object.assign(authState, {
+  Object.assign(authStore, {
     isAuthenticated: false,
     isAdmin: false,
     user: null,
     loading: false,
-    needsPasswordChange: false
+    needsPasswordChange: false,
   });
 }
 
-/** En cas d'erreur. */
+/** En cas d’erreur d’authentification. */
 export function setError() {
-  setGuest(); // Même état que guest pour l'instant
+  setGuest(); // pour l’instant on revient à l’état « guest »
 }
 
-/** Met à jour les informations de l'utilisateur. */
+/** Met à jour les champs de l'utilisateur sans toucher aux flags. */
 export function updateUser(userData) {
-  if (authState.user) {
-    authState.user = { ...authState.user, ...userData };
+  if (authStore.user) {
+    authStore.user = { ...authStore.user, ...userData };
   }
 }
 
 // ---------------------------------------------------------------------
-// Initialisation (identique à votre code)
+// Initialisation du store côté client
 // ---------------------------------------------------------------------
 let initialized = false;
 
+/** Initialise l’état d’authentification au démarrage de l’app. */
 export async function initAuth() {
   if (initialized) return;
   initialized = true;
@@ -90,6 +103,7 @@ export async function initAuth() {
   }
 }
 
+/** Déconnecte l’utilisateur et remet le store en état « guest ». */
 export async function logout() {
   try {
     await apiLogout();
@@ -99,7 +113,7 @@ export async function logout() {
   setGuest();
 }
 
-// Initialisation côté client
+// Lancement automatique côté client (SSR désactivé)
 if (typeof window !== 'undefined') {
   initAuth();
 }
