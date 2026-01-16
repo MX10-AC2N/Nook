@@ -1,10 +1,20 @@
-// src/lib/sodium.ts (Svelte 5 avec runes)
-import sodium from 'libsodium-wrappers'; // ← import standard (module avec .ready)
+// src/lib/sodium.ts (Svelte 5 avec runes)
+
+import sodium from 'libsodium-wrappers';
+
+/* -----------------------------------------------------------------
+   Types exportés
+   ----------------------------------------------------------------- */
+export type Sodium = typeof import('libsodium-wrappers');
+
+/* -----------------------------------------------------------------
+   State réactif
+   ----------------------------------------------------------------- */
 
 /**
- * État réactif contenant l'instance de libsodium (ou `null` tant que le module n'est pas chargé).
+ * Instance de libsodium (ou `null` tant que le module n'est pas chargé).
  */
-export let sodiumStore = $state<any>(null);
+export let sodiumStore = $state<Sodium | null>(null);
 
 /**
  * Indique si le chargement est en cours.
@@ -24,28 +34,30 @@ export const sodiumReady = $derived(sodiumStore !== null);
 /* -----------------------------------------------------------------
    Internals – on ne veut charger le module qu'une seule fois.
    ----------------------------------------------------------------- */
-let sodiumPromise: Promise<any> | null = null;
+let sodiumPromise: Promise<Sodium> | null = null;
 
 /**
- * Charge libsodium-wrappers (si ce n'est pas déjà fait) et met à jour l'état.
+ * Charge `libsodium-wrappers` (si ce n'est pas déjà fait) et met à jour l'état.
  *
- * @returns {Promise<any>} L'instance prête de libsodium.
+ * @returns {Promise<Sodium>} L'instance prête de libsodium.
  */
-export async function loadSodium(): Promise<any> {
+export async function loadSodium(): Promise<Sodium> {
   // Si le chargement a déjà été déclenché, on renvoie la même promesse.
   if (sodiumPromise) return sodiumPromise;
 
-  sodiumPromise = (async () => {
+  // On crée la promesse unique.
+  sodiumPromise = (async (): Promise<Sodium> => {
     try {
       sodiumLoading = true;
       sodiumError = null;
-      
-      // `sodium.ready` est une promesse qui se résout quand le WASM est chargé.
+
+      // `sodium.ready` se résout quand le WASM est chargé.
       await sodium.ready;
 
       // À ce stade, `sodium` expose toutes les fonctions cryptographiques.
       sodiumStore = sodium;
       console.log('✅ Libsodium chargé');
+
       return sodium;
     } catch (rawErr) {
       const err = rawErr instanceof Error ? rawErr : new Error(String(rawErr));
@@ -64,27 +76,29 @@ export async function loadSodium(): Promise<any> {
  * Retourne immédiatement l'instance de libsodium si elle est déjà chargée,
  * sinon lance le chargement et attend qu'il soit terminé.
  *
- * @returns {Promise<any>} L'instance prête de libsodium.
+ * @returns {Promise<Sodium>} L'instance prête de libsodium.
  */
-export async function getSodium(): Promise<any> {
+export async function getSodium(): Promise<Sodium> {
   if (sodiumStore) return sodiumStore;
   return await loadSodium();
 }
 
 /**
- * Fonction utilitaire pour les composants qui veulent attendre sodiumReady
- * (alternative à $effect(() => { if (sodiumReady) ... }))
+ * Fonction utilitaire pour les composants qui veulent attendre que
+ * `sodiumReady` devienne vrai (alternative à `$effect(() => { if (sodiumReady) … })`).
+ *
+ * @returns {Promise<Sodium>} L'instance prête de libsodium.
  */
-export async function waitForSodium(): Promise<void> {
+export async function waitForSodium(): Promise<Sodium> {
   if (!sodiumReady) {
     await loadSodium();
   }
+  // À ce point, `sodiumStore` ne peut plus être nul.
+  return sodiumStore as Sodium;
 }
 
 /* -----------------------------------------------------------------
-   Optionnel : on lance le chargement dès que le module est importé.
-   Si vous préférez contrôler le moment du chargement (ex. dans +layout),
-   supprimez l'appel ci-dessous.
+   Optionnel : préchargement automatique
    ----------------------------------------------------------------- */
-// Décommentez si vous voulez le préchargement automatique
-// loadSodium().catch((e) => console.error('Failed to preload libsodium:', e));
+// Décommentez si vous voulez le préchargement dès l'import du module.
+  loadSodium().catch((e) => console.error('Failed to preload libsodium:', e));
