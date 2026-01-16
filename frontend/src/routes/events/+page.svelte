@@ -59,7 +59,7 @@
   function addEvent() {
     // Validation minimale
     if (!newEvent.title.trim() || !newEvent.date || !newEvent.time) {
-      alert('Veuillez remplir le titre, la date et l'heure.');
+      alert("Veuillez remplir le titre, la date et l'heure.");
       return;
     }
 
