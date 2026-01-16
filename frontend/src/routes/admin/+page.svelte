@@ -240,7 +240,7 @@
       <!-- Actions globales -->
       <div class="admin-actions">
         <button class="invite-btn" onclick={generateInvite} disabled={generatingInvite}>
-          {generatingInvite ? 'Génération…' : '➕ Générer un lien d'invitation'}
+          {generatingInvite ? 'Génération…' : "➕ Générer un lien d'invitation"}
         </button>
 
         {#if inviteLink}
