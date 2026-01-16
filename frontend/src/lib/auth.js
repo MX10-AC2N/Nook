@@ -21,28 +21,26 @@ import { browser } from '$app/environment';
 
 /**
  * Vérifie la session courante auprès du backend.
- * Retourne toujours un objet au même format.
- *
  * @returns {Promise<AuthResult>}
  */
 export async function checkAuth() {
   try {
-    // 1️⃣ Tentative d’appel à l’endpoint `/api/auth/me`
+    // 1️⃣ Endpoint /api/auth/me
     const response = await fetch('/api/auth/me', {
       credentials: 'include',
     });
 
-    if (response.ok) {
+    // Si le serveur renvoie du JSON, on le parse
+    if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
       const data = await response.json();
 
-      // Si le backend confirme que l’utilisateur est authentifié
       if (data.authenticated && data.user) {
         const isAdmin = data.user.role === 'admin';
         return {
           status: 'authenticated',
           user: data.user,
           isAdmin,
-          needsPasswordChange: !!data.user.needs_password_change,
+          needsPasswordChange: Boolean(data.user.needs_password_change),
         };
       }
     }
@@ -53,9 +51,7 @@ export async function checkAuth() {
     if (browser) {
       const urlParams = new URLSearchParams(window.location.search);
       const inviteToken = urlParams.get('token');
-
       if (inviteToken) {
-        // On garde le token en sessionStorage pour le récupérer plus tard
         sessionStorage.setItem('pending_invite_token', inviteToken);
         return {
           status: 'guest',
@@ -86,11 +82,10 @@ export async function checkAuth() {
 
 /**
  * Effectue la connexion.
- *
  * @param {string} username
  * @param {string} password
- * @returns {Promise<AuthUser>}  L’objet utilisateur renvoyé par le backend.
- * @throws {Error}            Si le login échoue (mauvais identifiants ou serveur).
+ * @returns {Promise<AuthUser>}
+ * @throws {Error} Si le login échoue (mauvais identifiants ou serveur).
  */
 export async function login(username, password) {
   const response = await fetch('/api/auth/login', {
@@ -100,13 +95,16 @@ export async function login(username, password) {
     credentials: 'include',
   });
 
-  // Lecture du corps **une seule fois**
+  // On récupère le JSON même en cas d’erreur pour pouvoir lire le message
   const data = await response.json();
 
-  // Si le statut HTTP n’est pas 2xx OU que le backend indique un échec
   if (!response.ok || !data.success) {
-    // Le backend renvoie souvent `message` ; sinon on utilise un texte générique
-    throw new Error(data.message ?? 'Identifiants incorrects ou erreur serveur');
+    // Le backend renvoie souvent `message`; sinon on fournit un fallback
+    const msg = data.message ?? 'Identifiants incorrects ou erreur serveur';
+    const err = new Error(msg);
+    // Ajout d’un code éventuel (utile côté UI)
+    if (data.code) err.code = data.code;
+    throw err;
   }
 
   // Retour du user (et éventuellement du token si besoin)
@@ -116,6 +114,7 @@ export async function login(username, password) {
 /**
  * Déconnexion de l’utilisateur.
  * Redirige vers la page d’accueil après la requête.
+ * @returns {Promise<void>}
  */
 export async function logout() {
   try {
@@ -132,12 +131,10 @@ export async function logout() {
 
 /**
  * Récupère le token d’invitation stocké en sessionStorage (et le supprime).
- *
  * @returns {string|null}
  */
 export function getPendingInviteToken() {
   if (!browser) return null;
-
   const token = sessionStorage.getItem('pending_invite_token');
   if (token) sessionStorage.removeItem('pending_invite_token');
   return token;
@@ -145,7 +142,6 @@ export function getPendingInviteToken() {
 
 /**
  * Stocke un token d’invitation en sessionStorage.
- *
  * @param {string} token
  */
 export function setPendingInviteToken(token) {
