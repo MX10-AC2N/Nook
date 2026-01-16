@@ -8,7 +8,6 @@
 
 use axum::{
     body::{to_bytes, Body, Bytes},
-    extract::ConnectInfo,
     http::{header, HeaderValue, Request, Response},
     middleware::{self, Next},
     routing::{get, post},
