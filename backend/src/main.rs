@@ -3,11 +3,11 @@
 // Ce fichier a été modifié pour **injecter dynamiquement** le
 // `<base href="…">` (ou tout autre meta) en fonction du header
 // `Host` et du header `X‑Forwarded‑Proto` (fourni par Nginx Proxy Manager).
-// Aucun rebuild n’est plus nécessaire : le même conteneur fonctionne
-// en LAN (http://192.168.1.192:6300) et en production (https://mon‑site.exemple.com).
+// Aucun rebuild n'est plus nécessaire : le même conteneur fonctionne
+// en LAN (http://192.168.1.192:6300) et en production (https://mon-site.exemple.com).
 
 use axum::{
-    body::{Body, Bytes},
+    body::{Body, Bytes, to_bytes},
     extract::ConnectInfo,
     http::{header, HeaderMap, HeaderValue, Request, Response, StatusCode},
     middleware::{self, Next},
@@ -15,10 +15,8 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use futures::future::BoxFuture;
 use sqlx::SqlitePool;
-use std::{convert::Infallible, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tower::ServiceBuilder;
+use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
@@ -51,17 +49,14 @@ pub struct SharedState {
 // ---------------------------------------------------------------------
 // 1️⃣ Middleware – injection du <base> (ou meta) à la volée
 // ---------------------------------------------------------------------
-async fn base_inject_middleware<B>(
-    mut req: Request<B>,
-    next: Next<B>,
-) -> Result<Response<Body>, Infallible>
-where
-    B: Send + 'static,
-{
+async fn base_inject_middleware(
+    mut req: Request<Body>,
+    next: Next,
+) -> Result<Response<Body>, Infallible> {
     // -------------------------------------------------
     // 1️⃣ Récupérer le scheme (http / https) et le host
     // -------------------------------------------------
-    // NPM ajoute le header `X-Forwarded-Proto`. S’il n’est pas présent (LAN direct),
+    // NPM ajoute le header `X-Forwarded-Proto`. S'il n'est pas présent (LAN direct),
     // on suppose `http`.
     let scheme = req
         .headers()
@@ -89,10 +84,10 @@ where
     // -------------------------------------------------
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
-            // Lire le corps complet
-            let whole_body = hyper::body::to_bytes(resp.body_mut())
+            complet
+            let whole_body = to_bytes(resp.body_mut())
                 .await
-                .unwrap_or_else(|_| Bytes::new());
+                .unwrap // Lire le corps_or_else(|_| Bytes::new());
 
             // Convertir en String, remplacer le placeholder
             let mut body_str = String::from_utf8_lossy(&whole_body).into_owned();
@@ -101,7 +96,7 @@ where
             // Reconstruire la réponse avec le nouveau corps
             *resp.body_mut() = Body::from(body_str.clone());
 
-            // Mettre à jour Content‑Length (important pour HTTP/1.1)
+            // Mettre à jour Content-Length (important pour HTTP/1.1)
             resp.headers_mut().insert(
                 header::CONTENT_LENGTH,
                 HeaderValue::from_str(&body_str.len().to_string()).unwrap(),
@@ -217,7 +212,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // -------------------------------------------------
-    // Tâche de pruning (7 jours) – tourne en arrière‑plan
+    // Tâche de pruning (7 jours) – tourne en arrière-plan
     // -------------------------------------------------
     let pool_clone = pool.clone();
     tokio::spawn(async move {
@@ -257,8 +252,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/auth/register", post(auth::register))
         // Join
         .route("/api/join", post(invites::join))
-        .route("/api/invite/validate", get(invites::validate_invite))
-        .route("/api/invite/accept", post(invites::accept_invite))
+        // .route("/api/invite/validate", get(invites::validate_invite))
+        // .route("/api/invite/accept", post(invites::accept_invite))
         // Conversations
         .route("/api/conversations", get(db::get_user_conversations))
         .route("/api/conversations", post(db::create_conversation))
@@ -280,7 +275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/list-invites", get(admin::list_invites))
         .route("/api/generate-invite", post(invites::generate_invite))
         .route("/api/delete-invite", post(admin::delete_invite))
-        // Health‑check
+        // Health-check
         .route("/api/health", get(|| async { "OK" }))
         // WebRTC
         .merge(webrtc::webrtc_routes())
@@ -314,7 +309,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // -------------------------------------------------
     let app = Router::new()
         // Middleware qui injecte le <base> (ou meta) dynamique
-        .layer(ServiceBuilder::new().layer(middleware::from_fn(base_inject_middleware)))
+        .layer(middleware::from_fn(base_inject_middleware))
         // Routes API
         .nest("/", api_router)
         // Service statique (fallback SPA)
@@ -326,8 +321,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+    axum::serve(listener, app)
+        .with_connect_info::<SocketAddr>(ConnectInfo)
         .await?;
 
     Ok(())
