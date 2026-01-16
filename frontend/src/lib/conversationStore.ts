@@ -34,7 +34,7 @@ export async function loadConversations(): Promise<void> {
 
     const data = await resp.json();
     conversations = data.conversations ?? [];
-    connectionError = null;
+    connectionError.set(null);
 
     // Sélectionner automatiquement la première conversation si aucune n'est active
     if (!activeConversationId && data.conversations?.length) {
@@ -43,7 +43,7 @@ export async function loadConversations(): Promise<void> {
       await loadParticipants(firstId);
     }
   } catch (err) {
-    connectionError = 'Erreur de chargement des conversations';
+    connectionError.set('Erreur de chargement des conversations');
     console.error('Erreur chargement conversations :', err);
   }
 }
@@ -58,9 +58,9 @@ export async function loadParticipants(conversationId: string): Promise<void> {
 
     const data = await resp.json();
     participants = data.participants ?? [];
-    connectionError = null;
+    connectionError.set(null);
   } catch (err) {
-    connectionError = 'Erreur de chargement des participants';
+    connectionError.set('Erreur de chargement des participants');
     console.error('Erreur chargement participants :', err);
   }
 }
@@ -74,9 +74,9 @@ export async function loadAvailableUsers(): Promise<void> {
 
     const data = await resp.json();
     availableUsers = data.users ?? [];
-    connectionError = null;
+    connectionError.set(null);
   } catch (err) {
-    connectionError = 'Erreur de chargement des utilisateurs';
+    connectionError.set('Erreur de chargement des utilisateurs');
     console.error('Erreur chargement utilisateurs :', err);
   }
 }
@@ -120,11 +120,11 @@ export async function createConversation(
     // Sélectionner la nouvelle conversation
     activeConversationId = newConv.id;
     await loadParticipants(newConv.id);
-    connectionError = null;
+    connectionError.set(null);
     return newConv;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    connectionError = msg;
+    connectionError.set(msg);
     console.error('Erreur création conversation :', err);
     throw err;
   }
@@ -146,9 +146,9 @@ export async function addParticipantToConversation(
 
     // Recharger la liste des participants
     await loadParticipants(conversationId);
-    connectionError = null;
+    connectionError.set(null);
   } catch (err) {
-    connectionError = "Erreur lors de l'ajout du participant";
+    connectionError.set("Erreur lors de l'ajout du participant");
     console.error("Erreur ajout participant :", err);
   }
 }
@@ -172,9 +172,9 @@ export async function leaveConversation(conversationId: string): Promise<void> {
       if (newActive) await loadParticipants(newActive);
     }
 
-    connectionError = null;
+    connectionError.set(null);
   } catch (err) {
-    connectionError = 'Erreur lors du départ de la conversation';
+    connectionError.set('Erreur lors du départ de la conversation');
     console.error('Erreur départ conversation :', err);
   }
 }
@@ -198,9 +198,9 @@ export async function deleteConversation(conversationId: string): Promise<void> 
       if (newActive) await loadParticipants(newActive);
     }
 
-    connectionError = null;
+    connectionError.set(null);
   } catch (err) {
-    connectionError = 'Erreur lors de la suppression de la conversation';
+    connectionError.set('Erreur lors de la suppression de la conversation');
     console.error('Erreur suppression conversation :', err);
   }
 }
