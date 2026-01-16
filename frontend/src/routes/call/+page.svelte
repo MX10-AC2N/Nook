@@ -30,7 +30,17 @@
   let incomingCallConvId = $state('');
 
   // Ajout pour l'accessibilité : référence au contenu du modal
-  let incomingModalElement = $state<HTMLElement | undefined>(undefined);
+  let modalOverlay = $state<HTMLElement | undefined>(undefined);
+
+$effect(() => {
+  if (showIncomingCallModal && modalOverlay) {
+    // Focus sur le bouton Accepter (premier interactif)
+    const acceptBtn = modalOverlay.querySelector('.accept-btn') as HTMLButtonElement | null;
+    if (acceptBtn) {
+      acceptBtn.focus();
+    }
+  }
+});
 
   // -----------------------------------------------------------------
   // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
@@ -372,54 +382,42 @@
            MODAL APPEL ENTRANT (corrigé pour a11y)
            ----------------------------------------------------------------- -->
       {#if showIncomingCallModal}
-        <div
-          class="modal-overlay"
-          onclick={closeIncomingCallModal}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Appel entrant"
-          tabindex="-1"
-          onkeydown={handleKeydown}
-        >
-          <div
-            bind:this={incomingModalElement}
-            class="incoming-call-modal"
-            role="document"
-            tabindex="0"
-            onkeydown={handleKeydown}
-            onclick={(e) => e.stopPropagation()}
-          >
-            <div class="caller-avatar" aria-hidden="true">
-              <span>✆</span>
-            </div>
+  <div
+    bind:this={modalOverlay} <!-- nouvelle référence -->
+    class="modal-overlay"
+    onclick={closeIncomingCallModal}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Appel entrant"
+    tabindex="-1"
+    onkeydown={handleKeydown}
+  >
+    <div
+      class="incoming-call-modal"
+      role="document"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Le contenu reste identique -->
+      <div class="caller-avatar" aria-hidden="true">
+        <span>✆</span>
+      </div>
 
-            <h2 class="caller-name">Appel entrant</h2>
-            <p class="caller-from">De : {incomingCallFrom}</p>
-            <p class="call-info-text">Vous avez un appel entrant</p>
+      <h2 class="caller-name">Appel entrant</h2>
+      <p class="caller-from">De : {incomingCallFrom}</p>
+      <p class="call-info-text">Vous avez un appel entrant</p>
 
-            <div class="call-actions">
-              <button
-                onclick={acceptCall}
-                class="accept-btn"
-                aria-label="Accepter l'appel"
-              >
-                ✅ Accepter
-              </button>
+      <div class="call-actions">
+        <button onclick={acceptCall} class="accept-btn" aria-label="Accepter l'appel">
+          ✅ Accepter
+        </button>
 
-              <button
-                onclick={rejectCall}
-                class="reject-btn"
-                aria-label="Rejeter l'appel"
-              >
-                ❌ Rejeter
-              </button>
-            </div>
-          </div>
-        </div>
-      {/if}
+        <button onclick={rejectCall} class="reject-btn" aria-label="Rejeter l'appel">
+          ❌ Rejeter
+        </button>
+      </div>
     </div>
-  {/if}
-</div>
+  </div>
+{/if}
 
 <style>
   * { box-sizing: border-box; }
