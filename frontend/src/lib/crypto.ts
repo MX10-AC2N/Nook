@@ -1,13 +1,17 @@
 // src/lib/crypto.ts
-// Svelte 5 avec runes – fonctions cryptographiques basées sur libsodium‑wrappers
+// Svelte 5 – fonctions cryptographiques basées sur libsodium‑wrappers
 
-import { waitForSodium } from './sodium';
+import { waitForSodium } from '$lib/sodium';
 import { authUser } from './authStore';
 
-/**
- * Concatène plusieurs Uint8Array en un seul Uint8Array.
- * Utilisé pour assembler le nonce + la clé chiffrée.
- */
+/* -----------------------------------------------------------------
+   Types exportés
+   ----------------------------------------------------------------- */
+export type Sodium = typeof import('libsodium-wrappers');
+
+/* -----------------------------------------------------------------
+   Helper interne – concaténation de Uint8Array (déjà utilisé plus bas)
+   ----------------------------------------------------------------- */
 function concatUint8(...arrays: Uint8Array[]): Uint8Array {
   const total = arrays.reduce((sum, a) => sum + a.length, 0);
   const result = new Uint8Array(total);
@@ -20,19 +24,61 @@ function concatUint8(...arrays: Uint8Array[]): Uint8Array {
 }
 
 /* -----------------------------------------------------------------
-   1️⃣ Génération d'une paire de clés (à faire à l'inscription)
+   0️⃣ Initialisation du système cryptographique
+   ----------------------------------------------------------------- */
+/**
+ * Initialise le sous‑système crypto.
+ *
+ * - Attend que `libsodium-wrappers` soit chargé (`waitForSodium`).
+ * - (Optionnel) crée une paire de clés persistante pour l’utilisateur
+ *   courant afin de vérifier que tout fonctionne.
+ *
+ * @returns {Promise<boolean>} `true` si tout s’est bien passé,
+ *                             `false` sinon.
+ */
+export async function initCryptoSystem(): Promise<boolean> {
+  try {
+    // 1️⃣ Attendre que libsodium soit prêt
+    const sodium: Sodium = await waitForSodium();
+
+    // 2️⃣ (Optionnel) Vérifier que les primitives essentielles existent.
+    //    Cette étape est surtout là pour attraper d’éventuels
+    //    problèmes de chargement WASM.
+    if (
+      !sodium.randombytes_buf ||
+      !sodium.crypto_box_keypair ||
+      !sodium.crypto_secretbox_easy
+    ) {
+      console.error('Libsodium ne fournit pas toutes les fonctions attendues.');
+      return false;
+    }
+
+    // 3️⃣ (Facultatif) Générer une paire de clés temporaire pour s’assurer
+    //    que la génération fonctionne. On ne persiste rien ici ; c’est juste
+    //    un « smoke test ».
+    const testKeyPair = sodium.crypto_box_keypair();
+    if (!testKeyPair.publicKey || !testKeyPair.privateKey) {
+      console.error('Échec du test de génération de clé.');
+      return false;
+    }
+
+    // Tout est OK !
+    return true;
+  } catch (err) {
+    console.error('initCryptoSystem : erreur pendant l’initialisation', err);
+    return false;
+  }
+}
+
+/* -----------------------------------------------------------------
+   1️⃣ Génération d’une paire de clés (exemple d’usage public)
    ----------------------------------------------------------------- */
 export async function generateKeyPair(): Promise<{
   publicKey: Uint8Array;
   privateKey: Uint8Array;
 }> {
-  try {
-    const sodium = await waitForSodium();
-    return sodium.crypto_box_keypair();
-  } catch (e) {
-    console.error('Erreur lors de la génération de la paire de clés :', e);
-    throw e;
-  }
+  const sodium = await waitForSodium();
+  return sodium.crypto_box_keypair();
 }
 
 /* -----------------------------------------------------------------
@@ -40,59 +86,43 @@ export async function generateKeyPair(): Promise<{
    ----------------------------------------------------------------- */
 export async function encryptForRecipients(
   message: string | Uint8Array,
-  recipientPublicKeys: Uint8Array[], // tableau des clés publiques des destinataires
+  recipientPublicKeys: Uint8Array[],
   senderPrivateKey: Uint8Array
 ): Promise<{
   encryptedContent: Uint8Array;
-  encryptedKeys: Record<string, Uint8Array>; // { recipientId: nonce+encryptedKey }
+  encryptedKeys: Record<string, Uint8Array>;
   nonce: Uint8Array;
 }> {
-  try {
-    const sodium = await waitForSodium();
+  const sodium = await waitForSodium();
 
-    // 1️⃣ Générer une clé de session symétrique (random)
-    const sessionKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
+  // Clé de session symétrique
+  const sessionKey = sodium.randombytes_buf(sodium.crypto_secretbox_KEYBYTES);
 
-    // 2️⃣ Chiffrer le contenu avec cette clé (crypto_secretbox)
-    const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-    const contentBytes =
-      typeof message === 'string' ? sodium.from_string(message) : message;
-    const encryptedContent = sodium.crypto_secretbox_easy(
-      contentBytes,
-      nonce,
-      sessionKey
+  // Chiffrement du contenu
+  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+  const contentBytes =
+    typeof message === 'string' ? sodium.from_string(message) : message;
+  const encryptedContent = sodium.crypto_secretbox_easy(
+    contentBytes,
+    nonce,
+    sessionKey
+  );
+
+  // Chiffrement de la clé de session pour chaque destinataire
+  const encryptedKeys: Record<string, Uint8Array> = {};
+  recipientPublicKeys.forEach((pubKey, idx) => {
+    const recipientId = `recipient_${idx}`;
+    const asymNonce = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES);
+    const encryptedKey = sodium.crypto_box_easy(
+      sessionKey,
+      asymNonce,
+      pubKey,
+      senderPrivateKey
     );
+    encryptedKeys[recipientId] = concatUint8(asymNonce, encryptedKey);
+  });
 
-    // 3️⃣ Chiffrer la clé de session pour chaque destinataire (crypto_box)
-    const encryptedKeys: Record<string, Uint8Array> = {};
-
-    recipientPublicKeys.forEach((pubKey, idx) => {
-      const recipientId = `recipient_${idx}`;
-
-      // Nonce dédié au chiffrement asymétrique
-      const asymNonce = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES);
-
-      // Chiffrement de la clé de session
-      const encryptedKey = sodium.crypto_box_easy(
-        sessionKey,
-        asymNonce,
-        pubKey,
-        senderPrivateKey
-      );
-
-      // Stockage du nonce + clé chiffrée concaténés
-      encryptedKeys[recipientId] = concatUint8(asymNonce, encryptedKey);
-    });
-
-    return {
-      encryptedContent,
-      encryptedKeys,
-      nonce,
-    };
-  } catch (e) {
-    console.error('Erreur lors du chiffrement pour les destinataires :', e);
-    throw e;
-  }
+  return { encryptedContent, encryptedKeys, nonce };
 }
 
 /* -----------------------------------------------------------------
@@ -100,38 +130,30 @@ export async function encryptForRecipients(
    ----------------------------------------------------------------- */
 export async function decryptMessage(
   encryptedContent: Uint8Array,
-  encryptedKeyData: Uint8Array, // nonce + clé chiffrée
+  encryptedKeyData: Uint8Array,
   senderPublicKey: Uint8Array,
   recipientPrivateKey: Uint8Array,
   nonce: Uint8Array
 ): Promise<string> {
-  try {
-    const sodium = await waitForSodium();
+  const sodium = await waitForSodium();
 
-    // Extraire le nonce et la clé chiffrée
-    const asymNonce = encryptedKeyData.slice(0, sodium.crypto_box_NONCEBYTES);
-    const encryptedKey = encryptedKeyData.slice(sodium.crypto_box_NONCEBYTES);
+  const asymNonce = encryptedKeyData.slice(0, sodium.crypto_box_NONCEBYTES);
+  const encryptedKey = encryptedKeyData.slice(sodium.crypto_box_NONCEBYTES);
 
-    // Déchiffrer la clé de session
-    const sessionKey = sodium.crypto_box_open_easy(
-      encryptedKey,
-      asymNonce,
-      senderPublicKey,
-      recipientPrivateKey
-    );
+  const sessionKey = sodium.crypto_box_open_easy(
+    encryptedKey,
+    asymNonce,
+    senderPublicKey,
+    recipientPrivateKey
+  );
 
-    // Déchiffrer le contenu du message
-    const decrypted = sodium.crypto_secretbox_open_easy(
-      encryptedContent,
-      nonce,
-      sessionKey
-    );
+  const decrypted = sodium.crypto_secretbox_open_easy(
+    encryptedContent,
+    nonce,
+    sessionKey
+  );
 
-    return sodium.to_string(decrypted);
-  } catch (e) {
-    console.error('Erreur lors du déchiffrement du message :', e);
-    throw e;
-  }
+  return sodium.to_string(decrypted);
 }
 
 /* -----------------------------------------------------------------
@@ -141,89 +163,66 @@ export async function encryptPrivateKey(
   privateKey: Uint8Array,
   password: string
 ): Promise<string> {
-  try {
-    const sodium = await waitForSodium();
+  const sodium = await waitForSodium();
 
-    // 1️⃣ Sel aléatoire
-    const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES);
+  const salt = sodium.randombytes_buf(sodium.crypto_pwhash_SALTBYTES);
+  const key = sodium.crypto_pwhash(
+    sodium.crypto_secretbox_KEYBYTES,
+    password,
+    salt,
+    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_ALG_DEFAULT
+  );
 
-    // 2️⃣ Dérivation de la clé à partir du mot de passe
-    const key = sodium.crypto_pwhash(
-      sodium.crypto_secretbox_KEYBYTES,
-      password,
-      salt,
-      sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-      sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-      sodium.crypto_pwhash_ALG_DEFAULT
-    );
+  const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
+  const encrypted = sodium.crypto_secretbox_easy(privateKey, nonce, key);
 
-    // 3️⃣ Chiffrement de la clé privée
-    const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-    const encrypted = sodium.crypto_secretbox_easy(privateKey, nonce, key);
-
-    // 4️⃣ Encodage base64 (salt + nonce + ciphertext)
-    const payload = concatUint8(salt, nonce, encrypted);
-    return sodium.to_base64(payload, sodium.base64_variants.ORIGINAL);
-  } catch (e) {
-    console.error('Erreur lors du chiffrement de la clé privée :', e);
-    throw e;
-  }
+  const payload = concatUint8(salt, nonce, encrypted);
+  return sodium.to_base64(payload, sodium.base64_variants.ORIGINAL);
 }
 
 export async function decryptPrivateKey(
   encryptedData: string,
   password: string
 ): Promise<Uint8Array> {
-  try {
-    const sodium = await waitForSodium();
+  const sodium = await waitForSodium();
 
-    // Décodage base64
-    const data = sodium.from_base64(
-      encryptedData,
-      sodium.base64_variants.ORIGINAL
-    );
+  const data = sodium.from_base64(
+    encryptedData,
+    sodium.base64_variants.ORIGINAL
+  );
 
-    // Extraire salt, nonce et ciphertext
-    const salt = data.slice(0, sodium.crypto_pwhash_SALTBYTES);
-    const nonce = data.slice(
-      sodium.crypto_pwhash_SALTBYTES,
-      sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
-    );
-    const ciphertext = data.slice(
-      sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
-    );
+  const salt = data.slice(0, sodium.crypto_pwhash_SALTBYTES);
+  const nonce = data.slice(
+    sodium.crypto_pwhash_SALTBYTES,
+    sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
+  );
+  const ciphertext = data.slice(
+    sodium.crypto_pwhash_SALTBYTES + sodium.crypto_secretbox_NONCEBYTES
+  );
 
-    // Dériver la clé à partir du mot de passe
-    const key = sodium.crypto_pwhash(
-      sodium.crypto_secretbox_KEYBYTES,
-      password,
-      salt,
-      sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-      sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-      sodium.crypto_pwhash_ALG_DEFAULT
-    );
+  const key = sodium.crypto_pwhash(
+    sodium.crypto_secretbox_KEYBYTES,
+    password,
+    salt,
+    sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE,
+    sodium.crypto_pwhash_ALG_DEFAULT
+  );
 
-    // Déchiffrer la clé privée
-    const privateKey = sodium.crypto_secretbox_open_easy(
-      ciphertext,
-      nonce,
-      key
-    );
+  const privateKey = sodium.crypto_secretbox_open_easy(
+    ciphertext,
+    nonce,
+    key
+  );
 
-    return privateKey;
-  } catch (e) {
-    console.error('Erreur lors du déchiffrement de la clé privée :', e);
-    throw e;
-  }
+  return privateKey;
 }
 
 /* -----------------------------------------------------------------
    5️⃣ Stockage et récupération des clés
    ----------------------------------------------------------------- */
-
-/**
- * Stocke les clés de l'utilisateur dans le localStorage.
- */
 export async function storeUserKeys(
   userId: string,
   publicKey: Uint8Array,
@@ -240,9 +239,6 @@ export async function storeUserKeys(
   localStorage.setItem(key, JSON.stringify(data));
 }
 
-/**
- * Récupère les clés de l'utilisateur depuis le localStorage.
- */
 export async function getStoredKeys(
   userId: string
 ): Promise<{ publicKey: Uint8Array; encryptedPrivateKey: string } | null> {
@@ -263,12 +259,8 @@ export async function getStoredKeys(
   }
 }
 
-/**
- * Supprime les clés de l'utilisateur du localStorage.
- */
 export function clearStoredKeys(userId: string): void {
   if (typeof window === 'undefined') return;
-
   const key = `nook_keys_${userId}`;
   localStorage.removeItem(key);
 }
