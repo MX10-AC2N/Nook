@@ -16,12 +16,12 @@ use axum::{
 };
 use chrono::Utc;
 use sqlx::SqlitePool;
+use std::convert::Infallible;
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
-use std::convert::Infallible;
 
 // ---------------------------------------------------------------------
 // Modules de l'application
@@ -87,7 +87,7 @@ async fn base_inject_middleware(
         if ct.to_str().unwrap_or("").starts_with("text/html") {
             // Décomposer la réponse pour récupérer les parties
             let (parts, body) = resp.into_parts();
-            
+
             // Lire le corps complet
             let whole_body = to_bytes(body, 10_000_000) // 10MB limit
                 .await
@@ -403,7 +403,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    
+
     // Plus besoin de with_connect_info dans Axum 0.7
     axum::serve(listener, app).await?;
 
