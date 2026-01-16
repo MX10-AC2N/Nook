@@ -4,6 +4,9 @@
   import { login } from '$lib/auth.js';
   import { onMount } from 'svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { getPendingKeys, clearPendingKeys } from '$lib/crypto';
+
+
 
   // -----------------------------------------------------------------
   // Reactive state (Svelte 5)
@@ -33,12 +36,27 @@
       // Met à jour le store d'authentification
       setAuthenticated(user, user.role === 'admin');
 
-      // Redirection selon le besoin
       if (user.needs_password_change) {
-        goto('/change-password');
-      } else {
-        goto('/chat');
-      }
+  // Charger les pending keys pour les passer à la page change-password
+  const pending = await getPendingKeys(username); // username = memberId
+  if (!pending) {
+    error = 'Clés cryptographiques manquantes. Veuillez recommencer le processus d\'invitation.';
+    loading = false;
+    return;
+  }
+
+  // Option 1 : Stocker temporairement dans localStorage (simple)
+  localStorage.setItem('nook_temp_pending_keys', JSON.stringify({
+    publicKey: Array.from(pending.publicKey),
+    privateKey: Array.from(pending.privateKey)
+  }));
+
+  goto('/change-password');
+} else {
+  // Connexion normale (clés déjà chiffrées)
+  goto('/chat');
+}
+  
     } catch (err: any) {
       console.error('Erreur de connexion :', err);
       // Le backend renvoie souvent { message: '…' }
