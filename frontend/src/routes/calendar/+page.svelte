@@ -216,7 +216,7 @@
       <button class="nav-btn" onclick={nextMonth}>→</button>
     </div>
 
-    <!-- -----------------------------------------------------------------
+      <!-- -----------------------------------------------------------------
      CALENDAR GRID
      ----------------------------------------------------------------- -->
 <div class="calendar-grid">
@@ -233,7 +233,7 @@
     <div class="calendar-day empty"></div>
   {/each}
 
-  <!-- Jours du mois - CORRIGÉ -->
+  <!-- Jours du mois -->
   {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
     {@const day = i + 1}
     {@const dayEvents = getEventsForDay(day)}
