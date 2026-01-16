@@ -324,10 +324,10 @@ jobs:
             fi
           done
           
-          if [ ! -d "$BUILD_DIR/_app" ]; then
-            echo "⚠️ _app absent"
+          if [ ! -d "$BUILD_DIR/app" ]; then
+            echo "⚠️ app absent"
           else
-            echo "✅ _app présent"
+            echo "✅ app présent"
           fi
           
           if [ ${#MISSING_FILES[@]} -gt 0 ]; then
