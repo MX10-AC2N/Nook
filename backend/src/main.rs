@@ -86,7 +86,7 @@ async fn base_inject_middleware(
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
             // Lire le corps complet
-            let whole_body = to_bytes(/* Body */, /* usize */)
+            let whole_body = to_bytes(resp.body_mut(), 10_000_000) // 10MB limit
                 .await
                 .unwrap_or_else(|_| Bytes::new());
 
