@@ -48,7 +48,7 @@
   // 3️⃣ Valeurs dérivées (déclarations réactives)
   // -----------------------------------------------------------------
   // Thème complet (objet) correspondant à l’id sélectionné
-  $: currentThemeInfo = availableThemes.find(t => t.id === selectedTheme);
+  let currentThemeInfo = $derived(availableThemes.find(t => t.id === selectedTheme));
 
   // -----------------------------------------------------------------
   // 4️⃣ Gestion du focus clavier (esc) et du clic extérieur
