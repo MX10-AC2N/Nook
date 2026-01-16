@@ -251,8 +251,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/change-password", post(auth::change_password))
+        .route("/api/auth/register", post(auth::register))
         // Join
         .route("/api/join", post(invites::join))
+        .route("/api/invite/validate", get(invites::validate_invite))
+        .route("/api/invite/accept", post(invites::accept_invite))
         // Conversations
         .route("/api/conversations", get(db::get_user_conversations))
         .route("/api/conversations", post(db::create_conversation))
