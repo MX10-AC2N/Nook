@@ -15,7 +15,10 @@
   let appError = $state<string | null>(null);
   let loading = $state(true);
   let cryptoInitialized = $state(false);
-  let cryptoError = $state<string | null>(null);
+  let cryptoError = $ $state<string | null>(null);
+
+  // Référence pour gérer le focus
+  let menuElement: HTMLElement;
 
   const navItems = [
     { path: '/chat', label: '💬 Chat', requiresAuth: true },
@@ -27,6 +30,9 @@
 
   function toggleMenu() {
     showMenu = !showMenu;
+    if (showMenu && menuElement) {
+      menuElement.focus(); // Focus automatique sur le menu à l'ouverture
+    }
   }
 
   function closeMenu() {
@@ -167,15 +173,24 @@
   </header>
 
   {#if showMenu}
+    <!-- Overlay pour fermer en cliquant dehors -->
     <button 
       class="menu-overlay" 
       onclick={closeMenu}
+      onkeydown={handleMenuKeydown}
       aria-label="Fermer le menu"
+      aria-hidden={!showMenu}
     ></button>
-    <nav 
+
+    <!-- Menu latéral corrigé -->
+    <aside 
+      bind:this={menuElement}
       class="menu" 
-      role="dialog" 
+      role="dialog"
+      aria-modal="true"
       aria-label="Menu de navigation"
+      tabindex="0"
+      onkeydown={handleMenuKeydown}
       onclick={(e) => e.stopPropagation()}
     >
       <div class="menu-header">
@@ -207,7 +222,7 @@
           </button>
         {/if}
       </div>
-    </nav>
+    </aside>
   {/if}
 
   <main class="app-main">
