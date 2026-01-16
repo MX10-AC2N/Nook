@@ -24,7 +24,7 @@
   // -----------------------------------------------------------------
   // 3️⃣ src est **réactif** – il se met à jour dès que `name` change
   // -----------------------------------------------------------------
-  $: src =
+  let src = $derived(
     name === 'logo'
       ? '/logo-animated.svg'
       : `${basePath}/${name}.svg`;
