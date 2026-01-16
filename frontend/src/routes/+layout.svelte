@@ -15,7 +15,7 @@
   let appError = $state<string | null>(null);
   let loading = $state(true);
   let cryptoInitialized = $state(false);
-  let cryptoError = $ $state<string | null>(null);
+  let cryptoError = $state<string | null>(null);
 
   // Référence pour gérer le focus
   let menuElement: HTMLElement;
