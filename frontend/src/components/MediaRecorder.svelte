@@ -14,15 +14,15 @@
   export let disabled: boolean = false;
 
   // -----------------------------------------------------------------
-  // UI state
+  // UI state (Svelte 5)
   // -----------------------------------------------------------------
-  let isHovered = false;
-  let countdown = 3;
-  let showCountdown = false;
+  let isHovered = $state(false);
+  let countdown = $state(3);
+  let showCountdown = $state(false);
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
   // Drag‑and‑drop UI
-  let isDragging = false;
+  let isDragging = $state(false);
   let dragTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Permissions (audio / video)
@@ -137,14 +137,14 @@
     const isVideo = file.type.startsWith('video/');
     if (!isAudio && !isVideo) {
       connectionError.set(
-        'Type de fichier non supporté : seuls les fichiers audio et vidéo sont acceptés.'
+        'Type de fichier non supporté : seuls les fichiers audio et vidéo sont acceptés.'
       );
       return;
     }
 
-    // ---- Taille maximale (50 Mo) ----
+    // ---- Taille maximale (50 Mo) ----
     if (file.size > 50 * 1024 * 1024) {
-      connectionError.set('Fichier trop volumineux : la limite est de 50 Mo.');
+      connectionError.set('Fichier trop volumineux : la limite est de 50 Mo.');
       return;
     }
 
@@ -159,7 +159,7 @@
     }
 
     // Demander le mot de passe si besoin
-    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le média :');
+    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le média :');
     if (!password) return;
 
     const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
@@ -168,7 +168,7 @@
     const convParticipants = get(participants);
     const recipientPublicKeys = convParticipants
       .filter((p) => p.id !== user.id)
-      .map(() => stored.publicKey); // 👉 TODO : remplacer par les vraies clés publiques du serveur
+      .map(() => stored.publicKey); // 👉 TODO : remplacer par les vraies clés publiques du serveur
 
     // ---- Créer le Blob et envoyer ----
     const blob = new Blob([await file.arrayBuffer()], { type: file.type });
@@ -198,13 +198,13 @@
       return true;
     } catch (e) {
       connectionError.set(`Permission ${kind} refusée`);
-      console.error(`Permission ${kind} refusée :`, e);
+      console.error(`Permission ${kind} refusée :`, e);
       return false;
     }
   }
 
   // -----------------------------------------------------------------
-  // Gestion du bouton d’enregistrement (audio / vidéo)
+  // Gestion du bouton d'enregistrement (audio / vidéo)
   // -----------------------------------------------------------------
   async function handleRecordClick(mediaType: 'audio' | 'video') {
     const { audio, video } = get(hasPermission);
@@ -236,7 +236,7 @@
   }
 
   // -----------------------------------------------------------------
-  // Contrôles d’enregistrement
+  // Contrôles d'enregistrement
   // -----------------------------------------------------------------
   function handleStopRecording() {
     // `true` → on envoie le message
@@ -249,7 +249,7 @@
   }
 
   // -----------------------------------------------------------------
-  // Envoi d’un enregistrement déjà stoppé (si on veut le déclencher manuellement)
+  // Envoi d'un enregistrement déjà stoppé (si on veut le déclencher manuellement)
   // -----------------------------------------------------------------
   async function handleSendRecording() {
     const state = get(recordingState);
@@ -272,7 +272,7 @@
       return;
     }
 
-    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le message :');
+    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le message :');
     if (!password) return;
 
     const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
@@ -280,7 +280,7 @@
     const convParticipants = get(participants);
     const recipientPublicKeys = convParticipants
       .filter((p) => p.id !== user.id)
-      .map(() => stored.publicKey); // 👉 TODO : récupérer les vraies clés publiques
+      .map(() => stored.publicKey); // 👉 TODO : récupérer les vraies clés publiques
 
     await sendMediaMessage(
       blob,
@@ -315,10 +315,10 @@
     </div>
 
     <div class="recording-buttons">
-      <button class="cancel-button" on:click={handleCancelRecording} aria-label="Annuler l'enregistrement">
+      <button class="cancel-button" onclick={handleCancelRecording} aria-label="Annuler l'enregistrement">
         ✕
       </button>
-      <button class="stop-button" on:click={handleStopRecording} aria-label="Arrêter l'enregistrement">
+      <button class="stop-button" onclick={handleStopRecording} aria-label="Arrêter l'enregistrement">
         ■
       </button>
     </div>
@@ -334,22 +334,22 @@
   <!-- ==================== BOUTONS DE CONTROLE ==================== -->
   <div
     class="media-controls {isDragging ? 'dragging' : ''}"
-    on:mouseenter={() => (isHovered = true)}
-    on:mouseleave={() => (isHovered = false)}
+    onmouseenter={() => (isHovered = true)}
+    onmouseleave={() => (isHovered = false)}
   >
     {#if isDragging}
       <div class="drag-overlay">
         <div class="drag-content">
           <span class="drag-icon">📁</span>
           <p>Déposez votre fichier audio/vidéo ici</p>
-          <p class="drag-subtext">Max 50 Mo – sécurisé & chiffré</p>
+          <p class="drag-subtext">Max 50 Mo – sécurisé & chiffré</p>
         </div>
       </div>
     {/if}
 
     <button
       class="media-button audio"
-      on:click={() => handleRecordClick('audio')}
+      onclick={() => handleRecordClick('audio')}
       disabled={disabled}
       aria-label="Enregistrer un message audio"
     >
@@ -358,7 +358,7 @@
 
     <button
       class="media-button video"
-      on:click={() => handleRecordClick('video')}
+      onclick={() => handleRecordClick('video')}
       disabled={disabled || !$hasPermission.video}
       aria-label="Enregistrer un message vidéo"
     >
@@ -372,7 +372,7 @@
         id="media-file-input"
         accept="audio/*,video/*"
         hidden
-        on:change={handleFileUpload}
+        onchange={handleFileUpload}
       />
     </label>
   </div>
@@ -562,4 +562,42 @@
   .drag-overlay {
     position: absolute;
     inset: 0;
-    background:
+    background: rgba(255, 152, 0, 0.95);
+    border-radius: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 5;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .drag-content {
+    text-align: center;
+    color: white;
+  }
+
+  .drag-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  .drag-content p {
+    margin: 0.25rem 0;
+    font-weight: 600;
+  }
+
+  .drag-subtext {
+    font-size: 0.85rem;
+    opacity: 0.9;
+  }
+</style>
