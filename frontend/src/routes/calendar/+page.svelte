@@ -235,8 +235,8 @@
 
   <!-- Jours du mois - CORRIGÉ -->
   {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
-    {#const day = i + 1}
-    {#const dayEvents = getEventsForDay(day)}
+    {@const day = i + 1}
+    {@const dayEvents = getEventsForDay(day)}
     <div class="calendar-day">
       <div class="day-number">{day}</div>
       <div class="day-events">
