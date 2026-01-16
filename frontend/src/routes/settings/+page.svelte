@@ -46,13 +46,13 @@
   // 3️⃣ Initialisation (auth + thème)
   // -----------------------------------------------------------------
   onMount(() => {
-    if (!$isAuthenticated) {
+    if (!isAuthenticated) {
       goto('/login');
       return;
     }
 
-    if ($authUser) {
-      userName = $authUser.name ?? '';
+    if (authUser) {
+      userName = authUser.name ?? '';
     }
 
     loadTheme();
@@ -248,6 +248,7 @@
     >
       Apparence
     </button>
+  </div> <!-- Fermeture du div.tabs -->
 
   <!-- -----------------------------------------------------------------
        PROFIL
@@ -272,7 +273,7 @@
           <input
             type="text"
             id="userId"
-            value={$authUser?.id ?? ''}
+            value={authUser?.id ?? ''}
             disabled
             aria-describedby="userId-hint"
           />
@@ -374,7 +375,8 @@
           </div>
         </label>
       </div>
-    </section>
+    </div> <!-- Fermeture du div.settings-section (pas </section>) -->
+
   {/if}
 
   <!-- -----------------------------------------------------------------
