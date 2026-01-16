@@ -325,15 +325,15 @@
                     <td class="link">
                       <code>{invite.token.slice(0, 12)}…</code>
                       <button
-                        onclick={() => {
-                          if (typeof window !== 'undefined')
-                            navigator.clipboard.writeText(
-                              `${window.location.origin}/join?token=${invite.token}`
-                            );
-                        }}
-                      >
-                        Copier
-                      </button>
+  onclick={() => {
+    if (typeof window !== 'undefined')
+      navigator.clipboard.writeText(
+        `${window.location.origin}/invite?token=${invite.token}` // Changé ici
+      );
+  }}
+>
+  Copier
+</button>
                     </td>
                     <td>
                       <button
