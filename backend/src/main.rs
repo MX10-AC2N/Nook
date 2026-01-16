@@ -14,29 +14,29 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use chrono::Utc;
 use futures::future::BoxFuture;
-use std::{convert::Infallible, net::SocketAddr, sync::Arc, path::PathBuf, fs};
 use sqlx::SqlitePool;
+use std::{convert::Infallible, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::{CorsLayer, Any},
+    cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
-use chrono::Utc;
 
 // ---------------------------------------------------------------------
 // Modules de l'application
 // ---------------------------------------------------------------------
-mod db;
-mod auth;
-mod webrtc;
-mod upload;
-mod prune;
-mod invites;
 mod admin;
+mod auth;
+mod db;
+mod invites;
+mod prune;
+mod upload;
+mod webrtc;
 
-use webrtc::{WebRtcState, FileManager};
 use crate::prune::prune_old_data;
+use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
 // Structure d'état partagé
@@ -51,7 +51,10 @@ pub struct SharedState {
 // ---------------------------------------------------------------------
 // 1️⃣ Middleware – injection du <base> (ou meta) à la volée
 // ---------------------------------------------------------------------
-async fn base_inject_middleware<B>(mut req: Request<B>, next: Next<B>) -> Result<Response<Body>, Infallible>
+async fn base_inject_middleware<B>(
+    mut req: Request<B>,
+    next: Next<B>,
+) -> Result<Response<Body>, Infallible>
 where
     B: Send + 'static,
 {
@@ -262,7 +265,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/conversations/:id", get(db::get_conversation))
         .route("/api/conversations/:id/join", post(db::join_conversation))
         // Messages
-        .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
+        .route(
+            "/api/conversations/:id/messages",
+            get(db::get_conversation_messages),
+        )
         .route("/api/conversations/:id/messages", post(db::send_message))
         // Uploads
         .route("/api/upload", post(upload::upload_handler))
@@ -292,7 +298,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 6️⃣ Service statique (frontend SPA) avec fallback
     // -------------------------------------------------
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+    eprintln!(
+        "[Static] Servir les fichiers frontend depuis : {}",
+        static_path
+    );
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true) // / → /index.html

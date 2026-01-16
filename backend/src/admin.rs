@@ -1,6 +1,6 @@
 // backend/src/admin.rs - Gestion admin : utilisateurs + invitations
 
-use crate::{db::User, SharedState, auth::get_cookie};
+use crate::{auth::get_cookie, db::User, SharedState};
 use axum::{
     extract::State as AxumState,
     http::{HeaderMap, StatusCode},
@@ -43,7 +43,10 @@ pub struct InviteInfo {
 }
 
 // Utilitaire : Récupère l'utilisateur courant + vérifie admin
-async fn get_admin_user(state: &Arc<SharedState>, headers: &HeaderMap) -> Result<User, (StatusCode, Json<serde_json::Value>)> {
+async fn get_admin_user(
+    state: &Arc<SharedState>,
+    headers: &HeaderMap,
+) -> Result<User, (StatusCode, Json<serde_json::Value>)> {
     let current_user: Option<User> = if let Some(cookie) = get_cookie(headers, "auth_token") {
         let parts = cookie.split(':').collect::<Vec<&str>>();
         if parts.len() == 2 {
@@ -66,7 +69,10 @@ async fn get_admin_user(state: &Arc<SharedState>, headers: &HeaderMap) -> Result
 
     match current_user {
         Some(u) if u.role == "admin" => Ok(u),
-        _ => Err((StatusCode::FORBIDDEN, Json(json!({"success": false, "message": "Accès refusé : admin requis"})))),
+        _ => Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"success": false, "message": "Accès refusé : admin requis"})),
+        )),
     }
 }
 
@@ -75,7 +81,7 @@ pub async fn pending_users(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    get_admin_user(&state, &headers).await?; // Guard admin
 
     let users: Vec<SimpleUser> = sqlx::query_as(
         "SELECT id, username, name, created_at, role, approved FROM users WHERE approved = 0 ORDER BY created_at DESC"
@@ -102,23 +108,30 @@ pub async fn all_users(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    get_admin_user(&state, &headers).await?; // Guard admin
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved FROM users ORDER BY created_at DESC"
+        "SELECT id, username, name, created_at, role, approved FROM users ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"message": "Erreur DB"})),
+        )
+    })?
     .into_iter()
-    .map(|u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
-        id: u.0,
-        username: u.1,
-        name: u.2,
-        created_at: u.3,
-        role: u.4,
-        approved: u.5,
-    })
+    .map(
+        |u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
+            id: u.0,
+            username: u.1,
+            name: u.2,
+            created_at: u.3,
+            role: u.4,
+            approved: u.5,
+        },
+    )
     .collect();
 
     Ok(Json(UsersResponse { users }))
@@ -135,7 +148,7 @@ pub async fn approve_user(
     headers: HeaderMap,
     Json(payload): Json<ApprovePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    get_admin_user(&state, &headers).await?; // Guard admin
 
     let result = sqlx::query("UPDATE users SET approved = 1 WHERE id = ?")
         .bind(&payload.user_id)
@@ -144,7 +157,10 @@ pub async fn approve_user(
 
     match result {
         Ok(res) if res.rows_affected() == 1 => Ok(Json(json!({"success": true}))),
-        _ => Err((StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Utilisateur non trouvé"})))),
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"success": false, "message": "Utilisateur non trouvé"})),
+        )),
     }
 }
 
@@ -153,7 +169,7 @@ pub async fn list_invites(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
 ) -> Result<Json<InvitesResponse>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    get_admin_user(&state, &headers).await?; // Guard admin
 
     let invites: Vec<InviteInfo> = sqlx::query_as(
         "SELECT id, token, created_at, expires_at, used, used_by, used_at FROM invites ORDER BY created_at DESC"
@@ -176,7 +192,7 @@ pub async fn delete_invite(
     headers: HeaderMap,
     Json(payload): Json<DeleteInvitePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    get_admin_user(&state, &headers).await?;  // Guard admin
+    get_admin_user(&state, &headers).await?; // Guard admin
 
     // Optionnel : empêcher suppression si used, mais frontend désactive déjà
 
@@ -187,7 +203,9 @@ pub async fn delete_invite(
 
     match result {
         Ok(res) if res.rows_affected() == 1 => Ok(Json(json!({"success": true}))),
-        _ => Err((StatusCode::BAD_REQUEST, Json(json!({"success": false, "message": "Invitation non trouvée"})))),
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"success": false, "message": "Invitation non trouvée"})),
+        )),
     }
 }
-

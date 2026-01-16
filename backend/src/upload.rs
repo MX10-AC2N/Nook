@@ -1,13 +1,13 @@
 // upload.rs - Gestion des uploads de fichiers avec chiffrement
 // Supporte les fichiers jusqu'à 50Mo avec encryption côté serveur
 
+use crate::{webrtc::encrypt_file_for_storage, SharedState};
 use axum::{
     extract::{Multipart, State as AxumState},
     response::IntoResponse,
     Json as AxumJson,
 };
 use chrono::Utc;
-use crate::{SharedState, webrtc::encrypt_file_for_storage};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -55,7 +55,10 @@ pub async fn upload_handler(
             }
         } else if name == "file" {
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
-            let content_type = field.content_type().map(|s| s.to_string()).unwrap_or_default();
+            let content_type = field
+                .content_type()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
 
             // Lire les données du fichier par chunks
             let mut data_vec = Vec::new();
@@ -99,8 +102,7 @@ pub async fn upload_handler(
 
     // Sauvegarder le fichier (chiffré si demandé)
     let (encrypted, nonce, key) = if data.is_encrypted {
-        let (ciphertext, nonce_b64, key_b64) =
-            encrypt_file_for_storage(&data.data);
+        let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
         if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
             eprintln!("[Upload] Erreur écriture fichier: {}", e);
             return (
@@ -150,7 +152,10 @@ pub async fn upload_handler(
     }
 
     // Enregistrer pour suivi d'expiration
-    state.file_manager.register_file(&file_id, storage_path).await;
+    state
+        .file_manager
+        .register_file(&file_id, storage_path)
+        .await;
 
     eprintln!(
         "[Upload] Fichier '{}' uploaded ({} bytes, encrypted: {})",
@@ -262,7 +267,10 @@ pub async fn upload_chat_file(
         );
     }
 
-    state.file_manager.register_file(&file_id, storage_path).await;
+    state
+        .file_manager
+        .register_file(&file_id, storage_path)
+        .await;
 
     eprintln!(
         "[Upload Chat] Fichier '{}' pour conversation {}",

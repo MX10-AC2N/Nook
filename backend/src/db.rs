@@ -2,9 +2,9 @@
 
 use axum::{
     extract::{Path, Query, State},
-    Extension,
     http::StatusCode,
     response::Json,
+    Extension,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -96,7 +96,7 @@ pub async fn create_conversation(
 
     sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO conversations (id, name, is_group, created_at, created_by, updated_at) 
-         VALUES (?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&req.name)
@@ -110,7 +110,7 @@ pub async fn create_conversation(
 
     sqlx::query::<sqlx::Sqlite>(
         "INSERT INTO conversation_participants (conversation_id, user_id, joined_at) 
-         VALUES (?, ?, ?)"
+         VALUES (?, ?, ?)",
     )
     .bind(&id)
     .bind(&user_id)
@@ -133,13 +133,12 @@ pub async fn get_conversation(
     State(state): State<Arc<crate::SharedState>>,
     Path(id): Path<String>,
 ) -> Result<Json<Conversation>, StatusCode> {
-    let conversation = sqlx::query_as::<_, Conversation>(
-        "SELECT * FROM conversations WHERE id = ?"
-    )
-    .bind(&id)
-    .fetch_one(&state.db)
-    .await
-    .map_err(|_| StatusCode::NOT_FOUND)?;
+    let conversation =
+        sqlx::query_as::<_, Conversation>("SELECT * FROM conversations WHERE id = ?")
+            .bind(&id)
+            .fetch_one(&state.db)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
 
     Ok(Json(conversation))
 }
@@ -152,7 +151,7 @@ pub async fn get_user_conversations(
         "SELECT c.* FROM conversations c 
          INNER JOIN conversation_participants cp ON c.id = cp.conversation_id 
          WHERE cp.user_id = ?
-         ORDER BY c.updated_at DESC"
+         ORDER BY c.updated_at DESC",
     )
     .bind(&user_id)
     .fetch_all(&state.db)
@@ -168,10 +167,10 @@ pub async fn join_conversation(
     Extension(user_id): Extension<String>,
 ) -> Result<StatusCode, StatusCode> {
     let now = chrono::Utc::now().timestamp();
-    
+
     sqlx::query::<sqlx::Sqlite>(
         "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at) 
-         VALUES (?, ?, ?)"
+         VALUES (?, ?, ?)",
     )
     .bind(&id)
     .bind(&user_id)
@@ -180,14 +179,12 @@ pub async fn join_conversation(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    sqlx::query::<sqlx::Sqlite>(
-        "UPDATE conversations SET updated_at = ? WHERE id = ?"
-    )
-    .bind(now)
-    .bind(&id)
-    .execute(&state.db)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query::<sqlx::Sqlite>("UPDATE conversations SET updated_at = ? WHERE id = ?")
+        .bind(now)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(StatusCode::OK)
 }
@@ -244,12 +241,12 @@ pub async fn get_conversation_messages(
     Query(params): Query<MessageQueryParams>,
 ) -> Result<Json<Vec<Message>>, StatusCode> {
     let limit = params.limit.unwrap_or(50);
-    
+
     let messages = if let Some(before) = params.before {
         sqlx::query_as::<_, Message>(
             "SELECT * FROM messages 
              WHERE conversation_id = ? AND created_at < ? 
-             ORDER BY created_at DESC LIMIT ?"
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(&id)
         .bind(before)
@@ -260,7 +257,7 @@ pub async fn get_conversation_messages(
         sqlx::query_as::<_, Message>(
             "SELECT * FROM messages 
              WHERE conversation_id = ? 
-             ORDER BY created_at DESC LIMIT ?"
+             ORDER BY created_at DESC LIMIT ?",
         )
         .bind(&id)
         .bind(limit)

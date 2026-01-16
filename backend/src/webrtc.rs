@@ -2,12 +2,18 @@
 // + Nettoyage automatique des fichiers après 48h
 
 use axum::{
-    extract::{State as AxumState, Json as AxumJson, ws::WebSocket},
+    extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
     response::IntoResponse,
     routing::{get, post},
     Router,
 };
+use base64ct::{Base64Unpadded, Encoding};
+use chacha20poly1305::aead::generic_array::GenericArray;
+use chacha20poly1305::aead::Aead;
+use chacha20poly1305::KeyInit;
+use chacha20poly1305::XChaCha20Poly1305; // Support nonces de 24 bytes
 use futures_util::{SinkExt, StreamExt};
+use rand::RngCore;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
@@ -15,15 +21,9 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime},
 };
-use tokio::sync::Mutex;
 use tokio::sync::broadcast;
+use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
-use chacha20poly1305::KeyInit;
-use chacha20poly1305::aead::Aead;
-use chacha20poly1305::aead::generic_array::GenericArray;
-use chacha20poly1305::XChaCha20Poly1305; // Support nonces de 24 bytes
-use rand::RngCore;
-use base64ct::{Encoding, Base64Unpadded};
 use uuid::Uuid;
 
 // === CRYPTO - Compatible libsodium (crypto_secretbox / XChaCha20-Poly1305) ===
@@ -59,12 +59,12 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     result.extend_from_slice(nonce);
 
     // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
-    let cipher = XChaCha20Poly1305::new_from_slice(key)
-        .expect("Clé invalide");
+    let cipher = XChaCha20Poly1305::new_from_slice(key).expect("Clé invalide");
 
     let nonce_array = GenericArray::from_slice(nonce);
 
-    let encrypted = cipher.encrypt(nonce_array, message)
+    let encrypted = cipher
+        .encrypt(nonce_array, message)
         .expect("Échec du chiffrement");
 
     result.extend_from_slice(&encrypted);
@@ -82,12 +82,12 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
 
     // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
-    let cipher = XChaCha20Poly1305::new_from_slice(key)
-        .map_err(|_| "Clé invalide")?;
+    let cipher = XChaCha20Poly1305::new_from_slice(key).map_err(|_| "Clé invalide")?;
 
     let nonce_array = GenericArray::from_slice(nonce);
 
-    cipher.decrypt(nonce_array, encrypted)
+    cipher
+        .decrypt(nonce_array, encrypted)
         .map_err(|_| "Échec du déchiffrement")
 }
 
@@ -163,7 +163,10 @@ impl FileManager {
             expires_at,
         });
 
-        eprintln!("[FileManager] Fichier {} enregistré, expire dans {}h", file_id, FILE_EXPIRATION_HOURS);
+        eprintln!(
+            "[FileManager] Fichier {} enregistré, expire dans {}h",
+            file_id, FILE_EXPIRATION_HOURS
+        );
     }
 
     /// Nettoie les fichiers expirés (à appeler périodiquement)
@@ -181,9 +184,13 @@ impl FileManager {
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
                     eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
                 } else {
-                    eprintln!("[FileManager] Fichier expiré supprimé: {} ({} bytes)", 
-                        file.file_id, 
-                        file.path.metadata().map(|m: std::fs::Metadata| m.len()).unwrap_or(0)
+                    eprintln!(
+                        "[FileManager] Fichier expiré supprimé: {} ({} bytes)",
+                        file.file_id,
+                        file.path
+                            .metadata()
+                            .map(|m: std::fs::Metadata| m.len())
+                            .unwrap_or(0)
                     );
                     deleted_count += 1;
                 }
@@ -208,7 +215,10 @@ impl FileManager {
             interval.tick().await;
             let deleted = self.cleanup_expired_files().await;
             if deleted > 0 {
-                eprintln!("[FileManager] Nettoyage: {} fichiers expirés supprimés", deleted);
+                eprintln!(
+                    "[FileManager] Nettoyage: {} fichiers expirés supprimés",
+                    deleted
+                );
             }
         }
     }
@@ -228,7 +238,11 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
 
 /// Déchiffre un fichier stocké sur le serveur
 #[allow(dead_code)]
-pub fn decrypt_file_from_storage(ciphertext: &[u8], nonce_base64: &str, key_base64: &str) -> Result<Vec<u8>, &'static str> {
+pub fn decrypt_file_from_storage(
+    ciphertext: &[u8],
+    nonce_base64: &str,
+    key_base64: &str,
+) -> Result<Vec<u8>, &'static str> {
     let nonce = from_base64(nonce_base64)?;
     let key = from_base64(key_base64)?;
 
@@ -247,11 +261,11 @@ pub async fn broadcast_message(
     _event: String,
     message: String,
 ) {
-    let guard = state.lock().await; 
-        for (_, tx) in guard.iter() {
-            let _ = tx.send(message.clone());
- }
+    let guard = state.lock().await;
+    for (_, tx) in guard.iter() {
+        let _ = tx.send(message.clone());
     }
+}
 
 // === HANDLERS HTTP ===
 
@@ -260,8 +274,14 @@ pub async fn handle_offer(
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let offer = payload.get("offer").and_then(|o| o.as_str());
-    let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
-    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
+    let from_user_id = payload
+        .get("from_user_id")
+        .and_then(|u| u.as_str())
+        .unwrap_or("unknown");
+    let conversation_id = payload
+        .get("conversation_id")
+        .and_then(|c| c.as_str())
+        .unwrap_or("general");
 
     if let Some(offer_sdp) = offer {
         let response = json!({
@@ -272,15 +292,21 @@ pub async fn handle_offer(
             "timestamp": chrono::Utc::now().timestamp()
         });
 
-    let guard = state.webrtc_state.broadcasts.lock().await;
-    for (_, tx) in guard.iter() {
-        let _ = tx.send(response.to_string());
-    }
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(response.to_string());
+        }
 
         eprintln!("[Signalisation] Offre P2P diffusée pour {}", from_user_id);
-        (axum::http::StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
+        (
+            axum::http::StatusCode::OK,
+            AxumJson(json!({"status": "offer_sent"})),
+        )
     } else {
-        (axum::http::StatusCode::BAD_REQUEST, AxumJson(json!({"error": "Missing offer"})))
+        (
+            axum::http::StatusCode::BAD_REQUEST,
+            AxumJson(json!({"error": "Missing offer"})),
+        )
     }
 }
 
@@ -289,8 +315,14 @@ pub async fn handle_answer(
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
     let answer = payload.get("answer").and_then(|a| a.as_str());
-    let from_user_id = payload.get("from_user_id").and_then(|u| u.as_str()).unwrap_or("unknown");
-    let conversation_id = payload.get("conversation_id").and_then(|c| c.as_str()).unwrap_or("general");
+    let from_user_id = payload
+        .get("from_user_id")
+        .and_then(|u| u.as_str())
+        .unwrap_or("unknown");
+    let conversation_id = payload
+        .get("conversation_id")
+        .and_then(|c| c.as_str())
+        .unwrap_or("general");
 
     if let Some(answer_sdp) = answer {
         let response = json!({
@@ -307,9 +339,15 @@ pub async fn handle_answer(
         }
 
         eprintln!("[Signalisation] Réponse P2P diffusée pour {}", from_user_id);
-        (axum::http::StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
+        (
+            axum::http::StatusCode::OK,
+            AxumJson(json!({"status": "answer_sent"})),
+        )
     } else {
-        (axum::http::StatusCode::BAD_REQUEST, AxumJson(json!({"error": "Missing answer"})))
+        (
+            axum::http::StatusCode::BAD_REQUEST,
+            AxumJson(json!({"error": "Missing answer"})),
+        )
     }
 }
 
@@ -355,12 +393,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
 
                     match parse_result {
                         Ok(json) => {
-                            let msg_type = json.get("type").or(json.get("event"))
-                                .and_then(|v| v.as_str()).unwrap_or("unknown");
-                            let from_user = json.get("from_user_id").or(json.get("sender_id"))
-                                .and_then(|v| v.as_str()).unwrap_or("unknown");
+                            let msg_type = json
+                                .get("type")
+                                .or(json.get("event"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
+                            let from_user = json
+                                .get("from_user_id")
+                                .or(json.get("sender_id"))
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("unknown");
                             eprintln!("[Signalisation] Message {} de {}", msg_type, from_user);
-                        },
+                        }
                         Err(_) => {
                             eprintln!("[WebSocket] Message texte reçu: {} bytes", text.len());
                         }
@@ -369,7 +413,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
                     let _ = broadcast_tx_for_receive.send(text.clone());
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
-                    eprintln!("[WebSocket] Message binaire ignoré (transfert P2P direct): {} bytes", data.len());
+                    eprintln!(
+                        "[WebSocket] Message binaire ignoré (transfert P2P direct): {} bytes",
+                        data.len()
+                    );
                 }
                 Err(e) => {
                     eprintln!("[WebSocket] Erreur de réception: {}", e);

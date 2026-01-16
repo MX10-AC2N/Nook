@@ -1,7 +1,7 @@
-use sqlx::{SqlitePool, Error};
-use tokio::fs;
+use crate::db::Upload;
+use sqlx::{Error, SqlitePool};
 use std::path::Path;
-use crate::db::Upload;  // Importe ta struct Upload depuis db.rs
+use tokio::fs; // Importe ta struct Upload depuis db.rs
 
 pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
@@ -13,7 +13,10 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         .await?
         .rows_affected();
 
-    println!("[Prune] {} messages anciens supprimés (hard delete)", deleted_messages);
+    println!(
+        "[Prune] {} messages anciens supprimés (hard delete)",
+        deleted_messages
+    );
 
     // 2. Récupérer tous les uploads qui deviennent orphelins
     // (pas référencés par un message restant)
@@ -22,7 +25,7 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         SELECT u.* FROM uploads u
         LEFT JOIN messages m ON m.file_id = u.id
         WHERE m.id IS NULL
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await?;
@@ -32,7 +35,10 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         let file_path = Path::new(&upload.file_path);
         if file_path.exists() {
             if let Err(e) = fs::remove_file(file_path).await {
-                eprintln!("[Prune] Erreur suppression fichier physique {} : {}", upload.id, e);
+                eprintln!(
+                    "[Prune] Erreur suppression fichier physique {} : {}",
+                    upload.id, e
+                );
             } else {
                 println!("[Prune] Fichier physique supprimé : {}", upload.file_path);
             }
@@ -48,13 +54,16 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
             LEFT JOIN messages m ON m.file_id = u.id
             WHERE m.id IS NULL
         )
-        "#
+        "#,
     )
     .execute(pool)
     .await?
     .rows_affected();
 
-    println!("[Prune] {} uploads orphelins supprimés de la DB", deleted_uploads);
+    println!(
+        "[Prune] {} uploads orphelins supprimés de la DB",
+        deleted_uploads
+    );
 
     // 3. Supprimer les conversations devenues vides
     let deleted_convos = sqlx::query(
@@ -64,7 +73,7 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
             SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id
         )
         RETURNING id
-        "#
+        "#,
     )
     .execute(pool)
     .await?
