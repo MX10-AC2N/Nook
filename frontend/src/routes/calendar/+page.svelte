@@ -45,7 +45,8 @@
   // 2️⃣ Cycle de vie – vérif auth + chargement des événements
   // -----------------------------------------------------------------
   onMount(async () => {
-    if (!$isAuthenticated) {
+    // CORRECTION : isAuthenticated sans $
+    if (!isAuthenticated) {
       goto('/login');
       return;
     }
@@ -170,7 +171,8 @@
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
-    const dateStr = `\( {year}- \){month}-${dayStr}`;
+    // CORRECTION : syntaxe de template literal
+    const dateStr = `${year}-${month}-${dayStr}`;
     return events.filter((e) => e.date === dateStr);
   }
 
@@ -187,8 +189,100 @@
 </svelte:head>
 
 <div class="calendar-page">
-  <!-- HEADER, BOUTON AJOUT, CALENDRIER, UPCOMING EVENTS : inchangés -->
+  <!-- -----------------------------------------------------------------
+       HEADER
+       ----------------------------------------------------------------- -->
+  <div class="page-header">
+    <h1>📅 Calendrier</h1>
+    <p class="subtitle">Gérez les événements familiaux</p>
+  </div>
 
+  <!-- -----------------------------------------------------------------
+       ADD EVENT BUTTON
+       ----------------------------------------------------------------- -->
+  <button class="add-event-btn" onclick={() => (showAddModal = true)}>
+    ➕ Ajouter un événement
+  </button>
+
+  <!-- -----------------------------------------------------------------
+       CALENDAR CONTAINER
+       ----------------------------------------------------------------- -->
+  <div class="calendar-container">
+    <div class="calendar-nav">
+      <button class="nav-btn" onclick={prevMonth}>←</button>
+      <h2 class="current-month">
+        {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+      </h2>
+      <button class="nav-btn" onclick={nextMonth}>→</button>
+    </div>
+
+    <!-- -----------------------------------------------------------------
+         CALENDAR GRID
+         ----------------------------------------------------------------- -->
+    <div class="calendar-grid">
+      <div class="day-header">Lun</div>
+      <div class="day-header">Mar</div>
+      <div class="day-header">Mer</div>
+      <div class="day-header">Jeu</div>
+      <div class="day-header">Ven</div>
+      <div class="day-header">Sam</div>
+      <div class="day-header">Dim</div>
+
+      <!-- Jours vides du début du mois -->
+      {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
+        <div class="calendar-day empty"></div>
+      {/each}
+
+      <!-- Jours du mois -->
+      {#each Array.from({ length: getDaysInMonth(currentDate) }) as _, i}
+        {#const day = i + 1}
+        {#const dayEvents = getEventsForDay(day)}
+        <div class="calendar-day">
+          <div class="day-number">{day}</div>
+          <div class="day-events">
+            {#each dayEvents.slice(0, 2) as event}
+              <div class="event-badge">{event.title}</div>
+            {/each}
+            {#if dayEvents.length > 2}
+              <div class="event-more">+{dayEvents.length - 2}</div>
+            {/if}
+          </div>
+        </div>
+      {/each}
+    </div>
+  </div>
+
+  <!-- -----------------------------------------------------------------
+       UPCOMING EVENTS
+       ----------------------------------------------------------------- -->
+  <div class="upcoming-events">
+    <h3>🕓 Événements à venir</h3>
+    {#if getUpcomingEvents().length === 0}
+      <p class="no-events">Aucun événement à venir</p>
+    {:else}
+      <ul class="events-list">
+        {#each getUpcomingEvents() as event}
+          <li class="event-item">
+            <div class="event-date">
+              <span class="event-day">{new Date(event.date).getDate()}</span>
+              <span class="event-month">
+                {monthNames[new Date(event.date).getMonth()].slice(0, 3)}
+              </span>
+            </div>
+            <div class="event-details">
+              <h4>{event.title}</h4>
+              <p class="event-time">{event.time || 'Toute la journée'}</p>
+              <p class="event-desc">{event.description}</p>
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+
+  <!-- -----------------------------------------------------------------
+       MODAL D'AJOUT D'ÉVÉNEMENT
+       ----------------------------------------------------------------- -->
   {#if showAddModal}
     <div
       bind:this={modalOverlay}
@@ -200,15 +294,10 @@
       tabindex="-1"
       onkeydown={handleModalKeydown}
     >
-      <div
-        class="modal"
-        role="document"
-        onclick={(e) => e.stopPropagation()}
-      >
+      <div class="modal" role="document" onclick={(e) => e.stopPropagation()}>
         <h3>Nouvel événement</h3>
 
         <form onsubmit={(e) => { e.preventDefault(); addEvent(); }}>
-          <!-- Le formulaire reste identique -->
           <div class="form-group">
             <label for="eventTitle">Titre</label>
             <input
@@ -220,7 +309,42 @@
             />
           </div>
 
-          <!-- ... le reste du form inchangé ... -->
+          <div class="form-group">
+            <label for="eventDate">Date</label>
+            <input
+              type="date"
+              id="eventDate"
+              bind:value={newEvent.date}
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="eventTime">Heure (optionnel)</label>
+            <input
+              type="time"
+              id="eventTime"
+              bind:value={newEvent.time}
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="eventDescription">Description (optionnel)</label>
+            <textarea
+              id="eventDescription"
+              bind:value={newEvent.description}
+              placeholder="Détails de l'événement..."
+            ></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="cancel-btn" onclick={closeModal}>
+              Annuler
+            </button>
+            <button type="submit" class="submit-btn">
+              Créer l'événement
+            </button>
+          </div>
         </form>
       </div>
     </div>
