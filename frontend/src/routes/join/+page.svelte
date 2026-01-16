@@ -60,12 +60,13 @@
         if (match && match[1]) {
           memberId = match[1];
           
-          await storeKeys(memberId, {
-            publicKey: keyPair.publicKey,
-            privateKey: keyPair.privateKey,
-            memberId: memberId
-          });
-          
+          await storePendingKeys(memberId, keyPair.publicKey, keyPair.privateKey);
+        
+          console.log('Clés pending stockées pour le membre:', memberId);
+        }
+        error = '';
+    }
+ 
           console.log('Clés stockées pour le membre:', memberId);
         }
         
