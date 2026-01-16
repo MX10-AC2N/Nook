@@ -25,66 +25,60 @@
   });
 
   async function submitRequest() {
-    if (!name.trim()) {
-      error = 'Veuillez entrer votre prénom';
-      return;
-    }
-
-    if (name.trim().length < 2) {
-      error = 'Le prénom doit contenir au moins 2 caractères';
-      return;
-    }
-
-    isLoading = true;
-    error = '';
-
-    try {
-      console.log('Génération des clés cryptographiques...');
-      const keyPair = await generateKeyPair();
-      console.log('Clés générées');
-
-      const response = await fetch(`/api/join?token=${encodeURIComponent(token)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          public_key: keyPair.publicKey
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        success = data.message;
-        
-        const match = data.message.match(/ID: (\S+)/);
-        if (match && match[1]) {
-          memberId = match[1];
-          
-          await storePendingKeys(memberId, keyPair.publicKey, keyPair.privateKey);
-        
-          console.log('Clés pending stockées pour le membre:', memberId);
-        }
-        error = '';
-    }
- 
-          console.log('Clés stockées pour le membre:', memberId);
-        }
-        
-        error = '';
-      } else if (response.status === 400) {
-        error = 'Lien d\'invitation invalide ou expiré.';
-      } else if (response.status === 500) {
-        error = 'Erreur serveur. Veuillez réessayer plus tard.';
-      } else {
-        error = 'Erreur inattendue. Code: ' + response.status;
-      }
-    } catch (err) {
-      console.error('Erreur:', err);
-      error = 'Impossible de contacter le serveur. Vérifiez votre connexion.';
-    } finally {
-      isLoading = false;
-    }
+  if (!name.trim()) {
+    error = 'Veuillez entrer votre prénom';
+    return;
   }
+
+  if (name.trim().length < 2) {
+    error = 'Le prénom doit contenir au moins 2 caractères';
+    return;
+  }
+
+  isLoading = true;
+  error = '';
+
+  try {
+    console.log('Génération des clés cryptographiques...');
+    const keyPair = await generateKeyPair();
+    console.log('Clés générées');
+
+    const response = await fetch(`/api/join?token=${encodeURIComponent(token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name.trim(),
+        public_key: keyPair.publicKey
+      })
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      success = data.message;
+      
+      const match = data.message.match(/ID: (\S+)/);
+      if (match && match[1]) {
+        memberId = match[1];
+        
+        await storePendingKeys(memberId, keyPair.publicKey, keyPair.privateKey);
+        console.log('Clés pending stockées pour le membre:', memberId);
+      }
+      
+      error = '';  // ← Une seule fois, à la fin du succès
+    } else if (response.status === 400) {
+      error = 'Lien d\'invitation invalide ou expiré.';
+    } else if (response.status === 500) {
+      error = 'Erreur serveur. Veuillez réessayer plus tard.';
+    } else {
+      error = 'Erreur inattendue. Code: ' + response.status;
+    }
+  } catch (err) {
+    console.error('Erreur:', err);
+    error = 'Impossible de contacter le serveur. Vérifiez votre connexion.';
+  } finally {
+    isLoading = false;
+  }
+}
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !isLoading) {
