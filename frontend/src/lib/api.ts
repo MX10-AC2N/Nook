@@ -112,45 +112,6 @@ export async function getUserInfo(): Promise<{
 }
 
 /**
- * Crée une demande d’adhésion (join) à partir d’un token d’invitation.
- *
- * @param {string} token - Token d’invitation (ex. fourni dans l’URL).
- * @param {string} name - Nom affiché de l’utilisateur.
- * @param {string} publicKey - Clé publique (base64 ou hex) de l’utilisateur.
- * @returns {Promise<{ success: boolean; message: string }>}
- */
-export async function createJoinRequest(
-  token: string,
-  name: string,
-  publicKey: string
-): Promise<{ success: boolean; message: string }> {
-  try {
-    const url = `${API_BASE}/join?token=${encodeURIComponent(token)}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ name, public_key: publicKey }),
-    });
-
-    const { ok, status, data, text } = await parseResponse(response);
-
-    if (!ok) {
-      const msg = data?.message ?? `Erreur ${status}: ${text}`;
-      return { success: false, message: msg };
-    }
-
-    return { success: true, message: data?.message ?? 'Demande envoyée' };
-  } catch (err) {
-    console.error('Erreur createJoinRequest:', err);
-    return {
-      success: false,
-      message: err instanceof Error ? err.message : 'Erreur de connexion',
-    };
-  }
-}
-
-/**
  * Déconnecte l’utilisateur actuel.
  */
 export async function logout(): Promise<void> {
@@ -185,5 +146,60 @@ export function getPendingInviteToken(): string | null {
 export function setPendingInviteToken(token: string): void {
   if (typeof window !== 'undefined') {
     sessionStorage.setItem('pending_invite_token', token);
+  }
+}
+/**
+ * Valide un token d'invitation et retourne ses données (nom de la famille, etc.).
+ * @param {string} token - Le token à valider.
+ * @returns {Promise<{ valid: boolean; familyName?: string; name?: string; expiresAt?: string }>}
+ */
+export async function validateInviteToken(
+  token: string
+): Promise<{ valid: boolean; familyName?: string; name?: string; expiresAt?: string }> {
+  try {
+    const response = await fetch(`${API_BASE}/invite/validate?token=${encodeURIComponent(token)}`, {
+      credentials: 'include',
+    });
+    const { ok, data } = await parseResponse(response);
+    return { valid: ok, ...data };
+  } catch (err) {
+    console.error('Erreur validateInviteToken:', err);
+    return { valid: false };
+  }
+}
+
+/**
+ * Accepte une invitation et crée le compte utilisateur.
+ * @param {string} token
+ * @param {string} username
+ * @param {string} name
+ * @param {string} password
+ * @returns {Promise<{ success: boolean; message: string }>}
+ */
+export async function acceptInvite(
+  token: string,
+  username: string,
+  name: string,
+  password: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch(`${API_BASE}/invite/accept`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token, username, name, password }),
+    });
+    const { ok, status, data, text } = await parseResponse(response);
+    if (!ok) {
+      const msg = data?.message ?? `Erreur ${status}: ${text}`;
+      return { success: false, message: msg };
+    }
+    return { success: true, message: data?.message ?? 'Compte créé avec succès' };
+  } catch (err) {
+    console.error('Erreur acceptInvite:', err);
+    return {
+      success: false,
+      message: err instanceof Error ? err.message : 'Erreur de connexion',
+    };
   }
 }
