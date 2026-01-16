@@ -23,6 +23,9 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
+  // Ajout pour l'accessibilité : référence au contenu du modal
+  let modalElement = $state<HTMLElement | undefined>(undefined);
+
   const monthNames = [
     'Janvier',
     'Février',
@@ -131,6 +134,13 @@
     }
   }
 
+  // Focus automatique sur le contenu du modal quand il s'ouvre
+  $effect(() => {
+    if (showAddModal && modalElement) {
+      modalElement.focus();
+    }
+  });
+
   // -----------------------------------------------------------------
   // 6️⃣ Navigation entre les mois
   // -----------------------------------------------------------------
@@ -159,7 +169,7 @@
     const year = currentDate.getFullYear();
     const month = String(currentDate.getMonth() + 1).padStart(2, '0');
     const dayStr = String(day).padStart(2, '0');
-    const dateStr = `${year}-${month}-${dayStr}`;
+    const dateStr = `\( {year}- \){month}-${dayStr}`;
     return events.filter((e) => e.date === dateStr);
   }
 
@@ -230,7 +240,7 @@
           class="calendar-day"
           role="gridcell"
           tabindex="0"
-          aria-label={`Jour ${i + 1}, ${dayEvents.length} événement${dayEvents.length > 1 ? 's' : ''}`}
+          aria-label={`Jour ${i + 1}, \( {dayEvents.length} événement \){dayEvents.length > 1 ? 's' : ''}`}
         >
           <span class="day-number">{i + 1}</span>
 
@@ -280,22 +290,25 @@
   </section>
 
   <!-- -----------------------------------------------------------------
-       MODAL AJOUT EVENT
+       MODAL AJOUT EVENT (corrigé pour a11y)
        ----------------------------------------------------------------- -->
   {#if showAddModal}
     <div
       class="modal-overlay"
       onclick={closeModal}
-      role="button"
-      tabindex="0"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nouvel événement"
+      tabindex="-1"
       onkeydown={handleModalKeydown}
     >
       <div
+        bind:this={modalElement}
         class="modal"
+        role="document"
+        tabindex="0"
+        onkeydown={handleModalKeydown}
         onclick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Nouvel événement"
-        tabindex="-1"
       >
         <h3>Nouvel événement</h3>
 
