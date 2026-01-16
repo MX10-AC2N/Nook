@@ -16,12 +16,12 @@ use axum::{
 };
 use chrono::Utc;
 use sqlx::SqlitePool;
+use std::convert::Infallible;
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
-use std::convert::Infallible;
 
 // ---------------------------------------------------------------------
 // Modules de l'application
