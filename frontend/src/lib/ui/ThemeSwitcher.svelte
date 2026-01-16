@@ -69,7 +69,7 @@
 <!-- -----------------------------------------------------------------
      Gestion globale des événements clavier / clic extérieur
 ----------------------------------------------------------------- -->
-<svelte:window on:keydown={handleKeydown} on:click={handleClickOutside} />
+<svelte:window onkeydown={handleKeydown} onclick={handleClickOutside} />
 
 <div class="theme-switcher">
   <!-- -------------------------------------------------------------
@@ -77,7 +77,7 @@
        ------------------------------------------------------------- -->
   <button
     class="theme-switcher-trigger"
-    on:click={toggleDropdown}
+    onclick={toggleDropdown}
     aria-expanded={isOpen}
     aria-haspopup="listbox"
     aria-label="Changer de thème"
@@ -128,7 +128,7 @@
           <button
             class="theme-option"
             class:active={$currentTheme === theme.id}
-            on:click={() => selectTheme(theme.id)}
+            onclick={() => selectTheme(theme.id)}
             role="option"
             aria-selected={$currentTheme === theme.id}
           >
