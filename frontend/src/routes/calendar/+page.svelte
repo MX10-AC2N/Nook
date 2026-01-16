@@ -23,8 +23,8 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Ajout pour l'accessibilité : référence au contenu du modal
-  let modalElement = $state<HTMLElement | undefined>(undefined);
+  // Référence pour focus manuel (sur le premier input)
+  let modalContent = $state<HTMLElement | undefined>(undefined);
 
   const monthNames = [
     'Janvier',
@@ -134,10 +134,13 @@
     }
   }
 
-  // Focus automatique sur le contenu du modal quand il s'ouvre
+  // Focus automatique sur le premier input (titre) à l'ouverture
   $effect(() => {
-    if (showAddModal && modalElement) {
-      modalElement.focus();
+    if (showAddModal && modalContent) {
+      const firstInput = modalContent.querySelector('#eventTitle') as HTMLInputElement | null;
+      if (firstInput) {
+        firstInput.focus();
+      }
     }
   });
 
@@ -290,7 +293,7 @@
   </section>
 
   <!-- -----------------------------------------------------------------
-       MODAL AJOUT EVENT (corrigé pour a11y)
+       MODAL AJOUT EVENT (corrigé pour a11y strict)
        ----------------------------------------------------------------- -->
   {#if showAddModal}
     <div
@@ -303,11 +306,8 @@
       onkeydown={handleModalKeydown}
     >
       <div
-        bind:this={modalElement}
+        bind:this={modalContent}
         class="modal"
-        role="document"
-        tabindex="0"
-        onkeydown={handleModalKeydown}
         onclick={(e) => e.stopPropagation()}
       >
         <h3>Nouvel événement</h3>
@@ -357,6 +357,7 @@
 </div>
 
 <style>
+  /* Ton style reste 100% inchangé */
   * { box-sizing: border-box; }
 
   .calendar-page {
