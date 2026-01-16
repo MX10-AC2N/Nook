@@ -1,21 +1,21 @@
 // backend/src/auth.rs - Authentification avec validation admin
 
 use crate::{db::User, SharedState};
-use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use argon2::password_hash::{PasswordHash, SaltString};
-use rand::rngs::OsRng;
+use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use axum::{
     extract::State as AxumState,
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
+use chrono::Utc;
 use http::header::SET_COOKIE;
+use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 // Structures JSON
 
@@ -23,7 +23,7 @@ use chrono::Utc;
 pub struct RegisterPayload {
     pub username: String,
     pub password: String,
-    pub email: String,  // Ajouté pour table
+    pub email: String, // Ajouté pour table
     pub name: String,
 }
 
@@ -37,7 +37,7 @@ pub struct LoginPayload {
 #[derive(Deserialize)]
 pub struct ChangePasswordPayload {
     pub new_password: String,
-    pub user_id: Option<String>,  // Optionnel pour first-setup admin
+    pub user_id: Option<String>, // Optionnel pour first-setup admin
 }
 
 #[derive(Serialize)]
@@ -62,7 +62,10 @@ pub struct AuthResponse {
 pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    argon2.hash_password(password.as_bytes(), &salt).unwrap().to_string()
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .unwrap()
+        .to_string()
 }
 
 fn verify_password(password: &str, hashed: &str) -> bool {
@@ -73,13 +76,22 @@ fn verify_password(password: &str, hashed: &str) -> bool {
             return false;
         }
     };
-    Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok()
 }
 
 pub fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers.get("cookie")
+    headers
+        .get("cookie")
         .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(';').find_map(|c| c.trim().starts_with(&format!("{}=", name)).then(|| c.split('=').nth(1).unwrap_or("").to_string())))
+        .and_then(|s| {
+            s.split(';').find_map(|c| {
+                c.trim()
+                    .starts_with(&format!("{}=", name))
+                    .then(|| c.split('=').nth(1).unwrap_or("").to_string())
+            })
+        })
 }
 
 // Handlers (gardés tels quels, ajustés pour colonnes)
@@ -111,7 +123,8 @@ pub async fn register(
             success: true,
             message: "Inscription réussie! En attente d'approbation.".to_string(),
             user: None,
-        }).into_response(),
+        })
+        .into_response(),
         Err(_e) => (
             StatusCode::CONFLICT,
             Json(AuthResponse {
@@ -119,7 +132,8 @@ pub async fn register(
                 message: "Utilisateur existe déjà".to_string(),
                 user: None,
             }),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
@@ -128,12 +142,10 @@ pub async fn login(
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
     // Exécuter la requête et stocker le résultat dans user_result
-    let user_result = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE username = ?"
-    )
-    .bind(&payload.username)
-    .fetch_optional(&state.db)
-    .await;
+    let user_result = sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
+        .bind(&payload.username)
+        .fetch_optional(&state.db)
+        .await;
 
     // Afficher le résultat de la requête
     eprintln!("[LOGIN] Requête utilisateur résultat: {:?}", user_result);
@@ -150,14 +162,21 @@ pub async fn login(
 
     match user {
         Some(user) => {
-            eprintln!("[LOGIN] Utilisateur trouvé : id={}, approved={}, role={}", user.id, user.approved, user.role);
+            eprintln!(
+                "[LOGIN] Utilisateur trouvé : id={}, approved={}, role={}",
+                user.id, user.approved, user.role
+            );
             if !user.approved {
                 eprintln!("[LOGIN] Échec : Compte non approuvé");
-                return (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-                    success: false,
-                    message: "Compte en attente d'approbation".to_string(),
-                    user: None,
-                })).into_response();
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(AuthResponse {
+                        success: false,
+                        message: "Compte en attente d'approbation".to_string(),
+                        user: None,
+                    }),
+                )
+                    .into_response();
             }
 
             eprintln!("[LOGIN] Vérification du mot de passe...");
@@ -184,32 +203,44 @@ pub async fn login(
                     success: true,
                     message: "Connexion réussie".to_string(),
                     user: Some(user_info),
-                }).into_response();
+                })
+                .into_response();
 
                 response.headers_mut().insert(
                     SET_COOKIE,
-                    format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", user.id, token)
-                        .parse()
-                        .unwrap(),
+                    format!(
+                        "auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
+                        user.id, token
+                    )
+                    .parse()
+                    .unwrap(),
                 );
                 eprintln!("[LOGIN] Connexion réussie, cookie défini");
                 response
             } else {
                 eprintln!("[LOGIN] Échec : Mot de passe incorrect.");
-                (StatusCode::UNAUTHORIZED, Json(AuthResponse {
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(AuthResponse {
+                        success: false,
+                        message: "Identifiants incorrects".to_string(),
+                        user: None,
+                    }),
+                )
+                    .into_response()
+            }
+        }
+        None => {
+            eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(AuthResponse {
                     success: false,
                     message: "Identifiants incorrects".to_string(),
                     user: None,
-                })).into_response()
-            }
-        },
-        None => {
-            eprintln!("[LOGIN] Échec : Utilisateur non trouvé.");
-            (StatusCode::UNAUTHORIZED, Json(AuthResponse {
-                success: false,
-                message: "Identifiants incorrects".to_string(),
-                user: None,
-            })).into_response()
+                }),
+            )
+                .into_response()
         }
     }
 }
@@ -224,13 +255,14 @@ pub async fn me(
             let user_id = parts[0];
             let token = parts[1];
 
-            let user: Option<User> = sqlx::query_as("SELECT * FROM users WHERE id = ? AND token = ?")
-                .bind(user_id)
-                .bind(token)
-                .fetch_optional(&state.db)
-                .await
-                .ok()
-                .flatten();
+            let user: Option<User> =
+                sqlx::query_as("SELECT * FROM users WHERE id = ? AND token = ?")
+                    .bind(user_id)
+                    .bind(token)
+                    .fetch_optional(&state.db)
+                    .await
+                    .ok()
+                    .flatten();
 
             if let Some(user) = user {
                 let user_info = UserInfo {
@@ -244,14 +276,16 @@ pub async fn me(
                 return Json(json!({
                     "authenticated": true,
                     "user": user_info
-                })).into_response();
+                }))
+                .into_response();
             }
         }
     }
     Json(json!({
         "authenticated": false,
         "user": null
-    })).into_response()
+    }))
+    .into_response()
 }
 
 pub async fn logout(
@@ -272,7 +306,9 @@ pub async fn logout(
     let mut response = Json(json!({"success": true})).into_response();
     response.headers_mut().insert(
         SET_COOKIE,
-        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".parse().unwrap(),
+        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            .parse()
+            .unwrap(),
     );
     response
 }
@@ -284,16 +320,17 @@ pub async fn change_password(
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
     // Récupérer l'utilisateur courant depuis le cookie
-    let current_user_id_opt: Option<String> = if let Some(cookie) = get_cookie(&headers, "auth_token") {
-        let parts = cookie.split(':').collect::<Vec<&str>>();
-        if parts.len() == 2 {
-            Some(parts[0].to_string())
+    let current_user_id_opt: Option<String> =
+        if let Some(cookie) = get_cookie(&headers, "auth_token") {
+            let parts = cookie.split(':').collect::<Vec<&str>>();
+            if parts.len() == 2 {
+                Some(parts[0].to_string())
+            } else {
+                None
+            }
         } else {
             None
-        }
-    } else {
-        None
-    };
+        };
 
     // Vérifier que l'utilisateur est connecté
     let current_user_id = match current_user_id_opt {
@@ -302,7 +339,8 @@ pub async fn change_password(
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({"success": false, "message": "Non authentifié"})),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -315,13 +353,13 @@ pub async fn change_password(
 
     // Hasher le nouveau mot de passe
     let hashed = hash_password(&payload.new_password);
-    
+
     // GÉNÉRER UN NOUVEAU TOKEN pour la session
     let new_token = Uuid::new_v4().to_string();
 
     // Mettre à jour dans la DB: mot de passe ET token
     let result = sqlx::query::<sqlx::Sqlite>(
-        "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?"
+        "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?",
     )
     .bind(&hashed)
     .bind(&new_token)
@@ -335,22 +373,25 @@ pub async fn change_password(
             let mut response = (
                 StatusCode::OK,
                 Json(json!({"success": true, "message": "Mot de passe changé"})),
-            ).into_response();
-            
+            )
+                .into_response();
+
             response.headers_mut().insert(
                 SET_COOKIE,
-                format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", target_id, new_token)
-                    .parse()
-                    .unwrap(),
+                format!(
+                    "auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
+                    target_id, new_token
+                )
+                .parse()
+                .unwrap(),
             );
             response
-        },
-        Err(_) => {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"success": false, "message": "Erreur DB"}))
-            ).into_response()
         }
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"success": false, "message": "Erreur DB"})),
+        )
+            .into_response(),
     }
 }
 

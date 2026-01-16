@@ -1,22 +1,25 @@
 // backend/src/invites.rs - Gestion des invitations (génération + join, single-use, expiration 48h)
 
-use crate::{SharedState, auth::{hash_password, UserInfo}};
+use crate::{
+    auth::{hash_password, UserInfo},
+    SharedState,
+};
 use axum::{
-    extract::{State as AxumState, Query},
+    extract::{Query, State as AxumState},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     Json,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
-use chrono::Utc;
 
 #[derive(Deserialize)]
 pub struct JoinPayload {
     pub name: String,
-    pub public_key: String,  // Clé publique pour E2EE
+    pub public_key: String, // Clé publique pour E2EE
 }
 
 #[derive(Serialize)]
@@ -35,10 +38,7 @@ pub async fn generate_invite(
     let (user_id, session_token) = match headers
         .get("cookie")
         .and_then(|h| h.to_str().ok())
-        .and_then(|s| {
-            s.split(';')
-                .find(|c| c.trim().starts_with("auth_token="))
-        })
+        .and_then(|s| s.split(';').find(|c| c.trim().starts_with("auth_token=")))
         .and_then(|c| c.split('=').nth(1))
         .and_then(|v| {
             let parts: Vec<&str> = v.split(':').collect();
@@ -47,8 +47,7 @@ pub async fn generate_invite(
             } else {
                 None
             }
-        })
-    {
+        }) {
         Some(t) => t,
         None => {
             return (
@@ -56,7 +55,7 @@ pub async fn generate_invite(
                 Json(json!({
                     "success": false,
                     "message": "Non authentifié"
-                }))
+                })),
             )
                 .into_response();
         }
@@ -78,7 +77,7 @@ pub async fn generate_invite(
             Json(json!({
                 "success": false,
                 "message": "Accès refusé : admin requis"
-            }))
+            })),
         )
             .into_response();
     }
@@ -109,7 +108,7 @@ pub async fn generate_invite(
                     "success": true,
                     "message": "Invitation créée (expire dans 48h)",
                     "invite_link": invite_link
-                }))
+                })),
             )
                 .into_response()
         }
@@ -120,7 +119,7 @@ pub async fn generate_invite(
                 Json(json!({
                     "success": false,
                     "message": "Erreur serveur"
-                }))
+                })),
             )
                 .into_response()
         }
@@ -141,7 +140,7 @@ pub async fn join(
                 Json(json!({
                     "success": false,
                     "message": "Token manquant"
-                }))
+                })),
             )
                 .into_response();
         }
@@ -149,14 +148,13 @@ pub async fn join(
 
     let now = Utc::now().timestamp();
 
-    let invite: Option<(String, bool, i64)> = sqlx::query_as(
-        "SELECT id, used, expires_at FROM invites WHERE token = ?"
-    )
-    .bind(token)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    let invite: Option<(String, bool, i64)> =
+        sqlx::query_as("SELECT id, used, expires_at FROM invites WHERE token = ?")
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     let (invite_id, used, expires_at) = match invite {
         Some(row) => row,
@@ -166,7 +164,7 @@ pub async fn join(
                 Json(json!({
                     "success": false,
                     "message": "Token invalide"
-                }))
+                })),
             )
                 .into_response();
         }
@@ -178,7 +176,7 @@ pub async fn join(
             Json(json!({
                 "success": false,
                 "message": "Token déjà utilisé"
-            }))
+            })),
         )
             .into_response();
     }
@@ -189,7 +187,7 @@ pub async fn join(
             Json(json!({
                 "success": false,
                 "message": "Token expiré"
-            }))
+            })),
         )
             .into_response();
     }
@@ -207,7 +205,7 @@ pub async fn join(
             id, username, email, password_hash, name, role, approved, 
             needs_password_change, created_at, public_key
         ) VALUES (?, ?, ?, ?, ?, 'user', 1, 1, ?, ?)
-        "#
+        "#,
     )
     .bind(&user_id)
     .bind(&username)
@@ -226,7 +224,7 @@ pub async fn join(
             Json(json!({
                 "success": false,
                 "message": "Nom d'utilisateur déjà pris"
-            }))
+            })),
         )
             .into_response();
     }
@@ -265,9 +263,12 @@ pub async fn join(
 
     response.headers_mut().insert(
         http::header::SET_COOKIE,
-        format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", user_id, session_token)
-            .parse()
-            .unwrap(),
+        format!(
+            "auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
+            user_id, session_token
+        )
+        .parse()
+        .unwrap(),
     );
 
     response
