@@ -18,7 +18,7 @@
   let cryptoError = $state<string | null>(null);
 
   // Référence pour gérer le focus
-  let menuElement: HTMLElement;
+  let menuElement = $state<HTMLElement | undefined>(undefined);
 
   const navItems = [
     { path: '/chat', label: '💬 Chat', requiresAuth: true },
@@ -183,7 +183,7 @@
     ></button>
 
     <!-- Menu latéral corrigé -->
-    <aside 
+    <div 
       bind:this={menuElement}
       class="menu" 
       role="dialog"
@@ -222,7 +222,7 @@
           </button>
         {/if}
       </div>
-    </aside>
+    </div>
   {/if}
 
   <main class="app-main">
