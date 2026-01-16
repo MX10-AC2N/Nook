@@ -264,3 +264,61 @@ export function clearStoredKeys(userId: string): void {
   const key = `nook_keys_${userId}`;
   localStorage.removeItem(key);
 }
+
+/* -----------------------------------------------------------------
+   6️⃣ Stockage temporaire des clés (pending join – avant mot de passe)
+   ----------------------------------------------------------------- */
+/**
+ * Stocke les clés en clair localement en attendant l’approbation.
+ * À la première connexion, ces clés seront chargées, chiffrées avec un
+ * mot de passe, puis stockées via storeUserKeys.
+ */
+export async function storePendingKeys(
+  memberId: string,
+  publicKey: Uint8Array,
+  privateKey: Uint8Array
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+
+  const storageKey = `nook_pending_keys_${memberId}`;
+  const data = {
+    publicKey: Array.from(publicKey),
+    privateKey: Array.from(privateKey),
+    timestamp: Date.now(),
+  };
+
+  localStorage.setItem(storageKey, JSON.stringify(data));
+  console.log('Clés pending stockées pour memberId:', memberId);
+}
+
+/**
+ * Récupère les clés pending (utilisé à la première connexion)
+ */
+export async function getPendingKeys(
+  memberId: string
+): Promise<{ publicKey: Uint8Array; privateKey: Uint8Array } | null> {
+  if (typeof window === 'undefined') return null;
+
+  const storageKey = `nook_pending_keys_${memberId}`;
+  const raw = localStorage.getItem(storageKey);
+  if (!raw) return null;
+
+  try {
+    const data = JSON.parse(raw);
+    return {
+      publicKey: new Uint8Array(data.publicKey),
+      privateKey: new Uint8Array(data.privateKey),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Supprime les clés pending après migration vers le stockage chiffré
+ */
+export function clearPendingKeys(memberId: string): void {
+  if (typeof window === 'undefined') return;
+  const storageKey = `nook_pending_keys_${memberId}`;
+  localStorage.removeItem(storageKey);
+}
