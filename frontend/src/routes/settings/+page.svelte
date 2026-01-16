@@ -330,7 +330,7 @@
           {saving ? 'Modification…' : 'Changer le mot de passe'}
         </button>
       </form>
-    </section>
+    </div>
 
     <!-- -----------------------------------------------------------------
          APPARENCE
