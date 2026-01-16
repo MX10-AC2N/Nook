@@ -218,7 +218,7 @@
   <!-- -----------------------------------------------------------------
        TABS
        ----------------------------------------------------------------- -->
-  <nav class="tabs" role="tablist" aria-label="Sections des paramètres">
+  <div class="tabs" role="tablist" aria-label="Sections des paramètres">
     <button
       role="tab"
       class="tab"
@@ -254,7 +254,7 @@
        PROFIL
        ----------------------------------------------------------------- -->
   {#if activeTab === 'profile'}
-    <section class="settings-section" role="tabpanel" aria-labelledby="profile-tab">
+    <div class="settings-section" role="tabpanel" aria-labelledby="profile-tab">
       <h2>Informations du profil</h2>
 
       <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
@@ -292,7 +292,7 @@
          SÉCURITÉ
          ----------------------------------------------------------------- -->
   {:else if activeTab === 'security'}
-    <section class="settings-section" role="tabpanel" aria-labelledby="security-tab">
+    <div class="settings-section" role="tabpanel" aria-labelledby="security-tab">
       <h2>Changer le mot de passe</h2>
 
       <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
@@ -337,7 +337,7 @@
          APPARENCE
          ----------------------------------------------------------------- -->
   {:else if activeTab === 'appearance'}
-    <section class="settings-section" role="tabpanel" aria-labelledby="appearance-tab">
+    <div class="settings-section" role="tabpanel" aria-labelledby="appearance-tab">
       <h2>Thème</h2>
 
       <div class="themes-grid">
