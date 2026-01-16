@@ -127,7 +127,7 @@
       if (response.ok) {
         await loadUsers();
       } else {
-        alert('Erreur lors de l/'approbation');
+        alert("Erreur lors de l'approbation");
       }
     } catch (e) {
       console.error('Erreur approbation :', e);
