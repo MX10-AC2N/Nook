@@ -1,0 +1,44 @@
+# =====================================================
+# Dockerfile.ci - Optimisé pour GitHub Actions
+# =====================================================
+# Ce Dockerfile utilise les artifacts pré-compilés par CI
+# pour créer l'image finale ultra-rapidement
+# =====================================================
+
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# Métadonnées
+LABEL maintainer="MX10-AC2N" \
+      description="Nook Backend - Build Statique Ultra-Léger (CI)" \
+      version="1.0"
+
+# Copier les certificats CA
+COPY --from=gcr.io/distroless/base-debian12:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copier le binaire pré-compilé depuis l'artifact
+# Le binaire est déjà statique et strippé
+COPY --chown=nonroot:nonroot backend-artifact/nook-backend /app/nook-backend
+
+# Copier le frontend pré-compilé
+COPY --chown=nonroot:nonroot frontend-artifact/ /app/static/
+
+# Vérifier que les fichiers critiques sont présents
+# Note: distroless n'a pas de shell, donc on ne peut pas faire de RUN
+# La vérification se fait dans le workflow CI
+
+WORKDIR /app
+USER nonroot:nonroot
+
+ENV RUST_LOG=info \
+    DATABASE_URL=sqlite:/app/data/nook.db \
+    PORT=3000
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s \
+            --timeout=5s \
+            --start-period=10s \
+            --retries=3 \
+    CMD ["/app/nook-backend", "--health"]
+
+ENTRYPOINT ["/app/nook-backend"]
