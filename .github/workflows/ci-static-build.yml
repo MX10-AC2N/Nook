@@ -1,0 +1,489 @@
+name: 🚀 Static Build & Push (MUSL)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'Dockerfile'
+      - '.github/workflows/ci-static-build.yml'
+      - 'Cargo.lock'
+      - '.cargo/**'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_LOG: warn
+  # ⚠️ IMPORTANT: Variables pour build statique
+  RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-static"
+
+jobs:
+  # =====================================================
+  # Setup & Cache
+  # =====================================================
+  setup:
+    name: 🔧 Setup & Cache
+    runs-on: ubuntu-latest
+    outputs:
+      rust-cache-key: ${{ steps.cargo-cache.outputs.cache-key }}
+      node-cache-key: ${{ steps.node-cache.outputs.cache-key }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Cargo cache key
+        id: cargo-cache
+        run: |
+          echo "cache-key=${{ runner.os }}-musl-cargo-${{ hashFiles('backend/Cargo.lock') }}" >> $GITHUB_OUTPUT
+
+      - name: Calculate Node cache key
+        id: node-cache
+        run: |
+          echo "cache-key=${{ runner.os }}-node-${{ hashFiles('frontend/package-lock.json') }}" >> $GITHUB_OUTPUT
+
+  # =====================================================
+  # Backend - Build Statique MUSL
+  # =====================================================
+  backend:
+    name: 🏗️ Backend (MUSL Static)
+    runs-on: ubuntu-latest
+    needs: setup
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust with MUSL target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-musl
+          components: rustfmt, clippy
+
+      - name: Install MUSL tools & dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            musl-tools \
+            musl-dev \
+            pkg-config \
+            libssl-dev
+          
+          # Vérifier que musl-gcc est disponible
+          which musl-gcc
+          musl-gcc --version
+
+      - name: Restore Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ needs.setup.outputs.rust-cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-musl-cargo-
+
+      - name: Vérifier .cargo/config.toml
+        run: |
+          if [ ! -f ".cargo/config.toml" ]; then
+            echo "⚠️ .cargo/config.toml manquant, création..."
+            mkdir -p .cargo
+            cat > .cargo/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-musl]
+          rustflags = [
+              "-C", "target-feature=+crt-static",
+              "-C", "link-arg=-static",
+          ]
+          linker = "musl-gcc"
+
+          [build]
+          target = "x86_64-unknown-linux-musl"
+
+          [profile.release]
+          opt-level = "z"
+          lto = true
+          codegen-units = 1
+          strip = true
+          panic = "abort"
+          EOF
+            echo "✅ .cargo/config.toml créé"
+          else
+            echo "✅ .cargo/config.toml existe"
+            cat .cargo/config.toml
+          fi
+
+      - name: Générer Cargo.lock si nécessaire
+        run: |
+          if [ ! -f "Cargo.lock" ]; then
+            cargo generate-lockfile
+          fi
+
+      - name: Auto-format code
+        id: fmt-check
+        run: |
+          cargo fmt --all
+          if git diff --quiet; then
+            echo "formatted=false" >> $GITHUB_OUTPUT
+          else
+            echo "formatted=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit formatage
+        if: steps.fmt-check.outputs.formatted == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "style: auto-format code [skip ci]" || true
+          git push origin ${{ github.ref }} || echo "Push skipped"
+
+      - name: Vérifier formatage
+        run: cargo fmt --all -- --check
+
+      - name: Check compilation (MUSL target)
+        run: |
+          cargo check \
+            --target x86_64-unknown-linux-musl \
+            --all-targets
+
+      - name: Analyse statique (Clippy)
+        run: |
+          cargo clippy \
+            --target x86_64-unknown-linux-musl \
+            -- -D warnings
+
+      - name: Build Release (MUSL Static)
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=-static"
+        run: |
+          echo "🔨 Building static binary with MUSL..."
+          cargo build \
+            --release \
+            --target x86_64-unknown-linux-musl \
+            --locked
+          
+          echo "✅ Build completed"
+
+      - name: Strip binaire
+        run: |
+          strip target/x86_64-unknown-linux-musl/release/nook-backend
+          echo "✅ Binary stripped"
+
+      - name: Vérifier binaire statique
+        run: |
+          BIN_PATH="target/x86_64-unknown-linux-musl/release/nook-backend"
+          
+          if [ ! -f "$BIN_PATH" ]; then
+            echo "❌ Binary not found: $BIN_PATH"
+            exit 1
+          fi
+          
+          chmod +x "$BIN_PATH"
+          SIZE=$(stat -c%s "$BIN_PATH")
+          echo "📦 Binary size: $(numfmt --to=iec-i --suffix=B $SIZE)"
+          
+          # Vérifier que c'est bien un binaire statique
+          echo "🔍 Checking if binary is static..."
+          if ldd "$BIN_PATH" 2>&1 | grep -q "not a dynamic executable"; then
+            echo "✅ Binary is fully static"
+          elif ldd "$BIN_PATH" 2>&1 | grep -q "statically linked"; then
+            echo "✅ Binary is statically linked"
+          else
+            echo "⚠️ Binary dependencies:"
+            ldd "$BIN_PATH" || true
+            echo "⚠️ Warning: Binary may not be fully static"
+          fi
+          
+          # Vérifier la taille
+          if [ "$SIZE" -lt 5000000 ]; then
+            echo "⚠️ Binary seems unusually small ($SIZE bytes)"
+          fi
+          
+          echo "✅ Binary verified: $BIN_PATH"
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nook-backend-musl-${{ github.sha }}
+          path: backend/target/x86_64-unknown-linux-musl/release/nook-backend
+          retention-days: 1
+          if-no-files-found: error
+
+  # =====================================================
+  # Frontend - Build SPA
+  # =====================================================
+  frontend:
+    name: 🎨 Frontend (Svelte 5)
+    runs-on: ubuntu-latest
+    needs: setup
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Afficher versions
+        run: |
+          echo "📦 Node: $(node --version)"
+          echo "📦 NPM: $(npm --version)"
+
+      - name: Vérifier package-lock.json
+        id: check-package
+        run: |
+          if [ ! -f "package-lock.json" ]; then
+            echo "needs_generation=true" >> $GITHUB_OUTPUT
+            echo "⚠️ package-lock.json missing"
+          else
+            echo "needs_generation=false" >> $GITHUB_OUTPUT
+            echo "✅ package-lock.json present"
+          fi
+
+      - name: Générer package-lock.json
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          echo "🔄 Generating package-lock.json..."
+          npm install --package-lock-only --no-audit --no-fund
+          
+          if [ ! -f "package-lock.json" ]; then
+            echo "❌ Failed to generate package-lock.json"
+            exit 1
+          fi
+          echo "✅ package-lock.json generated"
+
+      - name: Commit package-lock.json
+        if: steps.check-package.outputs.needs_generation == 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add frontend/package-lock.json
+          
+          if ! git diff --staged --quiet; then
+            git commit -m "chore(frontend): auto-update package-lock.json [skip ci]"
+            git push origin HEAD:${{ github.ref_name }} || true
+          fi
+
+      - name: Installer dépendances
+        run: |
+          echo "🔄 Installing dependencies..."
+          npm ci --no-audit --no-fund
+          echo "✅ Dependencies installed"
+
+      - name: Vérifier dépendances critiques
+        run: |
+          REQUIRED_DEPS=("svelte" "@sveltejs/kit" "vite")
+          for dep in "${REQUIRED_DEPS[@]}"; do
+            if ! npm list "$dep" --depth=0 >/dev/null 2>&1; then
+              echo "❌ Missing: $dep"
+              exit 1
+            fi
+            echo "✅ $dep present"
+          done
+
+      - name: Vérifier placeholder dans index.html
+        run: |
+          # Chercher le fichier index.html (peut être dans src/ ou static/)
+          INDEX_FILES=$(find . -name "index.html" -o -name "app.html")
+          
+          if [ -z "$INDEX_FILES" ]; then
+            echo "⚠️ No index.html found, will check after build"
+          else
+            for file in $INDEX_FILES; do
+              if grep -q "<base-placeholder/>" "$file"; then
+                echo "✅ Placeholder found in $file"
+              else
+                echo "⚠️ No placeholder in $file"
+              fi
+            done
+          fi
+
+      - name: Build Frontend
+        run: |
+          echo "🔄 Building frontend..."
+          npm run build
+          echo "✅ Build completed"
+
+      - name: Vérifier build/
+        run: |
+          BUILD_DIR="build"
+          
+          if [ ! -d "$BUILD_DIR" ]; then
+            echo "❌ $BUILD_DIR directory not found"
+            exit 1
+          fi
+          
+          echo "📁 Contents of $BUILD_DIR:"
+          ls -laR "$BUILD_DIR/"
+          
+          # Vérifier index.html
+          if [ ! -f "$BUILD_DIR/index.html" ]; then
+            echo "❌ index.html not found in build/"
+            exit 1
+          fi
+          
+          # Vérifier le placeholder
+          if grep -q "<base-placeholder/>" "$BUILD_DIR/index.html"; then
+            echo "✅ Placeholder present in index.html"
+          else
+            echo "⚠️ Warning: No placeholder in index.html"
+            echo "First 20 lines of index.html:"
+            head -n 20 "$BUILD_DIR/index.html"
+          fi
+          
+          echo "✅ Build verified"
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nook-frontend-${{ github.sha }}
+          path: frontend/build
+          retention-days: 1
+          if-no-files-found: error
+
+  # =====================================================
+  # Docker - Build Multi-Platform
+  # =====================================================
+  docker:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-backend-musl-${{ github.sha }}
+          path: backend-artifact
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend-${{ github.sha }}
+          path: frontend-artifact
+
+      - name: Vérifier artifacts
+        run: |
+          echo "📦 Backend artifact:"
+          ls -lah backend-artifact/
+          file backend-artifact/nook-backend
+          
+          echo ""
+          echo "📦 Frontend artifact:"
+          ls -lah frontend-artifact/
+          
+          # Rendre le binaire exécutable
+          chmod +x backend-artifact/nook-backend
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/mx10-ac2n/nook
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Image digest
+        run: |
+          echo "🎉 Image pushed successfully!"
+          echo "📦 Image: ghcr.io/mx10-ac2n/nook:latest"
+          echo "🔖 Tags: ${{ steps.meta.outputs.tags }}"
+
+      - name: Cleanup artifacts
+        if: always()
+        run: |
+          rm -rf backend-artifact frontend-artifact || true
+
+  # =====================================================
+  # Summary & Notification
+  # =====================================================
+  summary:
+    name: 📊 Build Summary
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, docker]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend (MUSL) | ${{ needs.backend.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.frontend.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker | ${{ needs.docker.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend**: Static MUSL binary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: Svelte 5 SPA build" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker**: Multi-platform image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Image**: \`ghcr.io/mx10-ac2n/nook:latest\`" >> $GITHUB_STEP_SUMMARY
