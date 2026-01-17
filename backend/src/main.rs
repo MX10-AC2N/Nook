@@ -70,7 +70,9 @@ async fn base_inject_middleware(
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
         if ct.to_str().unwrap_or("").starts_with("text/html") {
             let (parts, body) = resp.into_parts();
-            let whole_body = to_bytes(body, 10_000_000).await.unwrap_or_else(|_| Bytes::new());
+            let whole_body = to_bytes(body, 10_000_000)
+                .await
+                .unwrap_or_else(|_| Bytes::new());
             let mut body_str = String::from_utf8_lossy(&whole_body).into_owned();
             body_str = body_str.replace("<base-placeholder/>", &replacement);
 
@@ -215,7 +217,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/conversations", post(db::create_conversation))
         .route("/api/conversations/:id", get(db::get_conversation))
         .route("/api/conversations/:id/join", post(db::join_conversation))
-        .route("/api/conversations/:id/messages", get(db::get_conversation_messages))
+        .route(
+            "/api/conversations/:id/messages",
+            get(db::get_conversation_messages),
+        )
         .route("/api/conversations/:id/messages", post(db::send_message))
         .route("/api/upload", post(upload::upload_handler))
         .route("/api/upload/chat", post(upload::upload_chat_file))
@@ -228,11 +233,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/health", get(|| async { "OK" }))
         .merge(webrtc::webrtc_routes())
         .with_state(shared_state.clone())
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any));
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     // Service statique SPA
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+    eprintln!(
+        "[Static] Servir les fichiers frontend depuis : {}",
+        static_path
+    );
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
