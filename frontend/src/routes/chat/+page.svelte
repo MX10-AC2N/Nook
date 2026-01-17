@@ -1,8 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
-  import { browser } from '$app/environment';
   import { isAuthenticated, authUser } from '$lib/authStore';
   import {
     messages,
@@ -17,46 +15,88 @@
   } from '$lib/chatStore';
 
   // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
+  // États locaux
   // -----------------------------------------------------------------
   let newMessage = $state('');
-  let conversationId = $state('default_global'); // identifiant de la conversation (global)
-  let chatContainer: HTMLElement;                // ref du conteneur de messages
+  let conversationId = $state('default_global'); // À rendre dynamique plus tard
+  let chatContainer: HTMLElement;
   let gifSearchQuery = $state('');
+  let fileInput: HTMLInputElement; // ref pour input file caché
 
   // -----------------------------------------------------------------
-  // 2️⃣ Fonctions utilitaires
+  // Fonctions utilitaires
   // -----------------------------------------------------------------
-  /** Ouvre/ferme le panneau GIF. */
   function toggleGifs() {
     chatStore.toggleGifs();
   }
 
-  /** Recherche des GIFs via l'API Tenor. */
   async function handleSearchGifs() {
     if (gifSearchQuery.trim()) {
       await searchGifs(gifSearchQuery);
     }
   }
 
-  /** Sélection d'un GIF → insertion dans le champ texte. */
   function selectGif(gifUrl: string) {
-    // On insère un `<img>` afin que le backend le traite comme média.
-    newMessage = `${newMessage}<img src="${gifUrl}" alt="GIF"/>`;
-    toggleGifs(); // refermer le panneau après sélection
+    newMessage = `\( {newMessage}<img src=" \){gifUrl}" alt="GIF"/>`;
+    toggleGifs();
   }
 
-  /** Envoi du message (texte ou GIF). */
   async function handleSendMessage() {
     if (!newMessage.trim()) return;
 
-    // Pas de destinataires ni de clé privée dans le chat global (vide)
     await sendMessage(newMessage, conversationId, [], new Uint8Array());
-
-    newMessage = ''; // reset du champ
+    newMessage = '';
   }
 
-  /** Gestion du `Enter` dans le champ de recherche GIF. */
+  // --------------------- UPLOAD DE FICHIERS ---------------------
+  async function handleFileUpload(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('conversation_id', conversationId);
+    formData.append('from_user_id', $authUser?.id || '');
+
+    try {
+      const response = await fetch('/api/upload/chat', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include', // si auth par cookies/sessions
+      });
+
+      if (!response.ok) throw new Error('Upload échoué');
+
+      const data = await response.json();
+
+      let content = '';
+      if (file.type.startsWith('image/')) {
+        content = `<img src="\( {data.url}" alt=" \){data.file_name}" class="uploaded-image" />`;
+      } else {
+        content = `<div class="file-attachment">
+          <a href="\( {data.url}" download=" \){data.file_name}">📎 \( {data.file_name} ( \){formatFileSize(file.size)})</a>
+        </div>`;
+      }
+
+      // Envoi d'un message dédié avec l'attachment rendu en HTML
+      await sendMessage(content, conversationId, [], new Uint8Array());
+
+      // Reset input file
+      input.value = '';
+    } catch (err) {
+      console.error('[Upload] Erreur :', err);
+      alert('Échec de l\'upload du fichier');
+    }
+  }
+
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  // --------------------- Autres handlers ---------------------
   function handleGifKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter') {
       event.preventDefault();
@@ -64,7 +104,6 @@
     }
   }
 
-  /** Gestion du `Enter` dans le champ de texte du chat (envoi du message). */
   function handleMessageKeydown(event: KeyboardEvent) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -72,32 +111,27 @@
     }
   }
 
-  /** Soumission du formulaire (fallback au cas où le bouton serait utilisé). */
   function handleSubmit(event: Event) {
     event.preventDefault();
     handleSendMessage();
   }
 
-  /** Détermine si le message provient de l'utilisateur courant. */
   function isMyMessage(senderId: string): boolean {
     return $authUser?.id === senderId;
   }
 
   // -----------------------------------------------------------------
-  // 3️⃣ Cycle de vie
+  // Cycle de vie
   // -----------------------------------------------------------------
   onMount(async () => {
-    // Rediriger si l'utilisateur n'est pas authentifié
     if (!$isAuthenticated) {
       goto('/login');
       return;
     }
 
-    // Charger les messages de la conversation globale
     await loadMessages(conversationId);
   });
 
-  // Scroll automatique vers le bas à chaque nouveau message
   $effect(() => {
     if (chatContainer && messages.length > 0) {
       chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -110,9 +144,6 @@
 </svelte:head>
 
 <div class="chat-page">
-  <!-- -----------------------------------------------------------------
-       SIDEBAR – LISTE DES CONVERSATIONS (pour le moment fixe)
-       ----------------------------------------------------------------- -->
   <aside class="conversations-sidebar">
     <h2>Conversations</h2>
     <div class="conversation-list">
@@ -126,15 +157,11 @@
     </div>
   </aside>
 
-  <!-- -----------------------------------------------------------------
-       ZONE DE CHAT
-       ----------------------------------------------------------------- -->
   <main class="chat-area">
     <header class="chat-header">
       <h2>👨‍👩‍👧‍👦 Groupe Global</h2>
     </header>
 
-    <!-- Messages -->
     <div class="messages-container" bind:this={chatContainer}>
       {#each messages as message (message.id)}
         <div class="message" class:mine={isMyMessage(message.sender_id)}>
@@ -145,7 +172,6 @@
       {/each}
     </div>
 
-    <!-- Panneau GIF (affiché uniquement si showGifs est true) -->
     {#if $showGifs}
       <div class="gif-panel">
         <div class="gif-search">
@@ -153,10 +179,10 @@
             type="text"
             placeholder="Rechercher des GIFs..."
             bind:value={gifSearchQuery}
-            onkeydown={handleGifKeydown}
+            on:keydown={handleGifKeydown}
             class="gif-input"
           />
-          <button onclick={handleSearchGifs} class="search-btn">🔍</button>
+          <button on:click={handleSearchGifs} class="search-btn">🔍</button>
         </div>
 
         {#if $gifLoading}
@@ -164,8 +190,8 @@
         {:else if $gifResults.length > 0}
           <div class="gif-results">
             {#each $gifResults as gif}
-              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.tinygif?.url)}>
-                <img src={gif.media?.[0]?.tinygif?.url} alt={gif.title} />
+              <button class="gif-item" on:click={() => selectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
+                <img src={gif.media?.[0]?.tinygif?.url ?? ''} alt={gif.title} />
               </button>
             {/each}
           </div>
@@ -175,26 +201,27 @@
       </div>
     {/if}
 
-    <!-- Input du message -->
-    <form class="message-input-area" onsubmit={handleSubmit}>
-      <button type="button" class="gif-toggle" onclick={toggleGifs}>🎬</button>
+    <form class="message-input-area" on:submit={handleSubmit}>
+      <button type="button" class="attach-btn" on:click={() => fileInput.click()}>📎</button>
+      <input type="file" bind:this={fileInput} on:change={handleFileUpload} style="display:none;" />
+
+      <button type="button" class="gif-toggle" on:click={toggleGifs}>🎬</button>
 
       <input
         type="text"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         class="message-input"
-        onkeydown={handleMessageKeydown}
+        on:keydown={handleMessageKeydown}
       />
 
-      <button type="submit" class="send-btn" disabled={!newMessage.trim()}>
-        Envoyer
-      </button>
+      <button type="submit" class="send-btn" disabled={!newMessage.trim()}>Envoyer</button>
     </form>
   </main>
 </div>
 
 <style>
+   
   /* -----------------------------------------------------------------
      LAYOUT GLOBAL
      ----------------------------------------------------------------- */
@@ -482,7 +509,47 @@
     cursor: not-allowed;
   }
 
-  /* -----------------------------------------------------------------
+  /*
+/* Styles spécifiques aux uploads */
+  .uploaded-image {
+    max-width: 300px;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .file-attachment {
+    background: rgba(0,0,0,0.05);
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+    display: inline-block;
+  }
+
+  .file-attachment a {
+    color: var(--accent, #4ade80);
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .file-attachment a:hover {
+    text-decoration: underline;
+  }
+
+  .attach-btn {
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+  }
+
+  .attach-btn:hover {
+    background-color: var(--bg-secondary, #f1f5f9);
+  }
+ -----------------------------------------------------------------
      RESPONSIVE
      ----------------------------------------------------------------- */
   @media (max-width: 768px) {
