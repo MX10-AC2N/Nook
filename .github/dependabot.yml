@@ -1,42 +1,87 @@
-# .github/dependabot.yml
+# =====================================================
+# Dependabot Configuration
+# Mise à jour automatique des dépendances
+# =====================================================
+
 version: 2
 updates:
-  # ==== Front‑end (Node) ====
-  - package-ecosystem: "npm"
-    directory: "/frontend"
-    schedule:
-      interval: "weekly"          # toutes les semaines
-      day: "sunday"
-      time: "04:00"
-    open-pull-requests-limit: 5
-    # Sécurité uniquement : crée des PR dès qu’une vulnérabilité est détectée
-    allow:
-      - dependency-type: "direct"
-      - dependency-type: "indirect"
-    # Optionnel : ignore les grosses montées de version majeures
-    ignore:
-      - dependency-name: "eslint"
-        versions: ["9.x"]
-      - dependency-name: "rimraf"
-        versions: ["4.x"]
-    # Labels utiles
-    labels:
-      - "dependabot"
-      - "auto‑merge"
-    # Auto‑merge si les checks passent (GitHub Settings → Branch protection)
-    automerge: true
-    automerge-type: "pr"
-
-  # ==== Back‑end (Rust) – si vous avez un Cargo.toml ====
+  # Backend - Cargo dependencies
   - package-ecosystem: "cargo"
     directory: "/backend"
     schedule:
       interval: "weekly"
-      day: "sunday"
-      time: "04:30"
+      day: "monday"
+      time: "09:00"
     open-pull-requests-limit: 5
+    reviewers:
+      - "mx10-ac2n"
     labels:
-      - "dependabot"
-      - "auto‑merge"
-    automerge: true
-    automerge-type: "pr"
+      - "dependencies"
+      - "backend"
+      - "rust"
+    commit-message:
+      prefix: "chore(backend)"
+      include: "scope"
+
+  # Frontend - npm dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "mx10-ac2n"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "javascript"
+    commit-message:
+      prefix: "chore(frontend)"
+      include: "scope"
+    # Grouper les mises à jour mineures
+    groups:
+      svelte:
+        patterns:
+          - "svelte*"
+          - "@sveltejs/*"
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "mx10-ac2n"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 2
+    reviewers:
+      - "mx10-ac2n"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
