@@ -5,6 +5,10 @@
 # ✅ Image finale ~20-30MB
 # ✅ Aucune dépendance runtime
 # ✅ Sécurité maximale (distroless static)
+# 
+# Usage:
+#   Local:  docker build -t nook:latest .
+#   CI/CD:  Utilise Dockerfile.ci avec artifacts pré-compilés
 # =====================================================
 
 # --- Build Frontend (SPA Svelte 5) ---
