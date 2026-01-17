@@ -1,45 +1,71 @@
 -- migrations/001_initial.sql
--- Migration initiale complète et cohérente
--- Tables : users (avec public_key), invites (single-use, 48h expiration, created_by), uploads, etc.
--- Utilise INTEGER pour timestamps Unix (cohérent avec le code Rust : chrono::Utc::now().timestamp())
+-- Migration initiale cohérente avec :
+-- - Le code de main.rs (init_db() : tables users, conversations, conversation_members, messages, invites)
+-- - upload.rs (INSERT INTO uploads avec colonnes précises pour fichiers chiffrés)
+-- Tous les timestamps sont en INTEGER (Unix timestamp), comme dans ton code chrono::Utc::now().timestamp()
 
--- Table users : ajout public_key pour E2EE
+-- Table users (exactement comme dans main.rs)
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    name TEXT,
-    role TEXT DEFAULT 'user',
-    approved BOOLEAN DEFAULT 0,
-    needs_password_change BOOLEAN DEFAULT 0,
-    token TEXT,
-    created_at INTEGER NOT NULL,
-    public_key TEXT  -- Clé publique pour chiffrement E2EE
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    approved INTEGER NOT NULL DEFAULT 0,
+    needs_password_change INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
 );
 
--- Index pour performances
+-- Indexes pour performances
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- Table invites : single-use, expiration 48h, created_by (admin unique)
-CREATE TABLE IF NOT EXISTS invites (
+-- Table conversations (exactement comme dans main.rs)
+CREATE TABLE IF NOT EXISTS conversations (
     id TEXT PRIMARY KEY,
-    token TEXT UNIQUE NOT NULL,
-    created_by TEXT NOT NULL,  -- ID de l'admin qui a créé l'invite
+    title TEXT NOT NULL,
+    created_by TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    expires_at INTEGER NOT NULL,
-    used BOOLEAN DEFAULT 0,
-    used_by TEXT,              -- ID de l'utilisateur qui a utilisé l'invite
-    used_at INTEGER,
-    FOREIGN KEY(created_by) REFERENCES users(id),
-    FOREIGN KEY(used_by) REFERENCES users(id)
+    FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
--- Index pour recherche par token
-CREATE INDEX IF NOT EXISTS idx_invites_token ON invites(token);
+-- Table conversation_members (nom exact de main.rs, pas conversation_participants)
+CREATE TABLE IF NOT EXISTS conversation_members (
+    conversation_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    joined_at INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, user_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
 
--- Table uploads : inchangée mais cohérente
+-- Table messages (exactement comme dans main.rs)
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Index pour récupération des messages par conversation (ordre chrono)
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created_at ON messages(conversation_id, created_at DESC);
+
+-- Table invites (exactement comme dans main.rs)
+CREATE TABLE IF NOT EXISTS invites (
+    code TEXT PRIMARY KEY,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER,
+    max_uses INTEGER,
+    current_uses INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- Table uploads (exactement les colonnes utilisées dans upload.rs)
 CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY,
     conversation_id TEXT,
@@ -49,13 +75,13 @@ CREATE TABLE IF NOT EXISTS uploads (
     file_size INTEGER NOT NULL,
     content_type TEXT,
     uploaded_at INTEGER NOT NULL,
-    encrypted BOOLEAN DEFAULT 0,
+    encrypted INTEGER DEFAULT 0,  -- BOOLEAN en SQLite = INTEGER
     nonce TEXT,
     key_text TEXT,
-    FOREIGN KEY(conversation_id) REFERENCES conversations(id),
-    FOREIGN KEY(from_user_id) REFERENCES users(id)
+    FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+    FOREIGN KEY (from_user_id) REFERENCES users(id)
 );
 
--- Index pour performances (uploads)
+-- Indexes utiles pour uploads (performances + pruning futur)
 CREATE INDEX IF NOT EXISTS idx_uploads_uploaded_at ON uploads(uploaded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_uploads_conversation ON uploads(conversation_id);
