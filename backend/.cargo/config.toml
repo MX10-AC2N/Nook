@@ -1,10 +1,41 @@
-[build]
-# Toujours générer le lockfile en mode release
-#lockfile = true
+# =====================================================
+# .cargo/config.toml
+# Configuration pour build statique MUSL
+# =====================================================
+# Placer ce fichier dans : backend/.cargo/config.toml
 
-[profile.dev]
-incremental = true
+[target.x86_64-unknown-linux-musl]
+# Flags pour compilation statique
+rustflags = [
+    "-C", "target-feature=+crt-static",
+    "-C", "link-arg=-static",
+]
+
+# Linker statique
+linker = "rust-lld"
+
+[build]
+# Target par défaut pour les builds
+target = "x86_64-unknown-linux-musl"
 
 [profile.release]
-lto = "thin"
-codegen-units = 1
+# Optimisations de taille
+opt-level = "z"     # Optimiser pour la taille
+lto = true          # Link Time Optimization
+codegen-units = 1   # Meilleure optimisation
+strip = true        # Retirer les symboles
+panic = "abort"     # Réduire la taille du runtime
+
+# =====================================================
+# Optimisations supplémentaires (optionnel)
+# =====================================================
+
+# Accélérer les builds en dev
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = "unpacked"
+
+# Profile pour tests locaux rapides
+[profile.dev.package."*"]
+opt-level = 2
