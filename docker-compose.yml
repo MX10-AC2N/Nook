@@ -1,103 +1,100 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  # -------------------------------------------------
-  # 1️⃣ Nook – backend + frontend static (déjà tout‑en‑un)
-  # -------------------------------------------------
   nook:
     build:
       context: .
       dockerfile: Dockerfile
-      # Le flag BUILDKIT_INLINE_CACHE permet de ré‑utiliser le cache d’image
       args:
-        BUILDKIT_INLINE_CACHE: "1"
-        # <-- Variable qui sera injectée dans le front‑end (voir Dockerfile) -->
-        PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://192.168.1.192:6300}
+        # Plus besoin de PUBLIC_SITE_URL avec injection dynamique
+        BUILDKIT_INLINE_CACHE: 1
+    
     image: nook:latest
-    container_name: nook
+    container_name: nook-backend
+    
+    # Redémarrage automatique
     restart: unless-stopped
-
-    # -------------------------------------------------
-    # 2️⃣ Ports – uniquement pour le test LAN
-    # -------------------------------------------------
-    # Le conteneur écoute sur le port 3000 (exposé dans le Dockerfile)
-    # Nous le mappons sur le port 6300 du host pour le LAN.
+    
+    # Ports
     ports:
-      - "6300:3000"          # http://192.168.1.192:6300 → 0.0.0.0:3000 du conteneur
-
-    # -------------------------------------------------
-    # 3️⃣ Volumes – persistance des données / logs
-    # -------------------------------------------------
-    volumes:
-      - ./data:/app/data          # DB SQLite, uploads, etc.
-      - ./logs:/app/logs          # (optionnel) logs persistants
-
-    # -------------------------------------------------
-    # 4️⃣ Variables d’environnement
-    # -------------------------------------------------
+      - "6300:3000"
+    
+    # Variables d'environnement
     environment:
-      # ---- Base de données ----
-      - DATABASE_URL=sqlite:/app/data/nook.db
-
-      # ---- Chemins internes ----
-      - STATIC_FILES_DIR=/app/static
-      - PORT=3000
-
-      # ---- Logging / Debug ----
       - RUST_LOG=info
-      - RUST_BACKTRACE=1
-      - TZ=Europe/Paris
-
-      # ---- URL publique (utilisée par le front‑end) ----
-      # Si PUBLIC_SITE_URL n’est pas fournie via le .env, on utilise
-      # l’adresse LAN par défaut (définie dans le build‑arg ci‑dessus).
-      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://192.168.1.192:6300}
-
-    # -------------------------------------------------
-    # 5️⃣ Health‑check (inchangé)
-    # -------------------------------------------------
+      - DATABASE_URL=sqlite:/app/data/nook.db
+      - PORT=3000
+    
+    # Volumes persistants
+    volumes:
+      # Base de données SQLite
+      - nook-data:/app/data
+      # Uploads utilisateurs
+      - nook-uploads:/app/data/uploads
+    
+    # Healthcheck
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "/app/nook-backend", "--health"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 20s
-
-    # -------------------------------------------------
-    # 6️⃣ Limites de ressources (inchangées)
-    # -------------------------------------------------
+      start_period: 10s
+    
+    # Limites de ressources (optionnel mais recommandé)
     deploy:
       resources:
         limits:
-          cpus: "1"
+          cpus: '2.0'
           memory: 512M
         reservations:
-          cpus: "0.25"
+          cpus: '0.5'
           memory: 128M
-
-    # -------------------------------------------------
-    # 7️⃣ Réseau – on rejoint le réseau externe utilisé par NPM
-    # -------------------------------------------------
+    
+    # Réseau
     networks:
-      - npm_net          # réseau partagé avec Nginx Proxy Manager
-      - nook-network     # réseau interne (facultatif, garde l’isolation)
+      - nook-network
+    
+    # Sécurité : mode read-only sauf pour /app/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    
+    # Capabilities Linux minimales
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    
+    # Logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-# =========================================================
-# 8️⃣ Réseaux
-# =========================================================
+# =====================================================
+# Volumes nommés
+# =====================================================
+volumes:
+  nook-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  
+  nook-uploads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/uploads
+
+# =====================================================
+# Réseau
+# =====================================================
 networks:
-  # Réseau créé par Nginx Proxy Manager (existe déjà)
-  npm_net:
-    external: true          # <<‑‑ IMPORTANT : il doit déjà exister
-
-  # Réseau interne dédié à Nook (facultatif, mais pratique)
   nook-network:
     driver: bridge
-    name: nook-network
-
-# =========================================================
-# 9️⃣ Volumes (facultatif – si tu veux déclarer explicitement)
-# =========================================================
-volumes:
-  data:
-    driver: local
