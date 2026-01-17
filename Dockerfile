@@ -2,9 +2,7 @@
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 
-# Plus besoin de PUBLIC_SITE_URL au build-time :
-# le <base href="..."> est injecté dynamiquement par le middleware Rust à runtime.
-# Assurez-vous que votre index.html contient le placeholder : <base-placeholder/>
+# Plus besoin de PUBLIC_SITE_URL : injection dynamique via middleware Rust
 
 COPY frontend/package*.json ./
 RUN npm install
@@ -65,14 +63,14 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
 
 # Copie binaire et fichiers statiques avec chown
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
-# ← Si votre build Vite sort dans "dist" au lieu de "build", changez en /app/dist/
+# ← Si votre build Vite sort dans "dist" (défaut Vite), changez en /app/dist/
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
 # Vérification (optionnelle)
 RUN ls -la /app/static && \
     [ -f "/app/static/index.html" ] && echo "✅ index.html présent"
 
-# --- Image finale : Distroless ---
+# --- Image finale : Distroless (multi-arch compatible) ---
 FROM gcr.io/distroless/cc-debian12
 
 # Copie utilisateur/groupe
@@ -82,11 +80,13 @@ COPY --from=runtime-prep /etc/group /etc/group
 # Copie certificats CA (utile pour requêtes HTTPS sortantes)
 COPY --from=runtime-prep /etc/ssl/certs /etc/ssl/certs
 
-# Copie des bibliothèques dynamiques nécessaires (et leurs symlinks)
-COPY --from=runtime-prep /usr/lib/x86_64-linux-gnu/libsqlite3.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=runtime-prep /usr/lib/x86_64-linux-gnu/libsodium.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=runtime-prep /usr/lib/x86_64-linux-gnu/libssl.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=runtime-prep /usr/lib/x86_64-linux-gnu/libcrypto.so* /usr/lib/x86_64-linux-gnu/
+# Copie des bibliothèques dynamiques nécessaires (compatible amd64 ET arm64)
+# On utilise un glob récursif ** pour trouver les libs quel que soit le sous-dossier d'archi
+# et on les copie "à plat" dans /usr/lib/ → le linker glibc les trouve directement là
+COPY --from=runtime-prep /usr/lib/**/libsqlite3.so* /usr/lib/
+COPY --from=runtime-prep /usr/lib/**/libsodium.so* /usr/lib/
+COPY --from=runtime-prep /usr/lib/**/libssl.so* /usr/lib/
+COPY --from=runtime-prep /usr/lib/**/libcrypto.so* /usr/lib/
 
 # Copie application + répertoires (avec permissions conservées)
 COPY --from=runtime-prep --chown=1000:1000 /app /app
@@ -96,7 +96,6 @@ WORKDIR /app
 USER 1000:1000
 
 ENV RUST_LOG=info
-# DATABASE_URL n'est plus nécessaire (hardcodée dans le code), mais on la garde au cas où
 ENV DATABASE_URL=sqlite:/app/data/nook.db
 ENV PORT=3000
 
