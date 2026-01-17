@@ -252,11 +252,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .precompressed_gzip()
         .precompressed_br()
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
+    
+    // Ajout pour l'uploads dans le chat
+    let uploads_service = ServeDir::new("/app/data/uploads")
+        .precompressed_gzip()
+        .precompressed_br();
 
     // Assemblage final
     let app = Router::new()
         .layer(middleware::from_fn(base_inject_middleware))
         .nest("/", api_router)
+        .nest("/api/files", uploads_service)
         .fallback_service(static_service);
 
     // Démarrage serveur
