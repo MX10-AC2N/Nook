@@ -1,0 +1,77 @@
+# =====================================================
+# .dockerignore - Optimisation du contexte Docker
+# =====================================================
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+LICENSE
+CHANGELOG.md
+docs/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# IDE et éditeurs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Backend - Fichiers de build et cache
+backend/target/
+backend/Cargo.lock
+backend/.cargo/
+backend/**/*.rs.bk
+
+# Frontend - Dépendances et build
+frontend/node_modules/
+frontend/build/
+frontend/.svelte-kit/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# Données et uploads (ne doivent jamais être dans l'image)
+data/
+uploads/
+*.db
+*.db-shm
+*.db-wal
+
+# Fichiers de test
+**/test/
+**/tests/
+**/__tests__/
+*.test.js
+*.spec.js
+*.test.ts
+*.spec.ts
+
+# Logs
+logs/
+*.log
+
+# Fichiers temporaires
+tmp/
+temp/
+*.tmp
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile.dev
+.dockerignore
