@@ -1,13 +1,19 @@
 use crate::db::Upload;
 use sqlx::{Error, SqlitePool};
 use std::path::Path;
-use tokio::fs; // Importe ta struct Upload depuis db.rs
+use tokio::fs;
 
+/// Nettoyage périodique des données anciennes (> 7 jours)
+/// - Messages anciens : hard delete
+/// - Uploads orphelins : suppression physique + DB
+/// - Conversations vides : suppression
+/// - Membres orphelins : nettoyage
 pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
 
     // 1. Supprimer les messages > 7 jours (hard delete direct)
-    let deleted_messages = sqlx::query("DELETE FROM messages WHERE timestamp < ?")
+    // → Colonne corrigée : created_at au lieu de l'ancien timestamp
+    let deleted_messages = sqlx::query("DELETE FROM messages WHERE created_at < ?")
         .bind(seven_days_ago)
         .execute(pool)
         .await?
@@ -20,6 +26,10 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
 
     // 2. Récupérer tous les uploads qui deviennent orphelins
     // (pas référencés par un message restant)
+    // ATTENTION : cette partie suppose l'existence de la table `uploads`
+    // et d'une colonne `file_id` dans `messages` (probablement NULLable).
+    // Si ces éléments n'existent pas encore dans votre schéma actuel,
+    // commentez temporairement cette section pour éviter une erreur SQL.
     let orphaned_uploads: Vec<Upload> = sqlx::query_as(
         r#"
         SELECT u.* FROM uploads u
@@ -81,12 +91,14 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
 
     println!("[Prune] {} conversations vides supprimées", deleted_convos);
 
-    // 4. Nettoyer les participants orphelins (bon pour la propreté)
+    // 4. Nettoyer les participants orphelins
+    // → Nom de table corrigé : conversation_members (dans votre schéma actuel)
+    //     au lieu de l'ancien conversation_participants
     sqlx::query(
         r#"
-        DELETE FROM conversation_participants
+        DELETE FROM conversation_members
         WHERE NOT EXISTS (
-            SELECT 1 FROM conversations WHERE conversations.id = conversation_participants.conversation_id
+            SELECT 1 FROM conversations WHERE conversations.id = conversation_members.conversation_id
         )
         "#
     )
