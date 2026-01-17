@@ -1,0 +1,95 @@
+[package]
+name = "nook-backend"
+version = "0.1.1"
+edition = "2021"
+
+[dependencies]
+# Framework Web
+axum = { version = "0.7", features = ["multipart"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "cors", "compression-full"] }
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# Sécurité & Crypto
+argon2 = "0.5"
+uuid = { version = "1.19", features = ["v4", "serde"] }
+
+# Sérialisation
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP Client
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+# Utilitaires
+chrono = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+headers = "0.4"
+
+# WebRTC
+# Ajuste selon tes dépendances WebRTC actuelles
+
+# Rate Limiting
+tower_governor = "0.4"
+
+# Uploads & Files
+multer = "3.0"
+async-compression = { version = "0.4", features = ["tokio", "gzip", "brotli"] }
+
+# Variables d'environnement
+dotenvy = "0.15"
+
+# =====================================================
+# OPTIMISATIONS POUR BUILD STATIQUE
+# =====================================================
+
+[profile.release]
+# Optimisations maximales
+opt-level = 3              # Optimisation maximale
+lto = true                 # Link Time Optimization
+codegen-units = 1          # Une seule unité de compilation (plus lent mais plus optimisé)
+strip = true               # Retirer les symboles de debug
+panic = "abort"            # Pas d'unwinding (réduit la taille)
+
+# Réduire la taille du binaire
+[profile.release.package."*"]
+opt-level = 3
+strip = true
+
+# =====================================================
+# Configuration pour build MUSL statique
+# =====================================================
+
+# Forcer l'utilisation de rustls au lieu d'OpenSSL natif
+[dependencies.reqwest]
+version = "0.12"
+default-features = false
+features = ["rustls-tls", "json", "multipart"]
+
+# SQLx avec bundled SQLite (compilé statiquement)
+[dependencies.sqlx]
+version = "0.8"
+default-features = false
+features = [
+    "runtime-tokio",
+    "sqlite",
+    "macros",
+]
+
+# =====================================================
+# Configuration Cargo pour target MUSL
+# =====================================================
+# Créer un fichier .cargo/config.toml à la racine du projet :
+#
+# [target.x86_64-unknown-linux-musl]
+# rustflags = [
+#     "-C", "target-feature=+crt-static",
+#     "-C", "link-arg=-static"
+# ]
