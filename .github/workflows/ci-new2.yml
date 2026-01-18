@@ -63,8 +63,25 @@ jobs:
         DATABASE_URL: sqlite:///tmp/nook-data/nook.db
         SQLX_OFFLINE: false
       run: |
-        # Générer le cache SQLx sans cible spécifique (pour le host)
-        cargo sqlx prepare --workspace --check || cargo sqlx prepare --workspace
+        # Solution: Désactiver la vérification et forcer la génération du cache
+        echo "🔄 Génération du cache SQLx (mode forcé)..."
+        
+        # Vider le cache précédent si existant
+        rm -rf .sqlx 2>/dev/null || true
+        
+        # Générer le cache SQLx en mode forcé sans vérification
+        cargo sqlx prepare --workspace
+        
+        echo "✅ Cache SQLx généré avec succès"
+        
+        # Vérifier que le cache a été créé
+        if [ -d ".sqlx" ]; then
+          echo "📁 Contenu du répertoire .sqlx:"
+          ls -la .sqlx/
+        else
+          echo "❌ Le répertoire .sqlx n'a pas été créé"
+          exit 1
+        fi
     
     - name: Commit SQLx cache if changed
       if: success()
@@ -81,7 +98,7 @@ jobs:
   backend:
     name: 🏗️ Backend Build & Test (Multi-Arch)
     runs-on: ubuntu-latest
-    needs: sqlx-cache  # Dépend du job sqlx-cache
+    needs: sqlx-cache
     
     defaults:
       run:
@@ -126,18 +143,12 @@ jobs:
           ${{ runner.os }}-cargo-${{ matrix.target }}-
           ${{ runner.os }}-cargo-
 
-    - name: Setup SQLite database (for checks)
-      run: |
-        mkdir -p /tmp/nook-data
-        touch /tmp/nook-data/nook.db
-        echo "DATABASE_URL=sqlite:///tmp/nook-data/nook.db" >> $GITHUB_ENV
-
     - name: Format code
       run: cargo fmt --all -- --check
 
     - name: Check dependencies
       env:
-        SQLX_OFFLINE: true  # Utiliser le cache généré précédemment
+        SQLX_OFFLINE: true
       run: cargo check --all-targets --target ${{ matrix.target }}
 
     - name: Lint with Clippy
