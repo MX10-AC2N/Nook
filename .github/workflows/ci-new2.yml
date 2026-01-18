@@ -8,7 +8,7 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'Dockerfile'
-      - '.github/workflows/ci-new2.yml'
+      - '.github/workflows/fast-build2.yml'
       - 'backend/Cargo.lock'
       - 'backend/Cargo.toml'
       - 'frontend/package.json'
@@ -79,7 +79,7 @@ jobs:
 
     - name: Install sqlx-cli
       run: |
-        cargo install sqlx-cli --version '^0.8' --no-default-features --features sqlite --locked
+        cargo install sqlx-cli --version '^0.8' --no-default-features --features sqlite --locked || true
 
     - name: Configure SQLx offline mode
       run: |
@@ -360,55 +360,83 @@ jobs:
         mkdir -p docker-context/backend
         mkdir -p docker-context/frontend
         
-        echo "✅ Copie des binaires backend avec noms explicites..."
+        echo "✅ Recherche et copie des binaires backend..."
         
-        # Trouver et copier les binaires
+        # Trouver tous les fichiers backend
+        BACKEND_FILES=$(find backend-artifacts -type f -name "nook-backend*")
+        echo "📁 Fichiers backend trouvés:"
+        echo "$BACKEND_FILES"
+        
+        # Initialiser les flags
         FOUND_AMD64=false
         FOUND_ARM64=false
         
-        # Parcourir tous les fichiers backend
-        find backend-artifacts -type f -name "nook-backend*" | while read file; do
-          echo "📄 Trouvé: $file"
-          
-          if echo "$file" | grep -q "x86_64"; then
-            cp "$file" docker-context/backend/nook-backend-amd64
-            chmod +x docker-context/backend/nook-backend-amd64
-            FOUND_AMD64=true
-            echo "✅ AMD64: $file -> docker-context/backend/nook-backend-amd64"
-          elif echo "$file" | grep -q "aarch64"; then
-            cp "$file" docker-context/backend/nook-backend-arm64
-            chmod +x docker-context/backend/nook-backend-arm64
-            FOUND_ARM64=true
-            echo "✅ ARM64: $file -> docker-context/backend/nook-backend-arm64"
-          elif echo "$file" | grep -q "amd64"; then
-            cp "$file" docker-context/backend/nook-backend-amd64
-            chmod +x docker-context/backend/nook-backend-amd64
-            FOUND_AMD64=true
-            echo "✅ AMD64 (amd64): $file -> docker-context/backend/nook-backend-amd64"
-          elif echo "$file" | grep -q "arm64"; then
-            cp "$file" docker-context/backend/nook-backend-arm64
-            chmod +x docker-context/backend/nook-backend-arm64
-            FOUND_ARM64=true
-            echo "✅ ARM64 (arm64): $file -> docker-context/backend/nook-backend-arm64"
+        # Traiter chaque fichier sans utiliser de sous-shell
+        for file in $BACKEND_FILES; do
+          if [ -f "$file" ]; then
+            echo "📄 Traitement: $file"
+            
+            # Déterminer l'architecture
+            if echo "$file" | grep -qi "x86_64\|amd64"; then
+              cp "$file" docker-context/backend/nook-backend-amd64
+              chmod +x docker-context/backend/nook-backend-amd64
+              FOUND_AMD64=true
+              echo "✅ AMD64: $file -> docker-context/backend/nook-backend-amd64"
+            elif echo "$file" | grep -qi "aarch64\|arm64"; then
+              cp "$file" docker-context/backend/nook-backend-arm64
+              chmod +x docker-context/backend/nook-backend-arm64
+              FOUND_ARM64=true
+              echo "✅ ARM64: $file -> docker-context/backend/nook-backend-arm64"
+            else
+              echo "⚠️ Architecture non reconnue pour: $file"
+            fi
           fi
         done
         
         # Vérifier si on a trouvé les deux architectures
         if [ "$FOUND_AMD64" = false ]; then
-          echo "❌ Binaire AMD64 non trouvé"
-          echo "Contenu de backend-artifacts:"
-          ls -laR backend-artifacts/
-          exit 1
+          echo "❌ Aucun binaire AMD64 trouvé"
+          echo "Recherche alternative des binaires..."
+          
+          # Recherche alternative par contenu du fichier
+          for file in $(find backend-artifacts -type f); do
+            if [ -f "$file" ] && file "$file" | grep -qi "x86-64"; then
+              cp "$file" docker-context/backend/nook-backend-amd64
+              chmod +x docker-context/backend/nook-backend-amd64
+              FOUND_AMD64=true
+              echo "✅ AMD64 trouvé par analyse de contenu: $file"
+              break
+            fi
+          done
         fi
         
         if [ "$FOUND_ARM64" = false ]; then
-          echo "❌ Binaire ARM64 non trouvé"
-          echo "Contenu de backend-artifacts:"
+          echo "❌ Aucun binaire ARM64 trouvé"
+          echo "Recherche alternative des binaires..."
+          
+          # Recherche alternative par contenu du fichier
+          for file in $(find backend-artifacts -type f); do
+            if [ -f "$file" ] && file "$file" | grep -qi "aarch64"; then
+              cp "$file" docker-context/backend/nook-backend-arm64
+              chmod +x docker-context/backend/nook-backend-arm64
+              FOUND_ARM64=true
+              echo "✅ ARM64 trouvé par analyse de contenu: $file"
+              break
+            fi
+          done
+        fi
+        
+        # Vérification finale
+        if [ "$FOUND_AMD64" = false ] || [ "$FOUND_ARM64" = false ]; then
+          echo "❌ Échec de la recherche des binaires"
+          echo "Contenu détaillé de backend-artifacts:"
           ls -laR backend-artifacts/
+          echo "Analyse des fichiers disponibles:"
+          find backend-artifacts -type f -exec file {} \;
           exit 1
         fi
         
-        echo "✅ Binaires backend copiés avec succès"
+        echo "✅ Binaires backend trouvés et copiés avec succès"
         
         # Copier le frontend
         echo "📁 Copie du frontend..."
