@@ -178,10 +178,10 @@
             type="text"
             placeholder="Rechercher des GIFs..."
             bind:value={gifSearchQuery}
-            on:keydown={handleGifKeydown}
+            onkeydown={handleGifKeydown}
             class="gif-input"
           />
-          <button on:click={handleSearchGifs} class="search-btn">🔍</button>
+          <button onclick={handleSearchGifs} class="search-btn">🔍</button>
         </div>
 
         {#if $gifLoading}
@@ -189,7 +189,7 @@
         {:else if $gifResults.length > 0}
           <div class="gif-results">
             {#each $gifResults as gif}
-              <button class="gif-item" on:click={() => selectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
+              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
                 <img src={gif.media?.[0]?.tinygif?.url ?? ''} alt={gif.title} />
               </button>
             {/each}
@@ -201,17 +201,17 @@
     {/if}
 
     <form class="message-input-area" on:submit={handleSubmit}>
-      <button type="button" class="attach-btn" on:click={() => fileInput.click()}>📎</button>
-      <input type="file" bind:this={fileInput} on:change={handleFileUpload} style="display:none;" />
+      <button type="button" class="attach-btn" onclick={() => fileInput.click()}>📎</button>
+      <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none;" />
 
-      <button type="button" class="gif-toggle" on:click={toggleGifs}>🎬</button>
+      <button type="button" class="gif-toggle" onclick={toggleGifs}>🎬</button>
 
       <input
         type="text"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         class="message-input"
-        on:keydown={handleMessageKeydown}
+        onkeydown={handleMessageKeydown}
       />
 
       <button type="submit" class="send-btn" disabled={!newMessage.trim()}>Envoyer</button>
