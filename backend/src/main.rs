@@ -242,7 +242,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Service statique SPA
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+    eprintln!(
+        "[Static] Servir les fichiers frontend depuis : {}",
+        static_path
+    );
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
