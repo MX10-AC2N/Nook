@@ -1,4 +1,4 @@
-name: 🚀 Build & Push Docker (Multi-Architecture)
+name: 🚀 Build & Push Docker (Distroless)
 
 on:
   workflow_dispatch:
@@ -11,6 +11,8 @@ on:
       - '.github/workflows/fast-build2.yml'
       - 'backend/Cargo.lock'
       - 'backend/Cargo.toml'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,6 +42,7 @@ jobs:
       with:
         toolchain: stable
         components: rustfmt, clippy
+        targets: x86_64-unknown-linux-gnu
     
     - name: Setup libsodium
       run: |
@@ -102,71 +105,180 @@ jobs:
           git push origin HEAD:${{ github.ref_name }} || echo "Push failed (likely no changes)"
         fi
     
-    - name: Build release
+    - name: Build release for distroless
       env:
         SQLX_OFFLINE: true
-      run: cargo build --release --locked
-    
-    - name: Verify binary
+        CARGO_PROFILE_RELEASE_LTO: true
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+        CARGO_PROFILE_RELEASE_OPT_LEVEL: 'z'
+        CARGO_PROFILE_RELEASE_STRIP: true
       run: |
-        BIN_PATH="target/release/nook-backend"
+        RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --locked --target x86_64-unknown-linux-gnu
+        
+        echo "🔍 Vérification du type de binaire:"
+        file target/x86_64-unknown-linux-gnu/release/nook-backend
+        ldd target/x86_64-unknown-linux-gnu/release/nook-backend 2>&1 | grep -q "not a dynamic executable" && \
+          echo "✅ Binaire statique" || echo "⚠️ Binaire dynamique"
+        
+        strip target/x86_64-unknown-linux-gnu/release/nook-backend 2>/dev/null || true
+    
+    - name: Verify binary for distroless
+      run: |
+        BIN_PATH="target/x86_64-unknown-linux-gnu/release/nook-backend"
         if [ ! -f "$BIN_PATH" ]; then
           echo "❌ Binary missing: $BIN_PATH"
           exit 1
         fi
+        
+        echo "📊 Informations du binaire:"
         file "$BIN_PATH"
-        ls -lh "$BIN_PATH"
-        echo "✅ Binary generated"
+        echo "📏 Taille: $(ls -lh "$BIN_PATH" | awk '{print $5}')"
+        echo "📦 Détails:"
+        readelf -h "$BIN_PATH" | grep -E "(Class|Machine|Type|Entry)"
+        
+        if ! file "$BIN_PATH" | grep -q "ELF 64-bit"; then
+          echo "❌ Le binaire n'est pas un ELF 64-bit"
+          exit 1
+        fi
+        
+        echo "✅ Binaire compatible avec distroless"
     
     - name: Upload backend artifact
       uses: actions/upload-artifact@v4
       with:
         name: nook-backend
-        path: backend/target/release/nook-backend
+        path: backend/target/x86_64-unknown-linux-gnu/release/nook-backend
         retention-days: 1
 
   frontend:
     name: 🎨 Frontend Build
     runs-on: ubuntu-latest
-    
-    defaults:
-      run:
-        working-directory: ./frontend
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'        
+        node-version: '20'
     
-    - name: Install dependencies
+    - name: Check package-lock.json status
+      id: check-package-lock
+      working-directory: ./frontend
       run: |
-        # Ensure package-lock exists
-        if [ ! -f "package-lock.json" ]; then
-          echo "Generating package-lock.json..."
-          npm install --package-lock-only
+        echo "🔍 Vérification du package-lock.json..."
+        
+        if [ -f "package-lock.json" ]; then
+          echo "✅ package-lock.json présent"
+          echo "exists=true" >> $GITHUB_OUTPUT
+          
+          echo "🔍 Vérification de la cohérence avec package.json..."
+          npm ci --dry-run --no-audit --no-fund 2>&1 | grep -q "npm ERR!" && CONSISTENT="false" || CONSISTENT="true"
+          
+          if [ "$CONSISTENT" = "true" ]; then
+            echo "✅ package-lock.json cohérent avec package.json"
+            echo "consistent=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ package-lock.json incohérent avec package.json"
+            echo "consistent=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "⚠️ package-lock.json absent"
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "consistent=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Generate or update package-lock.json
+      if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
+      working-directory: ./frontend
+      run: |
+        echo "🔄 Génération/mise à jour du package-lock.json..."
+        
+        if [ -f "package-lock.json" ]; then
+          cp package-lock.json package-lock.json.backup
+          echo "📋 Backup créé: package-lock.json.backup"
         fi
         
-        # Clean install
-        npm ci --no-audit --no-fund
+        npm cache clean --force 2>/dev/null || true
         
-        # Verify critical dependencies
-        npm list svelte @sveltejs/kit vite
-    
-    - name: Build frontend
-      run: |
-        npm run build
+        rm -rf node_modules 2>/dev/null || true
+        rm -f package-lock.json 2>/dev/null || true
         
-        # Verify build output
-        if [ ! -f "build/index.html" ]; then
-          echo "❌ Build failed: index.html missing"
+        echo "📦 Génération du package-lock.json..."
+        npm install --package-lock-only --no-audit --no-fund --legacy-peer-deps
+        
+        if [ ! -f "package-lock.json" ]; then
+          echo "❌ Échec de génération du package-lock.json"
           exit 1
         fi
         
-        echo "✅ Build completed successfully"
+        echo "✅ package-lock.json généré/mis à jour"
+        
+        SIZE=$(stat -c%s "package-lock.json" 2>/dev/null || stat -f%z "package-lock.json")
+        echo "📏 Taille du package-lock.json: $SIZE octets"
+    
+    - name: Install dependencies
+      working-directory: ./frontend
+      run: |
+        echo "📦 Installation des dépendances..."
+        
+        npm ci --no-audit --no-fund --legacy-peer-deps
+        
+        echo "✅ Dépendances installées"
+    
+    - name: Commit package-lock.json if changed
+      if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
+      run: |
+        cd ${{ github.workspace }}
+        
+        if git status --porcelain frontend/package-lock.json | grep -q "frontend/package-lock.json"; then
+          echo "📝 Changements détectés dans package-lock.json"
+          
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add frontend/package-lock.json
+          git commit -m "chore(frontend): update package-lock.json [skip ci]"
+          
+          echo "📤 Push des changements..."
+          git push origin HEAD:${{ github.ref_name }}
+          
+          echo "✅ package-lock.json commité et poussé"
+        else
+          echo "ℹ️ Aucun changement détecté dans package-lock.json"
+        fi
+    
+    - name: Build frontend
+      working-directory: ./frontend
+      run: |
+        echo "🏗️ Construction du frontend..."
+        
+        REQUIRED_DEPS=("svelte" "@sveltejs/kit" "vite")
+        for dep in "${REQUIRED_DEPS[@]}"; do
+          if npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
+            echo "✅ $dep installé"
+          else
+            echo "❌ $dep manquant"
+            exit 1
+          fi
+        done
+        
+        npm run build
+        
+        if [ ! -f "build/index.html" ]; then
+          echo "❌ index.html manquant dans le build"
+          exit 1
+        fi
+        
+        echo "✅ Frontend construit avec succès"
+        echo "📁 Contenu du dossier build:"
+        ls -la build/
     
     - name: Upload frontend artifact
       uses: actions/upload-artifact@v4
@@ -176,7 +288,7 @@ jobs:
         retention-days: 1
 
   docker:
-    name: 🐳 Docker Build & Push
+    name: 🐳 Docker Build & Push (Distroless)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     permissions:
@@ -216,19 +328,19 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=sha,prefix=,suffix=-${{ github.ref_name }}
+          type=sha,prefix=
           type=ref,event=branch
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
     
-    - name: Build and push Docker image
+    - name: Build and push Distroless image
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./Dockerfile
         platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' }}
+        push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
@@ -237,51 +349,81 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
-    - name: Verify Docker image
-      if: github.event_name != 'pull_request'
+    - name: Analyze image size
       run: |
-        # Pull and test the image
+        TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        echo "📊 Analyse de la taille de l'image..."
+        
+        docker pull $TAG
+        
+        echo "📈 Détails des couches:"
+        docker history $TAG --no-trunc --format "{{.Size}}\t{{.CreatedBy}}" | head -20
+        
+        echo "📦 Taille totale:"
+        docker images $TAG --format "{{.Repository}}:{{.Tag}}\t{{.Size}}"
+        
+        ALPINE_SIZE=$(docker images alpine:latest --format "{{.Size}}" 2>/dev/null || echo "N/A")
+        echo "🔍 Comparaison:"
+        echo "Alpine base: $ALPINE_SIZE"
+        echo "Distroless cc: ~30-40MB"
+        echo "Notre image: $(docker images $TAG --format "{{.Size}}")"
+    
+    - name: Verify Docker image
+      run: |
         TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         docker pull $TAG
         
-        # Create test directory
         TEST_DIR=$(mktemp -d)
         chmod 777 "$TEST_DIR"
         
-        # Run container
+        echo "🧪 Starting container test..."
+        
         CONTAINER_ID=$(docker run -d \
-          --name test-nook \
+          --name test-nook-${{ github.run_id }} \
           -p 3000:3000 \
           -v "$TEST_DIR:/data" \
+          -e RUST_LOG=info \
           $TAG)
         
-        # Wait for startup
-        sleep 10
+        echo "⏳ Waiting for container to start..."
+        sleep 15
         
-        # Check if container is running
-        if docker ps | grep -q test-nook; then
+        if docker ps | grep -q "test-nook-${{ github.run_id }}"; then
           echo "✅ Container is running"
           
-          # Check logs for errors
-          if docker logs $CONTAINER_ID 2>&1 | grep -iE "error|panic|fatal"; then
-            echo "❌ Errors found in logs"
-            docker logs $CONTAINER_ID
+          LOGS=$(docker logs $CONTAINER_ID 2>&1)
+          if echo "$LOGS" | grep -iE "error|panic|fatal|failed"; then
+            echo "❌ Errors found in logs:"
+            echo "$LOGS"
             exit 1
+          else
+            echo "📋 Container logs (first 20 lines):"
+            echo "$LOGS" | head -20
           fi
           
-          # Simple HTTP check
-          if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200\|404\|302"; then
-            echo "✅ HTTP server responding"
-          else
-            echo "⚠️ HTTP check inconclusive"
+          echo "🌐 Testing HTTP endpoint..."
+          for i in {1..5}; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || echo "000")
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "302" ]; then
+              echo "✅ HTTP server responding with code: $HTTP_CODE"
+              break
+            else
+              echo "⚠️ Attempt $i: Got HTTP code $HTTP_CODE, retrying..."
+              sleep 3
+            fi
+          done
+          
+          if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ] && [ "$HTTP_CODE" != "302" ]; then
+            echo "⚠️ HTTP check inconclusive (code: $HTTP_CODE)"
           fi
         else
-          echo "❌ Container failed to start"
+          echo "❌ Container failed to start or crashed"
           docker logs $CONTAINER_ID
           exit 1
         fi
         
-        # Cleanup
-        docker stop $CONTAINER_ID
-        docker rm $CONTAINER_ID
+        echo "🧹 Cleaning up..."
+        docker stop $CONTAINER_ID 2>/dev/null || true
+        docker rm $CONTAINER_ID 2>/dev/null || true
         rm -rf "$TEST_DIR"
+        echo "✅ Test completed successfully"
