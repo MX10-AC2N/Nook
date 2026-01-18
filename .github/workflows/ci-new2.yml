@@ -413,62 +413,80 @@ jobs:
 
 # Ajouter APRÈS le build Docker, AVANT cleanup artifacts
       
-      - name: Test de l'image Distroless
-        run: |
-          echo "🧪 Test de l'image Docker..."
-          
-          # Pull de l'image qui vient d'être buildée
-          docker pull ghcr.io/mx10-ac2n/nook:${{ github.sha }}
-          
-          # Créer un répertoire temporaire pour les données
-          mkdir -p /tmp/nook-test-data
-          
-          # Lancer le conteneur en arrière-plan
-          CONTAINER_ID=$(docker run -d \
-            -p 3000:3000 \
-            -v /tmp/nook-test-data:/app/data \
-            ghcr.io/mx10-ac2n/nook:${{ github.sha }})
-          
-          echo "📦 Conteneur lancé: $CONTAINER_ID"
-          
-          # Attendre 5 secondes que le serveur démarre
-          sleep 5
-          
-          # Vérifier que le conteneur tourne toujours
-          if docker ps | grep -q "$CONTAINER_ID"; then
-            echo "✅ Conteneur actif"
-          else
-            echo "❌ Conteneur crashé !"
-            echo "📋 Logs du conteneur:"
-            docker logs "$CONTAINER_ID"
-            exit 1
-          fi
-          
-          # Vérifier les logs pour détecter des erreurs
-          echo "📋 Logs du conteneur:"
-          docker logs "$CONTAINER_ID"
-          
-          if docker logs "$CONTAINER_ID" 2>&1 | grep -i "error\|panic\|fatal"; then
-            echo "⚠️  Erreurs détectées dans les logs"
-            docker stop "$CONTAINER_ID" || true
-            docker rm "$CONTAINER_ID" || true
-            exit 1
-          fi
-          
-          # Test HTTP basique (optionnel)
-          echo "🌐 Test de la réponse HTTP..."
-          if curl -f -s http://localhost:3000/ > /dev/null; then
-            echo "✅ Le serveur répond sur le port 3000"
-          else
-            echo "⚠️  Le serveur ne répond pas (peut être normal si pas de route /)"
-          fi
-          
-          # Nettoyage
-          docker stop "$CONTAINER_ID" || true
-          docker rm "$CONTAINER_ID" || true
-          rm -rf /tmp/nook-test-data
-          
-          echo "✅ Tests terminés avec succès"
+      # ===============================================
+# Test de l'image Distroless
+# ===============================================
+- name: Test de l'image Distroless
+  run: |
+    echo "🧪 Test de l'image Docker..."
+    
+    # Pull de l'image qui vient d'être buildée
+    docker pull ghcr.io/mx10-ac2n/nook:${{ github.sha }}
+    
+    # Créer un répertoire temporaire pour les données
+    # avec les permissions appropriées (777 pour permettre l'écriture par UID 1000)
+    TEST_DIR="/tmp/nook-test-data-${{ github.sha }}"
+    mkdir -p "$TEST_DIR"
+    chmod 777 "$TEST_DIR"
+    echo "📁 Répertoire de test créé: $TEST_DIR"
+    
+    # Lancer le conteneur en arrière-plan
+    CONTAINER_ID=$(docker run -d \
+      -p 3000:3000 \
+      -v "$TEST_DIR:/app/data" \
+      ghcr.io/mx10-ac2n/nook:${{ github.sha }})
+    
+    echo "📦 Conteneur lancé: $CONTAINER_ID"
+    
+    # Attendre que le serveur démarre
+    echo "⏳ Attente du démarrage du serveur..."
+    for i in {1..10}; do
+      if docker ps | grep -q "$CONTAINER_ID"; then
+        echo "✅ Conteneur actif après ${i}s"
+        break
+      fi
+      if [ $i -eq 10 ]; then
+        echo "❌ Conteneur non fonctionnel après 10s"
+        echo "📋 Logs du conteneur:"
+        docker logs "$CONTAINER_ID"
+        docker stop "$CONTAINER_ID" 2>/dev/null || true
+        docker rm "$CONTAINER_ID" 2>/dev/null || true
+        rm -rf "$TEST_DIR"
+        exit 1
+      fi
+      sleep 1
+    done
+    
+    # Vérification des logs
+    echo "📋 Logs du conteneur:"
+    docker logs "$CONTAINER_ID"
+    
+    # Détection des erreurs critiques
+    if docker logs "$CONTAINER_ID" 2>&1 | grep -iE "error|panic|fatal|permission denied"; then
+      echo "⚠️  Erreurs détectées dans les logs"
+      docker stop "$CONTAINER_ID" 2>/dev/null || true
+      docker rm "$CONTAINER_ID" 2>/dev/null || true
+      rm -rf "$TEST_DIR"
+      exit 1
+    fi
+    
+    # Test HTTP basique
+    echo "🌐 Test de la réponse HTTP..."
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || echo "000")
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "✅ Le serveur répond avec le code HTTP $HTTP_CODE"
+    else
+      echo "⚠️  Code HTTP inattendu: $HTTP_CODE (peut être normal selon la configuration)"
+    fi
+    
+    # Nettoyage
+    echo "🧹 Nettoyage des ressources..."
+    docker stop "$CONTAINER_ID" 2>/dev/null || true
+    docker rm "$CONTAINER_ID" 2>/dev/null || true
+    rm -rf "$TEST_DIR"
+    
+    echo "✅ Tests terminés avec succès"
+
 
       - name: Cleanup artifacts
         if: always()
