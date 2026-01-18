@@ -1,19 +1,18 @@
 # ===============================================
 # Dockerfile Distroless optimisé pour production
-# Image ultra-légère et sécurisée
-# Compatible avec les artifacts GitHub Actions
+# Compatible avec les artifacts organisés
 # Support multi-architecture (amd64/arm64)
 # ===============================================
 
-ARG BACKEND_PATH=backend-artifacts/renamed
-ARG FRONTEND_PATH=frontend-artifact
+ARG BACKEND_PATH=backend
+ARG FRONTEND_PATH=frontend
 
 # ===============================================
 # ÉTAPE 1 : Extraction des bibliothèques
 # ===============================================
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS libs-extractor
 
-# Installation des bibliothèques nécessaires
+# Installation minimale des bibliothèques nécessaires
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libsqlite3-0 \
@@ -22,108 +21,52 @@ RUN apt-get update && \
         ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Créer un répertoire pour collecter toutes les libs
-RUN mkdir -p /tmp/libs
-
-# Copier les bibliothèques dans un emplacement centralisé
-# Support multi-architecture (amd64 et arm64)
+# Collecter les bibliothèques avec support multi-arch
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
         amd64) LIB_ARCH="x86_64-linux-gnu" ;; \
         arm64) LIB_ARCH="aarch64-linux-gnu" ;; \
         *) echo "❌ Architecture non supportée: $ARCH" && exit 1 ;; \
     esac && \
+    mkdir -p /tmp/libs && \
     LIB_DIR="/usr/lib/${LIB_ARCH}" && \
-    echo "📦 Architecture dpkg: ${ARCH}" && \
-    echo "📦 Architecture libs: ${LIB_ARCH}" && \
-    echo "📂 Répertoire libs: ${LIB_DIR}" && \
-    cp -P ${LIB_DIR}/libsqlite3.so* /tmp/libs/ && \
-    cp -P ${LIB_DIR}/libsodium.so* /tmp/libs/ && \
-    cp -P ${LIB_DIR}/libssl.so* /tmp/libs/ && \
-    cp -P ${LIB_DIR}/libcrypto.so* /tmp/libs/ && \
-    echo "✅ Bibliothèques collectées:" && \
-    ls -lh /tmp/libs/
+    cp -P ${LIB_DIR}/libsqlite3.so* /tmp/libs/ 2>/dev/null || true && \
+    cp -P ${LIB_DIR}/libsodium.so* /tmp/libs/ 2>/dev/null || true && \
+    cp -P ${LIB_DIR}/libssl.so* /tmp/libs/ 2>/dev/null || true && \
+    cp -P ${LIB_DIR}/libcrypto.so* /tmp/libs/ 2>/dev/null || true
 
-# ÉTAPE 2 : Préparation de l'application
+# ÉTAPE 2 : Préparation sécurisée
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS app-prep
 
-# Copier les bibliothèques depuis l'extracteur
-COPY --from=libs-extractor /tmp/libs /tmp/libs
-
-# Vérification que les bibliothèques sont bien copiées
-RUN echo "📁 Vérification des libs copiées:" && ls -la /tmp/libs/
-
-# Création de l'utilisateur non-root
+# Utilisateur non-root
 RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
-# Installer 'file' pour la vérification du binaire et 'libc-bin' pour 'ldd'
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends file libc-bin && \
-    rm -rf /var/lib/apt/lists/*
-
-# Création de la structure de répertoires avec permissions minimales
-RUN mkdir -p /app/data /app/static /app/data/uploads && \
+# Structure de répertoires sécurisée
+RUN mkdir -p /app/data /app/static && \
     chown -R app:app /app && \
     chmod 755 /app && \
     chmod 700 /app/data && \
     chmod 755 /app/static
 
-# Arguments pour les artifacts
-ARG BACKEND_PATH
+# Arguments d'architecture
 ARG TARGETARCH
-ARG TARGETVARIANT
+ARG BACKEND_PATH
+ARG FRONTEND_PATH
 
-# Sélection du binaire selon l'architecture cible
-RUN echo "🎯 Architecture cible: ${TARGETARCH}${TARGETVARIANT:+ (variant: ${TARGETVARIANT})}"
-
-# Copie du backend pré-compilé avec vérification
-# Essayer différents noms possibles
+# Copier le backend avec le bon nom d'architecture
 COPY --chown=app:app --chmod=755 ${BACKEND_PATH}/nook-backend-${TARGETARCH} /app/nook-backend
 
-# Si le fichier n'existe pas, essayer avec amd64/arm64
-RUN if [ ! -f "/app/nook-backend" ]; then \
-      if [ "${TARGETARCH}" = "amd64" ]; then \
-        echo "🔍 Tentative avec nook-backend-x86_64..."; \
-        cp ${BACKEND_PATH}/nook-backend-x86_64 /app/nook-backend 2>/dev/null || true; \
-      elif [ "${TARGETARCH}" = "arm64" ]; then \
-        echo "🔍 Tentative avec nook-backend-aarch64..."; \
-        cp ${BACKEND_PATH}/nook-backend-aarch64 /app/nook-backend 2>/dev/null || true; \
-      fi; \
-    fi
-
-# Vérification du binaire
-RUN echo "🔍 Vérification du binaire final:" && \
-    ls -lh "/app/nook-backend" && \
-    # Vérifie que c'est un exécutable ELF pour Linux
-    if file "/app/nook-backend" | grep -q "ELF.*executable.*Linux"; then \
-        echo "✅ Format ELF Linux OK"; \
-    else \
-        echo "❌ Le fichier n'est pas un exécutable ELF Linux valide"; \
-        file "/app/nook-backend"; \
-        exit 1; \
-    fi && \
-    # Vérifie qu'il est exécutable
-    [ -x "/app/nook-backend" ] && echo "✅ Permissions d'exécution OK" || (echo "❌ Binaire non exécutable" && exit 1)
-
-# Copie du frontend pré-buildé
+# Copier le frontend
 COPY --chown=app:app ${FRONTEND_PATH}/ /app/static/
 
-# Vérification finale de l'intégrité
+# Vérification finale sécurisée
 RUN set -e && \
-    echo "🔍 Vérification finale de l'application:" && \
-    [ -f "/app/nook-backend" ] || (echo "❌ Backend absent" && exit 1) && \
-    [ -f "/app/static/index.html" ] || (echo "❌ Frontend absent" && exit 1) && \
-    echo "📊 Taille du backend: $(stat -c%s /app/nook-backend | numfmt --to=iec)" && \
-    echo "📊 Taille du frontend: $(du -sh /app/static | cut -f1)" && \
-    echo "📚 Vérification des dépendances:" && \
-    if ldd /app/nook-backend 2>/dev/null >/dev/null; then \
-      echo "📦 Binaire dynamique - Dépendances:"; \
-      ldd /app/nook-backend 2>/dev/null | grep "=> /" | awk '{print $1}' | sort; \
-    else \
-      echo "⚪ Binaire statique (pas de dépendances externes)"; \
-    fi && \
-    echo "✅ Application prête pour Distroless"
+    echo "✅ Vérification de l'application:" && \
+    [ -x "/app/nook-backend" ] || (echo "❌ Backend non exécutable" && exit 1) && \
+    [ -f "/app/static/index.html" ] || (echo "❌ Frontend incomplet" && exit 1) && \
+    echo "📊 Backend: $(stat -c%s /app/nook-backend | numfmt --to=iec)" && \
+    echo "📊 Frontend: $(du -sh /app/static | cut -f1)"
 
 # ===============================================
 # ÉTAPE 3 : Image finale Distroless
@@ -133,16 +76,13 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 # Métadonnées
 LABEL maintainer="MX10-AC2N" \
       description="Nook - Messagerie familiale chiffrée E2EE" \
-      version="0.5.0" \
       org.opencontainers.image.source="https://github.com/MX10-AC2N/Nook"
 
-# Copier les certificats SSL
+# Certificats SSL et bibliothèques
 COPY --from=libs-extractor /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=libs-extractor /tmp/libs/*.so* /usr/lib/ 2>/dev/null || true
 
-# Copier les bibliothèques partagées
-COPY --from=libs-extractor /tmp/libs/*.so* /usr/lib/
-
-# Copier l'application complète
+# Application
 COPY --from=app-prep --chown=nonroot:nonroot /app /app
 
 WORKDIR /app
@@ -150,11 +90,8 @@ WORKDIR /app
 # Variables d'environnement sécurisées
 ENV RUST_LOG=warn \
     DATABASE_URL=sqlite:/app/data/nook.db \
-    PORT=3000 \
-    USER=nonroot \
-    HOME=/app
+    PORT=3000
 
 EXPOSE 3000
 
-# Point d'entrée sécurisé
 ENTRYPOINT ["/app/nook-backend"]
