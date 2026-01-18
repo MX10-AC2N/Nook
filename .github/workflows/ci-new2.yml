@@ -26,48 +26,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     defaults:
       run:
         working-directory: ./backend
-    
+
     strategy:
       matrix:
         target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    
+
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: stable
         components: rustfmt, clippy
-    
+
     - name: Install cross-compilation tools
-  run: |
-    sudo apt-get update
-    sudo apt-get install -y libsodium-dev pkg-config
-    
-    # Activer multiarch et installer les outils ARM64
-    sudo dpkg --add-architecture arm64
-    sudo apt-get update
-    sudo apt-get install -y \
-      gcc-aarch64-linux-gnu \
-      g++-aarch64-linux-gnu \
-      libssl-dev:arm64 \
-      libssl-dev
-    
-    # Configurer les liens symboliques pour OpenSSL ARM64
-    sudo mkdir -p /usr/aarch64-linux-gnu/lib
-    sudo ln -sf /usr/lib/aarch64-linux-gnu/libssl.so /usr/aarch64-linux-gnu/lib/
-    sudo ln -sf /usr/lib/aarch64-linux-gnu/libcrypto.so /usr/aarch64-linux-gnu/lib/
-    
-    rustup target add aarch64-unknown-linux-gnu
-    
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsodium-dev pkg-config
+        
+        # Installer les compilateurs cross pour ARM64
+        sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+        
+        # Ajouter les cibles Rust
+        rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
+
     - name: Cache dependencies
       uses: actions/cache@v4
       with:
@@ -79,13 +69,13 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-${{ matrix.target }}-
           ${{ runner.os }}-cargo-
-    
+
     - name: Setup SQLite database
       run: |
         mkdir -p /tmp/nook-data
         touch /tmp/nook-data/nook.db
         echo "DATABASE_URL=sqlite:///tmp/nook-data/nook.db" >> $GITHUB_ENV
-    
+
     - name: Apply migrations
       env:
         DATABASE_URL: sqlite:///tmp/nook-data/nook.db
@@ -94,25 +84,25 @@ jobs:
         if command -v sqlx &> /dev/null; then
           sqlx migrate run || echo "Migrations already applied"
         fi
-    
+
     - name: Format code
       run: cargo fmt --all -- --check
-    
+
     - name: Check dependencies
       env:
         SQLX_OFFLINE: true
       run: cargo check --all-targets --target ${{ matrix.target }}
-    
+
     - name: Lint with Clippy
       run: cargo clippy --target ${{ matrix.target }} -- -D warnings
-    
+
     - name: Generate SQLx offline data
       env:
         DATABASE_URL: sqlite:///tmp/nook-data/nook.db
         SQLX_OFFLINE: false
       run: |
         cargo sqlx prepare --workspace --check || cargo sqlx prepare --workspace
-    
+
     - name: Build release for ${{ matrix.target }}
       env:
         SQLX_OFFLINE: true
@@ -128,7 +118,7 @@ jobs:
         echo "🔍 Vérification du binaire:"
         file target/${{ matrix.target }}/release/nook-backend
         echo "📏 Taille: $(ls -lh target/${{ matrix.target }}/release/nook-backend | awk '{print $5}')"
-    
+
     - name: Upload backend artifact
       uses: actions/upload-artifact@v4
       with:
@@ -141,19 +131,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20'
-    
+
     - name: Check package-lock.json status
       id: check-package-lock
       working-directory: ./frontend
@@ -179,7 +169,7 @@ jobs:
           echo "exists=false" >> $GITHUB_OUTPUT
           echo "consistent=false" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Generate or update package-lock.json
       if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
       working-directory: ./frontend
@@ -208,7 +198,7 @@ jobs:
         
         SIZE=$(stat -c%s "package-lock.json" 2>/dev/null || stat -f%z "package-lock.json")
         echo "📏 Taille du package-lock.json: $SIZE octets"
-    
+
     - name: Install dependencies
       working-directory: ./frontend
       run: |
@@ -217,7 +207,7 @@ jobs:
         npm ci --no-audit --no-fund --legacy-peer-deps
         
         echo "✅ Dépendances installées"
-    
+
     - name: Commit package-lock.json if changed
       if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
       run: |
@@ -239,7 +229,7 @@ jobs:
         else
           echo "ℹ️ Aucun changement détecté dans package-lock.json"
         fi
-    
+
     - name: Build frontend
       working-directory: ./frontend
       run: |
@@ -265,7 +255,7 @@ jobs:
         echo "✅ Frontend construit avec succès"
         echo "📁 Contenu du dossier build:"
         ls -la build/
-    
+
     - name: Upload frontend artifact
       uses: actions/upload-artifact@v4
       with:
@@ -281,31 +271,18 @@ jobs:
       contents: read
       packages: write
       id-token: write
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Download backend artifacts
-      run: |
-        mkdir -p backend-artifacts
-        # Télécharger les deux artefacts
-        for target in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
-          echo "📥 Téléchargement de nook-backend-$target..."
-          gh run download ${{ github.run_id }} \
-            --name nook-backend-$target \
-            --dir backend-artifacts/$target 2>/dev/null || \
-          echo "⚠️ Impossible de télécharger nook-backend-$target via gh, tentative avec actions/download-artifact"
-        done
-    
-    - name: Download artifacts via actions/download-artifact
-      if: failure()
       uses: actions/download-artifact@v4
       with:
         path: backend-artifacts
         pattern: nook-backend-*
         merge-multiple: true
-    
+
     - name: Verify downloaded artifacts
       run: |
         echo "🔍 Vérification des artefacts téléchargés:"
@@ -314,33 +291,41 @@ jobs:
           file "$file" || true
         done
         
-        # Renommer les fichiers pour correspondre au pattern attendu par le Dockerfile
+        # Créer une structure organisée pour le Dockerfile
+        mkdir -p backend-artifacts/renamed
+        
+        # Copier et renommer les fichiers selon l'architecture
         if [ -f "backend-artifacts/x86_64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend backend-artifacts/nook-backend-amd64
-        fi
-        if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend backend-artifacts/nook-backend-arm64
+          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-x86_64
+          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-amd64
+          echo "✅ Artefact x86_64 préparé"
         fi
         
-        echo "✅ Structure des artefacts:"
-        ls -la backend-artifacts/
-    
+        if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend" ]; then
+          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-aarch64
+          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-arm64
+          echo "✅ Artefact aarch64 préparé"
+        fi
+        
+        echo "📁 Structure finale des artefacts:"
+        ls -la backend-artifacts/renamed/
+
     - name: Download frontend artifact
       uses: actions/download-artifact@v4
       with:
         name: nook-frontend
         path: frontend-artifact
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Log in to Container Registry
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
@@ -352,7 +337,7 @@ jobs:
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
-    
+
     - name: Build and push Distroless image
       uses: docker/build-push-action@v5
       with:
@@ -363,17 +348,20 @@ jobs:
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
-          BACKEND_PATH=backend-artifacts
+          BACKEND_PATH=backend-artifacts/renamed
         cache-from: type=gha
         cache-to: type=gha,mode=max
-    
+
     - name: Analyze image size
       run: |
         TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
         echo "📊 Analyse de la taille de l'image..."
         
-        docker pull $TAG --platform linux/amd64
-        docker pull $TAG --platform linux/arm64
+        # Tenter de récupérer les images pour chaque architecture
+        for platform in linux/amd64 linux/arm64; do
+          echo "📦 Téléchargement pour $platform..."
+          docker pull --platform $platform $TAG 2>/dev/null || echo "⚠️ Impossible de télécharger pour $platform"
+        done
         
-        echo "📦 Tailles par architecture:"
-        docker images $TAG --format "{{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.Digest}}"
+        echo "📦 Images disponibles:"
+        docker images $TAG --format "{{.Repository}}:{{.Tag}}\t{{.Size}}" 2>/dev/null || echo "ℹ️ Aucune image locale trouvée"
