@@ -242,10 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Service statique SPA
     let static_path = "/app/static";
-    eprintln!(
-        "[Static] Servir les fichiers frontend depuis : {}",
-        static_path
-    );
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
@@ -253,16 +250,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .precompressed_br()
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
-    // Ajout pour l'uploads dans le chat
-    let uploads_service = ServeDir::new("/app/data/uploads")
-        .precompressed_gzip()
-        .precompressed_br();
-
     // Assemblage final
     let app = Router::new()
         .layer(middleware::from_fn(base_inject_middleware))
         .nest("/", api_router)
         .fallback_service(static_service)
+        // Ajout du service pour les uploads (fichiers uploadés)
         .nest_service(
             "/api/files",
             ServeDir::new("/app/data/uploads")
