@@ -50,6 +50,7 @@ FROM debian:bookworm-slim AS app-prep
 
 # Copier les bibliothèques depuis l'extracteur
 COPY --from=libs-extractor /tmp/libs /tmp/libs
+RUN echo "📁 Vérification des libs copiées:" && ls -la /tmp/libs/
 
 # Création de l'utilisateur non-root
 RUN addgroup --system --gid 1000 app && \
