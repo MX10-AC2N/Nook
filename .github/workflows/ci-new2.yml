@@ -38,6 +38,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
@@ -76,50 +77,23 @@ jobs:
         touch /tmp/nook-data-${{ matrix.target }}/nook.db
         echo "DATABASE_URL=sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db" >> $GITHUB_ENV
 
-    - name: Apply migrations
-      env:
-        DATABASE_URL: sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db
+    - name: Install sqlx-cli
       run: |
         cargo install sqlx-cli --version '^0.8' --features sqlite --no-default-features --locked || true
-        if command -v sqlx &> /dev/null; then
-          sqlx migrate run || echo "Migrations already applied"
-        fi
 
-    - name: Generate SQLx cache for ${{ matrix.target }}
+    - name: Build binary for SQLx cache generation
       env:
         DATABASE_URL: sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db
         SQLX_OFFLINE: false
       run: |
-        echo "🔄 Génération du cache SQLx pour ${{ matrix.target }}..."
-        
-        # Solution : Générer le cache en utilisant la cible spécifique
-        # On force la génération en utilisant cargo check avec la bonne cible
-        
-        # Créer un fichier temporaire pour la compilation
-        TEMP_FILE=$(mktemp /tmp/sqlx-temp-XXXXXX.rs)
-        cat > "$TEMP_FILE" << 'EOF'
-        # Fichier temporaire pour générer le cache SQLx
-        fn main() {
-           println!("SQLx cache generation");
-        }
-EOF
-        
-        # Compiler avec la cible pour générer le cache
-        cargo rustc --target ${{ matrix.target }} --bin nook-backend --features sqlite -- \
-          -C link-arg=-Wl,--allow-multiple-definition 2>/dev/null || true
-        
-        # Maintenant générer le cache SQLx
-        cargo sqlx prepare --workspace --target ${{ matrix.target }}
-        
-        echo "✅ Cache SQLx généré pour ${{ matrix.target }}"
-        
-        # Vérifier que le cache a été créé
-        if [ -d ".sqlx" ]; then
-          echo "📁 Cache généré :"
-          ls -la .sqlx/
-        else
-          echo "⚠️ Aucun cache SQLx généré (peut être normal si aucune requête SQL)"
-        fi
+        cargo build --bin nook-backend --target ${{ matrix.target }} --features sqlite || true
+
+    - name: Generate SQLx cache
+      env:
+        DATABASE_URL: sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db
+        SQLX_OFFLINE: false
+      run: |
+        cargo sqlx prepare --bin nook-backend --target ${{ matrix.target }} || true
 
     - name: Format code
       run: cargo fmt --all -- --check
@@ -142,7 +116,6 @@ EOF
         RUSTFLAGS: '-C target-feature=+crt-static'
       run: |
         cargo build --release --locked --target ${{ matrix.target }}
-        strip target/${{ matrix.target }}/release/nook-backend 2>/dev/null || true
         
         echo "🔍 Vérification du binaire:"
         file target/${{ matrix.target }}/release/nook-backend
@@ -304,6 +277,8 @@ EOF
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Download backend artifacts
       uses: actions/download-artifact@v4
@@ -312,38 +287,60 @@ EOF
         pattern: nook-backend-*
         merge-multiple: true
 
-    - name: Verify downloaded artifacts
-      run: |
-        echo "🔍 Vérification des artefacts téléchargés:"
-        find backend-artifacts -type f -name "nook-backend" | while read file; do
-          echo "📄 $file:"
-          file "$file" || true
-        done
-        
-        # Créer une structure organisée pour le Dockerfile
-        mkdir -p backend-artifacts/renamed
-        
-        # Copier et renommer les fichiers selon l'architecture
-        if [ -f "backend-artifacts/x86_64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-x86_64
-          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-amd64
-          echo "✅ Artefact x86_64 préparé"
-        fi
-        
-        if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-aarch64
-          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend backend-artifacts/renamed/nook-backend-arm64
-          echo "✅ Artefact aarch64 préparé"
-        fi
-        
-        echo "📁 Structure finale des artefacts:"
-        ls -la backend-artifacts/renamed/
-
     - name: Download frontend artifact
       uses: actions/download-artifact@v4
       with:
         name: nook-frontend
         path: frontend-artifact
+
+    - name: Prepare Docker build context
+      run: |
+        echo "🏗️ Préparation du contexte Docker..."
+        
+        # Créer la structure du contexte
+        mkdir -p docker-context/backend
+        mkdir -p docker-context/frontend
+        
+        # Organiser les binaires backend pour Docker
+        if [ -f "backend-artifacts/x86_64-unknown-linux-gnu/nook-backend" ]; then
+          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend docker-context/backend/nook-backend-amd64
+          echo "✅ Backend amd64 prêt"
+        else
+          echo "❌ Backend amd64 non trouvé"
+          exit 1
+        fi
+        
+        if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend" ]; then
+          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend docker-context/backend/nook-backend-arm64
+          echo "✅ Backend arm64 prêt"
+        else
+          echo "❌ Backend arm64 non trouvé"
+          exit 1
+        fi
+        
+        # Copier le frontend
+        if [ -d "frontend-artifact/build" ]; then
+          cp -r frontend-artifact/build/* docker-context/frontend/
+        elif [ -d "frontend-artifact" ] && [ "$(ls -A frontend-artifact)" ]; then
+          cp -r frontend-artifact/* docker-context/frontend/
+        else
+          echo "❌ Frontend non trouvé"
+          exit 1
+        fi
+        
+        # Vérifier la structure
+        echo "📁 Structure du contexte Docker:"
+        echo "Backend:"
+        ls -la docker-context/backend/
+        echo "Frontend:"
+        ls -la docker-context/frontend/
+        
+        # Vérifier les fichiers critiques
+        [ -f "docker-context/backend/nook-backend-amd64" ] || (echo "❌ nook-backend-amd64 manquant" && exit 1)
+        [ -f "docker-context/backend/nook-backend-arm64" ] || (echo "❌ nook-backend-arm64 manquant" && exit 1)
+        [ -f "docker-context/frontend/index.html" ] || (echo "❌ index.html manquant" && exit 1)
+        
+        echo "✅ Contexte Docker prêt"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -370,14 +367,15 @@ EOF
     - name: Build and push Distroless image
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./Dockerfile
+        context: docker-context
+        file: ${{ github.workspace }}/Dockerfile
         platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         build-args: |
-          BACKEND_PATH=backend-artifacts/renamed
+          BACKEND_PATH=backend
+          FRONTEND_PATH=frontend
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
