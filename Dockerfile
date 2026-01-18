@@ -76,10 +76,17 @@ COPY --chown=app:app --chmod=755 ${BACKEND_PATH} /app/nook-backend
 
 # Vérification du binaire
 RUN echo "🔍 Vérification du binaire final:" && \
-    ls -la /app/nook-backend && \
-    file /app/nook-backend | grep -q "ELF 64-bit LSB.*executable" || (echo "❌ Format de binaire invalide" && exit 1) && \
-    [ -x /app/nook-backend ] || (echo "❌ Binaire non exécutable" && exit 1) && \
-    echo "✅ Binaire vérifié"
+    ls -lh "/app/nook-backend" && \
+    # Vérifie que c'est un exécutable ELF pour Linux
+    if file "/app/nook-backend" | grep -q "ELF.*executable.*Linux"; then \
+        echo "✅ Format ELF Linux OK"; \
+    else \
+        echo "❌ Le fichier n'est pas un exécutable ELF Linux valide"; \
+        file "/app/nook-backend"; \
+        exit 1; \
+    fi && \
+    # Vérifie qu'il est exécutable
+    [ -x "/app/nook-backend" ] && echo "✅ Permissions d'exécution OK" || (echo "❌ Binaire non exécutable" && exit 1)
 
 # Copie du frontend pré-buildé
 COPY --chown=app:app ${FRONTEND_PATH}/ /app/static/
