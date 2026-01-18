@@ -262,8 +262,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .layer(middleware::from_fn(base_inject_middleware))
         .nest("/", api_router)
-        .nest("/api/files", uploads_service)
-        .fallback_service(static_service);
+        .fallback_service(static_service)
+        .nest_service(
+        "/api/files",
+        ServeDir::new("/app/data/uploads")
+            .precompressed_gzip()
+            .precompressed_br(),
+    );
 
     // Démarrage serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
