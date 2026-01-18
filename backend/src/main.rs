@@ -264,11 +264,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/", api_router)
         .fallback_service(static_service)
         .nest_service(
-        "/api/files",
-        ServeDir::new("/app/data/uploads")
-            .precompressed_gzip()
-            .precompressed_br(),
-    );
+            "/api/files",
+            ServeDir::new("/app/data/uploads")
+                .precompressed_gzip()
+                .precompressed_br(),
+        );
 
     // Démarrage serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
