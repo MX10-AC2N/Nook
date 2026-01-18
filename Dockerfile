@@ -24,6 +24,10 @@ RUN apt-get update && \
 # Créer un répertoire pour collecter toutes les libs
 RUN mkdir -p /tmp/libs
 
+# DEBUG: Afficher où sont réellement les bibliothèques
+RUN echo "🔍 Recherche des bibliothèques installées..." && \
+    find /usr/lib -name "libsqlite3.so*" -o -name "libsodium.so*" -o -name "libssl.so*" -o -name "libcrypto.so*" | sort
+
 # Copier les bibliothèques dans un emplacement centralisé
 # Support multi-architecture (amd64 et arm64)
 # Note: dpkg retourne "amd64" mais le chemin est "x86_64-linux-gnu"
