@@ -1,4 +1,4 @@
-name: 🚀 Complete Build & Push & Test (Manual)
+name: 🚀 Build, Push & Test (Manual)
 on:
   workflow_dispatch:
   push:
@@ -411,9 +411,6 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
-      # ===============================================
-      # Test de l'image Distroless
-      # ===============================================
       - name: Test de l'image Distroless
         run: |
           echo "🧪 Test de l'image Docker..."
