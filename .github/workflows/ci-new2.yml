@@ -1,4 +1,4 @@
-name: 🚀 Build & Push Docker (Distroless)
+name: 🚀 Build, Push & Test Docker (Distroless)
 
 on:
   workflow_dispatch:
