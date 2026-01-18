@@ -200,7 +200,7 @@
       </div>
     {/if}
 
-    <form class="message-input-area" on:submit={handleSubmit}>
+    <form class="message-input-area" onsubmit={handleSubmit}>
       <button type="button" class="attach-btn" onclick={() => fileInput.click()}>📎</button>
       <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none;" />
 
