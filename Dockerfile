@@ -8,9 +8,11 @@ RUN npm install
 COPY frontend/ .
 RUN npm run build
 
-# Ajoute ces lignes pour debug (vérifie le build frontend dans logs Docker)
-RUN echo "=== Contenu de /app/build/ ===" && ls -la /app/build/
-RUN echo "=== Contenu de /app/build/_app/immutable/ ===" && ls -la /app/build/_app/immutable/ || echo "Dossier _app manquant"
+# DEBUG INTENSIF POUR FRONTEND BUILD
+RUN echo "=== ARBORESCENCE COMPLETE DU BUILD FRONTEND (/app/build/) ===" && find /app/build -type f -ls
+RUN echo "=== EXTRAIT INDEX.HTML ===" && head -n 40 /app/build/index.html
+RUN echo "=== LISTE ET TAILLE DES CHUNKS JS ===" && find /app/build/_app/immutable -name "*.js" -exec ls -lh {} \; || echo "Aucun chunk JS trouvé !"
+RUN echo "=== CONTENU PREMIÈRES LIGNES D'UN START.JS ===" && find /app/build/_app/immutable -name "start*.js" -exec head -n 10 {} \; || echo "Aucun start.js"
 
 # --- Cargo Chef : Préparation ---
 FROM rust:1.92-slim-bookworm AS chef
@@ -65,9 +67,10 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
 
-# Debug runtime : vérifie les fichiers static copiés
-RUN echo "=== Contenu de /app/static/ dans runtime ===" && ls -la /app/static/
-RUN echo "=== Contenu de /app/static/_app/immutable/ ===" && ls -la /app/static/_app/immutable/ || echo "Dossier _app manquant dans static"
+# DEBUG FINAL APRÈS COPY
+RUN echo "=== ARBORESCENCE STATIC APRÈS COPY (/app/static/) ===" && find /app/static -type f -ls
+RUN echo "=== LISTE ET TAILLE DES CHUNKS JS APRÈS COPY ===" && find /app/static/_app/immutable -name "*.js" -exec ls -lh {} \; || echo "Aucun chunk JS dans static !"
+RUN echo "=== CONTENU PREMIÈRES LIGNES D'UN START.JS APRÈS COPY ===" && find /app/static/_app/immutable -name "start*.js" -exec head -n 10 {} \; || echo "Aucun start.js dans static"
 
 RUN ls -la /app/static && \
     [ -f "/app/static/index.html" ] && echo "✅ index.html présent"
