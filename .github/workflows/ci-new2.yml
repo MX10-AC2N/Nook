@@ -98,7 +98,7 @@ jobs:
         # Créer un fichier temporaire pour la compilation
         TEMP_FILE=$(mktemp /tmp/sqlx-temp-XXXXXX.rs)
         cat > "$TEMP_FILE" << 'EOF'
-// Fichier temporaire pour générer le cache SQLx
+# // Fichier temporaire pour générer le cache SQLx
 fn main() {
     println!("SQLx cache generation");
 }
