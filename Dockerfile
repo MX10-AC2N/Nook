@@ -8,6 +8,10 @@ RUN npm install
 COPY frontend/ .
 RUN npm run build
 
+# Ajoute ces lignes pour debug (vérifie le build frontend dans logs Docker)
+RUN echo "=== Contenu de /app/build/ ===" && ls -la /app/build/
+RUN echo "=== Contenu de /app/build/_app/immutable/ ===" && ls -la /app/build/_app/immutable/ || echo "Dossier _app manquant"
+
 # --- Cargo Chef : Préparation ---
 FROM rust:1.92-slim-bookworm AS chef
 WORKDIR /app
@@ -18,7 +22,6 @@ RUN apt-get update && apt-get install -y libsqlite3-dev libsodium-dev libssl-dev
 FROM chef AS planner
 COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
-# Optionnel mais safe : copie migrations pour planner (évite tout problème potentiel)
 COPY backend/migrations ./migrations
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -33,7 +36,6 @@ WORKDIR /app
 
 COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
-# Crucial : copie du dossier migrations pour sqlx::migrate! (macro compile-time)
 COPY backend/migrations ./migrations
 
 COPY --from=builder-deps /app/target ./target
@@ -61,8 +63,11 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
     chown -R app:app /app
 
 COPY --from=backend-builder --chown=app:app /app/target/release/nook-backend /app/nook-backend
-# Changez /build/ en /dist/ si votre build Vite sort dans dist
 COPY --from=frontend-builder --chown=app:app /app/build/ /app/static/
+
+# Debug runtime : vérifie les fichiers static copiés
+RUN echo "=== Contenu de /app/static/ dans runtime ===" && ls -la /app/static/
+RUN echo "=== Contenu de /app/static/_app/immutable/ ===" && ls -la /app/static/_app/immutable/ || echo "Dossier _app manquant dans static"
 
 RUN ls -la /app/static && \
     [ -f "/app/static/index.html" ] && echo "✅ index.html présent"
