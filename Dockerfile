@@ -55,6 +55,11 @@ COPY --from=libs-extractor /tmp/libs /tmp/libs
 RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
+# Installer 'file' pour la vérification du binaire et 'libc-bin' pour 'ldd'
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends file libc-bin && \
+    rm -rf /var/lib/apt/lists/*
+
 # Création de la structure de répertoires avec permissions minimales
 RUN mkdir -p /app/data /app/static /app/data/uploads && \
     chown -R app:app /app && \
