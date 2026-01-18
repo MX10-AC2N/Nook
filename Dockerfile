@@ -5,7 +5,7 @@
 # Support multi-architecture (amd64/arm64)
 # ===============================================
 
-ARG BACKEND_PATH=backend-artifacts
+ARG BACKEND_PATH=backend-artifacts/renamed
 ARG FRONTEND_PATH=frontend-artifact
 
 # ===============================================
@@ -80,6 +80,7 @@ ARG TARGETVARIANT
 RUN echo "🎯 Architecture cible: ${TARGETARCH}${TARGETVARIANT:+ (variant: ${TARGETVARIANT})}"
 
 # Copie du backend pré-compilé avec vérification
+# Essayer différents noms possibles
 COPY --chown=app:app --chmod=755 ${BACKEND_PATH}/nook-backend-${TARGETARCH} /app/nook-backend
 
 # Vérification du binaire
