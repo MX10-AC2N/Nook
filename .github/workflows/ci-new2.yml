@@ -121,11 +121,17 @@ jobs:
         file target/${{ matrix.target }}/release/nook-backend
         echo "📏 Taille: $(ls -lh target/${{ matrix.target }}/release/nook-backend | awk '{print $5}')"
 
-    - name: Upload backend artifact with unique name
+    - name: Rename binary with architecture suffix
+      run: |
+        # Renommer le binaire avec un suffixe unique pour chaque architecture
+        cp target/${{ matrix.target }}/release/nook-backend target/${{ matrix.target }}/release/nook-backend-${{ matrix.target }}
+        echo "✅ Binaire renommé: nook-backend-${{ matrix.target }}"
+
+    - name: Upload backend artifact with unique filename
       uses: actions/upload-artifact@v4
       with:
         name: nook-backend-${{ matrix.target }}
-        path: backend/target/${{ matrix.target }}/release/nook-backend
+        path: backend/target/${{ matrix.target }}/release/nook-backend-${{ matrix.target }}
         if-no-files-found: error
         retention-days: 1
 
@@ -313,48 +319,26 @@ jobs:
         mkdir -p docker-context/backend
         mkdir -p docker-context/frontend
         
-        echo "🔍 Analyse des artifacts backend..."
+        echo "✅ Copie des binaires backend avec noms explicites..."
         
-        # Trouver tous les fichiers backend
-        BACKEND_FILES=$(find backend-artifacts -type f -name "nook-backend*")
-        echo "📁 Fichiers backend trouvés:"
-        echo "$BACKEND_FILES"
-        
-        # Copier et renommer les fichiers selon leur architecture
-        FOUND_AMD64=false
-        FOUND_ARM64=false
-        
-        while IFS= read -r file; do
-          if [ -f "$file" ]; then
-            echo "📄 Traitement: $file"
-            
-            # Déterminer l'architecture depuis le chemin ou le nom du fichier
-            if echo "$file" | grep -q "x86_64" || echo "$file" | grep -q "amd64"; then
-              cp "$file" docker-context/backend/nook-backend-amd64
-              chmod +x docker-context/backend/nook-backend-amd64
-              FOUND_AMD64=true
-              echo "✅ AMD64: $file -> docker-context/backend/nook-backend-amd64"
-            elif echo "$file" | grep -q "aarch64" || echo "$file" | grep -q "arm64"; then
-              cp "$file" docker-context/backend/nook-backend-arm64
-              chmod +x docker-context/backend/nook-backend-arm64
-              FOUND_ARM64=true
-              echo "✅ ARM64: $file -> docker-context/backend/nook-backend-arm64"
-            else
-              echo "⚠️ Architecture non reconnue pour: $file"
-            fi
-          fi
-        done <<< "$BACKEND_FILES"
-        
-        # Vérifier si on a trouvé les deux architectures
-        if [ "$FOUND_AMD64" = false ]; then
-          echo "❌ Aucun binaire AMD64 trouvé"
+        # Copier les binaires avec leurs noms spécifiques
+        if [ -f "backend-artifacts/x86_64-unknown-linux-gnu/nook-backend-x86_64-unknown-linux-gnu" ]; then
+          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend-x86_64-unknown-linux-gnu docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-amd64
+          echo "✅ AMD64: nook-backend-x86_64-unknown-linux-gnu -> nook-backend-amd64"
+        else
+          echo "❌ Binaire AMD64 non trouvé"
           echo "Contenu de backend-artifacts:"
           ls -laR backend-artifacts/
           exit 1
         fi
         
-        if [ "$FOUND_ARM64" = false ]; then
-          echo "❌ Aucun binaire ARM64 trouvé"
+        if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend-aarch64-unknown-linux-gnu" ]; then
+          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend-aarch64-unknown-linux-gnu docker-context/backend/nook-backend-arm64
+          chmod +x docker-context/backend/nook-backend-arm64
+          echo "✅ ARM64: nook-backend-aarch64-unknown-linux-gnu -> nook-backend-arm64"
+        else
+          echo "❌ Binaire ARM64 non trouvé"
           echo "Contenu de backend-artifacts:"
           ls -laR backend-artifacts/
           exit 1
