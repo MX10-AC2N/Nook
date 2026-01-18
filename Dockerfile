@@ -26,10 +26,18 @@ RUN mkdir -p /tmp/libs
 
 # Copier les bibliothèques dans un emplacement centralisé
 # Support multi-architecture (amd64 et arm64)
+# Note: dpkg retourne "amd64" mais le chemin est "x86_64-linux-gnu"
 RUN ARCH=$(dpkg --print-architecture) && \
-    LIB_DIR="/usr/lib/${ARCH}-linux-gnu" && \
-    echo "📦 Architecture: ${ARCH}" && \
+    case "$ARCH" in \
+        amd64) LIB_ARCH="x86_64-linux-gnu" ;; \
+        arm64) LIB_ARCH="aarch64-linux-gnu" ;; \
+        *) echo "❌ Architecture non supportée: $ARCH" && exit 1 ;; \
+    esac && \
+    LIB_DIR="/usr/lib/${LIB_ARCH}" && \
+    echo "📦 Architecture dpkg: ${ARCH}" && \
+    echo "📦 Architecture libs: ${LIB_ARCH}" && \
     echo "📂 Répertoire libs: ${LIB_DIR}" && \
+    ls -la ${LIB_DIR}/ | head -20 && \
     cp -P ${LIB_DIR}/libsqlite3.so* /tmp/libs/ && \
     cp -P ${LIB_DIR}/libsodium.so* /tmp/libs/ && \
     cp -P ${LIB_DIR}/libssl.so* /tmp/libs/ && \
@@ -69,7 +77,13 @@ RUN apt-get update && \
 
 # Copier temporairement les libs pour le test ldd
 RUN ARCH=$(dpkg --print-architecture) && \
-    LIB_DIR="/usr/lib/${ARCH}-linux-gnu" && \
+    case "$ARCH" in \
+        amd64) LIB_ARCH="x86_64-linux-gnu" ;; \
+        arm64) LIB_ARCH="aarch64-linux-gnu" ;; \
+        *) LIB_ARCH="unknown" ;; \
+    esac && \
+    LIB_DIR="/usr/lib/${LIB_ARCH}" && \
+    mkdir -p ${LIB_DIR} && \
     cp /tmp/libs/* ${LIB_DIR}/ 2>/dev/null || true
 
 # Vérifier les dépendances du binaire
@@ -123,9 +137,9 @@ COPY --from=libs-extractor /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # - libm.so.6
 # - libpthread (intégré dans glibc 2.34+)
 #
-# Support multi-architecture (détection automatique)
-# Les libs seront copiées dans /usr/lib/<arch>-linux-gnu/
-COPY --from=libs-extractor /tmp/libs/ /usr/lib/
+# Les bibliothèques sont copiées dans /usr/lib/ (sans sous-répertoire)
+# Le linker dynamique les trouvera automatiquement via LD_LIBRARY_PATH
+COPY --from=libs-extractor /tmp/libs/*.so* /usr/lib/
 
 # Copie de l'application complète
 COPY --from=app-prep --chown=1000:1000 /app /app
@@ -138,7 +152,8 @@ USER 1000:1000
 # Variables d'environnement
 ENV RUST_LOG=info \
     DATABASE_URL=sqlite:/app/data/nook.db \
-    PORT=3000
+    PORT=3000 \
+    LD_LIBRARY_PATH=/usr/lib
 
 EXPOSE 3000
 
