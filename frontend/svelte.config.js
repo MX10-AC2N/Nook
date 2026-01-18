@@ -40,7 +40,7 @@ const config = {
 
     // ---------- Dossiers de sortie ----------
     // `appDir` garde la même structure que ton projet actuel.
-    appDir: 'app',
+    //appDir: 'app',
 
     // ---------- Alias ----------
     // Les chemins relatifs sont résolus depuis la racine du repo.
