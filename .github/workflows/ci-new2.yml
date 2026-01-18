@@ -8,7 +8,7 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'Dockerfile'
-      - '.github/workflows/fast-build2.yml'
+      - '.github/workflows/ci-new2.yml'
       - 'backend/Cargo.lock'
       - 'backend/Cargo.toml'
       - 'frontend/package.json'
