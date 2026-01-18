@@ -24,10 +24,6 @@ RUN apt-get update && \
 # Créer un répertoire pour collecter toutes les libs
 RUN mkdir -p /tmp/libs
 
-# DEBUG: Afficher où sont réellement les bibliothèques
-RUN echo "🔍 Recherche des bibliothèques installées..." && \
-    find /usr/lib -name "libsqlite3.so*" -o -name "libsodium.so*" -o -name "libssl.so*" -o -name "libcrypto.so*" | sort
-
 # Copier les bibliothèques dans un emplacement centralisé
 # Support multi-architecture (amd64 et arm64)
 # Note: dpkg retourne "amd64" mais le chemin est "x86_64-linux-gnu"
@@ -91,13 +87,18 @@ RUN ARCH=$(dpkg --print-architecture) && \
     cp /tmp/libs/* ${LIB_DIR}/ 2>/dev/null || true
 
 # Vérifier les dépendances du binaire
+# Note: Le binaire peut être statique (ARM64) ou dynamique (AMD64)
 RUN echo "🔍 Vérification des dépendances du binaire:" && \
-    ldd /app/nook-backend && \
-    if ldd /app/nook-backend | grep "not found"; then \
+    ldd /app/nook-backend || echo "⚪ Binaire statique détecté" && \
+    if ldd /app/nook-backend 2>&1 | grep "not a dynamic executable"; then \
+      echo "✅ Binaire statiquement lié (pas de dépendances runtime)"; \
+    elif ldd /app/nook-backend 2>&1 | grep "not found"; then \
       echo "❌ ERREUR: Dépendances manquantes !"; \
+      ldd /app/nook-backend; \
       exit 1; \
-    fi && \
-    echo "✅ Toutes les dépendances sont satisfaites"
+    else \
+      echo "✅ Toutes les dépendances sont satisfaites"; \
+    fi
 
 # Copie du frontend pré-buildé
 COPY ${FRONTEND_PATH}/ /app/static/
@@ -156,8 +157,7 @@ USER 1000:1000
 # Variables d'environnement
 ENV RUST_LOG=info \
     DATABASE_URL=sqlite:/app/data/nook.db \
-    PORT=3000 \
-    LD_LIBRARY_PATH=/usr/lib
+    PORT=3000
 
 EXPOSE 3000
 
