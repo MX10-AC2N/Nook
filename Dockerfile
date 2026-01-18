@@ -26,7 +26,6 @@ RUN mkdir -p /tmp/libs
 
 # Copier les bibliothèques dans un emplacement centralisé
 # Support multi-architecture (amd64 et arm64)
-# Note: dpkg retourne "amd64" mais le chemin est "x86_64-linux-gnu"
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
         amd64) LIB_ARCH="x86_64-linux-gnu" ;; \
@@ -37,7 +36,6 @@ RUN ARCH=$(dpkg --print-architecture) && \
     echo "📦 Architecture dpkg: ${ARCH}" && \
     echo "📦 Architecture libs: ${LIB_ARCH}" && \
     echo "📂 Répertoire libs: ${LIB_DIR}" && \
-    ls -la ${LIB_DIR}/ | head -20 && \
     cp -P ${LIB_DIR}/libsqlite3.so* /tmp/libs/ && \
     cp -P ${LIB_DIR}/libsodium.so* /tmp/libs/ && \
     cp -P ${LIB_DIR}/libssl.so* /tmp/libs/ && \
@@ -57,70 +55,45 @@ COPY --from=libs-extractor /tmp/libs /tmp/libs
 RUN addgroup --system --gid 1000 app && \
     adduser --system --uid 1000 --ingroup app app
 
-# Création de la structure de répertoires
-RUN mkdir -p /app/data /app/static /app/data/uploads
+# Création de la structure de répertoires avec permissions minimales
+RUN mkdir -p /app/data /app/static /app/data/uploads && \
+    chown -R app:app /app && \
+    chmod 755 /app && \
+    chmod 700 /app/data && \
+    chmod 755 /app/static
 
 # Arguments pour les artifacts
 ARG BACKEND_PATH
 ARG FRONTEND_PATH
 
-# Copie du backend pré-compilé
-COPY ${BACKEND_PATH} /app/nook-backend
+# Copie du backend pré-compilé avec vérification
+COPY --chown=app:app --chmod=755 ${BACKEND_PATH} /app/nook-backend
 
-# Rendre le binaire exécutable
-RUN chmod +x /app/nook-backend
-
-# Installer ldd pour la vérification (uniquement pour cette étape)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends libc-bin && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copier temporairement les libs pour le test ldd
-RUN ARCH=$(dpkg --print-architecture) && \
-    case "$ARCH" in \
-        amd64) LIB_ARCH="x86_64-linux-gnu" ;; \
-        arm64) LIB_ARCH="aarch64-linux-gnu" ;; \
-        *) LIB_ARCH="unknown" ;; \
-    esac && \
-    LIB_DIR="/usr/lib/${LIB_ARCH}" && \
-    mkdir -p ${LIB_DIR} && \
-    cp /tmp/libs/* ${LIB_DIR}/ 2>/dev/null || true
-
-# Vérifier les dépendances du binaire
-# Note: Le binaire peut être statique (ARM64) ou dynamique (AMD64)
-RUN echo "🔍 Vérification des dépendances du binaire:" && \
-    ldd /app/nook-backend || echo "⚪ Binaire statique détecté" && \
-    if ldd /app/nook-backend 2>&1 | grep "not a dynamic executable"; then \
-      echo "✅ Binaire statiquement lié (pas de dépendances runtime)"; \
-    elif ldd /app/nook-backend 2>&1 | grep "not found"; then \
-      echo "❌ ERREUR: Dépendances manquantes !"; \
-      ldd /app/nook-backend; \
-      exit 1; \
-    else \
-      echo "✅ Toutes les dépendances sont satisfaites"; \
-    fi
+# Vérification du binaire
+RUN echo "🔍 Vérification du binaire final:" && \
+    ls -la /app/nook-backend && \
+    file /app/nook-backend | grep -q "ELF 64-bit LSB.*executable" || (echo "❌ Format de binaire invalide" && exit 1) && \
+    [ -x /app/nook-backend ] || (echo "❌ Binaire non exécutable" && exit 1) && \
+    echo "✅ Binaire vérifié"
 
 # Copie du frontend pré-buildé
-COPY ${FRONTEND_PATH}/ /app/static/
+COPY --chown=app:app ${FRONTEND_PATH}/ /app/static/
 
-# Appliquer les bons droits
-RUN chown -R app:app /app
-
-# Vérification finale
+# Vérification finale de l'intégrité
 RUN set -e && \
-    if [ ! -f "/app/nook-backend" ]; then \
-      echo "❌ Backend absent"; exit 1; \
-    fi && \
-    if [ ! -f "/app/static/index.html" ]; then \
-      echo "❌ Frontend absent"; exit 1; \
-    fi && \
-    echo "✅ Backend: $(ls -lh /app/nook-backend | awk '{print $5}')" && \
-    echo "✅ Frontend: $(du -sh /app/static | cut -f1)"
+    echo "🔍 Vérification finale de l'application:" && \
+    [ -f "/app/nook-backend" ] || (echo "❌ Backend absent" && exit 1) && \
+    [ -f "/app/static/index.html" ] || (echo "❌ Frontend absent" && exit 1) && \
+    echo "📊 Taille du backend: $(stat -c%s /app/nook-backend | numfmt --to=iec)" && \
+    echo "📊 Taille du frontend: $(du -sh /app/static | cut -f1)" && \
+    echo "📚 Bibliothèques requises:" && \
+    ldd /app/nook-backend 2>/dev/null | grep "=> /" | awk '{print $1}' | sort || echo "⚪ Binaire statique" && \
+    echo "✅ Application prête pour Distroless"
 
 # ===============================================
 # ÉTAPE 3 : Image finale Distroless
 # ===============================================
-FROM gcr.io/distroless/cc-debian12:latest
+FROM gcr.io/distroless/cc-debian12:nonroot
 
 # Métadonnées
 LABEL maintainer="MX10-AC2N" \
@@ -128,38 +101,25 @@ LABEL maintainer="MX10-AC2N" \
       version="0.5.0" \
       org.opencontainers.image.source="https://github.com/MX10-AC2N/Nook"
 
-# Copie des fichiers système
-COPY --from=app-prep /etc/passwd /etc/passwd
-COPY --from=app-prep /etc/group /etc/group
-
-# Copie des certificats SSL
+# Copier les certificats SSL
 COPY --from=libs-extractor /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
-# ⚠️ CRITIQUE: Copie des bibliothèques partagées
-# Distroless cc-debian12 contient déjà:
-# - glibc (libc.so.6)
-# - libgcc_s.so.1
-# - libm.so.6
-# - libpthread (intégré dans glibc 2.34+)
-#
-# Les bibliothèques sont copiées dans /usr/lib/ (sans sous-répertoire)
-# Le linker dynamique les trouvera automatiquement via LD_LIBRARY_PATH
+# Copier les bibliothèques partagées
 COPY --from=libs-extractor /tmp/libs/*.so* /usr/lib/
 
-# Copie de l'application complète
-COPY --from=app-prep --chown=1000:1000 /app /app
+# Copier l'application complète
+COPY --from=app-prep --chown=nonroot:nonroot /app /app
 
 WORKDIR /app
 
-# Utilisateur non-root
-USER 1000:1000
-
-# Variables d'environnement
-ENV RUST_LOG=info \
+# Variables d'environnement sécurisées
+ENV RUST_LOG=warn \
     DATABASE_URL=sqlite:/app/data/nook.db \
-    PORT=3000
+    PORT=3000 \
+    USER=nonroot \
+    HOME=/app
 
 EXPOSE 3000
 
-# Point d'entrée
-CMD ["/app/nook-backend"]
+# Point d'entrée sécurisé
+ENTRYPOINT ["/app/nook-backend"]
