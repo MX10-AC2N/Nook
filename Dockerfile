@@ -44,9 +44,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
     echo "✅ Bibliothèques collectées:" && \
     ls -lh /tmp/libs/
 
-# ===============================================
 # ÉTAPE 2 : Préparation de l'application
-# ===============================================
 FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS app-prep
 
 # Copier les bibliothèques depuis l'extracteur
@@ -82,6 +80,17 @@ RUN echo "🎯 Architecture cible: ${TARGETARCH}${TARGETVARIANT:+ (variant: ${TA
 # Copie du backend pré-compilé avec vérification
 # Essayer différents noms possibles
 COPY --chown=app:app --chmod=755 ${BACKEND_PATH}/nook-backend-${TARGETARCH} /app/nook-backend
+
+# Si le fichier n'existe pas, essayer avec amd64/arm64
+RUN if [ ! -f "/app/nook-backend" ]; then \
+      if [ "${TARGETARCH}" = "amd64" ]; then \
+        echo "🔍 Tentative avec nook-backend-x86_64..."; \
+        cp ${BACKEND_PATH}/nook-backend-x86_64 /app/nook-backend 2>/dev/null || true; \
+      elif [ "${TARGETARCH}" = "arm64" ]; then \
+        echo "🔍 Tentative avec nook-backend-aarch64..."; \
+        cp ${BACKEND_PATH}/nook-backend-aarch64 /app/nook-backend 2>/dev/null || true; \
+      fi; \
+    fi
 
 # Vérification du binaire
 RUN echo "🔍 Vérification du binaire final:" && \
