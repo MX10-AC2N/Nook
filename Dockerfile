@@ -80,7 +80,7 @@ LABEL maintainer="MX10-AC2N" \
 
 # Certificats SSL et bibliothèques
 COPY --from=libs-extractor /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=libs-extractor /tmp/libs/*.so* /usr/lib/ 2>/dev/null || true
+COPY --from=libs-extractor /tmp/libs/ /usr/lib/
 
 # Application
 COPY --from=app-prep --chown=nonroot:nonroot /app /app
