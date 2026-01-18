@@ -293,6 +293,16 @@ jobs:
         name: nook-frontend
         path: frontend-artifact
 
+    - name: Debug artifact structure
+      run: |
+        echo "🔍 Débogage de la structure des artifacts..."
+        echo "=== Structure backend-artifacts ==="
+        ls -laR backend-artifacts/
+        echo "=== Contenu des fichiers backend ==="
+        find backend-artifacts -type f -name "nook-backend*" -exec ls -la {} \; -exec file {} \;
+        echo "=== Structure frontend-artifact ==="
+        ls -laR frontend-artifact/
+
     - name: Prepare Docker build context
       run: |
         echo "🏗️ Préparation du contexte Docker..."
@@ -301,44 +311,104 @@ jobs:
         mkdir -p docker-context/backend
         mkdir -p docker-context/frontend
         
-        # Organiser les binaires backend pour Docker
+        echo "🔍 Recherche des binaires backend..."
+        
+        # Méthode 1 : Chercher dans les sous-dossiers par architecture
+        AMD64_PATH=""
+        ARM64_PATH=""
+        
+        # Chercher le binaire x86_64
         if [ -f "backend-artifacts/x86_64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/x86_64-unknown-linux-gnu/nook-backend docker-context/backend/nook-backend-amd64
-          echo "✅ Backend amd64 prêt"
-        else
-          echo "❌ Backend amd64 non trouvé"
-          exit 1
+          AMD64_PATH="backend-artifacts/x86_64-unknown-linux-gnu/nook-backend"
+        elif [ -f "backend-artifacts/nook-backend-x86_64-unknown-linux-gnu" ]; then
+          AMD64_PATH="backend-artifacts/nook-backend-x86_64-unknown-linux-gnu"
+        elif find backend-artifacts -name "*x86_64*" -type f | grep -q "nook-backend"; then
+          AMD64_PATH=$(find backend-artifacts -name "*x86_64*" -type f | grep "nook-backend" | head -1)
         fi
         
+        # Chercher le binaire aarch64
         if [ -f "backend-artifacts/aarch64-unknown-linux-gnu/nook-backend" ]; then
-          cp backend-artifacts/aarch64-unknown-linux-gnu/nook-backend docker-context/backend/nook-backend-arm64
-          echo "✅ Backend arm64 prêt"
+          ARM64_PATH="backend-artifacts/aarch64-unknown-linux-gnu/nook-backend"
+        elif [ -f "backend-artifacts/nook-backend-aarch64-unknown-linux-gnu" ]; then
+          ARM64_PATH="backend-artifacts/nook-backend-aarch64-unknown-linux-gnu"
+        elif find backend-artifacts -name "*aarch64*" -type f | grep -q "nook-backend"; then
+          ARM64_PATH=$(find backend-artifacts -name "*aarch64*" -type f | grep "nook-backend" | head -1)
+        fi
+        
+        echo "🎯 Chemins trouvés:"
+        echo "AMD64: ${AMD64_PATH:-'non trouvé'}"
+        echo "ARM64: ${ARM64_PATH:-'non trouvé'}"
+        
+        # Copier les binaires avec les bons noms
+        if [ -n "$AMD64_PATH" ] && [ -f "$AMD64_PATH" ]; then
+          cp "$AMD64_PATH" docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-amd64
+          echo "✅ Backend amd64 copié: $(ls -la docker-context/backend/nook-backend-amd64)"
         else
-          echo "❌ Backend arm64 non trouvé"
+          echo "❌ Backend amd64 non trouvé dans la structure des artifacts"
+          echo "Contenu de backend-artifacts:"
+          ls -laR backend-artifacts/
           exit 1
         fi
         
-        # Copier le frontend
+        if [ -n "$ARM64_PATH" ] && [ -f "$ARM64_PATH" ]; then
+          cp "$ARM64_PATH" docker-context/backend/nook-backend-arm64
+          chmod +x docker-context/backend/nook-backend-arm64
+          echo "✅ Backend arm64 copié: $(ls -la docker-context/backend/nook-backend-arm64)"
+        else
+          echo "❌ Backend arm64 non trouvé dans la structure des artifacts"
+          echo "Contenu de backend-artifacts:"
+          ls -laR backend-artifacts/
+          exit 1
+        fi
+        
+        # Copier le frontend - gérer différentes structures possibles
+        FRONTEND_BUILD_DIR=""
+        
         if [ -d "frontend-artifact/build" ]; then
-          cp -r frontend-artifact/build/* docker-context/frontend/
-        elif [ -d "frontend-artifact" ] && [ "$(ls -A frontend-artifact)" ]; then
-          cp -r frontend-artifact/* docker-context/frontend/
+          FRONTEND_BUILD_DIR="frontend-artifact/build"
+        elif [ -d "frontend-artifact/frontend/build" ]; then
+          FRONTEND_BUILD_DIR="frontend-artifact/frontend/build"
+        elif [ -d "frontend-artifact" ] && [ -f "frontend-artifact/index.html" ]; then
+          FRONTEND_BUILD_DIR="frontend-artifact"
+        elif find frontend-artifact -name "index.html" -type f | head -1; then
+          FRONTEND_BUILD_DIR=$(dirname "$(find frontend-artifact -name "index.html" -type f | head -1)")
+        fi
+        
+        if [ -n "$FRONTEND_BUILD_DIR" ] && [ -d "$FRONTEND_BUILD_DIR" ]; then
+          cp -r "$FRONTEND_BUILD_DIR"/* docker-context/frontend/
+          echo "✅ Frontend copié depuis: $FRONTEND_BUILD_DIR"
         else
-          echo "❌ Frontend non trouvé"
+          echo "❌ Impossible de trouver le dossier de build frontend"
+          echo "Contenu de frontend-artifact:"
+          ls -laR frontend-artifact/
           exit 1
         fi
         
-        # Vérifier la structure
-        echo "📁 Structure du contexte Docker:"
+        # Vérifier la structure finale
+        echo "📁 Structure finale du contexte Docker:"
         echo "Backend:"
         ls -la docker-context/backend/
         echo "Frontend:"
         ls -la docker-context/frontend/
         
         # Vérifier les fichiers critiques
-        [ -f "docker-context/backend/nook-backend-amd64" ] || (echo "❌ nook-backend-amd64 manquant" && exit 1)
-        [ -f "docker-context/backend/nook-backend-arm64" ] || (echo "❌ nook-backend-arm64 manquant" && exit 1)
-        [ -f "docker-context/frontend/index.html" ] || (echo "❌ index.html manquant" && exit 1)
+        if [ ! -f "docker-context/backend/nook-backend-amd64" ]; then
+          echo "❌ nook-backend-amd64 manquant dans le contexte Docker"
+          exit 1
+        fi
+        
+        if [ ! -f "docker-context/backend/nook-backend-arm64" ]; then
+          echo "❌ nook-backend-arm64 manquant dans le contexte Docker"
+          exit 1
+        fi
+        
+        if [ ! -f "docker-context/frontend/index.html" ]; then
+          echo "❌ index.html manquant dans le contexte Docker"
+          echo "Contenu du frontend:"
+          ls -la docker-context/frontend/
+          exit 1
+        fi
         
         echo "✅ Contexte Docker prêt"
 
