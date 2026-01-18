@@ -8,7 +8,7 @@ on:
       - 'backend/**'
       - 'frontend/**'
       - 'Dockerfile'
-      - '.github/workflows/ci-new2.yml'
+      - '.github/workflows/fast-build2.yml'
       - 'backend/Cargo.lock'
       - 'backend/Cargo.toml'
       - 'frontend/package.json'
@@ -371,7 +371,7 @@ jobs:
         FOUND_AMD64=false
         FOUND_ARM64=false
         
-        # Traiter chaque fichier sans utiliser de sous-shell
+        # Traiter chaque fichier
         for file in $BACKEND_FILES; do
           if [ -f "$file" ]; then
             echo "📄 Traitement: $file"
@@ -396,43 +396,11 @@ jobs:
         # Vérifier si on a trouvé les deux architectures
         if [ "$FOUND_AMD64" = false ]; then
           echo "❌ Aucun binaire AMD64 trouvé"
-          echo "Recherche alternative des binaires..."
-          
-          # Recherche alternative par contenu du fichier
-          for file in $(find backend-artifacts -type f); do
-            if [ -f "$file" ] && file "$file" | grep -qi "x86-64"; then
-              cp "$file" docker-context/backend/nook-backend-amd64
-              chmod +x docker-context/backend/nook-backend-amd64
-              FOUND_AMD64=true
-              echo "✅ AMD64 trouvé par analyse de contenu: $file"
-              break
-            fi
-          done
+          exit 1
         fi
         
         if [ "$FOUND_ARM64" = false ]; then
           echo "❌ Aucun binaire ARM64 trouvé"
-          echo "Recherche alternative des binaires..."
-          
-          # Recherche alternative par contenu du fichier
-          for file in $(find backend-artifacts -type f); do
-            if [ -f "$file" ] && file "$file" | grep -qi "aarch64"; then
-              cp "$file" docker-context/backend/nook-backend-arm64
-              chmod +x docker-context/backend/nook-backend-arm64
-              FOUND_ARM64=true
-              echo "✅ ARM64 trouvé par analyse de contenu: $file"
-              break
-            fi
-          done
-        fi
-        
-        # Vérification finale
-        if [ "$FOUND_AMD64" = false ] || [ "$FOUND_ARM64" = false ]; then
-          echo "❌ Échec de la recherche des binaires"
-          echo "Contenu détaillé de backend-artifacts:"
-          ls -laR backend-artifacts/
-          echo "Analyse des fichiers disponibles:"
-          find backend-artifacts -type f -exec file {} \;
           exit 1
         fi
         
