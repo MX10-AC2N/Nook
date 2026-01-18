@@ -63,7 +63,7 @@
       const response = await fetch('/api/upload/chat', {
         method: 'POST',
         body: formData,
-        credentials: 'include', // si auth par cookies/sessions
+        credentials: 'include',
       });
 
       if (!response.ok) throw new Error('Upload échoué');
@@ -79,7 +79,6 @@
         </div>`;
       }
 
-      // Envoi d'un message dédié avec l'attachment rendu en HTML
       await sendMessage(content, conversationId, [], new Uint8Array());
 
       // Reset input file
@@ -221,7 +220,6 @@
 </div>
 
 <style>
-   
   /* -----------------------------------------------------------------
      LAYOUT GLOBAL
      ----------------------------------------------------------------- */
@@ -509,8 +507,9 @@
     cursor: not-allowed;
   }
 
-  /*
-/* Styles spécifiques aux uploads */
+  /* -----------------------------------------------------------------
+     STYLES SPÉCIFIQUES AUX UPLOADS
+     ----------------------------------------------------------------- */
   .uploaded-image {
     max-width: 300px;
     border-radius: 8px;
@@ -549,7 +548,8 @@
   .attach-btn:hover {
     background-color: var(--bg-secondary, #f1f5f9);
   }
- -----------------------------------------------------------------
+
+  /* -----------------------------------------------------------------
      RESPONSIVE
      ----------------------------------------------------------------- */
   @media (max-width: 768px) {
