@@ -2,15 +2,16 @@
 # Dockerfile Distroless optimisé pour production
 # Image ultra-légère et sécurisée
 # Compatible avec les artifacts GitHub Actions
+# Support multi-architecture (amd64/arm64)
 # ===============================================
 
-ARG BACKEND_PATH=backend-artifact/nook-backend
+ARG BACKEND_PATH=backend-artifacts
 ARG FRONTEND_PATH=frontend-artifact
 
 # ===============================================
 # ÉTAPE 1 : Extraction des bibliothèques
 # ===============================================
-FROM debian:bookworm-slim AS libs-extractor
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS libs-extractor
 
 # Installation des bibliothèques nécessaires
 RUN apt-get update && \
@@ -46,10 +47,12 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # ===============================================
 # ÉTAPE 2 : Préparation de l'application
 # ===============================================
-FROM debian:bookworm-slim AS app-prep
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim AS app-prep
 
 # Copier les bibliothèques depuis l'extracteur
 COPY --from=libs-extractor /tmp/libs /tmp/libs
+
+# Vérification que les bibliothèques sont bien copiées
 RUN echo "📁 Vérification des libs copiées:" && ls -la /tmp/libs/
 
 # Création de l'utilisateur non-root
@@ -70,10 +73,14 @@ RUN mkdir -p /app/data /app/static /app/data/uploads && \
 
 # Arguments pour les artifacts
 ARG BACKEND_PATH
-ARG FRONTEND_PATH
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+# Sélection du binaire selon l'architecture cible
+RUN echo "🎯 Architecture cible: ${TARGETARCH}${TARGETVARIANT:+ (variant: ${TARGETVARIANT})}"
 
 # Copie du backend pré-compilé avec vérification
-COPY --chown=app:app --chmod=755 ${BACKEND_PATH} /app/nook-backend
+COPY --chown=app:app --chmod=755 ${BACKEND_PATH}/nook-backend-${TARGETARCH} /app/nook-backend
 
 # Vérification du binaire
 RUN echo "🔍 Vérification du binaire final:" && \
@@ -99,8 +106,13 @@ RUN set -e && \
     [ -f "/app/static/index.html" ] || (echo "❌ Frontend absent" && exit 1) && \
     echo "📊 Taille du backend: $(stat -c%s /app/nook-backend | numfmt --to=iec)" && \
     echo "📊 Taille du frontend: $(du -sh /app/static | cut -f1)" && \
-    echo "📚 Bibliothèques requises:" && \
-    ldd /app/nook-backend 2>/dev/null | grep "=> /" | awk '{print $1}' | sort || echo "⚪ Binaire statique" && \
+    echo "📚 Vérification des dépendances:" && \
+    if ldd /app/nook-backend 2>/dev/null >/dev/null; then \
+      echo "📦 Binaire dynamique - Dépendances:"; \
+      ldd /app/nook-backend 2>/dev/null | grep "=> /" | awk '{print $1}' | sort; \
+    else \
+      echo "⚪ Binaire statique (pas de dépendances externes)"; \
+    fi && \
     echo "✅ Application prête pour Distroless"
 
 # ===============================================
