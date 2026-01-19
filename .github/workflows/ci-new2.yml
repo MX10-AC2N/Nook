@@ -32,14 +32,11 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 permissions:
-  contents: write          # Nécessaire pour commiter et pousser
+  contents: write
   packages: write
   id-token: write
 
 jobs:
-  # ────────────────────────────────────────────────
-  # Job dédié au formatage automatique (uniquement sur PR)
-  # ────────────────────────────────────────────────
   fmt:
     name: 🛠️ Auto-format Rust code (cargo fmt)
     runs-on: ubuntu-latest
@@ -48,8 +45,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -66,7 +64,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
+          if git diff --quiet && git diff --cached --quiet; then
             echo "changed=false" >> $GITHUB_OUTPUT
           else
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -76,21 +74,21 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         run: |
           git add .
-          git commit -m "style(backend): apply cargo fmt [skip ci]" || echo "No changes to commit (already clean)"
+          git commit -m "style(backend): apply cargo fmt [skip ci]" || echo "No changes to commit"
           
           CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
           echo "Pushing to branch: $CURRENT_BRANCH"
           
           git push origin HEAD:$CURRENT_BRANCH
-          echo "Code formaté et poussé automatiquement vers $CURRENT_BRANCH"
+          echo "Code formaté et poussé automatiquement"
 
-  # ────────────────────────────────────────────────
-  # Backend build & test (multi-arch)
-  # ────────────────────────────────────────────────
   backend:
     name: 🏗️ Backend Build & Test (Multi-Arch)
     runs-on: ubuntu-latest
-    needs: []  # Pas de dépendance sur fmt
+
+    defaults:
+      run:
+        working-directory: ./backend   # ← Tous les cargo se lancent depuis backend/
 
     strategy:
       matrix:
@@ -127,7 +125,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: \( {{ runner.os }}-cargo- \){{ matrix.target }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
+          key: \( {{ runner.os }}-cargo- \){{ matrix.target }}-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
           restore-keys: |
             \( {{ runner.os }}-cargo- \){{ matrix.target }}-
             ${{ runner.os }}-cargo-
@@ -139,8 +137,7 @@ jobs:
           echo "DATABASE_URL=sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db" >> $GITHUB_ENV
 
       - name: Install sqlx-cli
-        run: |
-          cargo install sqlx-cli --version '^0.8' --no-default-features --features sqlite --locked || true
+        run: cargo install sqlx-cli --version '^0.8' --no-default-features --features sqlite --locked || true
 
       - name: Configure SQLx offline mode
         run: |
@@ -155,43 +152,36 @@ jobs:
           echo "🔄 Préparation du cache SQLx pour ${{ matrix.target }}..."
           
           if cargo sqlx prepare --bin nook-backend -- --target ${{ matrix.target }} 2>/dev/null; then
-            echo "✅ Cache généré avec succès pour ${{ matrix.target }}"
+            echo "✅ Cache généré avec succès"
             exit 0
           fi
           
-          echo "⚠️ Méthode 1 échouée, tentative méthode 2..."
-          
-          if cargo build --bin nook-backend --target ${{ matrix.target }} 2>/dev/null && \
-             cargo sqlx prepare --bin nook-backend 2>/dev/null; then
-            echo "✅ Cache généré via build pour ${{ matrix.target }}"
+          if cargo build --bin nook-backend --target ${{ matrix.target }} 2>/dev/null && cargo sqlx prepare --bin nook-backend 2>/dev/null; then
+            echo "✅ Cache généré via build"
             exit 0
           fi
-          
-          echo "⚠️ Méthode 2 échouée, tentative méthode 3..."
           
           if cargo sqlx prepare --bin nook-backend --workspace 2>/dev/null; then
-            echo "✅ Cache généré simplement pour ${{ matrix.target }}"
+            echo "✅ Cache généré simplement"
             exit 0
           fi
           
-          echo "⚠️ Toutes les méthodes échouées, création manuelle du dossier .sqlx"
           mkdir -p .sqlx
-          echo "// Cache SQLx généré manuellement" > .sqlx/queries.json
+          echo "// Cache manuel" > .sqlx/queries.json
           echo "✅ Dossier .sqlx créé manuellement"
 
       - name: Verify SQLx cache
         run: |
           if [ -d ".sqlx" ]; then
-            echo "✅ Dossier .sqlx présent"
+            echo "✅ .sqlx présent"
             ls -la .sqlx/
           else
-            echo "⚠️ Dossier .sqlx absent - création forcée"
+            echo "⚠️ .sqlx absent - création forcée"
             mkdir -p .sqlx
             echo "{}" > .sqlx/queries.json
           fi
 
       - name: Check dependencies
-        working-directory: ./backend
         env:
           SQLX_OFFLINE: true
         run: cargo check --all-targets --target ${{ matrix.target }}
@@ -224,13 +214,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nook-backend-${{ matrix.target }}
-          path: backend/target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
+          path: target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
           if-no-files-found: error
           retention-days: 1
 
-  # ────────────────────────────────────────────────
-  # Frontend build
-  # ────────────────────────────────────────────────
   frontend:
     name: 🎨 Frontend Build
     runs-on: ubuntu-latest
@@ -369,9 +356,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # ────────────────────────────────────────────────
-  # Docker build & push multi-arch
-  # ────────────────────────────────────────────────
   docker:
     name: 🐳 Docker Build & Push Multi-Arch (Distroless)
     runs-on: ubuntu-latest
@@ -544,7 +528,7 @@ jobs:
           echo "📊 Analyse de la taille de l'image..."
           
           echo "✅ Build et push réussis !"
-          echo "🔗 URL de l'image: https://ghcr.io/\( {{ github.repository }}/ \){{ github.sha }}"
+          echo "🔗 URL de l'image: https://ghcr.io/\( {{ github.repository }}: \){{ github.sha }}"
           
           echo "📦 Taille estimée des images:"
           echo "- amd64: ~5-10MB (image distroless)"
