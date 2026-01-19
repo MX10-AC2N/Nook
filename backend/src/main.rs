@@ -10,12 +10,13 @@
 use axum::{
     body::{to_bytes, Body},
     extract::Host,
-    http::{header, HeaderMap, Request},
+    http::{header::HeaderValue, HeaderMap, Request},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
+use bytes::Bytes;  // ← Ajout nécessaire pour la correction lifetime
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -77,7 +78,8 @@ async fn base_inject_middleware(
     // Tag à injecter (self-closing, moderne)
     let replacement = format!("<base href=\"{}\" />", base_url);
 
-    let mut resp = next.run(req).await;
+    // ← Enlevé `mut` car inutile ici (warning unused_mut corrigé)
+    let resp = next.run(req).await;
 
     // Ne modifier que les réponses HTML
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
@@ -99,13 +101,15 @@ async fn base_inject_middleware(
             }
             // Si pas de placeholder → on laisse tel quel (fail-safe)
 
-            let mut new_resp = Response::from_parts(parts, Body::from(body_str.as_bytes()));
+            // ──── Correction principale (lifetime E0597) ────
+            // On transfère la propriété de body_str vers Bytes (pas de borrow temporaire)
+            let body_bytes = Bytes::from(body_str);
 
-            // Recalcul Content-Length
-            if let Ok(len_str) = body_str.len().to_string().parse() {
-                new_resp
-                    .headers_mut()
-                    .insert(header::CONTENT_LENGTH, len_str);
+            let mut new_resp = Response::from_parts(parts, Body::from(body_bytes));
+
+            // Recalcul Content-Length (calculé à partir des bytes finaux → plus précis)
+            if let Ok(len_header) = HeaderValue::from_str(&body_bytes.len().to_string()) {
+                new_resp.headers_mut().insert(header::CONTENT_LENGTH, len_header);
             }
 
             return Ok(new_resp.into_response());
