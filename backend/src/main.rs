@@ -85,11 +85,7 @@ async fn base_inject_middleware(
 
     // Ne modifier que les réponses HTML
     if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
-        if ct
-            .to_str()
-            .ok()
-            .map_or(false, |s| s.starts_with("text/html"))
-        {
+        if ct.to_str().is_ok_and(|s| s.starts_with("text/html")) {
             let (parts, body) = resp.into_parts();
             let bytes = to_bytes(body, 10_000_000)
                 .await
