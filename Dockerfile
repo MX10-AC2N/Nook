@@ -58,7 +58,7 @@ ARG FRONTEND_PATH
 COPY --chown=app:app --chmod=755 ${BACKEND_PATH}/nook-backend-${TARGETARCH} /app/nook-backend
 
 # Copier le frontend
-COPY --chown=app:app ${FRONTEND_PATH}/ /app/static/
+COPY --chown=app:app ${FRONTEND_PATH}/build/ /app/static/
 
 # Vérification finale sécurisée
 RUN set -e && \
