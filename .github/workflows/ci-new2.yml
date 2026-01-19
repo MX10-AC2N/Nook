@@ -136,6 +136,7 @@ jobs:
         fi
 
     - name: Format code
+      run: cargo fmt --all
       run: cargo fmt --all -- --check
 
     - name: Check dependencies
