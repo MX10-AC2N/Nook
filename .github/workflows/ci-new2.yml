@@ -206,10 +206,21 @@ jobs:
 
       - name: Rename binary with architecture suffix
         run: |
+          BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
+          
+          if [ -f "$BINARY_PATH" ]; then
+            echo "Binaire trouvé : $BINARY_PATH"
+            ls -lh "$BINARY_PATH"
+          else
+            echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
+            ls -la target/${{ matrix.target }}/release/
+            exit 1
+          fi
+          
           mkdir -p target/${{ matrix.target }}/release-renamed
-          cp target/${{ matrix.target }}/release/nook-backend \
+          cp "$BINARY_PATH" \
              target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
-          echo "✅ Binaire renommé: nook-backend-${{ matrix.target }}"
+          echo "✅ Binaire renommé : nook-backend-${{ matrix.target }}"
 
       - name: Upload backend artifact with unique filename
         uses: actions/upload-artifact@v4
