@@ -233,7 +233,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
         .route("/conversations/:id/join", post(db::join_conversation))
-        .route("/conversations/:id/messages", get(db::get_conversation_messages))
+        .route(
+            "/conversations/:id/messages",
+            get(db::get_conversation_messages),
+        )
         .route("/conversations/:id/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
@@ -254,7 +257,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+    eprintln!(
+        "[Static] Servir les fichiers frontend depuis : {}",
+        static_path
+    );
 
     // Pas de precompressed → on compresse dynamiquement après le middleware
     let static_service = ServeDir::new(static_path)
