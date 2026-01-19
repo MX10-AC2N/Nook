@@ -63,10 +63,16 @@ COPY --chown=app:app ${FRONTEND_PATH}/build/ /app/static/
 # Vérification finale sécurisée
 RUN set -e && \
     echo "✅ Vérification de l'application:" && \
-    [ -x "/app/nook-backend" ] || (echo "❌ Backend non exécutable" && exit 1) && \
-    [ -f "/app/static/index.html" ] || (echo "❌ Frontend incomplet" && exit 1) && \
+    echo "🏗️  Architecture cible: ${TARGETARCH}" && \
+    [ -x "/app/nook-backend" ] || (echo "❌ Backend non exécutable" && ls -la /app/ && exit 1) && \
+    [ -f "/app/static/index.html" ] || (echo "❌ Frontend incomplet - index.html manquant" && ls -la /app/static/ && exit 1) && \
+    [ -d "/app/static/_app" ] || (echo "❌ Frontend incomplet - dossier _app manquant" && ls -la /app/static/ && exit 1) && \
+    [ -f "/app/static/_app/version.json" ] || (echo "❌ Frontend incomplet - version.json manquant" && exit 1) && \
     echo "📊 Backend: $(stat -c%s /app/nook-backend | numfmt --to=iec)" && \
-    echo "📊 Frontend: $(du -sh /app/static | cut -f1)"
+    echo "📊 Frontend: $(du -sh /app/static | cut -f1)" && \
+    echo "📊 Fichiers JS: $(find /app/static/_app -name '*.js' | wc -l) fichiers" && \
+    echo "👤 Permissions backend: $(ls -l /app/nook-backend)" && \
+    echo "👤 Permissions data: $(ls -ld /app/data)"
 
 # ===============================================
 # ÉTAPE 3 : Image finale Distroless
