@@ -41,3 +41,4 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 # Compatibilité
 home = "0.5"
 base64ct = "1.6"
+bytes = "1"
