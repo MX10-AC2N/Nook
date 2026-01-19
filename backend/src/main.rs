@@ -204,7 +204,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager: file_manager.clone(),
     });
 
-    // ✅ FIX: Routeur API avec CORS uniquement sur /api/*
+    // Routeur API (sans préfixe /api car il sera nesté)
     let api_router = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -253,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .precompressed_br()
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
-    // ✅ FIX: Assemblage correct - API en premier avec préfixe, static en fallback
+    // Assemblage du router avec les routes
     let app = Router::new()
         // Routes API avec préfixe /api
         .nest("/api", api_router)
@@ -264,10 +264,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .precompressed_gzip()
                 .precompressed_br(),
         )
-        // Middleware d'injection de base (APRÈS les routes API)
-        .layer(middleware::from_fn(base_inject_middleware))
-        // Fallback pour servir le SPA (toutes les autres routes)
+        // Fallback pour servir le SPA
         .fallback_service(static_service);
+
+    // ✅ CRITIQUE: Appliquer le middleware EN DERNIER pour qu'il traite toutes les réponses
+    let app = app.layer(middleware::from_fn(base_inject_middleware));
 
     // Démarrage serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
