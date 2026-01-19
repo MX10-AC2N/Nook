@@ -43,7 +43,7 @@ jobs:
   fmt:
     name: 🛠️ Auto-format Rust code (cargo fmt)
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: always()
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
