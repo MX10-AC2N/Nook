@@ -8,6 +8,7 @@
 // - Compression à la volée (évite tout conflit avec precompressed files)
 
 use axum::{
+    body::{to_bytes, Body},
     extract::Host,
     http::{header, HeaderMap, Request},
     middleware::{self, Next},
@@ -15,7 +16,6 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use axum::body::{Body, to_bytes};
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -81,7 +81,11 @@ async fn base_inject_middleware(
 
     // Ne modifier que les réponses HTML
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
-        if ct.to_str().ok().map_or(false, |s| s.starts_with("text/html")) {
+        if ct
+            .to_str()
+            .ok()
+            .map_or(false, |s| s.starts_with("text/html"))
+        {
             let (parts, body) = resp.into_parts();
             let bytes = to_bytes(body, 10_000_000)
                 .await
@@ -92,15 +96,16 @@ async fn base_inject_middleware(
             // Remplacement du placeholder
             if body_str.contains("<base-placeholder/>") {
                 body_str = body_str.replace("<base-placeholder/>", &replacement);
-            } else {
-                // Optionnel : si pas de placeholder, on peut l'ajouter après <head> ou ignorer
-                // Ici on ignore silencieusement (sécurité : ne pas casser si build sans placeholder)
             }
+            // Si pas de placeholder → on laisse tel quel (fail-safe)
 
             let mut new_resp = Response::from_parts(parts, Body::from(body_str.as_bytes()));
+
             // Recalcul Content-Length
-            if let Ok(len) = body_str.len().to_string().parse() {
-                new_resp.headers_mut().insert(header::CONTENT_LENGTH, len);
+            if let Ok(len_str) = body_str.len().to_string().parse() {
+                new_resp
+                    .headers_mut()
+                    .insert(header::CONTENT_LENGTH, len_str);
             }
 
             return Ok(new_resp.into_response());
@@ -228,10 +233,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
         .route("/conversations/:id/join", post(db::join_conversation))
-        .route(
-            "/conversations/:id/messages",
-            get(db::get_conversation_messages),
-        )
+        .route("/conversations/:id/messages", get(db::get_conversation_messages))
         .route("/conversations/:id/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
@@ -244,18 +246,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(|| async { "OK" }))
         .merge(webrtc::webrtc_routes())
         .with_state(shared_state.clone())
-        .layer(CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any));
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     let static_path = "/app/static";
-    eprintln!(
-        "[Static] Servir les fichiers frontend depuis : {}",
-        static_path
-    );
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
-    // On retire precompressed_gzip/br → on compresse à la volée après modification du HTML
+    // Pas de precompressed → on compresse dynamiquement après le middleware
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
@@ -264,9 +265,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
         .fallback_service(static_service)
-        // Middleware en dernier (avant compression)
+        // Middleware en dernier pour qu'il voit toutes les réponses
         .layer(middleware::from_fn(base_inject_middleware))
-        // Compression dynamique après tout (HTML modifié sera compressé correctement)
+        // Compression après modification du HTML
         .layer(CompressionLayer::new());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
