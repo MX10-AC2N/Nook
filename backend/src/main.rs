@@ -16,7 +16,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use bytes::Bytes;  // ← Ajout nécessaire pour la correction lifetime
+use bytes::Bytes; // ← Ajout nécessaire pour la correction lifetime
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -109,7 +109,9 @@ async fn base_inject_middleware(
 
             // Recalcul Content-Length (calculé à partir des bytes finaux → plus précis)
             if let Ok(len_header) = HeaderValue::from_str(&body_bytes.len().to_string()) {
-                new_resp.headers_mut().insert(header::CONTENT_LENGTH, len_header);
+                new_resp
+                    .headers_mut()
+                    .insert(header::CONTENT_LENGTH, len_header);
             }
 
             return Ok(new_resp.into_response());
