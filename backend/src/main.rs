@@ -10,13 +10,16 @@
 use axum::{
     body::{to_bytes, Body},
     extract::Host,
-    http::{HeaderMap, HeaderValue, Request, header::{CONTENT_LENGTH, CONTENT_TYPE}},
+    http::{
+        header::{CONTENT_LENGTH, CONTENT_TYPE},
+        HeaderMap, HeaderValue, Request,
+    },
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
-use bytes::Bytes;  // ← Nécessaire (déjà dépendance transitive d'Axum, mais import direct)
+use bytes::Bytes; // ← Nécessaire (déjà dépendance transitive d'Axum, mais import direct)
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
