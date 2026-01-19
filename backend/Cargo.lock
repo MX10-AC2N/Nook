@@ -1359,6 +1359,7 @@ dependencies = [
  "argon2",
  "axum",
  "base64ct",
+ "bytes",
  "chacha20poly1305",
  "chrono",
  "futures-util",
