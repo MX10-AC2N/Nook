@@ -207,7 +207,8 @@ jobs:
       - name: Rename binary with architecture suffix
         run: |
           mkdir -p target/${{ matrix.target }}/release-renamed
-          cp target/\( {{ matrix.target }}/release/nook-backend target/ \){{ matrix.target }}/release-renamed/nook-backend-${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/nook-backend \
+             target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
           echo "✅ Binaire renommé: nook-backend-${{ matrix.target }}"
 
       - name: Upload backend artifact with unique filename
