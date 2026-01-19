@@ -1,20 +1,26 @@
 // main.rs – Point d'entrée du serveur Nook Backend
 // -------------------------------------------------
-// Injection dynamique du <base href="…"> via middleware (Host + X-Forwarded-Proto)
-// Plus besoin de rebuild pour LAN vs prod
+// Middleware conservé et amélioré : injection dynamique du <base href="…/" />
+// - Trailing slash ajouté (best practice pour SvelteKit)
+// - Self-closing tag
+// - Fallback safe si Host absent
+// - Gestion x-forwarded-proto pour prod HTTPS
+// - Compression à la volée (évite tout conflit avec precompressed files)
 
 use axum::{
-    body::{to_bytes, Body, Bytes},
-    http::{header, HeaderValue, Request, Response},
+    extract::Host,
+    http::{header, HeaderMap, Request},
     middleware::{self, Next},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
+use axum::body::{Body, to_bytes};
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
-use std::convert::Infallible;
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
+    compression::CompressionLayer,
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
@@ -44,45 +50,60 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// 1️⃣ Middleware – injection du <base> à la volée
+// 1️⃣ Middleware – injection dynamique du <base> (conservé et renforcé)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
+    Host(host): Host,
+    headers: HeaderMap,
     req: Request<Body>,
     next: Next,
-) -> Result<Response<Body>, Infallible> {
-    let scheme = req
-        .headers()
+) -> Result<Response, axum::http::StatusCode> {
+    // Scheme (http ou https via proxy)
+    let scheme = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("http");
 
-    let host = req
-        .headers()
-        .get(header::HOST)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+    // Host avec port inclus (ex: 192.168.1.10:6300 ou mon-domaine.com)
+    let host_str = if host.is_empty() {
+        "localhost:6300".to_string()
+    } else {
+        host
+    };
 
-    let base_url = format!("{}://{}", scheme, host);
-    let replacement = format!(r#"<base href="{}">"#, base_url);
+    // Base URL complète avec trailing slash
+    let base_url = format!("{}://{}/", scheme, host_str);
 
-    let resp = next.run(req).await;
+    // Tag à injecter (self-closing, moderne)
+    let replacement = format!("<base href=\"{}\" />", base_url);
 
+    let mut resp = next.run(req).await;
+
+    // Ne modifier que les réponses HTML
     if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
-        if ct.to_str().unwrap_or("").starts_with("text/html") {
+        if ct.to_str().ok().map_or(false, |s| s.starts_with("text/html")) {
             let (parts, body) = resp.into_parts();
-            let whole_body = to_bytes(body, 10_000_000)
+            let bytes = to_bytes(body, 10_000_000)
                 .await
-                .unwrap_or_else(|_| Bytes::new());
-            let mut body_str = String::from_utf8_lossy(&whole_body).into_owned();
-            body_str = body_str.replace("<base-placeholder/>", &replacement);
+                .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
-            let mut new_response = Response::from_parts(parts, Body::from(body_str.clone()));
-            new_response.headers_mut().insert(
-                header::CONTENT_LENGTH,
-                HeaderValue::from_str(&body_str.len().to_string()).unwrap(),
-            );
+            let mut body_str = String::from_utf8_lossy(&bytes).into_owned();
 
-            return Ok(new_response);
+            // Remplacement du placeholder
+            if body_str.contains("<base-placeholder/>") {
+                body_str = body_str.replace("<base-placeholder/>", &replacement);
+            } else {
+                // Optionnel : si pas de placeholder, on peut l'ajouter après <head> ou ignorer
+                // Ici on ignore silencieusement (sécurité : ne pas casser si build sans placeholder)
+            }
+
+            let mut new_resp = Response::from_parts(parts, Body::from(body_str.as_bytes()));
+            // Recalcul Content-Length
+            if let Ok(len) = body_str.len().to_string().parse() {
+                new_resp.headers_mut().insert(header::CONTENT_LENGTH, len);
+            }
+
+            return Ok(new_resp.into_response());
         }
     }
 
@@ -96,7 +117,6 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
 
-    // Applique les migrations du dossier ./migrations
     migrate!("./migrations").run(&pool).await?;
 
     eprintln!("[DB] Migrations appliquées avec succès");
@@ -151,38 +171,31 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    // Création des dossiers persistants
     tokio::fs::create_dir_all("/app/data").await?;
     tokio::fs::create_dir_all("/app/data/uploads").await?;
 
-    // Création du fichier DB s'il n'existe pas
     let db_file_path = std::path::Path::new("/app/data/nook.db");
     if !db_file_path.exists() {
         eprintln!("[Info] Création du fichier de base de données...");
         tokio::fs::File::create(db_file_path).await?;
     }
 
-    // Initialisation DB avec migrations + admin initial
     let pool = init_db().await?;
     check_initial_admin(&pool).await?;
 
-    // Gestion du répertoire d'uploads
     let uploads_dir = PathBuf::from("/app/data/uploads");
     if !uploads_dir.exists() {
         fs::create_dir_all(&uploads_dir)?;
     }
 
-    // Initialisation du FileManager & WebRTC state
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
 
-    // Tâche de nettoyage des fichiers expirés
     let fm_clone = (*file_manager).clone();
     tokio::spawn(async move {
         fm_clone.start_cleanup_task().await;
     });
 
-    // Tâche de pruning périodique
     let pool_clone = pool.clone();
     tokio::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
@@ -197,14 +210,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // État partagé
     let shared_state = Arc::new(SharedState {
         db: pool.clone(),
         webrtc_state: webrtc_state.clone(),
         file_manager: file_manager.clone(),
     });
 
-    // Routeur API (sans préfixe /api car il sera nesté)
     let api_router = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -217,10 +228,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
         .route("/conversations/:id/join", post(db::join_conversation))
-        .route(
-            "/conversations/:id/messages",
-            get(db::get_conversation_messages),
-        )
+        .route("/conversations/:id/messages", get(db::get_conversation_messages))
         .route("/conversations/:id/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
@@ -233,44 +241,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(|| async { "OK" }))
         .merge(webrtc::webrtc_routes())
         .with_state(shared_state.clone())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        );
+        .layer(CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any));
 
-    // Service statique SPA
     let static_path = "/app/static";
-    eprintln!(
-        "[Static] Servir les fichiers frontend depuis : {}",
-        static_path
-    );
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
+    // On retire precompressed_gzip/br → on compresse à la volée après modification du HTML
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
-        .precompressed_gzip()
-        .precompressed_br()
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
-    // Assemblage du router avec les routes
     let app = Router::new()
-        // Routes API avec préfixe /api
         .nest("/api", api_router)
-        // Service pour les fichiers uploadés
-        .nest_service(
-            "/files",
-            ServeDir::new("/app/data/uploads")
-                .precompressed_gzip()
-                .precompressed_br(),
-        )
-        // Fallback pour servir le SPA
-        .fallback_service(static_service);
+        .nest_service("/files", ServeDir::new("/app/data/uploads"))
+        .fallback_service(static_service)
+        // Middleware en dernier (avant compression)
+        .layer(middleware::from_fn(base_inject_middleware))
+        // Compression dynamique après tout (HTML modifié sera compressé correctement)
+        .layer(CompressionLayer::new());
 
-    // ✅ CRITIQUE: Appliquer le middleware EN DERNIER pour qu'il traite toutes les réponses
-    let app = app.layer(middleware::from_fn(base_inject_middleware));
-
-    // Démarrage serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
