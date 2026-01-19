@@ -76,9 +76,13 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         run: |
           git add .
-          git commit -m "style(backend): apply cargo fmt [skip ci]"
-          git push origin HEAD:${{ github.head_ref }}
-          echo "Code formaté et poussé automatiquement"
+          git commit -m "style(backend): apply cargo fmt [skip ci]" || echo "No changes to commit (already clean)"
+          
+          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          echo "Pushing to branch: $CURRENT_BRANCH"
+          
+          git push origin HEAD:$CURRENT_BRANCH
+          echo "Code formaté et poussé automatiquement vers $CURRENT_BRANCH"
 
   # ────────────────────────────────────────────────
   # Backend build & test (multi-arch)
