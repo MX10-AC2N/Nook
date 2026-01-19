@@ -10,16 +10,13 @@
 use axum::{
     body::{to_bytes, Body},
     extract::Host,
-    http::{
-        header::{CONTENT_LENGTH, CONTENT_TYPE},
-        HeaderMap, HeaderValue, Request,
-    },
+    http::{HeaderMap, HeaderValue, Request, header::{CONTENT_LENGTH, CONTENT_TYPE}},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
-use bytes::Bytes; // ← Nécessaire (déjà dépendance transitive d'Axum, mais import direct)
+use bytes::Bytes;
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -104,10 +101,13 @@ async fn base_inject_middleware(
 
             let body_bytes = Bytes::from(body_str);
 
+            // ──── Correction E0382 (borrow after move) ────
+            // On calcule la longueur AVANT de mover body_bytes dans le Body
+            let content_length = body_bytes.len();
+
             let mut new_resp = Response::from_parts(parts, Body::from(body_bytes));
 
-            // Recalcul Content-Length
-            if let Ok(len_header) = HeaderValue::from_str(&body_bytes.len().to_string()) {
+            if let Ok(len_header) = HeaderValue::from_str(&content_length.to_string()) {
                 new_resp.headers_mut().insert(CONTENT_LENGTH, len_header);
             }
 
