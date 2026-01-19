@@ -247,7 +247,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .allow_headers(Any));
 
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+    eprintln!(
+        "[Static] Servir les fichiers frontend depuis : {}",
+        static_path
+    );
 
     // On retire precompressed_gzip/br → on compresse à la volée après modification du HTML
     let static_service = ServeDir::new(static_path)
