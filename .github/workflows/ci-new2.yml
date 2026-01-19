@@ -191,6 +191,7 @@ jobs:
           fi
 
       - name: Check dependencies
+        working-directory: ./backend
         env:
           SQLX_OFFLINE: true
         run: cargo check --all-targets --target ${{ matrix.target }}
