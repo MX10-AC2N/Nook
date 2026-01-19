@@ -204,33 +204,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager: file_manager.clone(),
     });
 
-    // Routeur API (inchangé)
+    // ✅ FIX: Routeur API avec CORS uniquement sur /api/*
     let api_router = Router::new()
-        .route("/api/auth/register", post(auth::register))
-        .route("/api/auth/login", post(auth::login))
-        .route("/api/auth/me", get(auth::me))
-        .route("/api/auth/logout", post(auth::logout))
-        .route("/api/auth/change-password", post(auth::change_password))
-        .route("/api/join", post(invites::join))
-        .route("/api/invite/validate", get(invites::validate_invite))
-        .route("/api/conversations", get(db::get_user_conversations))
-        .route("/api/conversations", post(db::create_conversation))
-        .route("/api/conversations/:id", get(db::get_conversation))
-        .route("/api/conversations/:id/join", post(db::join_conversation))
-        .route(
-            "/api/conversations/:id/messages",
-            get(db::get_conversation_messages),
-        )
-        .route("/api/conversations/:id/messages", post(db::send_message))
-        .route("/api/upload", post(upload::upload_handler))
-        .route("/api/upload/chat", post(upload::upload_chat_file))
-        .route("/api/pending-users-json", get(admin::pending_users))
-        .route("/api/all-users-json", get(admin::all_users))
-        .route("/api/approve", post(admin::approve_user))
-        .route("/api/list-invites", get(admin::list_invites))
-        .route("/api/generate-invite", post(invites::generate_invite))
-        .route("/api/delete-invite", post(admin::delete_invite))
-        .route("/api/health", get(|| async { "OK" }))
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
+        .route("/auth/me", get(auth::me))
+        .route("/auth/logout", post(auth::logout))
+        .route("/auth/change-password", post(auth::change_password))
+        .route("/join", post(invites::join))
+        .route("/invite/validate", get(invites::validate_invite))
+        .route("/conversations", get(db::get_user_conversations))
+        .route("/conversations", post(db::create_conversation))
+        .route("/conversations/:id", get(db::get_conversation))
+        .route("/conversations/:id/join", post(db::join_conversation))
+        .route("/conversations/:id/messages", get(db::get_conversation_messages))
+        .route("/conversations/:id/messages", post(db::send_message))
+        .route("/upload", post(upload::upload_handler))
+        .route("/upload/chat", post(upload::upload_chat_file))
+        .route("/pending-users-json", get(admin::pending_users))
+        .route("/all-users-json", get(admin::all_users))
+        .route("/approve", post(admin::approve_user))
+        .route("/list-invites", get(admin::list_invites))
+        .route("/generate-invite", post(invites::generate_invite))
+        .route("/delete-invite", post(admin::delete_invite))
+        .route("/health", get(|| async { "OK" }))
         .merge(webrtc::webrtc_routes())
         .with_state(shared_state.clone())
         .layer(
@@ -242,10 +239,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Service statique SPA
     let static_path = "/app/static";
-    eprintln!(
-        "[Static] Servir les fichiers frontend depuis : {}",
-        static_path
-    );
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
@@ -253,18 +247,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .precompressed_br()
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
-    // Assemblage final
+    // ✅ FIX: Assemblage correct - API en premier avec préfixe, static en fallback
     let app = Router::new()
-        .layer(middleware::from_fn(base_inject_middleware))
-        .nest("/", api_router)
-        .fallback_service(static_service)
-        // Ajout du service pour les uploads (fichiers uploadés)
+        // Routes API avec préfixe /api
+        .nest("/api", api_router)
+        // Service pour les fichiers uploadés
         .nest_service(
-            "/api/files",
+            "/files",
             ServeDir::new("/app/data/uploads")
                 .precompressed_gzip()
                 .precompressed_br(),
-        );
+        )
+        // Middleware d'injection de base (APRÈS les routes API)
+        .layer(middleware::from_fn(base_inject_middleware))
+        // Fallback pour servir le SPA (toutes les autres routes)
+        .fallback_service(static_service);
 
     // Démarrage serveur
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
