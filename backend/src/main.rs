@@ -10,13 +10,13 @@
 use axum::{
     body::{to_bytes, Body},
     extract::Host,
-    http::{header::HeaderValue, HeaderMap, Request},
+    http::{HeaderMap, HeaderValue, Request, header::{CONTENT_LENGTH, CONTENT_TYPE}},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
-use bytes::Bytes; // ← Ajout nécessaire pour la correction lifetime
+use bytes::Bytes;  // ← Nécessaire (déjà dépendance transitive d'Axum, mais import direct)
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
 use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
@@ -78,11 +78,10 @@ async fn base_inject_middleware(
     // Tag à injecter (self-closing, moderne)
     let replacement = format!("<base href=\"{}\" />", base_url);
 
-    // ← Enlevé `mut` car inutile ici (warning unused_mut corrigé)
     let resp = next.run(req).await;
 
     // Ne modifier que les réponses HTML
-    if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
+    if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
         if ct
             .to_str()
             .ok()
@@ -99,19 +98,14 @@ async fn base_inject_middleware(
             if body_str.contains("<base-placeholder/>") {
                 body_str = body_str.replace("<base-placeholder/>", &replacement);
             }
-            // Si pas de placeholder → on laisse tel quel (fail-safe)
 
-            // ──── Correction principale (lifetime E0597) ────
-            // On transfère la propriété de body_str vers Bytes (pas de borrow temporaire)
             let body_bytes = Bytes::from(body_str);
 
             let mut new_resp = Response::from_parts(parts, Body::from(body_bytes));
 
-            // Recalcul Content-Length (calculé à partir des bytes finaux → plus précis)
+            // Recalcul Content-Length
             if let Ok(len_header) = HeaderValue::from_str(&body_bytes.len().to_string()) {
-                new_resp
-                    .headers_mut()
-                    .insert(header::CONTENT_LENGTH, len_header);
+                new_resp.headers_mut().insert(CONTENT_LENGTH, len_header);
             }
 
             return Ok(new_resp.into_response());
@@ -268,7 +262,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         static_path
     );
 
-    // Pas de precompressed → on compresse dynamiquement après le middleware
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(format!("{static_path}/index.html")));
@@ -277,9 +270,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
         .fallback_service(static_service)
-        // Middleware en dernier pour qu'il voit toutes les réponses
         .layer(middleware::from_fn(base_inject_middleware))
-        // Compression après modification du HTML
         .layer(CompressionLayer::new());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
