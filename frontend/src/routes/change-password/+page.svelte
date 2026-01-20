@@ -1,6 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { authStore, needsPasswordChange } from '$lib/authStore.svelte';
+  import { authStore, needsPasswordChange } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
 
   // -----------------------------------------------------------------
