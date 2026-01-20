@@ -205,22 +205,26 @@ jobs:
           echo "📏 Taille: \( (ls -lh target/ \){{ matrix.target }}/release/nook-backend | awk '{print $5}')"
 
       - name: Rename binary with architecture suffix
-        run: |
-          BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
-          
-          if [ -f "$BINARY_PATH" ]; then
-            echo "Binaire trouvé : $BINARY_PATH"
-            ls -lh "$BINARY_PATH"
-          else
-            echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
-            ls -la target/${{ matrix.target }}/release/
-            exit 1
-          fi
-          
-          mkdir -p target/${{ matrix.target }}/release-renamed
-          cp "$BINARY_PATH" \
-             target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
-          echo "✅ Binaire renommé : nook-backend-${{ matrix.target }}"
+  run: |
+    set -euo pipefail   # arrête le script dès la première erreur
+    BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
+
+    if [ -f "$BINARY_PATH" ]; then
+      echo "✅ Binaire trouvé : $BINARY_PATH"
+      ls -lh "$BINARY_PATH"
+    else
+      echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
+      ls -la target/${{ matrix.target }}/release/
+      exit 1
+    fi
+
+    # Crée le répertoire de destination
+    DEST_DIR="target/${{ matrix.target }}/release-renamed"
+    mkdir -p "$DEST_DIR"
+
+    # Copie en ajoutant le suffixe d’architecture
+    cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
+    echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
 
       - name: Upload backend artifact with unique filename
         uses: actions/upload-artifact@v4
