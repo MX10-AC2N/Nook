@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
+  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import Chart from 'chart.js/auto';
 
   let analytics = $state({ user_count: 0, message_count: 0, active_sessions: 0 });
