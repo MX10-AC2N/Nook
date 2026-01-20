@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
   import { downloadAndDecryptMedia, formatDuration } from '$lib/mediaStore';
-  import { connectionError } from '$lib/chatStore';
+  import { connectionError } from '$lib/chatStore.svelte';
 
   // -----------------------------------------------------------------
   // Props
