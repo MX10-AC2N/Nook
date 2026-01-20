@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  import { isAuthenticated } from '$lib/authStore.svelte';
+  import { isAuthenticated } from '$lib/authStore.svelte.js';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
