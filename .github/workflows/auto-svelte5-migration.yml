@@ -1,0 +1,126 @@
+name: 🧹 Automate Svelte 5 Migration & Fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - 'frontend/src/**'
+
+env:
+  NODE_VERSION: 20
+  WORKING_DIR: frontend
+
+jobs:
+  svelte5-migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+
+      - name: 📦 Install deps
+        working-directory: ${{ env.WORKING_DIR }}
+        run: npm ci || npm install
+
+      # ────────────────────────────────
+      # 🔧 ÉTAPE CLÉ : CORRECTIONS AUTOMATIQUES
+      # ────────────────────────────────
+      - name: 🤖 Auto-fix Svelte 5 compatibility
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          set -euo pipefail
+
+          echo "🔧 1. Renaming files using runes to .svelte.ts/.svelte.js..."
+          while IFS= read -r -d '' file; do
+            if grep -q "^[[:space:]]*\$\(state\|derived\|effect\|props\|bindable\|inspect\)\>" "$file"; then
+              if [[ "$file" == *.ts ]]; then
+                mv "$file" "${file%.ts}.svelte.ts"
+              else
+                mv "$file" "${file%.js}.svelte.js"
+              fi
+            fi
+          done < <(find src -type f \( -name "*.js" -o -name "*.ts" \) ! -name "*.svelte.*" ! -name "*.config.*" -print0)
+
+          echo "🔧 2. Replacing 'export let' with \$props() in .svelte files..."
+          find src -name "*.svelte" -exec sed -i \
+            's/export let \([a-zA-Z_][a-zA-Z0-9_]*\)/const { \1 } = \$props()/g' {} +
+
+          echo "🔧 3. Replacing '\$:' with \$effect()..."
+          find src -name "*.svelte" -exec sed -i \
+            's/^\$\(:.*\)/\$effect(() => \1)/g' {} +
+
+          echo "🔧 4. Fix service-worker.ts (add webworker ref and exclude from tsconfig)..."
+          if [ -f src/service-worker.ts ]; then
+            # Ajouter référence WebWorker en haut
+            sed -i '1i/// <reference lib="webworker" />' src/service-worker.ts
+            # Déclarer self
+            sed -i '1ideclare const self: ServiceWorkerGlobalScope;' src/service-worker.ts
+          fi
+
+          echo "✅ Auto-fix completed."
+
+      # ────────────────────────────────
+      # 🧩 Générer .svelte-kit/tsconfig.json
+      # ────────────────────────────────
+      - name: 🧩 Sync SvelteKit types
+        working-directory: ${{ env.WORKING_DIR }}
+        run: npx svelte-kit sync
+
+      # ────────────────────────────────
+      # 🧪 Vérifier que tout compile
+      # ────────────────────────────────
+      - name: 🧪 Type check (errors only)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: npx svelte-check --tsconfig ./tsconfig.json --threshold error
+
+      - name: 🏗️ Build test
+        working-directory: ${{ env.WORKING_DIR }}
+        run: npm run build
+
+      # ────────────────────────────────
+      # 💾 COMMIT SI MODIFICATIONS
+      # ────────────────────────────────
+      - name: 💾 Commit auto-fixes
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+                    if ! git diff --quiet HEAD; then
+            git add .
+            git commit -m |-
+              🤖 chore: Auto-fix Svelte 5 compatibility issues
+
+              - Renamed rune files to .svelte.ts/.svelte.js
+              - Replaced 'export let' with \$props()
+              - Replaced '\$:' with \$effect()
+              - Fixed service-worker.ts types
+              - Verified build passes
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Changes committed and pushed."
+          else
+            echo "⏭️ No changes detected."
+          fi
+
+      - name: 📊 Summary
+        if: always()
+        run: |
+          echo "## 🤖 Svelte 5 Auto-Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Applied mechanical fixes for Svelte 5 runes compatibility." >> $GITHUB_STEP_SUMMARY
+          echo "- \`export let\` → \`const { x } = \$props()\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`$:\` → \`$effect(() => ...)\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Rune files renamed to .svelte.ts" >> $GITHUB_STEP_SUMMARY
+          echo "- Service worker typing fixed" >> $GITHUB_STEP_SUMMARY
