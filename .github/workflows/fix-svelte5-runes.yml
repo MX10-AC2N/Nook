@@ -29,7 +29,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: frontend
-        run: npm ci
+        run: |
+          # Essayer npm ci d'abord (plus rapide)
+          npm ci || {
+            echo "⚠️ npm ci failed, trying npm install instead..."
+            rm -rf node_modules package-lock.json
+            npm install
+            echo "✅ Dependencies installed with npm install"
+          }
 
       - name: Scan and rename files with runes
         id: rename
@@ -143,6 +150,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
+          # Ajouter tous les changements (y compris package-lock.json si modifié)
           git add -A
           
           cat << EOF > commit_message.txt
@@ -156,6 +164,7 @@ jobs:
           - Renamed .js/.ts files using runes to .svelte.js/.svelte.ts
           - Updated all imports across the project
           - Verified build passes successfully
+          - Updated package-lock.json if needed
           
           This fixes the "ReferenceError: \$state is not defined" error in production.
           EOF
