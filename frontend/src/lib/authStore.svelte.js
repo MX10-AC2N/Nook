@@ -1,9 +1,12 @@
 // src/lib/authStore.svelte.js
 
-// Ne pas importer $state et $derived - ils sont automatiquement disponibles dans les fichiers .svelte.js
 class AuthStore {
   user = $state(null);
   token = $state(null);
+  
+  // Déclarer les valeurs dérivées comme champs de classe
+  isAuthenticated = $derived(this.user !== null && this.token !== null);
+  authHeaders = $derived(this.token ? { Authorization: `Bearer ${this.token}` } : {});
   
   constructor() {
     // Charger l'utilisateur depuis localStorage au démarrage
@@ -47,22 +50,12 @@ class AuthStore {
       localStorage.removeItem('token');
     }
   }
-  
-  // Getter pour vérifier si l'utilisateur est authentifié
-  get isAuthenticated() {
-    return $derived(this.user !== null && this.token !== null);
-  }
-  
-  // Getter pour récupérer les headers d'authentification
-  get authHeaders() {
-    return $derived(this.token ? { Authorization: `Bearer ${this.token}` } : {});
-  }
 }
 
 // Exporter une seule instance du store
 export const authStore = new AuthStore();
 
-// Exporter des fonctions utilitaires au lieu d'exporter directement des valeurs dérivées
+// Exporter des fonctions utilitaires pour accéder aux valeurs
 export function getIsAuthenticated() {
   return authStore.isAuthenticated;
 }
