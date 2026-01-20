@@ -12,8 +12,8 @@
  */
 
 import { browser } from '$app/environment';
-import { authUser, isAuthenticated } from './authStore';
-import { connectionError } from './chatStore';
+import { authUser, isAuthenticated } from './authStore.svelte';
+import { connectionError } from './chatStore.svelte';
 import type { Conversation, Participant, Message } from './types';
 
 // -----------------------------------------------------------------
