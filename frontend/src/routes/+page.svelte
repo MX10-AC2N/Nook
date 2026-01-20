@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { isAuthenticated, isAdmin, authLoading } from '$lib/authStore';
+	import { isAuthenticated, isAdmin, authLoading } from '$lib/authStore.svelte';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 
