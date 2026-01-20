@@ -1,6 +1,6 @@
-import { $state, $derived } from 'svelte';
+// src/lib/authStore.svelte.js
 
-// Création d'une classe pour encapsuler l'état authentifié
+// Ne pas importer $state et $derived - ils sont automatiquement disponibles dans les fichiers .svelte.js
 class AuthStore {
   user = $state(null);
   token = $state(null);
