@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore.svelte';
+  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import { generateKeyPair, storePendingKeys } from '$lib/crypto';
 
   let token = $state('');
