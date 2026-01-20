@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { authStore, isAdmin } from '$lib/authStore';
+  import { authStore, isAdmin } from '$lib/authStore.svelte';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
