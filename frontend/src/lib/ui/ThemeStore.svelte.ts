@@ -130,14 +130,16 @@ export function initSystemThemeListener(): () => void {
 }
 
 // ---------------------------------------------------------------------
-// 4️⃣ Export de l'état réactif
+// 4️⃣ Export de l'état réactif (CORRIGÉ)
 // ---------------------------------------------------------------------
 /** 
  * Thème actuel - en lecture seule pour les composants.
- * Usage dans un composant : `import { currentTheme } from '$lib/ui/ThemeStore'`
- * Puis dans le template : `{currentTheme}` ou `{#if currentTheme === 'jardin-secret'}`
+ * Usage dans un composant : `import { getCurrentTheme } from '$lib/ui/ThemeStore'`
+ * Puis dans le template : `{getCurrentTheme()}` ou `{#if getCurrentTheme() === 'jardin-secret'}`
  */
-export { currentTheme };
+export function getCurrentTheme(): Theme {
+  return currentTheme;
+}
 
 // ---------------------------------------------------------------------
 // 5️⃣ Initialisation immédiate (client-only)
