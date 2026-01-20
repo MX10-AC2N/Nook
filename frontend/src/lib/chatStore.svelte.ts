@@ -89,13 +89,32 @@ export function resetChat(): void {
 }
 
 // -----------------------------------------------------------------
-// 3️⃣ Variables dérivées (accès facile depuis les composants)
+// 3️⃣ Variables dérivées (accès facile depuis les composants) - CORRIGÉ
 // -----------------------------------------------------------------
-export const messages = $derived(chatStore.messages);
-export const connectionError = $derived(chatStore.connectionError);
-export const gifResults = $derived(chatStore.gifResults);
-export const showGifs = $derived(chatStore.showGifs);
-export const gifLoading = $derived(chatStore.gifLoading);
+/** Retourne les messages actuels */
+export function getMessages(): Message[] {
+  return chatStore.messages;
+}
+
+/** Retourne l'erreur de connexion actuelle */
+export function getConnectionError(): string | null {
+  return chatStore.connectionError;
+}
+
+/** Retourne les résultats de recherche GIF actuels */
+export function getGifResults(): any[] {
+  return chatStore.gifResults;
+}
+
+/** Retourne si le panel GIF est visible */
+export function getShowGifs(): boolean {
+  return chatStore.showGifs;
+}
+
+/** Retourne si les GIF sont en cours de chargement */
+export function getGifLoading(): boolean {
+  return chatStore.gifLoading;
+}
 
 // -----------------------------------------------------------------
 // 4️⃣ Helpers utilitaires
