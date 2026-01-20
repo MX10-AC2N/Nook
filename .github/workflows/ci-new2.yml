@@ -225,7 +225,7 @@ jobs:
 
     # Copie en ajoutant le suffixe d’architecture
           cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
-        echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
+          echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
 
       - name: Upload backend artifact with unique filename
         uses: actions/upload-artifact@v4
