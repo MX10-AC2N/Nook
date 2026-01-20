@@ -1,16 +1,16 @@
 // src/lib/mediaStore.svelte.js
 // Store pour la gestion des médias (audio/vidéo) avec chiffrement E2EE
 
-import { waitForSodium } from '$lib/sodium.svelte';
+import { waitForSodium } from '$lib/sodium.svelte.js';
 import { 
   encryptForRecipients, 
   decryptMessage, 
   getStoredKeys,
   decryptPrivateKey 
 } from './crypto';
-import { authUser } from './authStore.svelte';
-import { activeConversationId } from './conversationStore.svelte';
-import { connectionError } from './chatStore.svelte';
+import { authUser } from './authStore.svelte.js';
+import { activeConversationId } from './conversationStore.svelte.ts';
+import { connectionError } from './chatStore.svelte.ts';
 
 // =====================================================================
 // CONSTANTES
