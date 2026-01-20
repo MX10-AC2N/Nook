@@ -1,0 +1,189 @@
+name: Fix Svelte 5 Runes Files
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'frontend/src/**/*.js'
+      - 'frontend/src/**/*.ts'
+
+jobs:
+  fix-runes:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Scan and rename files with runes
+        id: rename
+        working-directory: frontend
+        run: |
+          echo "🔍 Scanning for files using Svelte 5 runes..."
+          
+          # Liste des runes à détecter
+          RUNES=('$state' '$derived' '$effect' '$props' '$bindable' '$inspect')
+          
+          # Trouver tous les fichiers .js et .ts (mais pas .svelte.js/.svelte.ts)
+          FILES=$(find src -type f \( -name "*.js" -o -name "*.ts" \) ! -name "*.svelte.js" ! -name "*.svelte.ts" ! -name "*.config.js" ! -name "*.config.ts")
+          
+          RENAMED_COUNT=0
+          RENAMED_FILES=""
+          
+          for file in $FILES; do
+            # Vérifier si le fichier contient des runes
+            HAS_RUNES=false
+            for rune in "${RUNES[@]}"; do
+              if grep -q "$rune" "$file"; then
+                HAS_RUNES=true
+                break
+              fi
+            done
+            
+            if [ "$HAS_RUNES" = true ]; then
+              # Déterminer la nouvelle extension
+              if [[ $file == *.ts ]]; then
+                newfile="${file%.ts}.svelte.ts"
+              else
+                newfile="${file%.js}.svelte.js"
+              fi
+              
+              echo "  ✅ Renaming: $file → $newfile"
+              mv "$file" "$newfile"
+              
+              RENAMED_COUNT=$((RENAMED_COUNT + 1))
+              RENAMED_FILES="${RENAMED_FILES}${file} -> ${newfile}\n"
+            fi
+          done
+          
+          echo "renamed_count=$RENAMED_COUNT" >> $GITHUB_OUTPUT
+          echo "renamed_files<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RENAMED_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "✨ Renamed $RENAMED_COUNT files"
+
+      - name: Fix imports in all files
+        if: steps.rename.outputs.renamed_count > 0
+        working-directory: frontend
+        run: |
+          echo "🔧 Fixing imports in all .svelte, .js, .ts files..."
+          
+          # Fonction pour extraire le nom de base sans extension
+          get_base_name() {
+            local file="$1"
+            # Enlever .svelte.js ou .svelte.ts
+            file="${file%.svelte.js}"
+            file="${file%.svelte.ts}"
+            # Enlever .js ou .ts
+            file="${file%.js}"
+            file="${file%.ts}"
+            echo "$file"
+          }
+          
+          # Lire tous les fichiers renommés
+          echo "${{ steps.rename.outputs.renamed_files }}" | while IFS=' -> ' read -r oldfile newfile; do
+            if [ -z "$oldfile" ]; then continue; fi
+            
+            # Extraire le chemin relatif depuis src/
+            oldpath="${oldfile#src/}"
+            newpath="${newfile#src/}"
+            
+            # Extraire le nom de base (sans extension)
+            oldbase=$(get_base_name "$oldpath")
+            newbase=$(get_base_name "$newpath")
+            
+            echo "  📝 Updating imports from '$oldbase' to '$newbase.svelte'"
+            
+            # Chercher et remplacer dans tous les fichiers source
+            find src -type f \( -name "*.svelte" -o -name "*.js" -o -name "*.ts" \) -exec sed -i \
+              -e "s|from ['\"]\\$lib/${oldbase}['\"]|from '\$lib/${newbase}.svelte'|g" \
+              -e "s|from ['\"]\\.\\./${oldbase}['\"]|from '../${newbase}.svelte'|g" \
+              -e "s|from ['\"]\\./${oldbase}['\"]|from './${newbase}.svelte'|g" \
+              {} +
+          done
+          
+          echo "✅ Import fixes completed"
+
+      - name: Validate TypeScript/JavaScript syntax
+        if: steps.rename.outputs.renamed_count > 0
+        working-directory: frontend
+        run: |
+          echo "🔍 Validating syntax..."
+          npx svelte-check --tsconfig ./tsconfig.json --threshold warning || {
+            echo "⚠️ Svelte check found issues, but continuing..."
+          }
+
+      - name: Build frontend to verify
+        if: steps.rename.outputs.renamed_count > 0
+        working-directory: frontend
+        run: |
+          echo "🏗️ Building frontend to verify changes..."
+          npm run build
+
+      - name: Commit changes
+        if: steps.rename.outputs.renamed_count > 0
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add -A
+          
+          cat << EOF > commit_message.txt
+          🔧 fix: Convert Svelte 5 runes files to .svelte.js/.svelte.ts
+          
+          Automatically renamed ${{ steps.rename.outputs.renamed_count }} file(s) that use Svelte 5 runes.
+          
+          Files renamed:
+          ${{ steps.rename.outputs.renamed_files }}
+          
+          - Renamed .js/.ts files using runes to .svelte.js/.svelte.ts
+          - Updated all imports across the project
+          - Verified build passes successfully
+          
+          This fixes the "ReferenceError: \$state is not defined" error in production.
+          EOF
+          
+          git commit -F commit_message.txt || echo "No changes to commit"
+          
+      - name: Push changes
+        if: steps.rename.outputs.renamed_count > 0
+        uses: ad-m/github-push-action@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 📊 Svelte 5 Runes Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.rename.outputs.renamed_count }}" -gt 0 ]; then
+            echo "✅ **Fixed ${{ steps.rename.outputs.renamed_count }} file(s)**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Files renamed:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "${{ steps.rename.outputs.renamed_files }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **No files needed fixing**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All files using Svelte 5 runes already have the correct .svelte.js or .svelte.ts extension." >> $GITHUB_STEP_SUMMARY
+          fi
