@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
-  import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore.svelte';
-  import { authStore } from '$lib/authStore.svelte';
+  import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore.svelte.js';
+  import { authStore } from '$lib/authStore.svelte.js';
   import { getStoredKeys, decryptPrivateKey } from '$lib/crypto';
-  import { activeConversationId, participants } from '$lib/conversationStore.svelte';
-  import { connectionError } from '$lib/chatStore.svelte';
+  import { activeConversationId, participants } from '$lib/conversationStore.svelte.ts';
+  import { connectionError } from '$lib/chatStore.svelte.ts';
   import { browser } from '$app/environment';
 
   // -----------------------------------------------------------------
