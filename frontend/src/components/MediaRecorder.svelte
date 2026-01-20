@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
-  import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore';
+  import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore.svelte';
   import { authStore } from '$lib/authStore.svelte';
   import { getStoredKeys, decryptPrivateKey } from '$lib/crypto';
   import { activeConversationId, participants } from '$lib/conversationStore.svelte';
