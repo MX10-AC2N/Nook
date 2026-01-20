@@ -1,13 +1,13 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
-  import { authStore, isAuthenticated, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore.svelte';
+  import { authStore, isAuthenticated, isAdmin, needsPasswordChange, initAuth } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   // Import des fonctions de crypto
   import { initCryptoSystem } from '$lib/crypto';
-  import { sodiumLoading, sodiumError } from '$lib/sodium.svelte';
+  import { sodiumLoading, sodiumError } from '$lib/sodium.svelte.js';
   import { get } from 'svelte/store';
 
   let { children } = $props();
