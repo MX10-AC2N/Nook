@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, authUser } from '$lib/authStore.svelte';
+  import { isAuthenticated, authUser } from '$lib/authStore.svelte.js';
   import {
     messages,
     loadMessages,
@@ -12,7 +12,7 @@
     gifResults,
     gifLoading,
     searchGifs,
-  } from '$lib/chatStore.svelte';
+  } from '$lib/chatStore.svelte.ts';
 
   // -----------------------------------------------------------------
   // États locaux
