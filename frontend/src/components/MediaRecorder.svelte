@@ -2,10 +2,10 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
   import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore';
-  import { authStore } from '$lib/authStore';
+  import { authStore } from '$lib/authStore.svelte';
   import { getStoredKeys, decryptPrivateKey } from '$lib/crypto';
-  import { activeConversationId, participants } from '$lib/conversationStore';
-  import { connectionError } from '$lib/chatStore';
+  import { activeConversationId, participants } from '$lib/conversationStore.svelte';
+  import { connectionError } from '$lib/chatStore.svelte';
   import { browser } from '$app/environment';
 
   // -----------------------------------------------------------------
