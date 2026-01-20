@@ -2,7 +2,7 @@
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import type { CallSignal } from './types';
-import { authUser } from './authStore';
+import { authUser } from './authStore.svelte';
 
 // -----------------------------------------------------------------
 // 1️⃣ Types & état réactif (Svelte 5)
