@@ -229,7 +229,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nook-backend-${{ matrix.target }}
-          path: "target/${{ matrix.target }}/release-renamed/nook-backend-${{ matrix.target }}"
+          path: "backend/target/${{ matrix.target }}/release-renamed/nook-backend-${{ matrix.target }}"
           if-no-files-found: error
           retention-days: 2
 
