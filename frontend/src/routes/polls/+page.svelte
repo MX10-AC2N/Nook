@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore';
+  import { currentTheme } from '$lib/ui/ThemeStore.svelte';
 
   interface Poll {
     id: number;
