@@ -5,7 +5,7 @@
     isAuthenticated,
     authUser,
     updateUser,
-  } from '$lib/authStore';
+  } from '$lib/authStore.svelte';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
