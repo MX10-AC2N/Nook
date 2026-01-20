@@ -7,7 +7,7 @@
     currentTheme,   // état réactif exporté depuis ThemeStore.ts
     setTheme,
     type Theme
-  } from '$lib/ui/ThemeStore';
+  } from '$lib/ui/ThemeStore.svelte.ts';
 
   // -----------------------------------------------------------------
   // États locaux du composant (Svelte 5 runes)
