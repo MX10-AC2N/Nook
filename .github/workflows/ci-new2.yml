@@ -88,7 +88,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./backend   # ← Tous les cargo se lancent depuis backend/
+        working-directory: ./backend
 
     strategy:
       matrix:
@@ -125,9 +125,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: \( {{ runner.os }}-cargo- \){{ matrix.target }}-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
           restore-keys: |
-            \( {{ runner.os }}-cargo- \){{ matrix.target }}-
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
             ${{ runner.os }}-cargo-
 
       - name: Setup SQLite database for SQLx cache
@@ -207,7 +207,7 @@ jobs:
 
       - name: Rename binary with architecture suffix
         run: |
-          set -euo pipefail   # arrête le script dès la première erreur
+          set -euo pipefail
           BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
 
           if [ -f "$BINARY_PATH" ]; then
@@ -219,11 +219,9 @@ jobs:
             exit 1
           fi
 
-    # Crée le répertoire de destination
           DEST_DIR="target/${{ matrix.target }}/release-renamed"
           mkdir -p "$DEST_DIR"
 
-    # Copie en ajoutant le suffixe d’architecture
           cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
           echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
 
@@ -515,7 +513,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: \( {{ env.REGISTRY }}/ \){{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha,prefix=
             type=ref,event=branch
@@ -541,11 +539,11 @@ jobs:
       - name: Analyze image size (improved)
         if: success()
         run: |
-          TAG="\( {{ env.REGISTRY }}/ \){{ env.IMAGE_NAME }}:${{ github.sha }}"
+          TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
           echo "📊 Analyse de la taille de l'image..."
           
           echo "✅ Build et push réussis !"
-          echo "🔗 URL de l'image: https://ghcr.io/\( {{ github.repository }}: \){{ github.sha }}"
+          echo "🔗 URL de l'image: https://ghcr.io/${{ github.repository }}:${{ github.sha }}"
           
           echo "📦 Taille estimée des images:"
           echo "- amd64: ~5-10MB (image distroless)"
