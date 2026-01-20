@@ -1,119 +1,76 @@
-// src/lib/authStore.svelte.js (Svelte 5 – store d’authentification)
+import { $state, $derived } from 'svelte';
 
-import { checkAuth, logout as apiLogout } from './auth.js';
-
-// ---------------------------------------------------------------------
-// Store réactif principal
-// ---------------------------------------------------------------------
-/**
- * @typedef {Object} AuthState
- * @property {boolean} isAuthenticated
- * @property {boolean} isAdmin
- * @property {Object|null} user
- * @property {boolean} loading
- * @property {boolean} needsPasswordChange
- */
-
-/** @type {AuthState} */
-export const authStore = $state({
-  isAuthenticated: false,
-  isAdmin: false,
-  user: null,
-  loading: true,
-  needsPasswordChange: false,
-});
-
-// ---------------------------------------------------------------------
-// Getters publics (exposés sous forme de derived stores)
-// ---------------------------------------------------------------------
-export const isAuthenticated   = $derived(authStore.isAuthenticated);
-export const isAdmin           = $derived(authStore.isAdmin);
-export const authUser          = $derived(authStore.user);
-export const authLoading       = $derived(authStore.loading);
-export const needsPasswordChange = $derived(authStore.needsPasswordChange);
-
-// ---------------------------------------------------------------------
-// Actions – fonctions qui mutent le store
-// ---------------------------------------------------------------------
-/** Met le store en état de chargement. */
-export function setLoading() {
-  authStore.loading = true;
-}
-
-/**
- * Marque l'utilisateur comme authentifié.
- * @param {Object} user   – objet utilisateur retourné par l’API
- * @param {boolean} [isAdmin=false]
- */
-export function setAuthenticated(user, isAdmin = false) {
-  Object.assign(authStore, {
-    isAuthenticated: true,
-    isAdmin,
-    user,
-    loading: false,
-    needsPasswordChange: !!user?.needs_password_change,
-  });
-}
-
-/** Marque l'état comme invité (non‑authentifié). */
-export function setGuest() {
-  Object.assign(authStore, {
-    isAuthenticated: false,
-    isAdmin: false,
-    user: null,
-    loading: false,
-    needsPasswordChange: false,
-  });
-}
-
-/** En cas d’erreur d’authentification. */
-export function setError() {
-  setGuest(); // pour l’instant on revient à l’état « guest »
-}
-
-/** Met à jour les champs de l'utilisateur sans toucher aux flags. */
-export function updateUser(userData) {
-  if (authStore.user) {
-    authStore.user = { ...authStore.user, ...userData };
-  }
-}
-
-// ---------------------------------------------------------------------
-// Initialisation du store côté client
-// ---------------------------------------------------------------------
-let initialized = false;
-
-/** Initialise l’état d’authentification au démarrage de l’app. */
-export async function initAuth() {
-  if (initialized) return;
-  initialized = true;
-
-  try {
-    setLoading();
-    const result = await checkAuth();
-
-    if (result.status === 'authenticated' && result.user) {
-      setAuthenticated(result.user, result.isAdmin);
-    } else {
-      setGuest();
+// Création d'une classe pour encapsuler l'état authentifié
+class AuthStore {
+  user = $state(null);
+  token = $state(null);
+  
+  constructor() {
+    // Charger l'utilisateur depuis localStorage au démarrage
+    if (typeof window !== 'undefined') {
+      const savedUser = localStorage.getItem('user');
+      const savedToken = localStorage.getItem('token');
+      
+      if (savedUser) {
+        try {
+          this.user = JSON.parse(savedUser);
+        } catch (e) {
+          console.error('Error parsing saved user:', e);
+          this.user = null;
+        }
+      }
+      
+      if (savedToken) {
+        this.token = savedToken;
+      }
     }
-  } catch (err) {
-    console.error('Auth initialization failed:', err);
-    setError();
+  }
+  
+  // Méthode pour se connecter
+  login(userData, token) {
+    this.user = userData;
+    this.token = token;
+    
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', token);
+    }
+  }
+  
+  // Méthode pour se déconnecter
+  logout() {
+    this.user = null;
+    this.token = null;
+    
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+    }
+  }
+  
+  // Getter pour vérifier si l'utilisateur est authentifié
+  get isAuthenticated() {
+    return $derived(this.user !== null && this.token !== null);
+  }
+  
+  // Getter pour récupérer les headers d'authentification
+  get authHeaders() {
+    return $derived(this.token ? { Authorization: `Bearer ${this.token}` } : {});
   }
 }
 
-/** Déconnecte l’utilisateur et remet le store en état « guest ». */
-export async function logout() {
-  try {
-    await apiLogout();
-  } catch (err) {
-    console.error('Logout error:', err);
-  }
-  setGuest();
+// Exporter une seule instance du store
+export const authStore = new AuthStore();
+
+// Exporter des fonctions utilitaires au lieu d'exporter directement des valeurs dérivées
+export function getIsAuthenticated() {
+  return authStore.isAuthenticated;
 }
 
-// Lancement automatique côté client (SSR désactivé)
-if (typeof window !== 'undefined') {
-  initAuth();
+export function getAuthHeaders() {
+  return authStore.authHeaders;
+}
+
+export function getCurrentUser() {
+  return authStore.user;
 }
