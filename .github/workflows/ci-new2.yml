@@ -202,37 +202,38 @@ jobs:
           
           echo "🔍 Vérification du binaire:"
           file target/${{ matrix.target }}/release/nook-backend
-          echo "📏 Taille: \( (ls -lh target/ \){{ matrix.target }}/release/nook-backend | awk '{print $5}')"
+          echo "📏 Taille:"
+          ls -lh target/${{ matrix.target }}/release/nook-backend
 
       - name: Rename binary with architecture suffix
-  run: |
-    set -euo pipefail   # arrête le script dès la première erreur
-    BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
+        run: |
+          set -euo pipefail   # arrête le script dès la première erreur
+          BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
 
-    if [ -f "$BINARY_PATH" ]; then
-      echo "✅ Binaire trouvé : $BINARY_PATH"
-      ls -lh "$BINARY_PATH"
-    else
-      echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
-      ls -la target/${{ matrix.target }}/release/
-      exit 1
-    fi
+          if [ -f "$BINARY_PATH" ]; then
+            echo "✅ Binaire trouvé : $BINARY_PATH"
+            ls -lh "$BINARY_PATH"
+          else
+            echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
+            ls -la target/${{ matrix.target }}/release/
+            exit 1
+          fi
 
     # Crée le répertoire de destination
-    DEST_DIR="target/${{ matrix.target }}/release-renamed"
-    mkdir -p "$DEST_DIR"
+          DEST_DIR="target/${{ matrix.target }}/release-renamed"
+          mkdir -p "$DEST_DIR"
 
     # Copie en ajoutant le suffixe d’architecture
-    cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
-    echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
+          cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
+          echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
 
       - name: Upload backend artifact with unique filename
         uses: actions/upload-artifact@v4
         with:
           name: nook-backend-${{ matrix.target }}
-          path: target/\( {{ matrix.target }}/release-renamed/nook-backend- \){{ matrix.target }}
+          path: "target/${{ matrix.target }}/release-renamed/nook-backend-${{ matrix.target }}"
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 2
 
   frontend:
     name: 🎨 Frontend Build
