@@ -7,18 +7,18 @@
   // -----------------------------------------------------------------
   // Import des runes (Svelte 5)
   // -----------------------------------------------------------------
-  import { isAuthenticated } from '$lib/authStore';
-  import { currentTheme } from '$lib/ui/ThemeStore';
+  import { isAuthenticated } from '$lib/authStore.svelte.js';
+  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import {
     startGroupCall,
     endCurrentCall,
     callStore,
     callManager,
-  } from '$lib/webrtc-calls';
+  } from '$lib/webrtc-calls.svelte.ts';
   import {
     participants,
     loadParticipants,
-  } from '$lib/conversationStore';
+  } from '$lib/conversationStore.svelte.ts';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
