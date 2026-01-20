@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { writable, get } from 'svelte/store';
-  import { downloadAndDecryptMedia, formatDuration } from '$lib/mediaStore';
+  import { downloadAndDecryptMedia, formatDuration } from '$lib/mediaStore.svelte';
   import { connectionError } from '$lib/chatStore.svelte';
 
   // -----------------------------------------------------------------
