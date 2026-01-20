@@ -1,4 +1,4 @@
-// src/lib/authStore.js (Svelte 5 – store d’authentification)
+// src/lib/authStore.svelte.js (Svelte 5 – store d’authentification)
 
 import { checkAuth, logout as apiLogout } from './auth.js';
 
