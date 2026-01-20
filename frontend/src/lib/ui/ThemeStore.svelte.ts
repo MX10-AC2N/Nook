@@ -1,4 +1,4 @@
-// src/lib/ui/ThemeStore.ts (Svelte 5 avec runes)
+// src/lib/ui/ThemeStore.svelte.ts (Svelte 5 avec runes)
 import { browser } from '$app/environment';
 
 // ---------------------------------------------------------------------
