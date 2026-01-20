@@ -11,7 +11,7 @@
  */
 
 import { browser } from '$app/environment';
-import { authUser, isAuthenticated } from './authStore.svelte';
+import { authUser, isAuthenticated } from './authStore.svelte.js';
 import {
   encryptForRecipients,
   decryptMessage,
