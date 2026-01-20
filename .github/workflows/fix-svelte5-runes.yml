@@ -110,6 +110,12 @@ jobs:
               sed -i "s|from ['\"]\(\./\|\.\./\|\$lib/\)${esc_old}['\"]|from '\1${esc_new}.svelte'|g" {} +
           done < "$TMP_RENAMES"
 
+      - name: 🧩 Sync SvelteKit types
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          echo "🧩 Running svelte-kit sync to generate .svelte-kit/tsconfig.json..."
+          npx svelte-kit sync
+          
       - name: 🧪 Run type checking (svelte-check)
         working-directory: ${{ env.WORKING_DIR }}
         run: |
