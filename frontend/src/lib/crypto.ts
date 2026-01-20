@@ -1,8 +1,8 @@
 // src/lib/crypto.ts
 // Svelte 5 – fonctions cryptographiques basées sur libsodium‑wrappers
 
-import { waitForSodium } from '$lib/sodium.svelte';
-import { authUser } from './authStore.svelte';
+import { waitForSodium } from '$lib/sodium.svelte.js';
+import { authUser } from './authStore.svelte.js';
 
 /* -----------------------------------------------------------------
    Types exportés
