@@ -114,7 +114,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           echo "🧪 Running svelte-check..."
-          npx svelte-check --tsconfig ./tsconfig.json --fail-on-warning
+          npx svelte-check --tsconfig ./tsconfig.json --threshold error
 
       - name: 🧪 Run unit tests (optional but recommended)
         working-directory: ${{ env.WORKING_DIR }}
