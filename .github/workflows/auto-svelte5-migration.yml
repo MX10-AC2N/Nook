@@ -1,4 +1,4 @@
-name: 🧹 Automate Svelte 5 Migration & Fix
+name: 🧹 Check & Auto-Fix Svelte 5 (Syntaxe, Lint, Build)
 
 on:
   workflow_dispatch:
@@ -12,13 +12,13 @@ env:
   WORKING_DIR: frontend
 
 jobs:
-  svelte5-migrate:
+  svelte5-check-and-fix:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # Pour permettre les commits/push
 
     steps:
-      - name: 📥 Checkout
+      - name: 📥 Checkout du code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -30,97 +30,185 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
-      - name: 📦 Install deps
+      - name: 📦 Installation des dépendances
         working-directory: ${{ env.WORKING_DIR }}
-        run: npm ci || npm install
+        run: npm ci
 
       # ────────────────────────────────
-      # 🔧 ÉTAPE CLÉ : CORRECTIONS AUTOMATIQUES
+      # 🎨 FORMATTAGE AUTOMATIQUE (Prettier)
       # ────────────────────────────────
-      - name: 🤖 Auto-fix Svelte 5 compatibility
+      - name: 🎨 Auto-format avec Prettier
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          echo "🎨 Application de Prettier (--write)..."
+          npx prettier --write src/**/*.svelte src/**/*.ts src/**/*.js || true
+          echo "✅ Prettier terminé."
+
+      # ────────────────────────────────
+      # 🧹 LINTING AUTOMATIQUE (ESLint avec plugin Svelte)
+      # ────────────────────────────────
+      - name: 🧹 Auto-fix avec ESLint
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          echo "🧹 Application de ESLint (--fix)..."
+          npx eslint src --ext .js,.ts,.svelte --fix || true
+          echo "✅ ESLint terminé."
+
+      # ────────────────────────────────
+      # 🔧 CORRECTIONS MÉCANIQUES SVELTE 5 (simples & safe)
+      # ────────────────────────────────
+      - name: 🤖 Corrections automatiques Svelte 5
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           set -euo pipefail
 
-          echo "🔧 1. Renaming files using runes to .svelte.ts/.svelte.js..."
-          while IFS= read -r -d '' file; do
-            if grep -q "^[[:space:]]*\$\(state\|derived\|effect\|props\|bindable\|inspect\)\>" "$file"; then
-              if [[ "$file" == *.ts ]]; then
-                mv "$file" "${file%.ts}.svelte.ts"
-              else
-                mv "$file" "${file%.js}.svelte.js"
-              fi
-            fi
-          done < <(find src -type f \( -name "*.js" -o -name "*.ts" \) ! -name "*.svelte.*" ! -name "*.config.*" -print0)
+          echo "🔧 Application de corrections mécaniques pour Svelte 5 (runes mode)..."
+          echo ""
 
-          echo "🔧 2. Replacing 'export let' with \$props() in .svelte files..."
+          echo "1. Remplacement basique 'export let' → '$props()' (sans types/défauts)"
           find src -name "*.svelte" -exec sed -i \
-            's/export let \([a-zA-Z_][a-zA-Z0-9_]*\)/const { \1 } = \$props()/g' {} +
+            's/export let \([a-zA-Z0-9_]*\)/const \1 = \$props().\1/g' {} +
+          echo "   → Appliqué (cas simples seulement, les cas complexes nécessitent une revue manuelle)"
+          echo ""
 
-          echo "🔧 3. Replacing '\$:' with \$effect()..."
+          echo "2. Remplacement '\$:' → '\$effect()' (avec indentation)"
           find src -name "*.svelte" -exec sed -i \
-            's/^\$\(:.*\)/\$effect(() => \1)/g' {} +
+            's/^[[:space:]]*\$\:[[:space:]]*\(.*\)/\$effect(() => { \1 })/g' {} +
+          echo "   → Appliqué (supprime les labels, gère l'indentation, suppose une seule instruction par ligne)"
+          echo ""
 
-          echo "🔧 4. Fix service-worker.ts (add webworker ref and exclude from tsconfig)..."
+          echo "3. Correction idempotente de service-worker.ts"
           if [ -f src/service-worker.ts ]; then
-            # Ajouter référence WebWorker en haut
-            sed -i '1i/// <reference lib="webworker" />' src/service-worker.ts
-            # Déclarer self
-            sed -i '1ideclare const self: ServiceWorkerGlobalScope;' src/service-worker.ts
+            if ! grep -q '/// <reference lib="webworker" />' src/service-worker.ts; then
+              sed -i '1i/// <reference lib="webworker" />' src/service-worker.ts
+              echo "   → Ajouté référence webworker"
+            fi
+            if ! grep -q 'declare const self: ServiceWorkerGlobalScope;' src/service-worker.ts; then
+              sed -i '2i declare const self: ServiceWorkerGlobalScope;' src/service-worker.ts
+              echo "   → Ajouté déclaration self"
+            fi
+          else
+            echo "   → Pas de service-worker.ts trouvé"
           fi
+          echo ""
 
-          echo "✅ Auto-fix completed."
+          echo "✅ Corrections mécaniques terminées."
 
       # ────────────────────────────────
-      # 🧩 Générer .svelte-kit/tsconfig.json
+      # 🧩 Sync types SvelteKit
       # ────────────────────────────────
-      - name: 🧩 Sync SvelteKit types
+      - name: 🧩 SvelteKit sync
         working-directory: ${{ env.WORKING_DIR }}
         run: npx svelte-kit sync
 
       # ────────────────────────────────
-      # 🧪 Vérifier que tout compile
+      # 🧪 VÉRIFICATIONS (avec capture des erreurs pour logs clairs)
       # ────────────────────────────────
-      - name: 🧪 Type check (errors only)
-        working-directory: ${{ env.WORKING_DIR }}
-        run: npx svelte-check --tsconfig ./tsconfig.json --threshold error
-
-      - name: 🏗️ Build test
-        working-directory: ${{ env.WORKING_DIR }}
-        run: npm run build
-
-      # ────────────────────────────────
-      # 💾 COMMIT SI MODIFICATIONS
-      # ────────────────────────────────
-      - name: 💾 Commit auto-fixes
+      - name: 🧪 Type check (svelte-check)
+        id: svelte-check
+        continue-on-error: true
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-                    if ! git diff --quiet HEAD; then
-            git add .
-            git commit -m |-
-              🤖 chore: Auto-fix Svelte 5 compatibility issues
-
-              - Renamed rune files to .svelte.ts/.svelte.js
-              - Replaced 'export let' with \$props()
-              - Replaced '\$:' with \$effect()
-              - Fixed service-worker.ts types
-              - Verified build passes
-            git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Changes committed and pushed."
+          echo "🧪 Exécution de svelte-check..."
+          output=$(npx svelte-check --tsconfig ./tsconfig.json 2>&1) || echo "$output" && exit 1
+          echo "$output"
+          if echo "$output" | grep -q "No errors"; then
+            echo "status=success" >> $GITHUB_OUTPUT
           else
-            echo "⏭️ No changes detected."
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "details<<EOF" >> $GITHUB_OUTPUT
+            echo "$output" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
           fi
 
-      - name: 📊 Summary
+      - name: 🏗️ Test build
+        id: build
+        continue-on-error: true
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          echo "🏗️ Exécution du build..."
+          output=$(npm run build 2>&1) || echo "$output" && exit 1
+          echo "$output"
+          if [ $? -eq 0 ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "details<<EOF" >> $GITHUB_OUTPUT
+            echo "$output" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      # ────────────────────────────────
+      # 📝 Logs clairs en cas d'erreurs restantes + suggestions
+      # ────────────────────────────────
+      - name: ⚠️ Rapport d'erreurs restantes & suggestions
+        if: steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure'
+        run: |
+          echo "⚠️ Des erreurs subsistent après les corrections automatiques."
+          echo ""
+          if [ "${{ steps.svelte-check.outputs.status }}" == "failure" ]; then
+            echo "### Erreurs svelte-check :"
+            echo "${{ steps.svelte-check.outputs.details }}"
+            echo ""
+            echo "**Suggestions :**"
+            echo "- Vérifiez l'utilisation de syntaxe legacy (export let, \$:) dans runes mode"
+            echo "- Assurez-vous que svelte.config.js a 'runes: true'"
+            echo "- Pour les props complexes (types/défauts/bindable), migrez manuellement vers \$props() / \$bindable()"
+            echo ""
+          fi
+          if [ "${{ steps.build.outputs.status }}" == "failure" ]; then
+            echo "### Erreurs de build :"
+            echo "${{ steps.build.outputs.details }}"
+            echo ""
+            echo "**Suggestions :**"
+            echo "- Consultez les erreurs ci-dessus (souvent liées à des imports ou types manquants)"
+            echo "- Utilisez l'extension VS Code Svelte pour migrer composant par composant"
+            echo ""
+          fi
+          echo "📚 Docs migration Svelte 5 : https://svelte.dev/docs/svelte/v5-migration-guide"
+
+      # ────────────────────────────────
+      # 💾 Commit des corrections si modifications
+      # ────────────────────────────────
+      - name: 💾 Commit & push des auto-fixes
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+          if ! git diff --quiet; then
+            git add .
+            git commit -m "🤖 chore: auto-fix Svelte 5 (lint, format, migrations basiques)
+
+            - Prettier + ESLint --fix
+            - Remplacements basiques export let / \$:
+            - Corrections service-worker.ts"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Modifications corrigées automatiquement → commit & push effectués."
+          else
+            echo "⏭️ Aucune modification à corriger."
+          fi
+
+      # ────────────────────────────────
+      # 📊 Résumé du job (visible dans l'interface GitHub)
+      # ────────────────────────────────
+      - name: 📊 Résumé
         if: always()
         run: |
-          echo "## 🤖 Svelte 5 Auto-Fix Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧹 Résumé Check Svelte 5" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Applied mechanical fixes for Svelte 5 runes compatibility." >> $GITHUB_STEP_SUMMARY
-          echo "- \`export let\` → \`const { x } = \$props()\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`$:\` → \`$effect(() => ...)\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Rune files renamed to .svelte.ts" >> $GITHUB_STEP_SUMMARY
-          echo "- Service worker typing fixed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎨 Prettier & 🧹 ESLint appliqués" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔧 Corrections mécaniques Svelte 5 appliquées" >> $GITHUB_STEP_SUMMARY
+          echo "- 🧪 svelte-check : ${{ steps.svelte-check.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏗️ Build : ${{ steps.build.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if ${{ steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure' }}; then
+            echo "⚠️ Des erreurs restent → voir logs pour détails et suggestions." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Tout est OK !" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # Fail le job si erreurs restantes
+      - name: ❌ Échec si erreurs
+        if: steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure'
+        run: exit 1
