@@ -39,14 +39,19 @@ export async function exportBackup(
     throw new Error('Clé de chiffrement invalide (doit faire 32 bytes).');
   }
 
-  const plaintext = new TextEncoder().encode(JSON.stringify(messages));
+  // On passe directement la string JSON à libsodium (overload string → plus de problème de typage)
+  const jsonString = JSON.stringify(messages);
   const nonce = sodium.randombytes_buf(sodium.crypto_secretbox_NONCEBYTES);
-  const ciphertext = sodium.crypto_secretbox_easy(plaintext, nonce, key);
+  const ciphertext = sodium.crypto_secretbox_easy(jsonString, nonce, key);
 
   // -----------------------------------------------------------------
-  // 2️⃣ Création du Blob et téléchargement
+  // 2️⃣ Création du Blob et téléchargement (concaténation pour éviter l’erreur SharedArrayBuffer)
   // -----------------------------------------------------------------
-  const blob = new Blob([nonce, ciphertext], { type: 'application/octet-stream' });
+  const combined = new Uint8Array(nonce.length + ciphertext.length);
+  combined.set(nonce, 0);
+  combined.set(ciphertext, nonce.length);
+
+  const blob = new Blob([combined], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
@@ -70,6 +75,10 @@ export async function importBackup(
   file: File,
   privateKeyB64: string
 ): Promise<unknown[]> {
+  if (!browser) {
+    throw new Error('Import de backup uniquement disponible dans le navigateur.');
+  }
+
   await sodium.ready;
 
   const key = sodium.from_base64(privateKeyB64, sodium.base64_variants.ORIGINAL);
@@ -100,14 +109,14 @@ export async function importBackup(
   // -----------------------------------------------------------------
   // 3️⃣ Déchiffrement
   // -----------------------------------------------------------------
-  const plaintext = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
-  if (!plaintext) {
+  const decrypted = sodium.crypto_secretbox_open_easy(ciphertext, nonce, key);
+  if (!decrypted) {
     throw new Error('Déchiffrement échoué – clé incorrecte ou données corrompues.');
   }
 
   // -----------------------------------------------------------------
   // 4️⃣ Parsing JSON
   // -----------------------------------------------------------------
-  const decoded = new TextDecoder().decode(plaintext);
+  const decoded = new TextDecoder().decode(decrypted);
   return JSON.parse(decoded) as unknown[];
 }
