@@ -30,9 +30,24 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
-      - name: 📦 Installation des dépendances
+      - name: 📦 Installation des dépendances + auto-commit lockfile si nécessaire
         working-directory: ${{ env.WORKING_DIR }}
-        run: npm ci
+        run: |
+          echo "🔄 Tentative de npm ci..."
+          if npm ci; then
+            echo "✅ npm ci réussi"
+          else
+            echo "⚠️ npm ci échoué → npm install + commit du nouveau lockfile"
+            npm install
+            if git diff --quiet package-lock.json; then
+              echo "⏭️ Pas de changement dans le lockfile"
+            else
+              git add package-lock.json
+              git commit -m "chore: regenerate package-lock.json after dependency resolution"
+              git push origin HEAD:${{ github.ref_name }}
+              echo "✅ package-lock.json mis à jour et poussé"
+            fi
+          fi
 
       # ────────────────────────────────
       # 🎨 FORMATTAGE AUTOMATIQUE (Prettier)
