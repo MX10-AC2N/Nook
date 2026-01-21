@@ -1,11 +1,7 @@
-// /frontend/src/service-worker.ts
-
+/// <reference no-default-lib="true" />
 /// <reference lib="webworker" />
 
-// Types pour le service worker
-declare const self: ServiceWorkerGlobalScope;
-
-// Icônes (assure-toi qu'elles existent dans /public ou /static)
+// Icônes (assure-toi qu'elles existent dans /static ou /public)
 const ICONS = {
   default: '/icon-192.png',
   badge: '/icon-72.png',
@@ -22,7 +18,9 @@ self.addEventListener('push', (event: PushEvent) => {
     title: 'Nook',
     body: 'Nouveau message dans la famille ❤️',
     image: null as string | null,
-    tag: 'nook-message'
+    tag: 'nook-message',
+    // Optionnel : si tu veux gérer le mode sombre, envoie cette info depuis ton serveur dans le payload push
+    prefersDark: false
   };
 
   if (event.data) {
@@ -33,16 +31,15 @@ self.addEventListener('push', (event: PushEvent) => {
     }
   }
 
-  // Détection du mode sombre (si supporté par le navigateur)
-  const isDark = typeof window !== 'undefined' && 
-    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // Utilise les icônes dark si le payload indique le mode sombre
+  const useDark = !!data.prefersDark;
 
   const options: NotificationOptions = {
     body: data.body || 'Vous avez un nouveau message',
-    icon: (isDark && ICONS.dark) ? ICONS.dark : ICONS.default,
-    badge: (isDark && ICONS.badgeDark) ? ICONS.badgeDark : ICONS.badge,
-    image: data.image || undefined,
-    tag: data.tag || 'nook-notification',
+    icon: useDark ? ICONS.dark : ICONS.default,
+    badge: useDark ? ICONS.badgeDark : ICONS.badge,
+    image: data.image ?? undefined,
+    tag: data.tag ?? 'nook-notification',
     renotify: true,
     vibrate: VIBRATION_PATTERN,
     timestamp: Date.now(),
@@ -66,10 +63,10 @@ self.addEventListener('push', (event: PushEvent) => {
   );
 });
 
-self.addEventListener('notificationclick', (event: NotificationClickEvent) => {
+self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/chat';
+  const urlToOpen = (event.notification.data?.url as string | undefined) ?? '/chat';
 
   event.waitUntil(
     (async () => {
