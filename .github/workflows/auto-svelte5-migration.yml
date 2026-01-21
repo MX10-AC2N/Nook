@@ -6,6 +6,9 @@ on:
     branches: [develop]
     paths:
       - 'frontend/src/**'
+      - 'frontend/package*.json'
+      - 'frontend/tsconfig.json'
+      - 'frontend/svelte.config.js'
 
 env:
   NODE_VERSION: 20
@@ -30,10 +33,10 @@ jobs:
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
 
-      - name: 📦 Installation des dépendances + auto-fix lockfile
+      - name: 📦 Installation des dépendances
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "🔄 Tentative de npm ci..."
+          echo "🔄 Installation avec npm ci..."
           if npm ci; then
             echo "✅ npm ci réussi"
           else
@@ -55,133 +58,184 @@ jobs:
           fi
 
       # ────────────────────────────────
-      # 🔍 DIAGNOSTIC (pour comprendre pourquoi svelte-check plante)
+      # 🔍 DIAGNOSTIC
       # ────────────────────────────────
-      - name: 🔍 Diagnostic outils Svelte
+      - name: 🔍 Diagnostic outils
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "Node $(node -v) / npm $(npm -v)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🔧 Versions installées"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Node: $(node -v)"
+          echo "npm: $(npm -v)"
           echo ""
-          echo "Tentative svelte-check --version :"
-          npx svelte-check --version || echo "❌ svelte-check non disponible ou erreur"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📦 Dépendances Svelte"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          npm list svelte @sveltejs/kit svelte-check typescript || true
           echo ""
-          echo "Scripts package.json contenant 'check' :"
-          npm run | grep -i check || echo "Aucun script 'check'"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "📝 Fichiers de configuration"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          ls -la tsconfig.json && echo "✅ tsconfig.json présent" || echo "❌ tsconfig.json absent"
+          ls -la svelte.config.js && echo "✅ svelte.config.js présent" || echo "❌ svelte.config.js absent"
+          ls -la src/app.d.ts && echo "✅ src/app.d.ts présent" || echo "❌ src/app.d.ts absent"
           echo ""
-          echo "Dépendances avec 'svelte' dans package.json :"
-          grep -i svelte package.json || echo "Aucun 'svelte' trouvé"
-          echo ""
-          echo "Présence tsconfig.json :"
-          ls tsconfig.json && echo "✅ tsconfig.json présent" || echo "❌ tsconfig.json absent"
+          
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🎯 Scripts disponibles"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          npm run 2>&1 | grep -E "(check|build|dev)" || echo "Aucun script trouvé"
 
       # ────────────────────────────────
-      # 🧩 Sync types SvelteKit (génère les types $lib etc.)
+      # 🧩 CRITICAL: Sync SvelteKit AVANT tout check
       # ────────────────────────────────
-      - name: 🧩 SvelteKit sync
+      - name: 🧩 SvelteKit sync (génère .svelte-kit/tsconfig.json)
         working-directory: ${{ env.WORKING_DIR }}
-        run: npx svelte-kit sync
+        run: |
+          echo "🔄 Synchronisation des types SvelteKit..."
+          npx svelte-kit sync
+          echo ""
+          echo "✅ Vérification du fichier généré :"
+          ls -la .svelte-kit/tsconfig.json && echo "✅ .svelte-kit/tsconfig.json créé" || echo "❌ ERREUR: fichier non créé"
+          echo ""
+          if [ -f .svelte-kit/tsconfig.json ]; then
+            echo "📄 Contenu de .svelte-kit/tsconfig.json :"
+            cat .svelte-kit/tsconfig.json
+          fi
 
       # ────────────────────────────────
-      # 🧪 TYPE CHECK – capture robuste même si crash
+      # 🧪 TYPE CHECK avec svelte-check
       # ────────────────────────────────
       - name: 🧪 Type check (svelte-check)
         id: svelte-check
         continue-on-error: true
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "🧪 Exécution de svelte-check (capture forcée)..."
-          output=$(npx svelte-check --tsconfig ./tsconfig.json 2>&1 || true)
+          echo "🧪 Exécution de svelte-check..."
+          
+          # Capture la sortie complète
+          output=$(npx svelte-check --tsconfig ./tsconfig.json --threshold warning 2>&1 || true)
           echo "$output"
-
+          
+          # Analyse du résultat
           if echo "$output" | grep -iq "no errors\\|0 errors"; then
             echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Type-check réussi"
           else
             echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Erreurs de type détectées"
             echo "details<<EOF" >> $GITHUB_OUTPUT
             echo "$output" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
       # ────────────────────────────────
-      # 🏗️ BUILD – capture robuste
+      # 🏗️ BUILD
       # ────────────────────────────────
       - name: 🏗️ Test build
         id: build
         continue-on-error: true
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "🏗️ Exécution du build (capture forcée)..."
+          echo "🏗️ Exécution du build..."
+          
           output=$(npm run build 2>&1 || true)
           echo "$output"
-
-          # Vérifie si le build a réussi (recherche mot-clé typique de succès Vite/SvelteKit)
-          if echo "$output" | grep -iq "built in\\|vite build finished"; then
+          
+          # Détection du succès (adapté à Vite/SvelteKit)
+          if echo "$output" | grep -iq "built in\\|vite.*built\\|build completed"; then
             echo "status=success" >> $GITHUB_OUTPUT
+            echo "✅ Build réussi"
           else
             echo "status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Build échoué"
             echo "details<<EOF" >> $GITHUB_OUTPUT
             echo "$output" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
       # ────────────────────────────────
-      # 📝 Rapport clair + suggestions précises
+      # 📝 Rapport détaillé
       # ────────────────────────────────
-      - name: ⚠️ Rapport erreurs & suggestions
+      - name: 📝 Rapport d'erreurs
         if: steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure'
         run: |
-          echo "⚠️ Erreurs détectées dans le code frontend (Svelte 5)."
-          echo "Voici les détails bruts + suggestions concrètes :"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚠️  ERREURS DÉTECTÉES"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo ""
 
           if [ "${{ steps.svelte-check.outputs.status }}" == "failure" ]; then
-            echo "### Erreurs svelte-check :"
+            echo "### 🧪 Erreurs Type-Check (svelte-check)"
+            echo ""
             echo "${{ steps.svelte-check.outputs.details }}"
             echo ""
-            echo "**Suggestions courantes pour Svelte 5 :**"
-            echo "- Propriétés optionnelles en TS : 'prop?: string' (pas 'prop?')"
-            echo "- Migrez 'export let x' → 'const { x } = \$props()'"
-            echo "- Migrez les labels '\$:' → '\$effect(() => { ... })'"
-            echo "- Activez runes mode dans svelte.config.js :"
-            echo "   preprocessor: { compilerOptions: { runes: true } }"
-            echo "- Pour les props complexes (default, bindable, types) : utilisez l'extension VS Code Svelte → quick fixes excellents"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "💡 SOLUTIONS POUR SVELTE 5"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "1. Vérifiez que src/app.d.ts existe"
+            echo "2. Migrez 'export let x' → 'let { x } = \$props()'"
+            echo "3. Migrez '\$:' → '\$effect(() => {...})' ou '\$derived()'"
+            echo "4. Props optionnelles : { x = \$bindable() } ou { x }: { x?: string }"
+            echo "5. Activez runes dans svelte.config.js si ce n'est pas fait"
             echo ""
           fi
 
           if [ "${{ steps.build.outputs.status }}" == "failure" ]; then
-            echo "### Erreurs build :"
+            echo "### 🏗️ Erreurs Build"
+            echo ""
             echo "${{ steps.build.outputs.details }}"
             echo ""
-            echo "**Suggestions :**"
-            echo "- Souvent liées aux erreurs de types ci-dessus"
-            echo "- Vérifiez imports, chemins $lib, ou dépendances obsolètes"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "💡 SOLUTIONS COURANTES"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "1. Vérifiez les imports et alias (\$lib, \$components)"
+            echo "2. Corrigez d'abord les erreurs de type-check ci-dessus"
+            echo "3. Vérifiez que toutes les dépendances sont à jour"
             echo ""
           fi
 
-          echo "🔧 Meilleure solution : ouvrez le projet dans VS Code avec l'extension officielle 'Svelte for VS Code'."
-          echo "   → Elle détecte automatiquement les problèmes Svelte 5 et propose des corrections en 1 clic par composant."
-
       # ────────────────────────────────
-      # 📊 Résumé GitHub
+      # 📊 Résumé
       # ────────────────────────────────
-      - name: 📊 Résumé
+      - name: 📊 Résumé GitHub
         if: always()
         run: |
-          echo "## 🧹 Résumé Check Svelte 5" >> $GITHUB_STEP_SUMMARY
+          echo "# 🧹 Résumé Check Svelte 5" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- 🧩 svelte-kit sync effectué" >> $GITHUB_STEP_SUMMARY
-          echo "- 🧪 svelte-check : ${{ steps.svelte-check.outputs.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🏗️ Build : ${{ steps.build.outputs.status }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if ${{ steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure' }}; then
-            echo "⚠️ Erreurs présentes → voir logs pour rapport détaillé et suggestions." >> $GITHUB_STEP_SUMMARY
+          echo "| Étape | Statut |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧩 SvelteKit Sync | ✅ Effectué |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.svelte-check.outputs.status }}" == "success" ]; then
+            echo "| 🧪 Type-Check | ✅ Réussi |" >> $GITHUB_STEP_SUMMARY
           else
-            echo "✅ Code propre !" >> $GITHUB_STEP_SUMMARY
+            echo "| 🧪 Type-Check | ❌ Échec |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ steps.build.outputs.status }}" == "success" ]; then
+            echo "| 🏗️ Build | ✅ Réussi |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🏗️ Build | ❌ Échec |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.svelte-check.outputs.status }}" == "failure" ] || [ "${{ steps.build.outputs.status }}" == "failure" ]; then
+            echo "⚠️ **Des erreurs ont été détectées.** Consultez les logs ci-dessus pour les détails et suggestions." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **Tout est OK !** Le code est propre." >> $GITHUB_STEP_SUMMARY
           fi
 
       # ────────────────────────────────
-      # ❌ Blocage push si erreurs
+      # ❌ Échec final si erreurs
       # ────────────────────────────────
       - name: ❌ Échec si erreurs
         if: steps.svelte-check.outputs.status == 'failure' || steps.build.outputs.status == 'failure'
-        run: exit 1
+        run: |
+          echo "❌ Le workflow échoue car des erreurs ont été détectées."
+          exit 1
