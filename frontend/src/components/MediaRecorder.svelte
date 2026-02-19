@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { writable, get } from 'svelte/store';
   import { recordingState, startRecording, stopRecording, sendMediaMessage } from '$lib/mediaStore.svelte.js';
   import { authStore } from '$lib/authStore.svelte.js';
   import { getStoredKeys, decryptPrivateKey } from '$lib/crypto';
-  import { activeConversationId, participants } from '$lib/conversationStore.svelte.ts';
-  import { connectionError } from '$lib/chatStore.svelte.ts';
+  import { conversationStore } from '$lib/conversationStore.svelte.ts';
+  import { setConnectionError } from '$lib/chatStore.svelte.ts';
   import { browser } from '$app/environment';
 
   // -----------------------------------------------------------------
-  // Props
+  // Props — syntaxe Svelte 5
   // -----------------------------------------------------------------
-  export let disabled: boolean = false;
+  interface Props { disabled?: boolean; }
+  let { disabled = false }: Props = $props();
 
   // -----------------------------------------------------------------
   // UI state (Svelte 5)
@@ -21,85 +21,57 @@
   let showCountdown = $state(false);
   let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
-  // Drag‑and‑drop UI
   let isDragging = $state(false);
   let dragTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Permissions (audio / video)
-  const hasPermission = writable<{ audio: boolean; video: boolean }>({
-    audio: false,
-    video: false,
-  });
+  // Permissions — objet $state au lieu de writable store
+  let hasPermission = $state({ audio: false, video: false });
 
   // -----------------------------------------------------------------
-  // Lifecycle – permissions & drag‑and‑drop listeners
+  // Lifecycle
   // -----------------------------------------------------------------
   onMount(() => {
-    // ---- Permissions -------------------------------------------------
     if (browser) {
-      // Certaines implémentations ne supportent pas `permissions.query`,
-      // on ignore les erreurs éventuelles.
       Promise.allSettled([
         navigator.permissions.query({ name: 'microphone' as PermissionName }),
-        navigator.permissions.query({ name: 'camera' as PermissionName })
+        navigator.permissions.query({ name: 'camera' as PermissionName }),
       ]).then((results) => {
-        const audioResult = results[0];
-        const videoResult = results[1];
+        const [audioResult, videoResult] = results;
 
-        if (audioResult.status === 'fulfilled')
-          hasPermission.update((p) => ({
-            ...p,
-            audio: audioResult.value.state === 'granted'
-          }));
-        if (videoResult.status === 'fulfilled')
-          hasPermission.update((p) => ({
-            ...p,
-            video: videoResult.value.state === 'granted'
-          }));
-
-        // Listen for changes
-        if (audioResult.status === 'fulfilled')
+        if (audioResult.status === 'fulfilled') {
+          hasPermission.audio = audioResult.value.state === 'granted';
           audioResult.value.onchange = () => {
-            hasPermission.update((p) => ({
-              ...p,
-              audio: audioResult.value.state === 'granted'
-            }));
+            hasPermission.audio = audioResult.value.state === 'granted';
           };
-        if (videoResult.status === 'fulfilled')
+        }
+        if (videoResult.status === 'fulfilled') {
+          hasPermission.video = videoResult.value.state === 'granted';
           videoResult.value.onchange = () => {
-            hasPermission.update((p) => ({
-              ...p,
-              video: videoResult.value.state === 'granted'
-            }));
+            hasPermission.video = videoResult.value.state === 'granted';
           };
+        }
       });
-    }
 
-    // ---- Drag & Drop ------------------------------------------------
-    if (browser) {
       window.addEventListener('dragover', handleDragOver);
       window.addEventListener('dragleave', handleDragLeave);
       window.addEventListener('drop', handleDrop);
     }
+  });
 
-    return () => {
-      if (browser) {
-        window.removeEventListener('dragover', handleDragOver);
-        window.removeEventListener('dragleave', handleDragLeave);
-        window.removeEventListener('drop', handleDrop);
-      }
-      cleanupDrag();
-    };
+  onDestroy(() => {
+    if (browser) {
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    }
+    cleanupDrag();
   });
 
   // -----------------------------------------------------------------
-  // Drag & Drop helpers
+  // Drag & Drop
   // -----------------------------------------------------------------
   function cleanupDrag() {
-    if (dragTimeout) {
-      clearTimeout(dragTimeout);
-      dragTimeout = null;
-    }
+    if (dragTimeout) { clearTimeout(dragTimeout); dragTimeout = null; }
     isDragging = false;
   }
 
@@ -109,120 +81,94 @@
   }
 
   function handleDragLeave(e: DragEvent) {
-    // When leaving the window, `relatedTarget` is null → clean up
     if (!e.relatedTarget) cleanupDrag();
   }
 
   async function handleDrop(e: DragEvent) {
     e.preventDefault();
     cleanupDrag();
-
     const file = e.dataTransfer?.files?.[0];
-    if (!file) return;
-    await processDroppedFile(file);
+    if (file) await processFile(file);
   }
 
   // -----------------------------------------------------------------
-  // File processing (drop OR file‑input)
+  // Traitement fichier (drop ou input)
   // -----------------------------------------------------------------
-  async function processDroppedFile(file: File) {
-    const conversationId = get(activeConversationId);
+  async function processFile(file: File) {
+    const conversationId = conversationStore.activeConversationId;
     if (!conversationId) {
-      connectionError.set('Aucune conversation sélectionnée');
+      setConnectionError('Aucune conversation sélectionnée');
       return;
     }
 
-    // ---- Vérification du type ----
     const isAudio = file.type.startsWith('audio/');
     const isVideo = file.type.startsWith('video/');
     if (!isAudio && !isVideo) {
-      connectionError.set(
-        'Type de fichier non supporté : seuls les fichiers audio et vidéo sont acceptés.'
-      );
+      setConnectionError('Type de fichier non supporté : seuls les fichiers audio et vidéo sont acceptés.');
       return;
     }
 
-    // ---- Taille maximale (50 Mo) ----
     if (file.size > 50 * 1024 * 1024) {
-      connectionError.set('Fichier trop volumineux : la limite est de 50 Mo.');
+      setConnectionError('Fichier trop volumineux : la limite est de 50 Mo.');
       return;
     }
 
-    // ---- Récupération des clés ----
-    const user = get(authStore).user;
+    const user = authStore.user;
     if (!user) return;
 
     const stored = await getStoredKeys(user.id);
     if (!stored) {
-      connectionError.set('Clés de chiffrement introuvables');
+      setConnectionError('Clés de chiffrement introuvables');
       return;
     }
 
-    // Demander le mot de passe si besoin
-    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le média :');
+    const password = (user as any).password ?? prompt('Entrez votre mot de passe pour chiffrer le média :');
     if (!password) return;
 
     const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
 
-    // ---- Récupérer les clés publiques des destinataires ----
-    const convParticipants = get(participants);
+    const convParticipants = conversationStore.participants;
     const recipientPublicKeys = convParticipants
       .filter((p) => p.id !== user.id)
-      .map(() => stored.publicKey); // 👉 TODO : remplacer par les vraies clés publiques du serveur
+      .map(() => stored.publicKey); // TODO: récupérer les vraies clés publiques
 
-    // ---- Créer le Blob et envoyer ----
     const blob = new Blob([await file.arrayBuffer()], { type: file.type });
-    await sendMediaMessage(
-      blob,
-      isVideo ? 'video' : 'audio',
-      conversationId,
-      recipientPublicKeys,
-      privateKey
-    );
+    await sendMediaMessage(blob, isVideo ? 'video' : 'audio', conversationId, recipientPublicKeys, privateKey);
   }
 
   // -----------------------------------------------------------------
-  // Permission helpers
+  // Permissions
   // -----------------------------------------------------------------
   async function requestPermission(kind: 'audio' | 'video'): Promise<boolean> {
     try {
-      if (kind === 'audio')
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-      else
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-
-      hasPermission.update((p) => ({
-        ...p,
-        [kind]: true
-      }));
+      await navigator.mediaDevices.getUserMedia(
+        kind === 'audio' ? { audio: true } : { video: true, audio: true }
+      );
+      hasPermission[kind] = true;
       return true;
     } catch (e) {
-      connectionError.set(`Permission ${kind} refusée`);
+      setConnectionError(`Permission ${kind} refusée`);
       console.error(`Permission ${kind} refusée :`, e);
       return false;
     }
   }
 
   // -----------------------------------------------------------------
-  // Gestion du bouton d'enregistrement (audio / vidéo)
+  // Enregistrement
   // -----------------------------------------------------------------
   async function handleRecordClick(mediaType: 'audio' | 'video') {
-    const { audio, video } = get(hasPermission);
-
-    if (mediaType === 'audio' && !audio) {
+    if (mediaType === 'audio' && !hasPermission.audio) {
       if (!(await requestPermission('audio'))) return;
     }
-    if (mediaType === 'video' && !video) {
+    if (mediaType === 'video' && !hasPermission.video) {
       if (!(await requestPermission('video'))) return;
     }
-
     startCountdown(mediaType);
   }
 
   function startCountdown(mediaType: 'audio' | 'video') {
     showCountdown = true;
     countdown = 3;
-
     if (countdownInterval) clearInterval(countdownInterval);
     countdownInterval = setInterval(() => {
       countdown--;
@@ -235,103 +181,71 @@
     }, 1000);
   }
 
-  // -----------------------------------------------------------------
-  // Contrôles d'enregistrement
-  // -----------------------------------------------------------------
-  function handleStopRecording() {
-    // `true` → on envoie le message
-    stopRecording(true);
-  }
+  function handleStopRecording() { stopRecording(true); }
+  function handleCancelRecording() { stopRecording(false); }
 
-  function handleCancelRecording() {
-    // `false` → on annule le message
-    stopRecording(false);
-  }
-
-  // -----------------------------------------------------------------
-  // Envoi d'un enregistrement déjà stoppé (si on veut le déclencher manuellement)
-  // -----------------------------------------------------------------
   async function handleSendRecording() {
-    const state = get(recordingState);
-    const conversationId = get(activeConversationId);
+    const conversationId = conversationStore.activeConversationId;
     if (!conversationId) {
-      connectionError.set('Aucune conversation sélectionnée');
+      setConnectionError('Aucune conversation sélectionnée');
       return;
     }
 
-    const blob = new Blob(state.chunks, {
-      type: state.mediaType === 'video' ? 'video/webm' : 'audio/webm'
+    const blob = new Blob(recordingState.chunks, {
+      type: recordingState.mediaType === 'video' ? 'video/webm' : 'audio/webm',
     });
 
-    const user = get(authStore).user;
+    const user = authStore.user;
     if (!user) return;
 
     const stored = await getStoredKeys(user.id);
     if (!stored) {
-      connectionError.set('Clés de chiffrement introuvables');
+      setConnectionError('Clés de chiffrement introuvables');
       return;
     }
 
-    const password = user.password ?? prompt('Entrez votre mot de passe pour chiffrer le message :');
+    const password = (user as any).password ?? prompt('Entrez votre mot de passe pour chiffrer le message :');
     if (!password) return;
 
     const privateKey = await decryptPrivateKey(stored.encryptedPrivateKey, password);
 
-    const convParticipants = get(participants);
+    const convParticipants = conversationStore.participants;
     const recipientPublicKeys = convParticipants
       .filter((p) => p.id !== user.id)
-      .map(() => stored.publicKey); // 👉 TODO : récupérer les vraies clés publiques
+      .map(() => stored.publicKey); // TODO: vraies clés publiques
 
-    await sendMediaMessage(
-      blob,
-      state.mediaType!,
-      conversationId,
-      recipientPublicKeys,
-      privateKey
-    );
+    await sendMediaMessage(blob, recordingState.mediaType!, conversationId, recipientPublicKeys, privateKey);
   }
 
-  // -----------------------------------------------------------------
-  // Gestion du champ <input type="file">
-  // -----------------------------------------------------------------
   async function handleFileUpload(e: Event) {
     const input = e.target as HTMLInputElement;
     if (!input.files?.length) return;
-    await processDroppedFile(input.files[0]);
-    // Reset du champ pour pouvoir re‑uploader le même fichier
+    await processFile(input.files[0]);
     input.value = '';
   }
 </script>
 
-{#if $recordingState.isRecording}
-  <!-- ==================== ENREGISTREMENT EN COURS ==================== -->
+{#if recordingState.isRecording}
   <div class="recording-controls">
     <div class="recording-info">
       <span class="recording-indicator"></span>
-      <span class="recording-duration">{$recordingState.duration}s</span>
+      <span class="recording-duration">{recordingState.duration}s</span>
       <span class="recording-type">
-        {$recordingState.mediaType === 'audio' ? '🎤' : '🎥'} Enregistrement…
+        {recordingState.mediaType === 'audio' ? '🎤' : '🎥'} Enregistrement…
       </span>
     </div>
-
     <div class="recording-buttons">
-      <button class="cancel-button" onclick={handleCancelRecording} aria-label="Annuler l'enregistrement">
-        ✕
-      </button>
-      <button class="stop-button" onclick={handleStopRecording} aria-label="Arrêter l'enregistrement">
-        ■
-      </button>
+      <button class="cancel-button" onclick={handleCancelRecording} aria-label="Annuler l'enregistrement">✕</button>
+      <button class="stop-button" onclick={handleStopRecording} aria-label="Arrêter l'enregistrement">■</button>
     </div>
   </div>
 
 {:else if showCountdown}
-  <!-- ==================== COMPTE À REBOURS ==================== -->
   <div class="countdown-overlay">
     <div class="countdown-circle">{countdown}</div>
   </div>
 
 {:else}
-  <!-- ==================== BOUTONS DE CONTROLE ==================== -->
   <div
     class="media-controls {isDragging ? 'dragging' : ''}"
     onmouseenter={() => (isHovered = true)}
@@ -350,20 +264,16 @@
     <button
       class="media-button audio"
       onclick={() => handleRecordClick('audio')}
-      disabled={disabled}
+      {disabled}
       aria-label="Enregistrer un message audio"
-    >
-      🎙️
-    </button>
+    >🎙️</button>
 
     <button
       class="media-button video"
       onclick={() => handleRecordClick('video')}
-      disabled={disabled || !$hasPermission.video}
+      disabled={disabled || !hasPermission.video}
       aria-label="Enregistrer un message vidéo"
-    >
-      🎥
-    </button>
+    >🎥</button>
 
     <label class="media-button file" for="media-file-input" aria-label="Uploader un fichier audio/vidéo">
       📎
@@ -379,7 +289,6 @@
 {/if}
 
 <style>
-  /* ----------------------- ENREGISTREMENT ----------------------- */
   .recording-controls {
     display: flex;
     align-items: center;
@@ -392,212 +301,91 @@
   }
 
   @keyframes pulse {
-    0% {
-      box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4);
-    }
-    70% {
-      box-shadow: 0 0 0 8px rgba(255, 0, 0, 0);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
-    }
+    0%   { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.4); }
+    70%  { box-shadow: 0 0 0 8px rgba(255, 0, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
   }
 
-  .recording-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
+  .recording-info { display: flex; align-items: center; gap: 0.5rem; }
 
   .recording-indicator {
-    width: 12px;
-    height: 12px;
-    background: #ff4444;
-    border-radius: 50%;
+    width: 12px; height: 12px;
+    background: #ff4444; border-radius: 50%;
     animation: blink 1s infinite;
   }
 
-  @keyframes blink {
-    50% {
-      opacity: 0.5;
-    }
-  }
+  @keyframes blink { 50% { opacity: 0.5; } }
 
-  .recording-duration {
-    font-weight: bold;
-    color: #ff4444;
-  }
+  .recording-duration { font-weight: bold; color: #ff4444; }
+  .recording-type { font-size: 0.9rem; color: var(--text-secondary); }
+  .recording-buttons { display: flex; gap: 0.5rem; margin-left: auto; }
 
-  .recording-type {
-    font-size: 0.9rem;
-    color: var(--text-secondary);
-  }
-
-  .recording-buttons {
-    display: flex;
-    gap: 0.5rem;
-    margin-left: auto;
-  }
-
-  .cancel-button,
-  .stop-button {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: none;
-    font-size: 1rem;
-    font-weight: bold;
+  .cancel-button, .stop-button {
+    width: 36px; height: 36px;
+    border-radius: 50%; border: none;
+    font-size: 1rem; font-weight: bold;
     cursor: pointer;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
     transition: all 0.2s;
   }
 
-  .cancel-button {
-    background: #f44336;
-    color: white;
-  }
+  .cancel-button { background: #f44336; color: white; }
+  .stop-button   { background: #4caf50; color: white; }
+  .cancel-button:hover { background: #d32f2f; transform: scale(1.1); }
+  .stop-button:hover   { background: #43a047; transform: scale(1.1); }
 
-  .stop-button {
-    background: #4caf50;
-    color: white;
-  }
-
-  .cancel-button:hover {
-    background: #d32f2f;
-    transform: scale(1.1);
-  }
-
-  .stop-button:hover {
-    background: #43a047;
-    transform: scale(1.1);
-  }
-
-  /* ----------------------- COMPTE À REBOURS ----------------------- */
   .countdown-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    position: absolute; inset: 0;
+    display: flex; justify-content: center; align-items: center;
     background: rgba(0, 0, 0, 0.7);
-    border-radius: 20px;
-    z-index: 10;
+    border-radius: 20px; z-index: 10;
   }
 
   .countdown-circle {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: #ff4444;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: white;
+    width: 80px; height: 80px;
+    border-radius: 50%; background: #ff4444;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 2.5rem; font-weight: bold; color: white;
     animation: scaleUp 0.5s ease-out;
   }
 
   @keyframes scaleUp {
-    0% {
-      transform: scale(0.8);
-      opacity: 0.5;
-    }
-    100% {
-      transform: scale(1);
-      opacity: 1;
-    }
+    0%   { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(1);   opacity: 1; }
   }
 
-  /* ----------------------- BOUTONS DE CONTROLE ----------------------- */
-  .media-controls {
-    display: flex;
-    gap: 0.5rem;
-    position: relative;
-  }
+  .media-controls { display: flex; gap: 0.5rem; position: relative; }
 
   .media-button {
-    width: 44px;
-    height: 44px;
+    width: 44px; height: 44px;
     border-radius: 16px;
     border: 2px solid var(--border);
     background: var(--button-bg);
     color: var(--text);
-    font-size: 1.2rem;
-    cursor: pointer;
+    font-size: 1.2rem; cursor: pointer;
     transition: all 0.2s;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    display: flex; justify-content: center; align-items: center;
   }
 
-  .media-button:hover:not(:disabled) {
-    transform: scale(1.1);
-    border-color: var(--primary);
-  }
+  .media-button:hover:not(:disabled) { transform: scale(1.1); border-color: var(--primary); }
+  .media-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .media-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  .audio { background: linear-gradient(135deg, #4caf50, #2e7d32); color: white; }
+  .video { background: linear-gradient(135deg, #2196f3, #1565c0); color: white; }
+  .file  { background: linear-gradient(135deg, #ff9800, #e65100); color: white; }
 
-  .audio {
-    background: linear-gradient(135deg, #4caf50, #2e7d32);
-    color: white;
-  }
-
-  .video {
-    background: linear-gradient(135deg, #2196f3, #1565c0);
-    color: white;
-  }
-
-  .file {
-    background: linear-gradient(135deg, #ff9800, #e65100);
-    color: white;
-  }
-
-  /* ----------------------- DRAG OVERLAY ----------------------- */
   .drag-overlay {
-    position: absolute;
-    inset: 0;
+    position: absolute; inset: 0;
     background: rgba(255, 152, 0, 0.95);
     border-radius: 16px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 5;
-    animation: fadeIn 0.2s ease-out;
+    display: flex; justify-content: center; align-items: center;
+    z-index: 5; animation: fadeIn 0.2s ease-out;
   }
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-  .drag-content {
-    text-align: center;
-    color: white;
-  }
-
-  .drag-icon {
-    font-size: 3rem;
-    display: block;
-    margin-bottom: 0.5rem;
-  }
-
-  .drag-content p {
-    margin: 0.25rem 0;
-    font-weight: 600;
-  }
-
-  .drag-subtext {
-    font-size: 0.85rem;
-    opacity: 0.9;
-  }
+  .drag-content { text-align: center; color: white; }
+  .drag-icon { font-size: 3rem; display: block; margin-bottom: 0.5rem; }
+  .drag-content p { margin: 0.25rem 0; font-weight: 600; }
+  .drag-subtext { font-size: 0.85rem; opacity: 0.9; }
 </style>
