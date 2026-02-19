@@ -1,29 +1,8 @@
+
 name: 🚀 Build & Push Docker Multi-Arch (Distroless) + Auto Format
 
 on:
   workflow_dispatch:
-  push:
-    branches: [develop, main]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'Dockerfile'
-      - '.github/workflows/ci-new2.yml'
-      - 'backend/Cargo.lock'
-      - 'backend/Cargo.toml'
-      - 'frontend/package.json'
-      - 'frontend/package-lock.json'
-  pull_request:
-    branches: [develop, main]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'Dockerfile'
-      - '.github/workflows/ci-new2.yml'
-      - 'backend/Cargo.lock'
-      - 'backend/Cargo.toml'
-      - 'frontend/package.json'
-      - 'frontend/package-lock.json'
 
 env:
   CARGO_TERM_COLOR: always
