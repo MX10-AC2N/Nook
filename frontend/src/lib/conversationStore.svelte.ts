@@ -360,7 +360,7 @@ export function setupMessageWebSocket(): () => void {
       });
 
       if (msg.conversation_id === conversationStore.activeConversationId) {
-        import('./chatStore').then(({ loadMessages }) => {
+        import('./chatStore.svelte.js').then(({ loadMessages }) => {
           loadMessages(msg.conversation_id).catch(console.error);
         });
       }
