@@ -309,11 +309,11 @@
         <!-- AUCUN APPEL EN COURS -->
         <div class="no-call">
           <div class="theme-icon" aria-hidden="true">
-            {#if $currentTheme === 'jardin-secret'}
+            {#if getCurrentTheme === 'jardin-secret'}
               🌸
-            {:else if $currentTheme === 'space-hub'}
+            {:else if getCurrentTheme === 'space-hub'}
               🌌
-            {:else if $currentTheme === 'maison-chaleureuse'}
+            {:else if getCurrentTheme === 'maison-chaleureuse'}
               🏡
             {/if}
           </div>
