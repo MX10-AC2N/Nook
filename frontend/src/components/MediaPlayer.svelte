@@ -1,11 +1,10 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { writable, get } from 'svelte/store';
   import { downloadAndDecryptMedia, formatDuration } from '$lib/mediaStore.svelte.js';
-  import { connectionError } from '$lib/chatStore.svelte.ts';
+  import { setConnectionError } from '$lib/chatStore.svelte.ts';
 
   // -----------------------------------------------------------------
-  // Props
+  // Props — syntaxe Svelte 5
   // -----------------------------------------------------------------
   export interface ChatMessage {
     id: string;
@@ -14,28 +13,30 @@
     encrypted_keys: Record<string, Uint8Array>;
     nonce: Uint8Array;
     sender_id: string;
-    duration: number; // en secondes (0 si inconnu)
+    duration: number;
   }
 
-  export let message: ChatMessage;
-  export let isCurrentUser: boolean = false;
+  interface Props {
+    message: ChatMessage;
+    isCurrentUser?: boolean;
+  }
+
+  let { message, isCurrentUser = false }: Props = $props();
 
   // -----------------------------------------------------------------
-  // Reactive state (Svelte 5)
+  // État local (Svelte 5)
   // -----------------------------------------------------------------
-  let audioEl: HTMLAudioElement | null = $state(null);   // pour les audios
-  let previewUrl: string | null = $state(null);         // URL blob du média déchiffré
+  let audioEl = $state<HTMLAudioElement | null>(null);
+  let previewUrl = $state<string | null>(null);
   let isPlaying = $state(false);
   let isLoaded = $state(false);
   let isLoading = $state(false);
-  let error: string | null = $state(null);
+  let error = $state<string | null>(null);
 
-  // time / progress
   let currentTime = $state(0);
   let duration = $state(0);
   let progress = $state(0);
 
-  // playback speed (audio only)
   const playbackRateOptions = [0.5, 1, 1.5, 2];
   let currentPlaybackRate = $state(1);
 
@@ -43,14 +44,13 @@
   // Lifecycle
   // -----------------------------------------------------------------
   onMount(() => {
-    // Si le message possède déjà un média, on le charge immédiatement.
     if (message.media_url && !isLoaded) loadMedia();
   });
 
   onDestroy(() => cleanupMedia());
 
   // -----------------------------------------------------------------
-  // Load / cleanup helpers
+  // Load / cleanup
   // -----------------------------------------------------------------
   async function loadMedia() {
     if (isLoading || isLoaded) return;
@@ -59,7 +59,6 @@
     error = null;
 
     try {
-      // 1️⃣ Télécharger & déchiffrer le média
       const blob = await downloadAndDecryptMedia(
         message.media_url!,
         message.encrypted_keys,
@@ -67,22 +66,18 @@
         message.sender_id
       );
 
-      // 2️⃣ Créer une URL blob utilisable par <audio>/<video>
       previewUrl = URL.createObjectURL(blob);
       duration = message.duration || 0;
 
-      // 3️⃣ Instancier l'élément audio (si besoin)
       if (message.media_type === 'audio') {
         audioEl = new Audio(previewUrl);
         audioEl.preload = 'metadata';
 
-        // Met à jour la durée dès que les métadonnées sont disponibles
         audioEl.onloadedmetadata = () => {
           duration = audioEl?.duration ?? duration;
           isLoaded = true;
           isLoading = false;
         };
-        // Gestion du curseur
         audioEl.ontimeupdate = () => {
           currentTime = audioEl?.currentTime ?? 0;
           progress = duration ? (currentTime / duration) * 100 : 0;
@@ -98,7 +93,6 @@
           isLoaded = false;
         };
       } else {
-        // Vidéo → on considère le média chargé dès que l'URL est prête
         isLoaded = true;
         isLoading = false;
       }
@@ -110,7 +104,6 @@
   }
 
   function cleanupMedia() {
-    // Pause et détache les listeners audio
     if (audioEl) {
       audioEl.pause();
       audioEl.onloadedmetadata = null;
@@ -119,8 +112,6 @@
       audioEl.onerror = null;
       audioEl = null;
     }
-
-    // Révoquer l'URL blob
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
       previewUrl = null;
@@ -128,15 +119,10 @@
   }
 
   // -----------------------------------------------------------------
-  // UI actions
+  // Actions UI
   // -----------------------------------------------------------------
   function togglePlay() {
-    // Si le média n'est pas encore chargé, on le charge d'abord
-    if (!isLoaded && !isLoading) {
-      loadMedia();
-      return;
-    }
-
+    if (!isLoaded && !isLoading) { loadMedia(); return; }
     if (!audioEl || isLoading) return;
 
     if (isPlaying) {
@@ -148,7 +134,7 @@
         .then(() => (isPlaying = true))
         .catch((err) => {
           console.error('Erreur lecture audio :', err);
-          connectionError.set('Impossible de lire le média');
+          setConnectionError('Impossible de lire le média');
         });
     }
   }
@@ -163,28 +149,16 @@
 
   function changePlaybackRate() {
     const idx = playbackRateOptions.indexOf(currentPlaybackRate);
-    const next = (idx + 1) % playbackRateOptions.length;
-    currentPlaybackRate = playbackRateOptions[next];
+    currentPlaybackRate = playbackRateOptions[(idx + 1) % playbackRateOptions.length];
     if (audioEl) audioEl.playbackRate = currentPlaybackRate;
   }
 
   function formatTime(sec: number): string {
     return formatDuration(sec);
   }
-
-  // Fermer le lecteur lorsqu'on clique à l'extérieur du composant
-  function handleClickOutside() {
-    if (isPlaying && audioEl) {
-      audioEl.pause();
-      isPlaying = false;
-    }
-  }
 </script>
 
-<div
-  class="media-player {message.media_type}"
-  onclick={(e) => { e.stopPropagation(); handleClickOutside(); }}
->
+<div class="media-player {message.media_type}">
   {#if error}
     <div class="media-error">
       <span>❌ {error}</span>
@@ -205,7 +179,6 @@
   {:else}
     <div class="media-content">
       {#if message.media_type === 'video'}
-        <!-- Vidéo -->
         <div class="video-container">
           <video
             src={previewUrl}
@@ -220,7 +193,6 @@
           </video>
         </div>
       {:else}
-        <!-- Audio -->
         <div class="audio-controls">
           <button class="play-button" onclick={togglePlay}>
             {isPlaying ? '⏸️' : '▶️'}
@@ -254,7 +226,6 @@
         </div>
       {/if}
 
-      <!-- Infos communes -->
       <div class="media-info">
         <span class="media-type">
           {message.media_type === 'audio' ? '🎤 Message vocal' : '🎥 Message vidéo'}
@@ -280,7 +251,6 @@
     transform: translateX(2px);
   }
 
-  /* ---------- error / loading ---------- */
   .media-error,
   .media-loading {
     padding: 1rem;
@@ -300,9 +270,7 @@
     transition: background 0.2s;
   }
 
-  .retry-button:hover {
-    background: #d32f2f;
-  }
+  .retry-button:hover { background: #d32f2f; }
 
   .spinner {
     width: 24px;
@@ -314,11 +282,7 @@
     margin: 0 auto 0.5rem;
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .load-button {
     width: 100%;
@@ -331,17 +295,10 @@
     transition: all 0.2s;
   }
 
-  .load-button:hover {
-    background: var(--primary);
-    color: white;
-  }
+  .load-button:hover { background: var(--primary); color: white; }
 
-  /* ---------- content ---------- */
-  .media-content {
-    padding: 0.75rem;
-  }
+  .media-content { padding: 0.75rem; }
 
-  /* ----------- video ----------- */
   .video-container {
     position: relative;
     width: 100%;
@@ -358,7 +315,6 @@
     max-height: 300px;
   }
 
-  /* ----------- audio ----------- */
   .audio-controls {
     display: flex;
     align-items: center;
@@ -380,15 +336,9 @@
     transition: all 0.2s;
   }
 
-  .play-button:hover {
-    transform: scale(1.1);
-    background: var(--primary-dark);
-  }
+  .play-button:hover { transform: scale(1.1); background: var(--primary-dark); }
 
-  .progress-container {
-    flex: 1;
-    position: relative;
-  }
+  .progress-container { flex: 1; position: relative; }
 
   .progress-slider {
     position: absolute;
@@ -431,12 +381,8 @@
     transition: all 0.2s;
   }
 
-  .speed-button:hover {
-    background: var(--button-bg);
-    border-color: var(--primary);
-  }
+  .speed-button:hover { background: var(--button-bg); border-color: var(--primary); }
 
-  /* ---------- info ---------- */
   .media-info {
     display: flex;
     justify-content: space-between;
@@ -451,21 +397,5 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-  }
-
-  /* ---------- themes ---------- */
-  .theme-jardin-secret .media-player {
-    background: rgba(76, 175, 80, 0.05);
-    border-color: rgba(76, 175, 80, 0.3);
-  }
-
-  .theme-space-hub .media-player {
-    background: rgba(33, 150, 243, 0.05);
-    border-color: rgba(33, 150, 243, 0.3);
-  }
-
-  .theme-maison-chaleureuse .media-player {
-    background: rgba(255, 152, 0, 0.05);
-    border-color: rgba(255, 152, 0, 0.3);
   }
 </style>
