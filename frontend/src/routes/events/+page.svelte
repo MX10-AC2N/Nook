@@ -105,9 +105,9 @@
          --------------------------------------------------------------- -->
     <div class="flex items-center gap-5 mb-10">
       <div class="text-6xl animate-float">
-        {#if $currentTheme === 'jardin-secret'}
+        {#if getCurrentTheme === 'jardin-secret'}
           🌸
-        {:else if $currentTheme === 'space-hub'}
+        {:else if getCurrentTheme === 'space-hub'}
           🌌
         {:else}
           🎉
