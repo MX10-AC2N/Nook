@@ -1,142 +1,118 @@
 // src/lib/authStore.svelte.js
-// Store d'authentification — Svelte 5 runes
-// Pattern : classe avec $state + exports de compatibilité pour tout le projet
+// Store d'authentification — Svelte 5 runes (pattern propre)
+//
+// ✅ Règles d'usage dans les composants :
+//   import { authStore } from '$lib/authStore.svelte.js';
+//
+//   authStore.user          → utilisateur courant (réactif)
+//   authStore.isAuthenticated → boolean (réactif)
+//   authStore.isAdmin       → boolean (réactif)
+//   authStore.loading       → boolean (réactif)
+//
+//   authStore.login(user, token)
+//   authStore.logout()
+//   authStore.updateUser({ name: '...' })
+//   await authStore.init()
 
 import { browser } from '$app/environment';
 
 // =====================================================================
-// CLASSE AuthStore — état réactif principal
+// CLASSE AuthStore — source unique de vérité
 // =====================================================================
 class AuthStore {
-  user = $state(null);
-  token = $state(null);
+  // --- État réactif ---
+  user    = $state(null);
+  token   = $state(null);
+  loading = $state(true);
 
-  isAuthenticated = $derived(this.user !== null && this.token !== null);
-  isAdmin = $derived(this.user?.role === 'admin');
-  authHeaders = $derived(
+  // --- Dérivés réactifs ---
+  isAuthenticated  = $derived(this.user !== null && this.token !== null);
+  isAdmin          = $derived(this.user?.role === 'admin');
+  needsPasswordChange = $derived(this.user?.needs_password_change ?? false);
+  authHeaders      = $derived(
     this.token ? { Authorization: `Bearer ${this.token}` } : {}
   );
 
   constructor() {
     if (!browser) return;
     try {
-      const savedUser = localStorage.getItem('nook_user');
+      const savedUser  = localStorage.getItem('nook_user');
       const savedToken = localStorage.getItem('nook_token');
-      if (savedUser) this.user = JSON.parse(savedUser);
+      if (savedUser)  this.user  = JSON.parse(savedUser);
       if (savedToken) this.token = savedToken;
     } catch (e) {
       console.error('[AuthStore] Erreur lecture localStorage :', e);
     }
   }
 
+  // ------------------------------------------------------------------
+  // login — appelé après authentification réussie
+  // ------------------------------------------------------------------
   login(userData, token) {
-    this.user = userData;
+    this.user  = userData;
     this.token = token;
     if (browser) {
-      localStorage.setItem('nook_user', JSON.stringify(userData));
+      localStorage.setItem('nook_user',  JSON.stringify(userData));
       localStorage.setItem('nook_token', token);
     }
   }
 
+  // ------------------------------------------------------------------
+  // logout — nettoyage complet
+  // ------------------------------------------------------------------
   logout() {
-    this.user = null;
+    this.user  = null;
     this.token = null;
     if (browser) {
       localStorage.removeItem('nook_user');
       localStorage.removeItem('nook_token');
     }
   }
-}
 
-// =====================================================================
-// SINGLETON exporté
-// =====================================================================
-export const authStore = new AuthStore();
-
-// =====================================================================
-// ÉTAT DE CHARGEMENT (init async au mount)
-// =====================================================================
-export const authLoading = $state({ value: true });
-// =====================================================================
-// EXPORTS DE COMPATIBILITÉ
-// Tous les fichiers du projet importent ces noms directement.
-// Ce sont des getters réactifs vers l'instance authStore.
-// =====================================================================
-
-/**
- * Utilisateur courant (null si déconnecté).
- * Usage : authUser?.id, authUser?.name, authUser?.role
- */
-export function authUser() {
-  return authStore.user;
-}
-
-/**
- * true si l'utilisateur est connecté et a un token valide.
- */
-export function isAuthenticated() {
-  return authStore.isAuthenticated;
-}
-
-/**
- * true si l'utilisateur a le rôle 'admin'.
- */
-export function isAdmin() {
-  return authStore.isAdmin;
-}
-
-/**
- * true si le compte nécessite un changement de mot de passe (premier login admin).
- */
-export function needsPasswordChange() {
-  return authStore.user?.needs_password_change ?? false;
-}
-
-/**
- * Mise à jour de l'état auth après login réussi.
- * Appelé dans login/+page.svelte après retour API.
- */
-export function setAuthenticated(userData, _isAdminFlag) {
-  authStore.login(userData, userData.token ?? crypto.randomUUID());
-}
-
-// =====================================================================
-// INITIALISATION — vérifier la session côté serveur au démarrage
-// Doit être appelé dans onMount du layout principal.
-// =====================================================================
-export async function initAuth() {
-  authLoading.value = true;
-  try {
-    const resp = await fetch('/api/auth/me', { credentials: 'include' });
-    if (!resp.ok) {
-      authStore.logout();
-      return;
+  // ------------------------------------------------------------------
+  // updateUser — mise à jour partielle du profil sans re-login
+  // ------------------------------------------------------------------
+  updateUser(partial) {
+    if (!this.user) return;
+    this.user = { ...this.user, ...partial };
+    if (browser) {
+      localStorage.setItem('nook_user', JSON.stringify(this.user));
     }
-    const data = await resp.json();
-    if (data.authenticated && data.user) {
-      authStore.user = data.user;
-    } else {
-      authStore.logout();
+  }
+
+  // ------------------------------------------------------------------
+  // init — vérification de session côté serveur (appelé dans layout)
+  // ------------------------------------------------------------------
+  async init() {
+    this.loading = true;
+    try {
+      const resp = await fetch('/api/auth/me', { credentials: 'include' });
+      if (!resp.ok) {
+        this.logout();
+        return;
+      }
+      const data = await resp.json();
+      if (data.authenticated && data.user) {
+        // On conserve le token existant s'il n'en arrive pas un nouveau
+        this.user  = data.user;
+        this.token = data.token ?? this.token ?? crypto.randomUUID();
+        if (browser) {
+          localStorage.setItem('nook_user',  JSON.stringify(this.user));
+          localStorage.setItem('nook_token', this.token);
+        }
+      } else {
+        this.logout();
+      }
+    } catch (e) {
+      console.error('[AuthStore] init error :', e);
+      this.logout();
+    } finally {
+      this.loading = false;
     }
-  } catch (e) {
-    console.error('[AuthStore] initAuth error :', e);
-    authStore.logout();
-  } finally {
-    authLoading.value = false;
   }
 }
 
 // =====================================================================
-// HELPERS (accesseurs fonctionnels — compatibilité anciens usages)
+// SINGLETON — une seule instance pour toute l'application
 // =====================================================================
-export function getIsAuthenticated() {
-  return authStore.isAuthenticated;
-}
-
-export function getAuthHeaders() {
-  return authStore.authHeaders;
-}
-
-export function getCurrentUser() {
-  return authStore.user;
-}
+export const authStore = new AuthStore();
