@@ -4,7 +4,7 @@
   // -----------------------------------------------------------------
   import {
     availableThemes,
-    currentTheme,   // état réactif exporté depuis ThemeStore.ts
+    getCurrentTheme,   // état réactif exporté depuis ThemeStore.ts
     setTheme,
     type Theme
   } from '$lib/ui/ThemeStore.svelte.ts';
@@ -15,7 +15,7 @@
   // Ouverture/fermeture du dropdown
   let isOpen = $state(false);
 
-  // Pas besoin de copier le thème : on utilise directement $currentTheme
+  // Pas besoin de copier le thème : on utilise directement getCurrentTheme
   // Si vous avez besoin d’une valeur dérivée, utilisez $derived.
   // Exemple (non obligatoire ici) :
   // let selectedTheme = $derived(() => $currentTheme);
