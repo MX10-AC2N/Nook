@@ -56,8 +56,7 @@ export const authStore = new AuthStore();
 // =====================================================================
 // ÉTAT DE CHARGEMENT (init async au mount)
 // =====================================================================
-export let authLoading = $state(true);
-
+export const authLoading = $state({ value: true });
 // =====================================================================
 // EXPORTS DE COMPATIBILITÉ
 // Tous les fichiers du projet importent ces noms directement.
@@ -106,7 +105,7 @@ export function setAuthenticated(userData, _isAdminFlag) {
 // Doit être appelé dans onMount du layout principal.
 // =====================================================================
 export async function initAuth() {
-  authLoading = true;
+  authLoading.value = true;
   try {
     const resp = await fetch('/api/auth/me', { credentials: 'include' });
     if (!resp.ok) {
@@ -123,7 +122,7 @@ export async function initAuth() {
     console.error('[AuthStore] initAuth error :', e);
     authStore.logout();
   } finally {
-    authLoading = false;
+    authLoading.value = false;
   }
 }
 
