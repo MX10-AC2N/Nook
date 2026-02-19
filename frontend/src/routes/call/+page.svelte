@@ -185,11 +185,11 @@
       <!-- HEADER -->
       <header class="call-header">
         <div class="header-theme">
-          {#if $currentTheme === 'jardin-secret'}
+          {#if getCurrentTheme === 'jardin-secret'}
             🌿 Appel Jardin Secret
-          {:else if $currentTheme === 'space-hub'}
+          {:else if getCurrentTheme === 'space-hub'}
             🚀 Appel Space Hub
-          {:else if $currentTheme === 'maison-chaleureuse'}
+          {:else if getCurrentTheme === 'maison-chaleureuse'}
             🏠 Appel Maison Chaleureuse
           {/if}
         </div>
