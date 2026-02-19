@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
+  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
 
   // -----------------------------------------------------------------
   // 1️⃣ Types & données locales
