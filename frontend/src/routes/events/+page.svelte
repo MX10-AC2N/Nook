@@ -209,9 +209,9 @@
               </div>
 
               <div class="text-4xl opacity-30">
-                {#if $currentTheme === 'jardin-secret'}
+                {#if getCurrentTheme === 'jardin-secret'}
                   🌿
-                {:else if $currentTheme === 'space-hub'}
+                {:else if getCurrentTheme === 'space-hub'}
                   ⭐
                 {:else}
                   ❤️
