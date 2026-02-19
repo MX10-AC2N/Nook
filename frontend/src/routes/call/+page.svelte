@@ -8,7 +8,7 @@
   // Import des runes (Svelte 5)
   // -----------------------------------------------------------------
   import { isAuthenticated } from '$lib/authStore.svelte.js';
-  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
+  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import {
     startGroupCall,
     endCurrentCall,
