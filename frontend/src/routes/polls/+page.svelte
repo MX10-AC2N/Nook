@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
+  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
 
   interface Poll {
     id: number;
@@ -81,9 +81,9 @@
     <!-- Header thématique -->
     <div class="flex items-center gap-5 mb-10">
       <div class="text-6xl animate-float">
-        {#if $currentTheme === 'jardin-secret'}
+        {#if getCurrentTheme === 'jardin-secret'}
           🗳️
-        {:else if $currentTheme === 'space-hub'}
+        {:else if getCurrentTheme === 'space-hub'}
           🪐
         {:else}
           📊
