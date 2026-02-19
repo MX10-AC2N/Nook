@@ -1,31 +1,91 @@
 /**
- * Store et actions liées aux conversations (Svelte 5 avec runes).
+ * Store et actions liées aux conversations — Svelte 5 runes.
  *
- * - Chargement des conversations, participants et utilisateurs disponibles.
- * - Création / mise à jour / suppression de conversations.
- * - Gestion des participants (ajout, départ, lecture des messages).
- * - Variables dérivées utiles pour l'UI (conversation active, tri, affichage du nom).
- * - Intégration d'un WebSocket simple pour recevoir les nouveaux messages.
- *
- * Toutes les fonctions sont typées, les erreurs sont capturées et le code
- * fonctionne correctement côté client (`browser`).  
+ * Pattern : objet $state unique (jamais de let $state exporté réassignable).
+ * Les exports nommés (activeConversationId, participants) sont des fonctions
+ * getters pour assurer la compatibilité avec le code existant.
  */
 
 import { browser } from '$app/environment';
-import { authUser, isAuthenticated } from './authStore.svelte.js';
-import { connectionError } from './chatStore.svelte.ts';
+import { authStore } from './authStore.svelte.js';
+import { setConnectionError } from './chatStore.svelte.js';
 import type { Conversation, Participant, Message } from './types';
 
 // -----------------------------------------------------------------
-// 1️⃣ États réactifs (Svelte 5)
+// 1️⃣ Interface et état réactif principal
 // -----------------------------------------------------------------
-export let conversations = $state<Conversation[]>([]);
-export let activeConversationId = $state<string | null>(null);
-export let participants = $state<Participant[]>([]);
-export let availableUsers = $state<Participant[]>([]);
+export interface ConversationState {
+  conversations: Conversation[];
+  activeConversationId: string | null;
+  participants: Participant[];
+  availableUsers: Participant[];
+}
+
+function createInitialState(): ConversationState {
+  return {
+    conversations: [],
+    activeConversationId: null,
+    participants: [],
+    availableUsers: [],
+  };
+}
+
+/**
+ * État principal — objet $state muté directement, jamais réassigné.
+ * C'est la seule façon valide d'exporter du state réactif en Svelte 5.
+ */
+export const conversationStore = $state<ConversationState>(createInitialState());
 
 // -----------------------------------------------------------------
-// 2️⃣ Chargement des données depuis le backend
+// 2️⃣ Accesseurs nommés (compatibilité avec imports existants)
+// Les composants qui font `import { activeConversationId } from '...'`
+// peuvent appeler activeConversationId() pour lire la valeur réactive.
+// -----------------------------------------------------------------
+
+/** Retourne l'ID de la conversation active. */
+export function getActiveConversationId(): string | null {
+  return conversationStore.activeConversationId;
+}
+
+/** Retourne les conversations chargées. */
+export function getConversations(): Conversation[] {
+  return conversationStore.conversations;
+}
+
+/** Retourne les participants de la conversation active. */
+export function getParticipants(): Participant[] {
+  return conversationStore.participants;
+}
+
+/** Retourne les utilisateurs disponibles pour créer une conversation. */
+export function getAvailableUsers(): Participant[] {
+  return conversationStore.availableUsers;
+}
+
+/**
+ * Accesseurs compatibles avec l'ancien pattern `get(activeConversationId)`.
+ * MediaRecorder.svelte fait `get(activeConversationId)` — on expose un objet
+ * qui imite un readable Svelte store (propriété .value accessible).
+ */
+export const activeConversationId = {
+  get value() { return conversationStore.activeConversationId; },
+  // Imitation subscribe pour compatibilité get() de svelte/store
+  subscribe(fn: (v: string | null) => void) {
+    fn(conversationStore.activeConversationId);
+    return () => {};
+  },
+};
+
+export const participants = {
+  get value() { return conversationStore.participants; },
+  subscribe(fn: (v: Participant[]) => void) {
+    fn(conversationStore.participants);
+    return () => {};
+  },
+};
+
+// -----------------------------------------------------------------
+// 3️⃣ Chargement des données depuis le backend
 // -----------------------------------------------------------------
 export async function loadConversations(): Promise<void> {
   try {
@@ -33,17 +93,16 @@ export async function loadConversations(): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les conversations');
 
     const data = await resp.json();
-    conversations = data.conversations ?? [];
-    connectionError.set(null);
+    conversationStore.conversations = data.conversations ?? [];
+    setConnectionError(null);
 
-    // Sélectionner automatiquement la première conversation si aucune n'est active
-    if (!activeConversationId && data.conversations?.length) {
+    if (!conversationStore.activeConversationId && data.conversations?.length) {
       const firstId = data.conversations[0].id;
-      activeConversationId = firstId;
+      conversationStore.activeConversationId = firstId;
       await loadParticipants(firstId);
     }
   } catch (err) {
-    connectionError.set('Erreur de chargement des conversations');
+    setConnectionError('Erreur de chargement des conversations');
     console.error('Erreur chargement conversations :', err);
   }
 }
@@ -57,32 +116,30 @@ export async function loadParticipants(conversationId: string): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les participants');
 
     const data = await resp.json();
-    participants = data.participants ?? [];
-    connectionError.set(null);
+    conversationStore.participants = data.participants ?? [];
+    setConnectionError(null);
   } catch (err) {
-    connectionError.set('Erreur de chargement des participants');
+    setConnectionError('Erreur de chargement des participants');
     console.error('Erreur chargement participants :', err);
   }
 }
 
 export async function loadAvailableUsers(): Promise<void> {
   try {
-    const resp = await fetch('/api/users/available', {
-      credentials: 'include',
-    });
+    const resp = await fetch('/api/users/available', { credentials: 'include' });
     if (!resp.ok) throw new Error('Impossible de charger les utilisateurs disponibles');
 
     const data = await resp.json();
-    availableUsers = data.users ?? [];
-    connectionError.set(null);
+    conversationStore.availableUsers = data.users ?? [];
+    setConnectionError(null);
   } catch (err) {
-    connectionError.set('Erreur de chargement des utilisateurs');
+    setConnectionError('Erreur de chargement des utilisateurs');
     console.error('Erreur chargement utilisateurs :', err);
   }
 }
 
 // -----------------------------------------------------------------
-// 3️⃣ Actions sur les conversations
+// 4️⃣ Actions sur les conversations
 // -----------------------------------------------------------------
 export async function createConversation(
   name: string | null,
@@ -94,11 +151,7 @@ export async function createConversation(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({
-        name,
-        participant_ids: participantIds,
-        is_group: isGroup,
-      }),
+      body: JSON.stringify({ name, participant_ids: participantIds, is_group: isGroup }),
     });
 
     if (!resp.ok) {
@@ -109,22 +162,22 @@ export async function createConversation(
     const data = await resp.json();
     const newConv: Conversation = data.conversation;
 
-    // Mettre à jour l'état local
-    const exists = conversations.some((c) => c.id === newConv.id);
+    const exists = conversationStore.conversations.some((c) => c.id === newConv.id);
     if (exists) {
-      conversations = conversations.map((c) => (c.id === newConv.id ? newConv : c));
+      conversationStore.conversations = conversationStore.conversations.map((c) =>
+        c.id === newConv.id ? newConv : c
+      );
     } else {
-      conversations = [...conversations, newConv];
+      conversationStore.conversations = [...conversationStore.conversations, newConv];
     }
 
-    // Sélectionner la nouvelle conversation
-    activeConversationId = newConv.id;
+    conversationStore.activeConversationId = newConv.id;
     await loadParticipants(newConv.id);
-    connectionError.set(null);
+    setConnectionError(null);
     return newConv;
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-    connectionError.set(msg);
+    setConnectionError(msg);
     console.error('Erreur création conversation :', err);
     throw err;
   }
@@ -141,15 +194,13 @@ export async function addParticipantToConversation(
       credentials: 'include',
       body: JSON.stringify({ user_id: userId }),
     });
-
     if (!resp.ok) throw new Error("Erreur lors de l'ajout du participant");
 
-    // Recharger la liste des participants
     await loadParticipants(conversationId);
-    connectionError.set(null);
+    setConnectionError(null);
   } catch (err) {
-    connectionError.set("Erreur lors de l'ajout du participant");
-    console.error("Erreur ajout participant :", err);
+    setConnectionError("Erreur lors de l'ajout du participant");
+    console.error('Erreur ajout participant :', err);
   }
 }
 
@@ -159,22 +210,22 @@ export async function leaveConversation(conversationId: string): Promise<void> {
       method: 'POST',
       credentials: 'include',
     });
-
     if (!resp.ok) throw new Error('Erreur lors du départ de la conversation');
 
-    // Retirer la conversation de l'état
-    conversations = conversations.filter((c) => c.id !== conversationId);
+    conversationStore.conversations = conversationStore.conversations.filter(
+      (c) => c.id !== conversationId
+    );
 
-    // Si c'était la conversation active, choisir une autre
-    if (activeConversationId === conversationId) {
-      const newActive = conversations.length ? conversations[0].id : null;
-      activeConversationId = newActive;
+    if (conversationStore.activeConversationId === conversationId) {
+      const newActive = conversationStore.conversations.length
+        ? conversationStore.conversations[0].id
+        : null;
+      conversationStore.activeConversationId = newActive;
       if (newActive) await loadParticipants(newActive);
     }
-
-    connectionError.set(null);
+    setConnectionError(null);
   } catch (err) {
-    connectionError.set('Erreur lors du départ de la conversation');
+    setConnectionError('Erreur lors du départ de la conversation');
     console.error('Erreur départ conversation :', err);
   }
 }
@@ -185,41 +236,35 @@ export async function deleteConversation(conversationId: string): Promise<void> 
       method: 'DELETE',
       credentials: 'include',
     });
-
     if (!resp.ok) throw new Error('Erreur lors de la suppression de la conversation');
 
-    // Retirer de l'état
-    conversations = conversations.filter((c) => c.id !== conversationId);
+    conversationStore.conversations = conversationStore.conversations.filter(
+      (c) => c.id !== conversationId
+    );
 
-    // Gestion de l'active
-    if (activeConversationId === conversationId) {
-      const newActive = conversations.length ? conversations[0].id : null;
-      activeConversationId = newActive;
+    if (conversationStore.activeConversationId === conversationId) {
+      const newActive = conversationStore.conversations.length
+        ? conversationStore.conversations[0].id
+        : null;
+      conversationStore.activeConversationId = newActive;
       if (newActive) await loadParticipants(newActive);
     }
-
-    connectionError.set(null);
+    setConnectionError(null);
   } catch (err) {
-    connectionError.set('Erreur lors de la suppression de la conversation');
+    setConnectionError('Erreur lors de la suppression de la conversation');
     console.error('Erreur suppression conversation :', err);
   }
 }
 
-/**
- * Marque les messages d'une conversation comme lus côté serveur
- * et met à jour le compteur `unread_count` localement.
- */
 export async function markMessagesAsRead(conversationId: string): Promise<void> {
   try {
     const resp = await fetch(`/api/conversations/${conversationId}/read`, {
       method: 'POST',
       credentials: 'include',
     });
-
     if (!resp.ok) throw new Error('Erreur lors du marquage comme lu');
 
-    // Mettre à jour le compteur localement
-    conversations = conversations.map((c) => 
+    conversationStore.conversations = conversationStore.conversations.map((c) =>
       c.id === conversationId ? { ...c, unread_count: 0 } : c
     );
   } catch (err) {
@@ -228,95 +273,72 @@ export async function markMessagesAsRead(conversationId: string): Promise<void> 
 }
 
 // -----------------------------------------------------------------
-// 4️⃣ Variables dérivées (pratiques pour l'UI - Svelte 5)
+// 5️⃣ Getters dérivés (fonctions pures — pas de $derived en module)
 // -----------------------------------------------------------------
-export const activeConversation = $derived(() => 
-  conversations.find((c) => c.id === activeConversationId) ?? null
-);
+export function getActiveConversation(): Conversation | null {
+  return (
+    conversationStore.conversations.find(
+      (c) => c.id === conversationStore.activeConversationId
+    ) ?? null
+  );
+}
 
-export const sortedConversations = $derived(() => {
-  return [...conversations].sort((a, b) => {
-    // Priorité aux conversations avec des messages non lus
+export function getSortedConversations(): Conversation[] {
+  return [...conversationStore.conversations].sort((a, b) => {
     if (a.unread_count > 0 && b.unread_count === 0) return -1;
     if (a.unread_count === 0 && b.unread_count > 0) return 1;
-    // Sinon, trier par date du dernier message (descendant)
     return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime();
   });
-});
+}
 
-export const conversationDisplayName = $derived(() => {
-  if (!activeConversation) return 'Nouvelle conversation';
+export function getConversationDisplayName(): string {
+  const activeConv = getActiveConversation();
+  if (!activeConv) return 'Nouvelle conversation';
 
-  if (!activeConversation.is_group) {
-    // 1‑to‑1 : afficher le nom de l'autre participant
-    const other = participants.find((p) => p.id !== authUser?.id);
+  if (!activeConv.is_group) {
+    const other = conversationStore.participants.find(
+      (p) => p.id !== authStore.user?.id
+    );
     return other?.name ?? 'Utilisateur inconnu';
   }
-
-  // Groupe : afficher le nom ou un libellé par défaut
-  return activeConversation.name ?? 'Groupe sans nom';
-});
+  return activeConv.name ?? 'Groupe sans nom';
+}
 
 // -----------------------------------------------------------------
-// 5️⃣ Utilitaires
+// 6️⃣ Utilitaires
 // -----------------------------------------------------------------
-/**
- * Génère un identifiant de conversation unique basé sur les participants.
- * L'ordre des IDs n'influence pas le résultat (tri préalable).
- */
 export function generateConversationId(participantIds: string[]): string {
   const sorted = [...participantIds].sort();
   return `conv_${sorted.join('_')}_${Date.now()}`;
 }
 
-// -----------------------------------------------------------------
-// 6️⃣ Initialisation & réaction à l'authentification (Svelte 5)
-// -----------------------------------------------------------------
-async function initConversations(): Promise<void> {
-  if (authUser) {
-    await loadConversations();
-    await loadAvailableUsers();
-  }
+export function setActiveConversation(id: string | null): void {
+  conversationStore.activeConversationId = id;
 }
 
-// Réagir aux changements d'état d'authentification
-// En Svelte 5, nous pouvons utiliser un effet pour cela
-// Mais dans un module, nous ne pouvons pas utiliser $effect directement
-// Nous allons donc exposer une fonction d'initialisation que les composants appelleront
-let initialized = false;
+export function resetConversationStore(): void {
+  Object.assign(conversationStore, createInitialState());
+}
 
-/**
- * Initialise le store de conversations. Doit être appelé dans onMount d'un composant.
- */
+// -----------------------------------------------------------------
+// 7️⃣ Initialisation
+// -----------------------------------------------------------------
 export async function initConversationStore(): Promise<void> {
-  if (initialized || !browser) return;
-  initialized = true;
-
-  // Initialisation au démarrage
-  if (isAuthenticated) {
-    await initConversations();
-  }
-
-  // Surveiller les changements d'authentification
-  // En Svelte 5, nous pourrions utiliser un effet, mais ici nous utilisons une approche plus simple
-  // Les composants peuvent réagir à `isAuthenticated` directement
+  if (!browser || !authStore.isAuthenticated) return;
+  await loadConversations();
+  await loadAvailableUsers();
 }
 
 // -----------------------------------------------------------------
-// 7️⃣ WebSocket pour les nouveaux messages (client‑side only)
+// 8️⃣ WebSocket pour les nouveaux messages
 // -----------------------------------------------------------------
 let ws: WebSocket | null = null;
 
-/**
- * Initialise le WebSocket qui écoute les nouveaux messages.
- * Retourne une fonction de nettoyage à appeler lors du `onDestroy`.
- */
 export function setupMessageWebSocket(): () => void {
   if (!browser) return () => {};
 
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const url = `${protocol}://${window.location.host}/ws/messages`;
-
   ws = new WebSocket(url);
 
   ws.onmessage = (event) => {
@@ -326,11 +348,9 @@ export function setupMessageWebSocket(): () => void {
 
       const msg: Message = data.message;
 
-      // Mettre à jour la conversation concernée
-      conversations = conversations.map((conv) => {
+      conversationStore.conversations = conversationStore.conversations.map((conv) => {
         if (conv.id !== msg.conversation_id) return conv;
-
-        const isActive = activeConversationId === conv.id;
+        const isActive = conversationStore.activeConversationId === conv.id;
         return {
           ...conv,
           last_message_at: msg.timestamp,
@@ -339,10 +359,7 @@ export function setupMessageWebSocket(): () => void {
         };
       });
 
-      // Si c'est la conversation active, rafraîchir les messages
-      if (msg.conversation_id === activeConversationId) {
-        // La fonction `loadMessages` se trouve dans `chatStore.ts`
-        // Nous l'importons dynamiquement pour éviter les cycles d'import.
+      if (msg.conversation_id === conversationStore.activeConversationId) {
         import('./chatStore').then(({ loadMessages }) => {
           loadMessages(msg.conversation_id).catch(console.error);
         });
@@ -352,26 +369,13 @@ export function setupMessageWebSocket(): () => void {
     }
   };
 
-  ws.onerror = (e) => {
-    console.error('WebSocket error :', e);
-  };
+  ws.onerror = (e) => console.error('WebSocket error :', e);
+  ws.onclose = () => { ws = null; };
 
-  ws.onclose = () => {
-    ws = null;
-    console.log('WebSocket closed');
-  };
-
-  // Fonction de nettoyage
-  return () => {
-    if (ws) ws.close();
-    ws = null;
-  };
+  return () => { if (ws) ws.close(); ws = null; };
 }
 
-// -----------------------------------------------------------------
-// 8️⃣ Initialisation au chargement du module (client‑side only)
-// -----------------------------------------------------------------
-if (browser && isAuthenticated) {
-  // Initialisation automatique si déjà authentifié
-  initConversations().catch(console.error);
+// Auto-init si déjà authentifié au chargement du module
+if (browser && authStore.isAuthenticated) {
+  initConversationStore().catch(console.error);
 }
