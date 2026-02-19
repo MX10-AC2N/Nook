@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
   import ThemeSwitcher from '$lib/ui/ThemeSwitcher.svelte';
-  import { currentTheme } from '$lib/ui/ThemeStore.svelte.ts';
+  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import { generateKeyPair, storePendingKeys } from '$lib/crypto';
 
   let token = $state('');
@@ -91,12 +91,12 @@
   <title>Rejoindre Nook</title>
 </svelte:head>
 
-<div class="page-container theme-{$currentTheme}">
+<div class="page-container theme-{getCurrentTheme}">
   <div class="card">
     <div class="theme-icon">
-      {#if $currentTheme === 'jardin-secret'}
+      {#if getCurrentTheme === 'jardin-secret'}
         🌿
-      {:else if $currentTheme === 'space-hub'}
+      {:else if getCurrentTheme === 'space-hub'}
         🚀
       {:else}
         🏠
