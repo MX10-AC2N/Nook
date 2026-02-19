@@ -56,7 +56,7 @@
   <div class="max-w-lg w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-10 text-center transition-all duration-1000 animate-fade-in">
     
     <div class="text-7xl mb-6 animate-bounce-slow">
-      {#if $currentTheme === 'space-hub'}
+      {#if getCurrentTheme === 'space-hub'}
         📊
       {:else}
         📈
