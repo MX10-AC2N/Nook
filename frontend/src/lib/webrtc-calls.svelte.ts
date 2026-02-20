@@ -51,7 +51,6 @@ class WebRTCCallManager {
   private conversationId: string = '';
   private userId: string = '';
 
-  constructor() {
     // userId est un getter réactif — toujours synchronisé avec authStore
   private get userId(): string {
     return authStore.user?.id ?? 'anonymous';
