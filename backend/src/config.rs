@@ -1,3 +1,4 @@
+// backend/src/config.rs
 use std::env;
 
 #[derive(Clone)]
@@ -6,6 +7,7 @@ pub struct Config {
     pub database_url: String,
     pub static_dir: String,
     pub uploads_dir: String,
+    pub public_site_url: String,   // pour le <base> et WebRTC
 }
 
 impl Config {
@@ -26,6 +28,9 @@ impl Config {
 
             uploads_dir: env::var("UPLOADS_DIR")
                 .unwrap_or_else(|_| "/app/data/uploads".to_string()),
+
+            public_site_url: env::var("PUBLIC_SITE_URL")
+                .unwrap_or_else(|_| "http://localhost:6300".to_string()),
         }
     }
 }
