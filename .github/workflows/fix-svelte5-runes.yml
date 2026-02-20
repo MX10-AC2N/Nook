@@ -2,11 +2,6 @@ name: 🧹 Purify Frontend for Svelte 5
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - develop
-    paths:
-      - 'frontend/**'
 
 env:
   NODE_VERSION: 20
