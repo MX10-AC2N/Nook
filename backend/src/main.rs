@@ -1,4 +1,4 @@
-// main.rs – Version corrigée (double merge supprimé, ordre Axum propre, middleware intégré)
+// main.rs – Version stable (middleware auth global désactivé temporairement)
 
 use axum::{
     body::{to_bytes, Body},
@@ -37,7 +37,7 @@ use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// SharedState (pub pour le middleware)
+// SharedState
 // ---------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SharedState {
@@ -47,7 +47,7 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// Middleware base inject (exactement ton code original)
+// Middleware base inject (ton code original à l'identique)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     Host(host): Host,
@@ -142,7 +142,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 }
 
 // ---------------------------------------------------------------------
-// MAIN – VERSION QUI COMPILE
+// MAIN – VERSION STABLE
 // ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -165,9 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let webrtc_state = WebRtcState::new();
 
     let fm_clone = (*file_manager).clone();
-    tokio::spawn(async move {
-        fm_clone.start_cleanup_task().await;
-    });
+    tokio::spawn(async move { fm_clone.start_cleanup_task().await; });
 
     let pool_clone = pool.clone();
     tokio::spawn(async move {
@@ -185,20 +183,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager,
     });
 
-    // Routes publiques (pas de protection)
-    let public_routes = Router::new()
+    // Toutes les routes (comme dans ton original)
+    let api_router = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
-        .route("/join", post(invites::join))
-        .route("/invite/validate", get(invites::validate_invite))
-        .route("/generate-invite", post(invites::generate_invite))
-        .route("/health", get(|| async { "OK" }));
-
-    // Routes protégées (avec middleware auth global)
-    let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
+        .route("/join", post(invites::join))
+        .route("/invite/validate", get(invites::validate_invite))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
@@ -211,25 +204,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/all-users-json", get(admin::all_users))
         .route("/approve", post(admin::approve_user))
         .route("/list-invites", get(admin::list_invites))
+        .route("/generate-invite", post(invites::generate_invite))
         .route("/delete-invite", post(admin::delete_invite))
-        .layer(middleware::from_fn_with_state(
-            shared_state.clone(),
-            auth::require_auth,
-        ));
-
-    let api_router = Router::new()
-        .merge(public_routes)
-        .merge(protected_routes);
+        .route("/health", get(|| async { "OK" }));
 
     let static_path = "/app/static";
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
+
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(format!("{}/index.html", static_path)));
+        .fallback(ServeFile::new(format!("{static_path}/index.html")));
 
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
-        .merge(webrtc::webrtc_routes())   // ← WS à la racine UNIQUEMENT ici
+        .merge(webrtc::webrtc_routes())           // WS + signaling à la racine (cohérence frontend)
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
@@ -240,10 +229,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .allow_headers(Any)
                 .allow_credentials(true),
         )
-        .with_state(shared_state);
+        .with_state(shared_state);   // ← state sur le router final
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    eprintln!("[Serveur] Nook démarré sur http://{}", addr);
+    eprintln!("[Serveur] Nook démarré → http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
