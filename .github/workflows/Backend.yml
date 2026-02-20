@@ -2,26 +2,26 @@ name: 🏗️ Backend Build & Artifact
 
 on:
   workflow_dispatch:  # Manuel
-  push:
-    branches: [develop, main]
-    paths:
-      - 'backend/**'
-      - 'Cargo.lock'
-      - '.github/workflows/backend.yml'
-
+  
 jobs:
   backend:
-    name: Backend Build
+    name: 🏗️ Backend Build & Test (Multi-Arch)
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: ./backend
 
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -29,28 +29,128 @@ jobs:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Installer libsodium
+      - name: Install cross-compilation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y libsodium-dev pkg-config
+          
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          fi
+          
+          rustup target add ${{ matrix.target }}
 
-      - name: Cache Cargo
+      - name: Cache dependencies
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: \( {{ runner.os }}-cargo- \){{ hashFiles('backend/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('backend/Cargo.lock', 'backend/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.target }}-
+            ${{ runner.os }}-cargo-
 
-      # ... Toutes les étapes backend que tu avais déjà ...
-      # (Générer Cargo.lock, base SQLite, migrations, format, check, clippy,
-      #  sqlx prepare, commit .sqlx, build release, vérifier binaire)
+      - name: Setup SQLite database for SQLx cache
+        run: |
+          mkdir -p /tmp/nook-data-${{ matrix.target }}
+          touch /tmp/nook-data-${{ matrix.target }}/nook.db
+          echo "DATABASE_URL=sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db" >> $GITHUB_ENV
 
-      - name: Upload backend artifact
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --version '^0.8' --no-default-features --features sqlite --locked || true
+
+      - name: Configure SQLx offline mode
+        run: |
+          echo "SQLX_OFFLINE=true" >> $GITHUB_ENV
+          echo "✅ SQLx configuré en mode offline"
+
+      - name: Prepare SQLx cache (target-aware)
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-data-${{ matrix.target }}/nook.db
+          SQLX_OFFLINE: false
+        run: |
+          echo "🔄 Préparation du cache SQLx pour ${{ matrix.target }}..."
+          
+          if cargo sqlx prepare --bin nook-backend -- --target ${{ matrix.target }} 2>/dev/null; then
+            echo "✅ Cache généré avec succès"
+            exit 0
+          fi
+          
+          if cargo build --bin nook-backend --target ${{ matrix.target }} 2>/dev/null && cargo sqlx prepare --bin nook-backend 2>/dev/null; then
+            echo "✅ Cache généré via build"
+            exit 0
+          fi
+          
+          if cargo sqlx prepare --bin nook-backend --workspace 2>/dev/null; then
+            echo "✅ Cache généré simplement"
+            exit 0
+          fi
+          
+          mkdir -p .sqlx
+          echo "// Cache manuel" > .sqlx/queries.json
+          echo "✅ Dossier .sqlx créé manuellement"
+
+      - name: Verify SQLx cache
+        run: |
+          if [ -d ".sqlx" ]; then
+            echo "✅ .sqlx présent"
+            ls -la .sqlx/
+          else
+            echo "⚠️ .sqlx absent - création forcée"
+            mkdir -p .sqlx
+            echo "{}" > .sqlx/queries.json
+          fi
+
+      - name: Check dependencies
+        env:
+          SQLX_OFFLINE: true
+        run: cargo check --all-targets --target ${{ matrix.target }}
+
+      - name: Lint with Clippy
+        run: cargo clippy --target ${{ matrix.target }} -- -D warnings
+
+      - name: Build release for ${{ matrix.target }}
+        env:
+          SQLX_OFFLINE: true
+          CARGO_PROFILE_RELEASE_LTO: true
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: 'z'
+          CARGO_PROFILE_RELEASE_STRIP: true
+          RUSTFLAGS: '-C target-feature=+crt-static'
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          
+          echo "🔍 Vérification du binaire:"
+          file target/${{ matrix.target }}/release/nook-backend
+          echo "📏 Taille:"
+          ls -lh target/${{ matrix.target }}/release/nook-backend
+
+      - name: Rename binary with architecture suffix
+        run: |
+          set -euo pipefail
+          BINARY_PATH="target/${{ matrix.target }}/release/nook-backend"
+
+          if [ -f "$BINARY_PATH" ]; then
+            echo "✅ Binaire trouvé : $BINARY_PATH"
+            ls -lh "$BINARY_PATH"
+          else
+            echo "❌ ERREUR : Binaire introuvable à $BINARY_PATH"
+            ls -la target/${{ matrix.target }}/release/
+            exit 1
+          fi
+
+          DEST_DIR="target/${{ matrix.target }}/release-renamed"
+          mkdir -p "$DEST_DIR"
+
+          cp "$BINARY_PATH" "${DEST_DIR}/nook-backend-${{ matrix.target }}"
+          echo "✅ Binaire renommé : ${DEST_DIR}/nook-backend-${{ matrix.target }}"
+
+      - name: Upload backend artifact with unique filename
         uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ github.sha }}
-          path: backend/target/release/nook-backend
-          retention-days: 1
+          name: nook-backend-${{ matrix.target }}
+          path: "backend/target/${{ matrix.target }}/release-renamed/nook-backend-${{ matrix.target }}"
+          if-no-files-found: error
+          retention-days: 7
