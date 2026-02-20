@@ -52,8 +52,9 @@ class WebRTCCallManager {
   private userId: string = '';
 
   constructor() {
-    // Accès direct à la rune authUser (Svelte 5)
-    this.userId = authUser?.id ?? 'anonymous';
+    // userId est un getter réactif — toujours synchronisé avec authStore
+  private get userId(): string {
+    return authStore.user?.id ?? 'anonymous';
   }
 
   // -----------------------------------------------------------------
