@@ -1,7 +1,7 @@
 name: CI - Test Nook (Backend + Frontend + Intégration)
 
 on:
-  workflows dispatch:
+  workflow_dispatch:
 
 jobs:
   # ─────────────────────────────────────────────────────────────
