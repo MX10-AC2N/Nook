@@ -1,4 +1,4 @@
-// main.rs – Version stable (middleware auth global désactivé temporairement)
+// main.rs – Version finale avec middleware auth global actif
 
 use axum::{
     body::{to_bytes, Body},
@@ -15,16 +15,13 @@ use axum::{
 use bytes::Bytes;
 use chrono::Utc;
 use sqlx::{migrate, SqlitePool};
-use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
     services::{ServeDir, ServeFile},
 };
 
-// ---------------------------------------------------------------------
-// Modules
-// ---------------------------------------------------------------------
 mod admin;
 mod auth;
 mod db;
@@ -36,9 +33,7 @@ mod webrtc;
 use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
-// ---------------------------------------------------------------------
-// SharedState
-// ---------------------------------------------------------------------
+// SharedState (pub pour le middleware)
 #[derive(Clone)]
 pub struct SharedState {
     pub db: SqlitePool,
@@ -46,9 +41,7 @@ pub struct SharedState {
     pub file_manager: Arc<FileManager>,
 }
 
-// ---------------------------------------------------------------------
-// Middleware base inject (ton code original à l'identique)
-// ---------------------------------------------------------------------
+// Middleware base inject (ton code original)
 async fn base_inject_middleware(
     Host(host): Host,
     headers: HeaderMap,
@@ -99,9 +92,7 @@ async fn base_inject_middleware(
     Ok(resp)
 }
 
-// ---------------------------------------------------------------------
-// DB + Admin initial (ton code original)
-// ---------------------------------------------------------------------
+// DB + Admin initial
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
@@ -141,9 +132,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------
-// MAIN – VERSION STABLE
-// ---------------------------------------------------------------------
+// MAIN FINAL
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
@@ -183,15 +172,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager,
     });
 
-    // Toutes les routes (comme dans ton original)
-    let api_router = Router::new()
+    // Routes publiques (pas de protection)
+    let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/join", post(invites::join))
+        .route("/invite/validate", get(invites::validate_invite))
+        .route("/generate-invite", post(invites::generate_invite))
+        .route("/health", get(|| async { "OK" }));
+
+    // Routes protégées avec middleware auth global
+    let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
-        .route("/join", post(invites::join))
-        .route("/invite/validate", get(invites::validate_invite))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
@@ -204,21 +198,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/all-users-json", get(admin::all_users))
         .route("/approve", post(admin::approve_user))
         .route("/list-invites", get(admin::list_invites))
-        .route("/generate-invite", post(invites::generate_invite))
         .route("/delete-invite", post(admin::delete_invite))
-        .route("/health", get(|| async { "OK" }));
+        .layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            auth::require_auth,
+        ));
+
+    let api_router = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes);
 
     let static_path = "/app/static";
-    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
-
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(format!("{static_path}/index.html")));
+        .fallback(ServeFile::new(format!("{}/index.html", static_path)));
 
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
-        .merge(webrtc::webrtc_routes())           // WS + signaling à la racine (cohérence frontend)
+        .merge(webrtc::webrtc_routes())   // WebRTC à la racine (cohérence frontend)
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
@@ -229,10 +227,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .allow_headers(Any)
                 .allow_credentials(true),
         )
-        .with_state(shared_state);   // ← state sur le router final
+        .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-    eprintln!("[Serveur] Nook démarré → http://{}", addr);
+    eprintln!("[Serveur] Nook démarré avec middleware auth global → http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
