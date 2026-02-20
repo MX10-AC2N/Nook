@@ -7,7 +7,7 @@
   // -----------------------------------------------------------------
   // Import des runes (Svelte 5)
   // -----------------------------------------------------------------
-  import { isAuthenticated } from '$lib/authStore.svelte.js';
+  import { authStore } from '$lib/authStore.svelte.js';
   import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import {
     startGroupCall,
@@ -57,7 +57,7 @@
   // -----------------------------------------------------------------
   onMount(async () => {
     // Rediriger si l'utilisateur n'est pas authentifié
-    if (!isAuthenticated) {
+    if (!authStore.isAuthenticated) {
       goto('/login');
       return;
     }
