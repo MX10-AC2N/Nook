@@ -1,4 +1,4 @@
-// main.rs – Point d'entrée du serveur Nook Backend (version finale propre)
+// main.rs – Version corrigée (double merge supprimé, ordre Axum propre, middleware intégré)
 
 use axum::{
     body::{to_bytes, Body},
@@ -22,9 +22,11 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 
+// ---------------------------------------------------------------------
+// Modules
+// ---------------------------------------------------------------------
 mod admin;
 mod auth;
-mod config;      // ← nouveau
 mod db;
 mod invites;
 mod prune;
@@ -33,7 +35,6 @@ mod webrtc;
 
 use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
-use config::Config;
 
 // ---------------------------------------------------------------------
 // SharedState (pub pour le middleware)
@@ -46,7 +47,7 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// Middleware base inject (inchangé)
+// Middleware base inject (exactement ton code original)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     Host(host): Host,
@@ -99,10 +100,17 @@ async fn base_inject_middleware(
 }
 
 // ---------------------------------------------------------------------
-// DB + Initial admin (adapté avec Config)
+// DB + Admin initial (ton code original)
 // ---------------------------------------------------------------------
+async fn init_db() -> Result<SqlitePool, sqlx::Error> {
+    let db_path = "sqlite:/app/data/nook.db";
+    let pool = SqlitePool::connect(db_path).await?;
+    migrate!("./migrations").run(&pool).await?;
+    eprintln!("[DB] Migrations appliquées avec succès");
+    Ok(pool)
+}
+
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    // ton code original (inchangé)
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
         .await?;
@@ -134,16 +142,14 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 }
 
 // ---------------------------------------------------------------------
-// MAIN – VERSION FINALE
+// MAIN – VERSION QUI COMPILE
 // ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
-    let config = Config::load();
-
     tokio::fs::create_dir_all("/app/data").await?;
-    tokio::fs::create_dir_all(&config.uploads_dir).await?;
+    tokio::fs::create_dir_all("/app/data/uploads").await?;
 
     let db_file_path = std::path::Path::new("/app/data/nook.db");
     if !db_file_path.exists() {
@@ -151,17 +157,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tokio::fs::File::create(db_file_path).await?;
     }
 
-    let pool = SqlitePool::connect(&config.database_url).await?;
-    migrate!("./migrations").run(&pool).await?;
-    eprintln!("[DB] Migrations appliquées avec succès");
+    let pool = init_db().await?;
     check_initial_admin(&pool).await?;
 
-    let uploads_dir = PathBuf::from(&config.uploads_dir);
+    let uploads_dir = PathBuf::from("/app/data/uploads");
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
 
     let fm_clone = (*file_manager).clone();
-    tokio::spawn(async move { fm_clone.start_cleanup_task().await; });
+    tokio::spawn(async move {
+        fm_clone.start_cleanup_task().await;
+    });
 
     let pool_clone = pool.clone();
     tokio::spawn(async move {
@@ -179,7 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager,
     });
 
-    // Routes publiques
+    // Routes publiques (pas de protection)
     let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -188,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/generate-invite", post(invites::generate_invite))
         .route("/health", get(|| async { "OK" }));
 
-    // Routes protégées (avec middleware)
+    // Routes protégées (avec middleware auth global)
     let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
@@ -213,17 +219,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let api_router = Router::new()
         .merge(public_routes)
-        .merge(protected_routes)
-        .merge(webrtc::webrtc_routes());
+        .merge(protected_routes);
 
-    let static_service = ServeDir::new(&config.static_dir)
+    let static_path = "/app/static";
+    let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
-        .fallback(ServeFile::new(format!("{}/index.html", config.static_dir)));
+        .fallback(ServeFile::new(format!("{}/index.html", static_path)));
 
     let app = Router::new()
         .nest("/api", api_router)
-        .nest_service("/files", ServeDir::new(&config.uploads_dir))
-        .merge(webrtc::webrtc_routes()) // redondant mais sûr si webrtc_routes contient /ws
+        .nest_service("/files", ServeDir::new("/app/data/uploads"))
+        .merge(webrtc::webrtc_routes())   // ← WS à la racine UNIQUEMENT ici
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
@@ -236,8 +242,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with_state(shared_state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    eprintln!("[Serveur] Nook démarré sur http://0.0.0.0:{}", config.port);
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    eprintln!("[Serveur] Nook démarré sur http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
