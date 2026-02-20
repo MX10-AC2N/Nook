@@ -2,13 +2,6 @@ name: 🧹 Check Svelte 5 (Syntaxe, Types, Build)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [develop]
-    paths:
-      - 'frontend/src/**'
-      - 'frontend/package*.json'
-      - 'frontend/tsconfig.json'
-      - 'frontend/svelte.config.js'
 
 env:
   NODE_VERSION: 20
