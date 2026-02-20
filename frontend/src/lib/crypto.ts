@@ -2,7 +2,7 @@
 // Svelte 5 – fonctions cryptographiques basées sur libsodium‑wrappers
 
 import { waitForSodium } from '$lib/sodium.svelte.js';
-import { authUser } from './authStore.svelte.js';
+
 
 /* -----------------------------------------------------------------
    Types exportés
