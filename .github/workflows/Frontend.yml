@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: '20'
 
-            - name: Check package-lock.json status
+      - name: Check package-lock.json status
         id: check-package-lock
         working-directory: ./frontend
         run: |
