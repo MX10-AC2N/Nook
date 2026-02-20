@@ -11,25 +11,32 @@ services:
     image: nook:latest
     container_name: nook
     restart: unless-stopped
+
     ports:
       - "6300:3000"
+
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
-      # - ./frontend/build:/app/static:ro   # décommente si tu build le front séparément
+      # Décommente si tu veux monter le build frontend séparément (utile en dev)
+      # - ./frontend/build:/app/static:ro
+
     env_file:
       - .env
+
     environment:
       - RUST_LOG=info
       - RUST_BACKTRACE=1
       - TZ=Europe/Paris
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://192.168.1.192:6300}
+
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 20s
+
     deploy:
       resources:
         limits:
@@ -38,6 +45,7 @@ services:
         reservations:
           cpus: "0.25"
           memory: 128M
+
     networks:
       - npm_net
       - nook-network
