@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { browser } from '$app/environment';
-  import { isAuthenticated } from '$lib/authStore.svelte.js';
+  
+  import { authStore } from '$lib/authStore.svelte.js';
 
   // -----------------------------------------------------------------
   // 1️⃣ États locaux (Svelte 5)
@@ -46,7 +46,7 @@
   // -----------------------------------------------------------------
   onMount(async () => {
     // CORRECTION : isAuthenticated sans $
-    if (!isAuthenticated) {
+    if (!authStore.isAuthenticated) {
       goto('/login');
       return;
     }
