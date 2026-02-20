@@ -395,23 +395,9 @@ pub async fn change_password(
     }
 }
 
-// =====================================================================
-// MIDDLEWARE AUTH GLOBAL
-// =====================================================================
-use axum::{
-    body::Body,
-    extract::State,
-    http::{HeaderMap, StatusCode},
-    middleware::Next,
-    response::Response,
-    Request,
-};
-use std::sync::Arc;
-use crate::SharedState;   // on va le rendre pub juste après
-
-// =====================================================================
-// MIDDLEWARE AUTH GLOBAL – VERSION PROPRE & COMPILE
-// =====================================================================
+// ==================================================
+// MIDDLEWARE AUTH GLOBAL – VERSION PROPRE & STABLE
+// ==================================================
 use axum::{
     body::Body,
     extract::State,
@@ -421,9 +407,8 @@ use axum::{
 };
 use std::sync::Arc;
 use crate::SharedState;
-use crate::db::User;   // si ton User est dans db::User, sinon ajuste
+use crate::db::User;
 
-/// Protège automatiquement toutes les routes sensibles
 pub async fn require_auth(
     State(state): State<Arc<SharedState>>,
     req: Request<Body>,
@@ -442,7 +427,7 @@ pub async fn require_auth(
                         let token = parts[1];
 
                         let user: Option<User> = sqlx::query_as(
-                            "SELECT * FROM users WHERE id = ? AND token = ? AND approved = 1"
+                            "SELECT * FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1"
                         )
                         .bind(user_id)
                         .bind(token)
