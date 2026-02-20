@@ -1,10 +1,6 @@
 name: 🤖 CI - Test Nook (Backend + Frontend + Intégration)
 
 on:
-  push:
-    branches: [ main, MX10-AC2N-patch-svelte5-runes ]
-  pull_request:
-    branches: [ main, MX10-AC2N-patch-svelte5-runes ]
   workflow_dispatch:
 
 jobs:
