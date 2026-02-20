@@ -49,9 +49,8 @@ export const callStore = $state<CallState>(createInitialState());
 class WebRTCCallManager {
   private ws: WebSocket | null = null;
   private conversationId: string = '';
-  private userId: string = '';
 
-    // userId est un getter réactif — toujours synchronisé avec authStore
+  // userId est un getter réactif — toujours synchronisé avec authStore
   private get userId(): string {
     return authStore.user?.id ?? 'anonymous';
   }
