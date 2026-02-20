@@ -1,28 +1,26 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
-  import { authStore, isAuthenticated, isAdmin, needsPasswordChange, initAuth, authLoading } from '$lib/authStore.svelte.js';
+  import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { browser } from '$app/environment';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
 
   let { children } = $props();
-  let showMenu = $state(false);
-  let appError = $state<string | null>(null);
-  let loading = $state(true);
+  let showMenu        = $state(false);
+  let appError        = $state<string | null>(null);
+  let loading         = $state(true);
   let cryptoInitialized = $state(false);
-  let cryptoError = $state<string | null>(null);
-
-  let menuElement = $state<HTMLElement | undefined>(undefined);
+  let cryptoError     = $state<string | null>(null);
+  let menuElement     = $state<HTMLElement | undefined>(undefined);
 
   const navItems = [
-    { path: '/chat',     label: '💬 Chat',           requiresAuth: true },
-    { path: '/calendar', label: '📅 Calendrier',      requiresAuth: true },
-    { path: '/admin',    label: '👑 Administration',   requiresAuth: true, requiresAdmin: true },
-    { path: '/settings', label: '⚙️ Paramètres',      requiresAuth: true },
-    { path: '/help',     label: '❓ Aide',             requiresAuth: false },
+    { path: '/chat',     label: '💬 Chat',          requiresAuth: true  },
+    { path: '/calendar', label: '📅 Calendrier',     requiresAuth: true  },
+    { path: '/admin',    label: '👑 Administration',  requiresAuth: true, requiresAdmin: true },
+    { path: '/settings', label: '⚙️ Paramètres',     requiresAuth: true  },
+    { path: '/help',     label: '❓ Aide',            requiresAuth: false },
   ];
 
   function toggleMenu() {
@@ -43,19 +41,20 @@
     goto('/login');
   }
 
+  // Redirection réactive basée sur l'état du store
   $effect(() => {
     if (loading || !cryptoInitialized) return;
 
     const pathname = $page.url.pathname;
 
-    if (needsPasswordChange.value && pathname !== '/change-password') {
+    if (authStore.needsPasswordChange && pathname !== '/change-password') {
       goto('/change-password');
       return;
     }
 
-    if (isAuthenticated.value) {
+    if (authStore.isAuthenticated) {
       if (pathname === '/' || pathname === '/login' || pathname === '/register') {
-        goto(isAdmin.value ? '/admin' : '/chat');
+        goto(authStore.isAdmin ? '/admin' : '/chat');
       }
     } else {
       const publicPaths = ['/login', '/register', '/help', '/join'];
@@ -75,7 +74,7 @@
         throw new Error('Crypto initialization failed');
       }
 
-      await initAuth();
+      await authStore.init();
 
     } catch (err) {
       console.error("Erreur d'initialisation globale :", err);
@@ -133,7 +132,7 @@
 
     <h1>🌱 Nook</h1>
 
-    {#if isAuthenticated.value}
+    {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
       <button onclick={handleLogout} class="logout-btn" aria-label="Déconnexion">🔌</button>
     {/if}
@@ -165,9 +164,9 @@
 
       <ul class="nav-list">
         {#each navItems as item}
-          {#if item.requiresAuth && !isAuthenticated.value}
+          {#if item.requiresAuth && !authStore.isAuthenticated}
             <!-- Skip -->
-          {:else if item.requiresAdmin && !isAdmin.value}
+          {:else if item.requiresAdmin && !authStore.isAdmin}
             <!-- Skip -->
           {:else}
             <li><a href={item.path} onclick={closeMenu}>{item.label}</a></li>
@@ -177,7 +176,7 @@
 
       <div class="menu-footer">
         <p class="version">Version 3.0 • SvelteKit</p>
-        {#if isAuthenticated.value}
+        {#if authStore.isAuthenticated}
           <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
             🔌 Déconnexion
           </button>
