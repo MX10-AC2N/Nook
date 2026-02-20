@@ -395,4 +395,52 @@ pub async fn change_password(
     }
 }
 
+// =====================================================================
+// MIDDLEWARE AUTH GLOBAL
+// =====================================================================
+use axum::{
+    body::Body,
+    extract::State,
+    http::{HeaderMap, StatusCode},
+    middleware::Next,
+    response::Response,
+    Request,
+};
+use std::sync::Arc;
+use crate::SharedState;   // on va le rendre pub juste après
+
+/// Middleware qui protège toutes les routes sensibles
+pub async fn require_auth(
+    State(state): State<Arc<SharedState>>,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let headers = req.headers();
+
+    if let Some(cookie) = get_cookie(headers, "auth_token") {
+        let parts: Vec<&str> = cookie.split(':').collect();
+        if parts.len() == 2 {
+            let user_id = parts[0];
+            let token = parts[1];
+
+            // Même requête que dans ton me()
+            let user: Option<crate::db::User> = sqlx::query_as(
+                "SELECT * FROM users WHERE id = ? AND token = ? AND approved = 1"
+            )
+            .bind(user_id)
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+            if user.is_some() {
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
+    Err(StatusCode::UNAUTHORIZED)
+}
+
 // Tu peux garder les handlers admin (pending_users, invites, etc.) si tu les routes dans main.rs plus tard.
