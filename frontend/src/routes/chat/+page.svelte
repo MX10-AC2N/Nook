@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { isAuthenticated, authUser } from '$lib/authStore.svelte.js';
+  import { authStore } from '$lib/authStore.svelte.js';
   import {
     messages,
     loadMessages,
@@ -57,7 +57,7 @@
     const formData = new FormData();
     formData.append('file', file);
     formData.append('conversation_id', conversationId);
-    formData.append('from_user_id', $authUser?.id || '');
+    formData.append('from_user_id', authStore.user?.id || '');
 
     try {
       const response = await fetch('/api/upload/chat', {
@@ -116,14 +116,14 @@
   }
 
   function isMyMessage(senderId: string): boolean {
-    return $authUser?.id === senderId;
+    return authStore.user?.id === senderId;
   }
 
   // -----------------------------------------------------------------
   // Cycle de vie
   // -----------------------------------------------------------------
   onMount(async () => {
-    if (!$isAuthenticated) {
+    if (!authStore.isAuthenticated) {
       goto('/login');
       return;
     }
