@@ -54,7 +54,7 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// 1️⃣ Middleware – injection dynamique du <base> (conservé et renforcé)
+// 1️⃣ Middleware – injection dynamique du <base> (conservé à l'identique)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     Host(host): Host,
@@ -62,28 +62,22 @@ async fn base_inject_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, axum::http::StatusCode> {
-    // Scheme (http ou https via proxy)
     let scheme = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("http");
 
-    // Host avec port inclus (ex: 192.168.1.10:6300 ou mon-domaine.com)
     let host_str = if host.is_empty() {
-        "localhost:6300".to_string()
+        "localhost:3000".to_string()
     } else {
         host
     };
 
-    // Base URL complète avec trailing slash
     let base_url = format!("{}://{}/", scheme, host_str);
-
-    // Tag à injecter (self-closing, moderne)
     let replacement = format!("<base href=\"{}\" />", base_url);
 
     let resp = next.run(req).await;
 
-    // Ne modifier que les réponses HTML
     if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
         if ct.to_str().is_ok_and(|s| s.starts_with("text/html")) {
             let (parts, body) = resp.into_parts();
@@ -93,15 +87,11 @@ async fn base_inject_middleware(
 
             let mut body_str = String::from_utf8_lossy(&bytes).into_owned();
 
-            // Remplacement du placeholder
             if body_str.contains("<base-placeholder/>") {
                 body_str = body_str.replace("<base-placeholder/>", &replacement);
             }
 
             let body_bytes = Bytes::from(body_str);
-
-            // ──── Correction E0382 (borrow after move) ────
-            // On calcule la longueur AVANT de mover body_bytes dans le Body
             let content_length = body_bytes.len();
 
             let mut new_resp = Response::from_parts(parts, Body::from(body_bytes));
@@ -118,7 +108,7 @@ async fn base_inject_middleware(
 }
 
 // ---------------------------------------------------------------------
-// 2️⃣ Initialisation de la base de données (avec migrations sqlx)
+// 2️⃣ Initialisation de la base de données (identique)
 // ---------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
@@ -132,7 +122,7 @@ async fn init_db() -> Result<SqlitePool, sqlx::Error> {
 }
 
 // ---------------------------------------------------------------------
-// 3️⃣ Création de l'administrateur initial
+// 3️⃣ Création de l'administrateur initial (identique)
 // ---------------------------------------------------------------------
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
@@ -172,7 +162,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 }
 
 // ---------------------------------------------------------------------
-// 4️⃣ Point d'entrée principal
+// 4️⃣ Point d'entrée principal – VERSION CORRIGÉE ET COMPLÈTE
 // ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -198,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
 
-    let fm_clone = (*file_manager).clone();
+    let fm_clone = file_manager.clone();
     tokio::spawn(async move {
         fm_clone.start_cleanup_task().await;
     });
@@ -223,6 +213,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager: file_manager.clone(),
     });
 
+    // === Routes API (sans state ici) ===
     let api_router = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -235,10 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
         .route("/conversations/:id/join", post(db::join_conversation))
-        .route(
-            "/conversations/:id/messages",
-            get(db::get_conversation_messages),
-        )
+        .route("/conversations/:id/messages", get(db::get_conversation_messages))
         .route("/conversations/:id/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
@@ -248,21 +236,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/list-invites", get(admin::list_invites))
         .route("/generate-invite", post(invites::generate_invite))
         .route("/delete-invite", post(admin::delete_invite))
-        .route("/health", get(|| async { "OK" }))
-        .merge(webrtc::webrtc_routes())
-        .with_state(shared_state.clone())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        );
+        .route("/health", get(|| async { "OK" }));
 
     let static_path = "/app/static";
-    eprintln!(
-        "[Static] Servir les fichiers frontend depuis : {}",
-        static_path
-    );
+    eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
 
     let static_service = ServeDir::new(static_path)
         .append_index_html_on_directories(true)
@@ -271,9 +248,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
+        .merge(webrtc::webrtc_routes())           // ← Toutes les routes WebRTC (WS + signaling) à la racine
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
-        .layer(CompressionLayer::new());
+        .layer(CompressionLayer::new())
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
+        .with_state(shared_state);   // ← CORRECTION N°1 : state sur le router final
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
