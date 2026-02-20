@@ -200,14 +200,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager: file_manager.clone(),
     });
 
-    let api_router = Router::new()
+    // === ROUTES PUBLIQUES (pas de protection) ===
+    let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/join", post(invites::join))
+        .route("/invite/validate", get(invites::validate_invite))
+        .route("/generate-invite", post(invites::generate_invite))
+        .route("/health", get(|| async { "OK" }));
+
+    // === ROUTES PROTÉGÉES (avec middleware auth) ===
+    let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
-        .route("/join", post(invites::join))
-        .route("/invite/validate", get(invites::validate_invite))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/:id", get(db::get_conversation))
@@ -220,9 +226,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/all-users-json", get(admin::all_users))
         .route("/approve", post(admin::approve_user))
         .route("/list-invites", get(admin::list_invites))
-        .route("/generate-invite", post(invites::generate_invite))
         .route("/delete-invite", post(admin::delete_invite))
-        .route("/health", get(|| async { "OK" }));
+        .layer(middleware::from_fn_with_state(
+            shared_state.clone(),
+            auth::require_auth,
+        ));
+
+    let api_router = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes)
+        .merge(webrtc::webrtc_routes());
+
 
     let static_path = "/app/static";
     eprintln!("[Static] Servir les fichiers frontend depuis : {}", static_path);
