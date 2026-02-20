@@ -1,11 +1,6 @@
 // main.rs – Point d'entrée du serveur Nook Backend
 // -------------------------------------------------
-// Middleware conservé et amélioré : injection dynamique du <base href="…/" />
-// - Trailing slash ajouté (best practice pour SvelteKit)
-// - Self-closing tag
-// - Fallback safe si Host absent
-// - Gestion x-forwarded-proto pour prod HTTPS
-// - Compression à la volée (évite tout conflit avec precompressed files)
+// Middleware conservé et amélioré + corrections build
 
 use axum::{
     body::{to_bytes, Body},
@@ -30,7 +25,7 @@ use tower_http::{
 };
 
 // ---------------------------------------------------------------------
-// Modules de l'application
+// Modules
 // ---------------------------------------------------------------------
 mod admin;
 mod auth;
@@ -44,7 +39,7 @@ use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// Structure d'état partagé
+// SharedState
 // ---------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SharedState {
@@ -54,7 +49,7 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// 1️⃣ Middleware – injection dynamique du <base> (conservé à l'identique)
+// Middleware base inject (à l'identique)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     Host(host): Host,
@@ -108,22 +103,16 @@ async fn base_inject_middleware(
 }
 
 // ---------------------------------------------------------------------
-// 2️⃣ Initialisation de la base de données (identique)
+// DB + Initial admin (inchangé)
 // ---------------------------------------------------------------------
 async fn init_db() -> Result<SqlitePool, sqlx::Error> {
     let db_path = "sqlite:/app/data/nook.db";
     let pool = SqlitePool::connect(db_path).await?;
-
     migrate!("./migrations").run(&pool).await?;
-
     eprintln!("[DB] Migrations appliquées avec succès");
-
     Ok(pool)
 }
 
-// ---------------------------------------------------------------------
-// 3️⃣ Création de l'administrateur initial (identique)
-// ---------------------------------------------------------------------
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let user_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
@@ -153,16 +142,13 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         .execute(pool)
         .await?;
 
-        eprintln!(
-            "[Init] Admin initial créé (ID: {}). Change username/password au premier login !",
-            admin_id
-        );
+        eprintln!("[Init] Admin initial créé (ID: {}). Change username/password au premier login !", admin_id);
     }
     Ok(())
 }
 
 // ---------------------------------------------------------------------
-// 4️⃣ Point d'entrée principal – VERSION CORRIGÉE ET COMPLÈTE
+// MAIN – VERSION QUI DEVRAIT COMPILER
 // ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -188,7 +174,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
     let webrtc_state = WebRtcState::new();
 
-    let fm_clone = file_manager.clone();
+    // FIX : pattern identique à ton code original
+    let fm_clone = (*file_manager).clone();
     tokio::spawn(async move {
         fm_clone.start_cleanup_task().await;
     });
@@ -213,7 +200,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager: file_manager.clone(),
     });
 
-    // === Routes API (sans state ici) ===
     let api_router = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -248,7 +234,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new("/app/data/uploads"))
-        .merge(webrtc::webrtc_routes())           // ← Toutes les routes WebRTC (WS + signaling) à la racine
+        .merge(webrtc::webrtc_routes())
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
@@ -258,7 +244,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .allow_methods(Any)
                 .allow_headers(Any),
         )
-        .with_state(shared_state);   // ← CORRECTION N°1 : state sur le router final
+        .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     eprintln!("[Serveur] Démarrage sur http://{}", addr);
