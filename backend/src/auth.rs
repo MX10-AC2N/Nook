@@ -406,8 +406,6 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use crate::SharedState;
-use crate::db::User;
 
 pub async fn require_auth(
     State(state): State<Arc<SharedState>>,
