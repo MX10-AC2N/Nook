@@ -22,13 +22,122 @@ jobs:
         with:
           node-version: '20'
 
-      # ... Toutes les étapes frontend que tu avais déjà ...
-      # (Vérifier dossier, générer package-lock, cache npm, install, vérifier deps,
-      #  build, vérifier build/, upload artifact)
+            - name: Check package-lock.json status
+        id: check-package-lock
+        working-directory: ./frontend
+        run: |
+          echo "🔍 Vérification du package-lock.json..."
+          
+          if [ -f "package-lock.json" ]; then
+            echo "✅ package-lock.json présent"
+            echo "exists=true" >> $GITHUB_OUTPUT
+            
+            echo "🔍 Vérification de la cohérence avec package.json..."
+            npm ci --dry-run --no-audit --no-fund 2>&1 | grep -q "npm ERR!" && CONSISTENT="false" || CONSISTENT="true"
+            
+            if [ "$CONSISTENT" = "true" ]; then
+              echo "✅ package-lock.json cohérent avec package.json"
+              echo "consistent=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ package-lock.json incohérent avec package.json"
+              echo "consistent=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ package-lock.json absent"
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "consistent=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate or update package-lock.json
+        if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
+        working-directory: ./frontend
+        run: |
+          echo "🔄 Génération/mise à jour du package-lock.json..."
+          
+          if [ -f "package-lock.json" ]; then
+            cp package-lock.json package-lock.json.backup
+            echo "📋 Backup créé: package-lock.json.backup"
+          fi
+          
+          npm cache clean --force 2>/dev/null || true
+          
+          rm -rf node_modules 2>/dev/null || true
+          rm -f package-lock.json 2>/dev/null || true
+          
+          echo "📦 Génération du package-lock.json..."
+          npm install --package-lock-only --no-audit --no-fund
+          
+          if [ ! -f "package-lock.json" ]; then
+            echo "❌ Échec de génération du package-lock.json"
+            exit 1
+          fi
+          
+          echo "✅ package-lock.json généré/mis à jour"
+          
+          SIZE=$(stat -c%s "package-lock.json" 2>/dev/null || stat -f%z "package-lock.json")
+          echo "📏 Taille du package-lock.json: $SIZE octets"
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: |
+          echo "📦 Installation des dépendances..."
+          
+          npm ci --no-audit --no-fund --legacy-peer-deps
+          
+          echo "✅ Dépendances installées"
+
+      - name: Commit package-lock.json if changed
+        if: steps.check-package-lock.outputs.exists == 'false' || steps.check-package-lock.outputs.consistent == 'false'
+        run: |
+          cd ${{ github.workspace }}
+          
+          if git status --porcelain frontend/package-lock.json | grep -q "frontend/package-lock.json"; then
+            echo "📝 Changements détectés dans package-lock.json"
+            
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            
+            git add frontend/package-lock.json
+            git commit -m "chore(frontend): update package-lock.json [skip ci]"
+            
+            echo "📤 Push des changements..."
+            git push origin HEAD:${{ github.ref_name }}
+            
+            echo "✅ package-lock.json commité et poussé"
+          else
+            echo "ℹ️ Aucun changement détecté dans package-lock.json"
+          fi
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: |
+          echo "🏗️ Construction du frontend..."
+          
+          REQUIRED_DEPS=("svelte" "@sveltejs/kit" "vite")
+          for dep in "${REQUIRED_DEPS[@]}"; do
+            if npm list "$dep" --depth=0 --silent >/dev/null 2>&1; then
+              echo "✅ $dep installé"
+            else
+              echo "❌ $dep manquant"
+              exit 1
+            fi
+          done
+          
+          npm run build
+          
+          if [ ! -f "build/index.html" ]; then
+            echo "❌ index.html manquant dans le build"
+            exit 1
+          fi
+          
+          echo "✅ Frontend construit avec succès"
+          echo "📁 Contenu du dossier build:"
+          ls -la build/
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nook-frontend-${{ github.sha }}
+          name: nook-frontend
           path: frontend/build
-          retention-days: 1
+          if-no-files-found: error
+          retention-days: 7
