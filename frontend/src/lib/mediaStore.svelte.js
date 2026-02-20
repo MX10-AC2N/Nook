@@ -8,7 +8,7 @@ import {
   getStoredKeys,
   decryptPrivateKey 
 } from './crypto';
-import { authUser } from './authStore.svelte.js';
+import { authStore } from './authStore.svelte.js';
 import { activeConversationId } from './conversationStore.svelte.ts';
 import { connectionError } from './chatStore.svelte.ts';
 
@@ -407,7 +407,7 @@ export async function downloadAndDecryptMedia(mediaUrl, encryptedKeys, nonce, se
     const nonceBytes = Array.isArray(nonce) ? new Uint8Array(nonce) : nonce;
 
     // Récupérer l'utilisateur actuel
-    const currentUser = authUser;
+    const currentUser = authStore.user;
     if (!currentUser || !currentUser.id) {
       throw new Error('Utilisateur non authentifié');
     }
