@@ -5,7 +5,7 @@
 # ===============================================
 # ÉTAPE 1 : Build Rust
 # ===============================================
-FROM --platform=$BUILDPLATFORM rust:1.85-bookworm AS builder
+FROM --platform=$BUILDPLATFORM rust:1.88-bookworm AS builder
 
 WORKDIR /usr/src/nook
 
