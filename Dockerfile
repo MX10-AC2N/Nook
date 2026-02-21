@@ -2,9 +2,6 @@
 # Dockerfile Nook – Build complet + Distroless
 # ===============================================
 
-ARG BACKEND_PATH=backend
-ARG FRONTEND_PATH=frontend
-
 # ===============================================
 # ÉTAPE 1 : Build Rust
 # ===============================================
@@ -13,11 +10,12 @@ FROM --platform=$BUILDPLATFORM rust:1.80-bookworm AS builder
 WORKDIR /usr/src/nook
 
 # Cache dependencies
-COPY ${BACKEND_PATH}/Cargo.toml ${BACKEND_PATH}/Cargo.lock ./
-RUN mkdir -p src && echo "fn main() {{}}" > src/main.rs && cargo build --release && rm -rf src
+COPY backend/Cargo.toml backend/Cargo.lock ./
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
+    cargo build --release && rm -rf src
 
 # Build réel
-COPY ${BACKEND_PATH}/ ./
+COPY backend/ ./
 RUN cargo build --release --bin nook-backend
 
 # ===============================================
@@ -49,8 +47,8 @@ COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
 COPY --from=prep --chown=nonroot:nonroot /app /app
 
-# Copie du frontend build (monté via volume ou build context)
-COPY --from=prep --chown=nonroot:nonroot ${FRONTEND_PATH}/build /app/static
+# Copie du frontend build (disponible dans le build context via artifact CI ou montage local)
+COPY --chown=nonroot:nonroot frontend/build /app/static
 
 WORKDIR /app
 EXPOSE 3000
