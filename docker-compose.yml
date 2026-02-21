@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   nook:
     build:
@@ -47,12 +45,9 @@ services:
           memory: 128M
 
     networks:
-      - npm_net
       - nook-network
 
 networks:
-  npm_net:
-    external: true
   nook-network:
     driver: bridge
     name: nook-network
