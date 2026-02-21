@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 dotenv = "0.15"
-axum = { version = "0.7", features = ["ws", "multipart", "tokio"] }
+axum = { version = "0.8.9", features = ["ws", "multipart", "tokio"] }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1"
 tower-http = { version = "0.6.8", features = ["fs", "cors", "compression-br"] }
@@ -18,11 +18,11 @@ tower-service = "0.3"
 http = "1.0"
 openssl = { version = "0.10", features = ["vendored"] }
 serde_urlencoded = "0.7"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.13.2", features = ["json"] }
 urlencoding = "2.1"
 lazy_static = "1.4"
 chrono = { version = "0.4", features = ["serde"] }
-rand = { version = "0.8", features = ["std_rng"] }
+rand = { version = "0.10.0", features = ["std_rng"] }
 
 # Auth & crypto
 argon2 = "0.5"
@@ -32,8 +32,8 @@ chacha20poly1305 = { version = "0.10.1" }
 headers = "0.4"
 
 # Rate limiting
-tower_governor = "0.4.3"
-governor = "0.6"
+tower_governor = "0.8.0"
+governor = "0.10.4"
 
 # Logging (remplace env_logger)
 tracing = "0.1"
