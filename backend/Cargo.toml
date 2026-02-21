@@ -23,7 +23,12 @@ reqwest = { version = "0.13", features = ["json"] }
 urlencoding = "2.1"
 lazy_static = "1.4"
 chrono = { version = "0.4", features = ["serde"] }
+
+# rand 0.9 pour webrtc.rs (rng() + RngCore + fill_bytes)
 rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
+
+# rand_core 0.6 explicitement pour argon2/password-hash (évite le diamond dep)
+rand_core = { version = "0.6", features = ["std", "getrandom"] }
 
 # Auth & crypto
 argon2 = "0.5"
