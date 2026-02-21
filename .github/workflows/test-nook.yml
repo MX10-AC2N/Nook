@@ -1,24 +1,28 @@
-name: 🤖 CI - Test Nook (Backend + Frontend + Intégration)
+name: 🚀 CI - Test Nook (Backend + Frontend + Intégration)
 
 on:
   workflow_dispatch:
 
 jobs:
-  # 1. Frontend (réutilise exactement ton workflow qui marche)
   frontend:
     name: Frontend Build
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps
-      - run: npm run build
+          cache-dependency-path: frontend/package-lock.json   # ← FIX ICI
+
+      - name: Install & Build
+        working-directory: ./frontend
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -26,7 +30,6 @@ jobs:
           path: frontend/build
           retention-days: 7
 
-  # 2. Backend Rust
   backend:
     name: Backend Rust
     runs-on: ubuntu-latest
@@ -34,54 +37,45 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
       - run: cargo check --manifest-path backend/Cargo.toml
       - run: cargo test --manifest-path backend/Cargo.toml
       - run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
-  # 3. Intégration complète (Docker + API + E2E)
   integration:
     needs: [frontend, backend]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download frontend artifact
+      - name: Download frontend build
         uses: actions/download-artifact@v4
         with:
           name: nook-frontend
           path: frontend/build
 
-      - name: Build & start Docker
+      - name: Build & start stack
         run: |
           docker compose up -d --build
-          echo "⏳ Waiting for healthcheck..."
-          timeout 60s bash -c 'until curl -f http://localhost:6300/health; do sleep 2; done'
+          timeout 90s bash -c 'until curl -f http://localhost:6300/health; do sleep 3; done'
 
-      - name: ✅ Test APIs backend (celles attendues par le frontend)
+      - name: ✅ Test APIs (celles attendues par le frontend)
         run: |
-          echo "=== Health ==="
           curl -f http://localhost:6300/health
-
-          echo "=== Public routes ==="
-          curl -f -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"ci_test","email":"ci@test.local","password":"Test123!"}' || echo "Register OK"
-
-          echo "=== Protected route (401 sans cookie) ==="
-          curl -w "%{http_code}" -o /dev/null -s http://localhost:6300/api/auth/me | grep 401
-
-          echo "=== WebSocket ready ==="
+          curl -f -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"ci_test","email":"ci@test.local","password":"Test123!"}' || true
+          curl -w "%{http_code}" -s -o /dev/null http://localhost:6300/api/auth/me | grep 401
           curl -I http://localhost:6300/ws
+          curl -f -I http://localhost:6300/ | head -3
 
-          echo "=== Static frontend served ==="
-          curl -f -I http://localhost:6300/ | head -5
-
-      - name: 🧪 Test interaction frontend ↔ backend (Playwright E2E)
+      - name: 🧪 E2E Playwright (login → chat → upload)
         run: |
           cd frontend
           npm ci --legacy-peer-deps
           npx playwright install --with-deps chromium
-          npx playwright test || echo "Playwright non configuré → OK pour le moment"
+          npx playwright test
 
-      - name: Logs en cas d’erreur
+      - name: Logs si échec
         if: failure()
         run: docker compose logs
 
