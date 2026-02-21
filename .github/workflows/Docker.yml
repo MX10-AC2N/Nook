@@ -1,7 +1,7 @@
 name: 4==> 🐳 Docker Build & Push
 
 on:
-  workflow_dispatch:  # Manuel uniquement — lancé après Backend.yml + Frontend.yml + test-nook.yml ✅
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -19,7 +19,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Les artifacts sont uploadés par Backend.yml avec ces noms exacts
+      # ── Lecture de la version depuis la source de vérité ──────────
+      - name: Lire la version
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Version : $VERSION"
+
       - name: Download backend amd64
         uses: actions/download-artifact@v4
         with:
@@ -32,7 +40,6 @@ jobs:
           name: nook-backend-aarch64-unknown-linux-gnu
           path: docker-context/backend
 
-      # L'artifact est uploadé par Frontend.yml avec ce nom exact
       - name: Download frontend
         uses: actions/download-artifact@v4
         with:
@@ -45,12 +52,12 @@ jobs:
           ls -la docker-context/backend/
           echo "=== Frontend ==="
           ls -la docker-context/frontend/
-          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ nook-backend-amd64 manquant" && exit 1)
-          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ nook-backend-arm64 manquant" && exit 1)
+          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ amd64 manquant" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ arm64 manquant" && exit 1)
           test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
           chmod +x docker-context/backend/nook-backend-amd64
           chmod +x docker-context/backend/nook-backend-arm64
-          echo "✅ Contexte Docker prêt"
+          echo "✅ Contexte Docker prêt — version ${{ steps.version.outputs.version }}"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -66,14 +73,15 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            # Tag version sémantique lisible : v0.5.1
+            type=raw,value=${{ steps.version.outputs.tag }}
+            # Tag majeur.mineur : v0.5
+            type=raw,value=v{{ steps.version.outputs.version | split('.') | first }}.{{ steps.version.outputs.version | split('.')[1] }}
+            # latest uniquement sur main
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            # SHA court pour traçabilité (non affiché dans le badge)
+            type=sha,prefix=sha-
 
-      # Dockerfile.release = image distroless sans étape Rust
-      # (les binaires sont déjà compilés par Backend.yml)
       - name: Build & Push
         uses: docker/build-push-action@v6
         with:
@@ -88,7 +96,11 @@ jobs:
 
       - name: Résumé
         run: |
-          echo "✅ Image publiée !"
-          echo "🔗 https://ghcr.io/${{ github.repository }}"
-          echo "🏷️  Tags : ${{ steps.meta.outputs.tags }}"
-          echo "📦 Architectures : linux/amd64, linux/arm64"
+          echo "## 🐳 Docker ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`ghcr.io/${{ github.repository }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Platforms** | \`linux/amd64\` · \`linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Lien** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
