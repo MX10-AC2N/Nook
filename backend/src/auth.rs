@@ -1,4 +1,4 @@
-// backend/src/auth.rs - Axum 0.8 + rand 0.9 compatible
+// backend/src/auth.rs - Axum 0.8 + rand 0.9 + rand_core 0.6 compatible
 
 use crate::{db::User, SharedState};
 use argon2::password_hash::{PasswordHash, SaltString};
@@ -11,8 +11,11 @@ use axum::{
 };
 use chrono::Utc;
 use http::header::SET_COOKIE;
-// rand 0.9 : OsRng est disponible via la feature "os_rng"
-use rand::rngs::OsRng;
+// OsRng depuis rand_core 0.6 — même version qu'attend argon2/password-hash.
+// rand 0.9 utilise rand_core 0.9 qui est INCOMPATIBLE avec password-hash 0.5.
+// Le compilateur signale le "diamond dependency" : deux versions de rand_core coexistent,
+// il faut utiliser celle de la même branche qu'argon2.
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -58,7 +61,7 @@ pub struct AuthResponse {
 
 // ====================== UTILITAIRES ======================
 pub fn hash_password(password: &str) -> String {
-    // rand 0.9 : OsRng implémente toujours CryptoRng + RngCore
+    // OsRng (rand_core 0.6) → compatible avec SaltString::generate de password-hash 0.5
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
