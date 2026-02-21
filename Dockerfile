@@ -47,7 +47,7 @@ COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
 COPY --from=prep --chown=nonroot:nonroot /app /app
 
-# Copie du frontend build (disponible dans le build context via artifact CI ou montage local)
+# Copie du frontend build
 COPY --chown=nonroot:nonroot frontend/build /app/static
 
 WORKDIR /app
