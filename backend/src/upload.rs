@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 // ====================== STRUCTURES ======================
 
+#[allow(dead_code)]
 #[derive(serde::Serialize)]
 pub struct UploadResponse {
     pub file_id: String,
