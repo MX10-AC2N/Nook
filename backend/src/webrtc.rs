@@ -1,5 +1,5 @@
 // webrtc.rs - Signalisation P2P + Chiffrement fichiers (libsodium-compatible)
-// + Nettoyage automatique des fichiers après 48h
+// Axum 0.8 + rand 0.9 compatible
 
 use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
@@ -11,8 +11,9 @@ use base64ct::{Base64Unpadded, Encoding};
 use chacha20poly1305::aead::generic_array::GenericArray;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::KeyInit;
-use chacha20poly1305::XChaCha20Poly1305; // Support nonces de 24 bytes
+use chacha20poly1305::XChaCha20Poly1305;
 use futures_util::{SinkExt, StreamExt};
+// rand 0.9 : RngCore est dans rand directement via feature "std"
 use rand::RngCore;
 use serde_json::{json, Value};
 use std::{
@@ -26,43 +27,38 @@ use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
-// === CRYPTO - Compatible libsodium (crypto_secretbox / XChaCha20-Poly1305) ===
-// Note: libsodium utilise XChaCha20-Poly1305 avec des nonces de 24 bytes
+// === CRYPTO - Compatible libsodium (XChaCha20-Poly1305, nonces 24 bytes) ===
 
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
 const CRYPTO_SECRETBOX_KEYBYTES: usize = 32;
 const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
 
-// Configuration
 const FILE_EXPIRATION_HOURS: u64 = 48;
 const CLEANUP_INTERVAL_HOURS: u64 = 1;
 
 /// Génère une clé aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_keygen() -> Vec<u8> {
     let mut key = vec![0u8; CRYPTO_SECRETBOX_KEYBYTES];
-    rand::thread_rng().fill_bytes(&mut key);
+    // rand 0.9 : rand::rng() remplace rand::thread_rng()
+    rand::rng().fill_bytes(&mut key);
     key
 }
 
 /// Génère un nonce aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_nonce() -> Vec<u8> {
     let mut nonce = vec![0u8; CRYPTO_SECRETBOX_NONCEBYTES];
-    rand::thread_rng().fill_bytes(&mut nonce);
+    rand::rng().fill_bytes(&mut nonce);
     nonce
 }
 
-/// Chiffrement (compatible sodium.crypto_secretbox_easy)
+/// Chiffrement compatible sodium.crypto_secretbox_easy
 /// Retourne: nonce || ciphertext
-/// Utilise XChaCha20-Poly1305 pour compatibilité avec libsodium (nonces 24 bytes)
 fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
 
-    // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
     let cipher = XChaCha20Poly1305::new_from_slice(key).expect("Clé invalide");
-
     let nonce_array = GenericArray::from_slice(nonce);
-
     let encrypted = cipher
         .encrypt(nonce_array, message)
         .expect("Échec du chiffrement");
@@ -71,7 +67,7 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     result
 }
 
-/// Déchiffrement (compatible sodium.crypto_secretbox_open_easy)
+/// Déchiffrement compatible sodium.crypto_secretbox_open_easy
 #[allow(dead_code)]
 fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, &'static str> {
     if ciphertext.len() < CRYPTO_SECRETBOX_NONCEBYTES + CRYPTO_SECRETBOX_MACBYTES {
@@ -81,9 +77,7 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
 
-    // Utiliser XChaCha20Poly1305 qui supporte des nonces de 24 bytes (comme libsodium)
     let cipher = XChaCha20Poly1305::new_from_slice(key).map_err(|_| "Clé invalide")?;
-
     let nonce_array = GenericArray::from_slice(nonce);
 
     cipher
@@ -120,7 +114,6 @@ impl WebRtcState {
     }
 }
 
-// Structure pour suivre les fichiers uploadés (avec date d'expiration)
 #[derive(Clone)]
 #[allow(dead_code)]
 struct TrackedFile {
@@ -144,22 +137,19 @@ impl FileManager {
         }
     }
 
-    /// Méthode publique pour accéder à uploads_dir
     pub fn get_uploads_dir(&self) -> &PathBuf {
         &self.uploads_dir
     }
 
-    /// Enregistre un nouveau fichier pour suivi
     pub async fn register_file(&self, file_id: &str, path: PathBuf) {
         let now = SystemTime::now();
-        let uploaded_at = now;
-        let expires_at = uploaded_at + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
+        let expires_at = now + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
 
         let mut files = self.tracked_files.lock().await;
         files.push(TrackedFile {
             file_id: file_id.to_string(),
             path,
-            uploaded_at,
+            uploaded_at: now,
             expires_at,
         });
 
@@ -169,32 +159,20 @@ impl FileManager {
         );
     }
 
-    /// Nettoie les fichiers expirés (à appeler périodiquement)
     pub async fn cleanup_expired_files(&self) -> usize {
         let now = SystemTime::now();
         let mut files = self.tracked_files.lock().await;
         let mut deleted_count = 0;
-
         let mut i = 0;
+
         while i < files.len() {
             if files[i].expires_at < now {
                 let file = files[i].clone();
-
-                // Supprimer le fichier physique
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
                     eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
                 } else {
-                    eprintln!(
-                        "[FileManager] Fichier expiré supprimé: {} ({} bytes)",
-                        file.file_id,
-                        file.path
-                            .metadata()
-                            .map(|m: std::fs::Metadata| m.len())
-                            .unwrap_or(0)
-                    );
                     deleted_count += 1;
                 }
-
                 files.remove(i);
             } else {
                 i += 1;
@@ -204,15 +182,12 @@ impl FileManager {
         deleted_count
     }
 
-    /// Démarre la tâche de nettoyage périodique
     pub async fn start_cleanup_task(self) {
-        let mut interval = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
-
-        // Attendre un peu avant le premier nettoyage
+        let mut tick = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
         sleep(Duration::from_secs(60)).await;
 
         loop {
-            interval.tick().await;
+            tick.tick().await;
             let deleted = self.cleanup_expired_files().await;
             if deleted > 0 {
                 eprintln!(
@@ -226,17 +201,13 @@ impl FileManager {
 
 // === FONCTIONS PUBLIQUES POUR UPLOAD.RS ===
 
-/// Chiffre un fichier pour stockage sécurisé sur le serveur
-/// Retourne: (ciphertext_with_nonce, nonce_base64, key_base64)
 pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
     let key = crypto_secretbox_keygen();
     let nonce = crypto_secretbox_nonce();
     let ciphertext = crypto_secretbox_easy(data, &key, &nonce);
-
     (ciphertext, to_base64(&nonce), to_base64(&key))
 }
 
-/// Déchiffre un fichier stocké sur le serveur
 #[allow(dead_code)]
 pub fn decrypt_file_from_storage(
     ciphertext: &[u8],
@@ -253,7 +224,6 @@ pub fn decrypt_file_from_storage(
     crypto_secretbox_open_easy(&data, &key)
 }
 
-/// Fonction broadcast_message compatible avec upload.rs
 #[allow(dead_code)]
 pub async fn broadcast_message(
     state: SharedCallState,
@@ -363,9 +333,9 @@ pub async fn ws_handler(
 async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
-    let (broadcast_tx, _) = broadcast::channel::<String>(100);
 
-    // Créer deux clones distincts pour éviter le problème de move
+    // Le channel broadcast travaille en String
+    let (broadcast_tx, _) = broadcast::channel::<String>(100);
     let broadcast_tx_for_send = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
 
@@ -373,12 +343,16 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
     guard.insert(id, broadcast_tx);
     drop(guard);
 
-    eprintln!("[WebSocket] Client connecté pour signalisation P2P: {}", id);
+    eprintln!("[WebSocket] Client connecté: {}", id);
 
     let send_task = tokio::spawn(async move {
         let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
-            if let Err(e) = sender.send(axum::extract::ws::Message::Text(msg)).await {
+            // Axum 0.8 : Message::Text attend Utf8Bytes → .into() convertit String → Utf8Bytes
+            if let Err(e) = sender
+                .send(axum::extract::ws::Message::Text(msg.into()))
+                .await
+            {
                 eprintln!("[WebSocket] Erreur d'envoi: {}", e);
                 break;
             }
@@ -389,7 +363,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
-                    let parse_result = serde_json::from_str::<Value>(&text);
+                    // Axum 0.8 : text est Utf8Bytes, pas String
+                    // .as_str() ou .to_string() pour l'utiliser
+                    let text_str = text.to_string();
+                    let parse_result = serde_json::from_str::<Value>(&text_str);
 
                     match parse_result {
                         Ok(json) => {
@@ -403,18 +380,25 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
                                 .or(json.get("sender_id"))
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown");
-                            eprintln!("[Signalisation] Message {} de {}", msg_type, from_user);
+                            eprintln!(
+                                "[Signalisation] Message {} de {}",
+                                msg_type, from_user
+                            );
                         }
                         Err(_) => {
-                            eprintln!("[WebSocket] Message texte reçu: {} bytes", text.len());
+                            eprintln!(
+                                "[WebSocket] Message texte reçu: {} bytes",
+                                text_str.len()
+                            );
                         }
                     }
 
-                    let _ = broadcast_tx_for_receive.send(text.clone());
+                    // broadcast_tx attend String, on envoie text_str
+                    let _ = broadcast_tx_for_receive.send(text_str);
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     eprintln!(
-                        "[WebSocket] Message binaire ignoré (transfert P2P direct): {} bytes",
+                        "[WebSocket] Message binaire ignoré (P2P direct): {} bytes",
                         data.len()
                     );
                 }
@@ -445,51 +429,3 @@ pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
         .route("/api/webrtc/answer", post(handle_answer))
         .route("/ws", get(ws_handler))
 }
-
-// === PROTOCOLE E2E P2P (pour documentation du frontend) ===
-/*
-PROTOCOLE DE TRANSFERT P2P E2E (chiffré) - COMPATIBLE LIBSODIUM:
-
-IMPORTANT: Ce backend utilise XChaCha20-Poly1305 avec des nonces de 24 bytes
-pour être 100% compatible avec libsodium côté frontend (crypto_secretbox).
-
-1. EXPÉDITEUR (Client A - libsodium):
-   - Génère une clé de session aléatoire (32 bytes): sodium.crypto_secretbox_keygen()
-   - Chiffre le fichier avec crypto_secretbox_easy(message, nonce, key)
-   - Nonce de 24 bytes généré par sodium.randombytes_buf(24)
-   - Pour chaque chunk:
-     * Chiffre avec crypto_secretbox_easy(chunk, nonce, key)
-     * Envoie via WebRTC DataChannel
-
-2. SIGNALISATION (Serveur - Rust XChaCha20Poly1305):
-   - Échange des offres/réponses WebRTC
-   - Échange des candidats ICE
-   - Ne voit jamais le contenu des fichiers
-   - Utilise XChaCha20Poly1305 (nonces 24 bytes) pour compatibilité totale
-
-3. DESTINATAIRE (Client B - libsodium):
-   - Reçoit les chunks chiffrés via DataChannel
-   - Déchiffre avec crypto_secretbox_open_easy(ciphertext, nonce, key)
-   - Reconstruit le fichier original
-
-FORMAT DES MESSAGES P2P:
-{
-  "event": "file_transfer",
-  "file_id": "uuid",
-  "file_name": "video.mp4",
-  "total_size": 52428800,
-  "encrypted": true,
-  "chunks": [
-    {
-      "index": 0,
-      "data": "base64_du_chunk_chiffré",
-      "nonce": "base64_du_nonce_24_bytes"
-    }
-  ]
-}
-
-COMPATIBILITÉ:
-- Frontend (libsodium): crypto_secretbox = XChaCha20-Poly1305 + nonces 24 bytes
-- Backend (Rust): XChaCha20Poly1305 + nonces 24 bytes
-- 100% interopérable entre JavaScript/libsodium et Rust
-*/
