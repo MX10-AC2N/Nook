@@ -1,37 +1,39 @@
 # ===============================================
 # Dockerfile Nook – Build depuis sources
 # Utilisé par : test-nook.yml + docker-compose
+#
+# Utilise cargo-chef pour le cache des dépendances.
+# La technique "dummy fn main()" cause une
+# incompatibilité de proc-macros (async-trait) car
+# Cargo compile les deps dans un contexte différent
+# de celui du vrai build --bin.
+# cargo-chef résout ce problème proprement.
 # ===============================================
 
 # ===============================================
-# ÉTAPE 1 : Build Rust
-#
-# ⚠️  linux/amd64 explicite (pas $BUILDPLATFORM) :
-#     BuildKit avec BUILDKIT_INLINE_CACHE active le
-#     mode multi-plateforme. Sans plateforme fixe,
-#     les artifacts du cache warmup sont compilés
-#     pour le host mais les proc-macros (async-trait,
-#     serde_derive...) sont ensuite demandés pour
-#     une target différente → crash.
-#
-# ⚠️  rust:1.88 minimum :
-#     home@0.5.12 exige rustc 1.88
+# ÉTAPE 0 : cargo-chef – préparation du recipe
 # ===============================================
-FROM --platform=linux/amd64 rust:1.88-bookworm AS builder
-
+FROM rust:1.88-bookworm AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /usr/src/nook
 
-# Cache layer : dummy main pour warm-up des dépendances
-COPY backend/Cargo.toml backend/Cargo.lock ./
-RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
-    cargo build --release && rm -rf src
+FROM chef AS planner
+COPY backend/ .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Build réel
-COPY backend/ ./
+# ===============================================
+# ÉTAPE 1 : Build des dépendances (layer cacheable)
+# ===============================================
+FROM chef AS builder
+COPY --from=planner /usr/src/nook/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Build réel (seul le code source change ici)
+COPY backend/ .
 RUN cargo build --release --bin nook-backend
 
 # ===============================================
-# ÉTAPE 2 : Extraction libs + Préparation
+# ÉTAPE 2 : Préparation de l'image finale
 # ===============================================
 FROM debian:bookworm-slim AS prep
 
@@ -59,7 +61,6 @@ COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
 COPY --from=prep --chown=nonroot:nonroot /app /app
 
-# Frontend build fourni par le job CI (artifact)
 COPY --chown=nonroot:nonroot frontend/build /app/static
 
 WORKDIR /app
