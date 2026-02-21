@@ -1,67 +1,94 @@
-name: 🐳 Docker Build & Push
+name: 4==> 🐳 Docker Build & Push
 
 on:
-  workflow_dispatch:  # Manuel uniquement (ou tu peux ajouter push si tu veux)
-  workflow_run:
-    workflows: ["Backend Build & Artifact", "Frontend Build & Artifact"]
-    types: [completed]
-    branches: [develop, main]
+  workflow_dispatch:  # Manuel uniquement — lancé après Backend.yml + Frontend.yml + test-nook.yml ✅
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   docker:
-    name: Docker Build & Push
+    name: 🐳 Docker Multi-Arch (Distroless)
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}  # Seulement si les deux précédents ont réussi
     permissions:
       contents: read
       packages: write
       id-token: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Download backend artifact
+      # Les artifacts sont uploadés par Backend.yml avec ces noms exacts
+      - name: Download backend amd64
         uses: actions/download-artifact@v4
         with:
-          name: nook-backend-${{ github.event.workflow_run.head_sha }}
-          path: backend-artifact
+          name: nook-backend-x86_64-unknown-linux-gnu
+          path: docker-context/backend
 
-      - name: Download frontend artifact
+      - name: Download backend arm64
         uses: actions/download-artifact@v4
         with:
-          name: nook-frontend-${{ github.event.workflow_run.head_sha }}
-          path: frontend-artifact
+          name: nook-backend-aarch64-unknown-linux-gnu
+          path: docker-context/backend
 
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
+      # L'artifact est uploadé par Frontend.yml avec ce nom exact
+      - name: Download frontend
+        uses: actions/download-artifact@v4
         with:
-          registry: ghcr.io
+          name: nook-frontend
+          path: docker-context/frontend
+
+      - name: Vérification du contexte
+        run: |
+          echo "=== Backend ==="
+          ls -la docker-context/backend/
+          echo "=== Frontend ==="
+          ls -la docker-context/frontend/
+          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ nook-backend-amd64 manquant" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ nook-backend-arm64 manquant" && exit 1)
+          test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
+          chmod +x docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-arm64
+          echo "✅ Contexte Docker prêt"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push Docker image
-        uses: docker/build-push-action@v5
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          context: .
-          push: true
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            ghcr.io/mx10-ac2n/nook:${{ github.sha }}
-            ghcr.io/mx10-ac2n/nook:latest
-          build-args: |
-            BACKEND_PATH=backend-artifact/nook-backend
-            FRONTEND_PATH=frontend-artifact
+            type=sha,prefix=
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # Dockerfile.release = image distroless sans étape Rust
+      # (les binaires sont déjà compilés par Backend.yml)
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          file: Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
 
-      - name: Cleanup artifacts
-        if: always()
+      - name: Résumé
         run: |
-          rm -rf backend-artifact || true
-          rm -rf frontend-artifact || true
+          echo "✅ Image publiée !"
+          echo "🔗 https://ghcr.io/${{ github.repository }}"
+          echo "🏷️  Tags : ${{ steps.meta.outputs.tags }}"
+          echo "📦 Architectures : linux/amd64, linux/arm64"
