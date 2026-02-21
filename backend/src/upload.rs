@@ -193,7 +193,7 @@ pub async fn upload_chat_file(
 
     state.file_manager.register_file(&file_id, storage_path).await;
 
-    AxumJson(json!({
+    (StatusCode::OK, AxumJson(json!({
         "status": "uploaded",
         "file_id": file_id,
         "file_name": data.file_name,
@@ -201,7 +201,7 @@ pub async fn upload_chat_file(
         "uploaded_at": now,
         "encrypted": true,
         "url": format!("/files/{}", file_id)
-    }))
+    })))
 }
 
 // ====================== STRUCTURES INTERNES ======================
