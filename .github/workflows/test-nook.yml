@@ -1,19 +1,21 @@
-name: 3==> 🚀 CI - Test Nook (Backend + Frontend + Intégration)
+name: 3==> 🧪 CI – Test Nook (Backend + Frontend + Intégration)
 
 on:
   workflow_dispatch:
 
 jobs:
+  # ============================================================
+  # 1. Frontend Build
+  # ============================================================
   frontend:
-    name: Frontend Build
+    name: 🎨 Frontend Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -23,27 +25,44 @@ jobs:
           npm ci --legacy-peer-deps
           npm run build
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: nook-frontend
           path: frontend/build
-          retention-days: 7
+          retention-days: 1
 
+  # ============================================================
+  # 2. Backend – check / test / clippy (host natif, pas de cross)
+  # ============================================================
   backend:
-    name: Backend Rust
+    name: 🦀 Backend Rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-      - run: cargo check --manifest-path backend/Cargo.toml
-      - run: cargo test --manifest-path backend/Cargo.toml
-      - run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
+      - name: cargo check
+        run: cargo check --manifest-path backend/Cargo.toml
+
+      - name: cargo test
+        run: cargo test --manifest-path backend/Cargo.toml
+
+      - name: cargo clippy
+        run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+
+  # ============================================================
+  # 3. Intégration – Docker build depuis sources + tests E2E
+  #    Utilise Dockerfile (compilation Rust complète dans Docker)
+  # ============================================================
   integration:
+    name: 🔗 Intégration Docker
     needs: [frontend, backend]
     runs-on: ubuntu-latest
     steps:
@@ -55,22 +74,29 @@ jobs:
           name: nook-frontend
           path: frontend/build
 
-      - name: Verify frontend build
-        run: ls -la frontend/build/
+      - name: Vérification frontend build
+        run: |
+          test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
+          echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
 
       - name: Build & start stack
         run: |
           docker compose up -d --build
-          timeout 90s bash -c 'until curl -sf http://localhost:6300/health; do sleep 3; done'
+          echo "⏳ Attente du healthcheck..."
+          timeout 120s bash -c 'until curl -sf http://localhost:6300/health; do sleep 3; done'
+          echo "✅ Stack démarrée"
 
       - name: ✅ Test APIs
         run: |
           curl -f http://localhost:6300/health
-          curl -f -X POST http://localhost:6300/api/auth/register \
+          curl -sf -X POST http://localhost:6300/api/auth/register \
             -H "Content-Type: application/json" \
-            -d '{"username":"ci_test","email":"ci@test.local","password":"Test123!"}' || true
-          curl -w "%{http_code}" -s -o /dev/null http://localhost:6300/api/auth/me | grep 401
-          curl -f -I http://localhost:6300/ | head -3
+            -d '{"username":"ci_test","email":"ci@test.local","password":"Test123!","name":"CI Test"}' || true
+          STATUS=$(curl -sw "%{http_code}" -o /dev/null http://localhost:6300/api/auth/me)
+          echo "GET /api/auth/me → $STATUS"
+          [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
+          curl -sf -I http://localhost:6300/ | head -5
+          echo "✅ APIs OK"
 
       - name: 🧪 E2E Playwright
         run: |
@@ -79,10 +105,10 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test
 
-      - name: Logs si échec
+      - name: 📋 Logs si échec
         if: failure()
-        run: docker compose logs
+        run: docker compose logs --tail=100
 
-      - name: Cleanup
+      - name: 🧹 Cleanup
         if: always()
         run: docker compose down -v --rmi local
