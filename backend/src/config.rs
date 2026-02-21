@@ -7,7 +7,8 @@ pub struct Config {
     pub database_url: String,
     pub static_dir: String,
     pub uploads_dir: String,
-    pub public_site_url: String,   // pour le <base> et WebRTC
+    #[allow(dead_code)] // temporaire jusqu'à ce qu'on l'utilise dans WebRTC + middleware base
+    pub public_site_url: String,   // utilisé par le frontend (build arg) + futur signaling WebRTC
 }
 
 impl Config {
