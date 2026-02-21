@@ -1,0 +1,110 @@
+name: 🏷️ Release – Bump Version & Tag
+
+# Déclenché manuellement : tu choisis le type de bump
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Type de bump de version"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch    # 0.5.0 → 0.5.1  (bugfix)
+          - minor    # 0.5.0 → 0.6.0  (nouvelle fonctionnalité)
+          - major    # 0.5.0 → 1.0.0  (breaking change)
+      prerelease:
+        description: "Suffixe pre-release (optionnel, ex: beta.1)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write   # pour pusher le tag + commit
+
+jobs:
+  release:
+    name: 🏷️ Bump ${{ inputs.bump }} version
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 1. Calcul de la nouvelle version ──────────────────────────
+      - name: Calculer la nouvelle version
+        id: version
+        run: |
+          CURRENT=$(cat VERSION | tr -d '[:space:]')
+          echo "📌 Version actuelle : $CURRENT"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "${{ inputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+
+          # Ajout du suffixe pre-release si fourni
+          if [ -n "${{ inputs.prerelease }}" ]; then
+            FULL="${NEW}-${{ inputs.prerelease }}"
+          else
+            FULL="${NEW}"
+          fi
+
+          echo "🚀 Nouvelle version : $FULL"
+          echo "new=$FULL" >> $GITHUB_OUTPUT
+          echo "tag=v${FULL}" >> $GITHUB_OUTPUT
+
+      # ── 2. Mise à jour des fichiers de version ────────────────────
+      - name: Mettre à jour VERSION
+        run: |
+          echo "${{ steps.version.outputs.new }}" > VERSION
+          echo "✅ VERSION → ${{ steps.version.outputs.new }}"
+
+      - name: Mettre à jour backend/Cargo.toml
+        run: |
+          sed -i "s/^version = \".*\"/version = \"${{ steps.version.outputs.new }}\"/" backend/Cargo.toml
+          grep "^version" backend/Cargo.toml
+          echo "✅ Cargo.toml mis à jour"
+
+      - name: Mettre à jour frontend/package.json
+        run: |
+          sed -i "s/\"version\": \".*\"/\"version\": \"${{ steps.version.outputs.new }}\"/" frontend/package.json
+          grep '"version"' frontend/package.json
+          echo "✅ package.json mis à jour"
+
+      # ── 3. Commit + Tag git ───────────────────────────────────────
+      - name: Commit & Tag
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add VERSION backend/Cargo.toml frontend/package.json
+          git commit -m "chore(release): bump version to ${{ steps.version.outputs.new }} [skip ci]"
+
+          git tag -a "${{ steps.version.outputs.tag }}" \
+            -m "Release ${{ steps.version.outputs.tag }}"
+
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "${{ steps.version.outputs.tag }}"
+
+          echo "✅ Tag ${{ steps.version.outputs.tag }} créé et poussé"
+
+      # ── 4. Résumé ─────────────────────────────────────────────────
+      - name: Résumé
+        run: |
+          echo "## 🏷️ Release ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | \`${{ steps.version.outputs.new }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag git** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Bump** | ${{ inputs.bump }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Lance maintenant **Backend.yml** → **Frontend.yml** → **test-nook.yml** → **Docker.yml**" >> $GITHUB_STEP_SUMMARY
+          echo "L'image sera taguée automatiquement \`${{ steps.version.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
