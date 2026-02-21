@@ -1,4 +1,4 @@
-name: 🚀 CI - Test Nook (Backend + Frontend + Intégration)
+name: 3==> 🚀 CI - Test Nook (Backend + Frontend + Intégration)
 
 on:
   workflow_dispatch:
