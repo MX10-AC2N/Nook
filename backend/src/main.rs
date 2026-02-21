@@ -1,4 +1,4 @@
-// main.rs – VERSION FINALE (Config + middleware auth global)
+// main.rs – VERSION FINALE (Config + middleware auth global actif)
 
 use axum::{
     body::{to_bytes, Body},
@@ -36,7 +36,7 @@ use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// SharedState (pub pour middleware)
+// SharedState (pub pour le middleware)
 // ---------------------------------------------------------------------
 #[derive(Clone)]
 pub struct SharedState {
@@ -46,7 +46,7 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// Middleware base inject (ton code original)
+// Middleware base inject (ton code original conservé)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     Host(host): Host,
@@ -87,15 +87,13 @@ async fn base_inject_middleware(
 async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     let pool = SqlitePool::connect(url).await?;
     migrate!("./migrations").run(&pool).await?;
-    eprintln!("[DB] Migrations OK");
+    eprintln!("[DB] Migrations appliquées");
     Ok(pool)
 }
 
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
-    // ton code original (inchangé)
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users").fetch_one(pool).await?;
     if count.0 == 0 {
-        // ... (ton insert admin initial)
         let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
         let password_hash = crate::auth::hash_password("changeme2026");
         let now = Utc::now().timestamp();
@@ -103,9 +101,9 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
                VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, ?)"#
         )
-        .bind(&admin_id).bind("admin").bind("admin@nook.local").bind(password_hash).bind("Administrateur Initial").bind(now)
+        .bind(&admin_id).bind("admin").bind("admin@nook.local").bind(&password_hash).bind("Administrateur Initial").bind(now)
         .execute(pool).await?;
-        eprintln!("[Init] Admin initial créé");
+        eprintln!("[Init] Admin initial créé (changez le mot de passe !)");
     }
     Ok(())
 }
@@ -142,7 +140,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let shared_state = Arc::new(SharedState { db: pool, webrtc_state, file_manager });
 
-    // Routes publiques
     let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -151,7 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/generate-invite", post(invites::generate_invite))
         .route("/health", get(|| async { "OK" }));
 
-    // Routes protégées avec middleware global
     let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
@@ -188,7 +184,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
-    eprintln!("[🚀] Nook démarré → http://0.0.0.0:{} (middleware auth global actif)", config.port);
+    eprintln!("[🚀] Nook démarré sur http://0.0.0.0:{} (middleware auth global actif)", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
 
