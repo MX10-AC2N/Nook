@@ -1,16 +1,17 @@
-// backend/src/auth.rs - Authentification propre avec Extension<CurrentUser>
+// backend/src/auth.rs - Axum 0.8 + rand 0.9 compatible
 
 use crate::{db::User, SharedState};
 use argon2::password_hash::{PasswordHash, SaltString};
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use axum::{
-    extract::{State as AxumState, Extension},
+    extract::{Extension, State as AxumState},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
 use chrono::Utc;
 use http::header::SET_COOKIE;
+// rand 0.9 : OsRng est disponible via la feature "os_rng"
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -57,9 +58,13 @@ pub struct AuthResponse {
 
 // ====================== UTILITAIRES ======================
 pub fn hash_password(password: &str) -> String {
+    // rand 0.9 : OsRng implémente toujours CryptoRng + RngCore
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    argon2.hash_password(password.as_bytes(), &salt).unwrap().to_string()
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .unwrap()
+        .to_string()
 }
 
 fn verify_password(password: &str, hashed: &str) -> bool {
@@ -67,10 +72,12 @@ fn verify_password(password: &str, hashed: &str) -> bool {
         Ok(p) => p,
         Err(_) => return false,
     };
-    Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed)
+        .is_ok()
 }
 
-// ====================== HANDLERS PUBLICS (pas de protection) ======================
+// ====================== HANDLERS PUBLICS ======================
 pub async fn register(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterPayload>,
@@ -81,7 +88,7 @@ pub async fn register(
 
     let result = sqlx::query(
         "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
-         VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)"
+         VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)",
     )
     .bind(&user_id)
     .bind(&payload.username)
@@ -97,7 +104,8 @@ pub async fn register(
             success: true,
             message: "Inscription réussie ! En attente d'approbation.".to_string(),
             user: None,
-        }).into_response(),
+        })
+        .into_response(),
         Err(_) => (
             StatusCode::CONFLICT,
             Json(AuthResponse {
@@ -105,7 +113,8 @@ pub async fn register(
                 message: "Utilisateur existe déjà".to_string(),
                 user: None,
             }),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
@@ -120,7 +129,9 @@ pub async fn login(
         .unwrap_or(None);
 
     match user {
-        Some(user) if user.approved && verify_password(&payload.password, &user.password_hash) => {
+        Some(user)
+            if user.approved && verify_password(&payload.password, &user.password_hash) =>
+        {
             let token = Uuid::new_v4().to_string();
             let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
                 .bind(&token)
@@ -141,13 +152,17 @@ pub async fn login(
                 success: true,
                 message: "Connexion réussie".to_string(),
                 user: Some(user_info),
-            }).into_response();
+            })
+            .into_response();
 
             response.headers_mut().insert(
                 SET_COOKIE,
-                format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", user.id, token)
-                    .parse()
-                    .unwrap(),
+                format!(
+                    "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
+                    user.id, token
+                )
+                .parse()
+                .unwrap(),
             );
             response
         }
@@ -158,15 +173,18 @@ pub async fn login(
                 message: "Identifiants incorrects ou compte non approuvé".to_string(),
                 user: None,
             }),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
-// ====================== HANDLERS PROTÉGÉS (avec Extension<CurrentUser>) ======================
+// ====================== HANDLERS PROTÉGÉS ======================
 #[derive(Clone)]
 pub struct CurrentUser(pub User);
 
-pub async fn me(Extension(CurrentUser(user)): Extension<CurrentUser>) -> impl IntoResponse {
+pub async fn me(
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> impl IntoResponse {
     let user_info = UserInfo {
         id: user.id,
         username: user.username,
@@ -179,10 +197,14 @@ pub async fn me(Extension(CurrentUser(user)): Extension<CurrentUser>) -> impl In
     Json(json!({
         "authenticated": true,
         "user": user_info
-    })).into_response()
+    }))
+    .into_response()
 }
 
-pub async fn logout(Extension(CurrentUser(user)): Extension<CurrentUser>, AxumState(state): AxumState<Arc<SharedState>>) -> impl IntoResponse {
+pub async fn logout(
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    AxumState(state): AxumState<Arc<SharedState>>,
+) -> impl IntoResponse {
     let _ = sqlx::query("UPDATE users SET token = NULL WHERE id = ?")
         .bind(&user.id)
         .execute(&state.db)
@@ -191,7 +213,9 @@ pub async fn logout(Extension(CurrentUser(user)): Extension<CurrentUser>, AxumSt
     let mut response = Json(json!({"success": true})).into_response();
     response.headers_mut().insert(
         SET_COOKIE,
-        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".parse().unwrap(),
+        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            .parse()
+            .unwrap(),
     );
     response
 }
@@ -207,7 +231,7 @@ pub async fn change_password(
     let new_token = Uuid::new_v4().to_string();
 
     let result = sqlx::query(
-        "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?"
+        "UPDATE users SET password_hash = ?, needs_password_change = 0, token = ? WHERE id = ?",
     )
     .bind(&hashed)
     .bind(&new_token)
@@ -217,23 +241,31 @@ pub async fn change_password(
 
     match result {
         Ok(_) => {
-            let mut response = (StatusCode::OK, Json(json!({"success": true, "message": "Mot de passe changé"}))).into_response();
+            let mut response = (
+                StatusCode::OK,
+                Json(json!({"success": true, "message": "Mot de passe changé"})),
+            )
+                .into_response();
             response.headers_mut().insert(
                 SET_COOKIE,
-                format!("auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400", target_id, new_token)
-                    .parse()
-                    .unwrap(),
+                format!(
+                    "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
+                    target_id, new_token
+                )
+                .parse()
+                .unwrap(),
             );
             response
         }
         Err(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"success": false, "message": "Erreur lors du changement"})),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
-// ====================== MIDDLEWARE AUTH GLOBAL ======================
+// ====================== MIDDLEWARE AUTH ======================
 use axum::{
     body::Body,
     extract::State,
@@ -242,7 +274,6 @@ use axum::{
     response::Response,
 };
 
-/// Middleware qui protège les routes + injecte l'utilisateur
 pub async fn require_auth(
     State(state): State<Arc<SharedState>>,
     mut req: Request<Body>,
@@ -261,7 +292,7 @@ pub async fn require_auth(
                         let token = parts[1];
 
                         let user: Option<User> = sqlx::query_as(
-                            "SELECT * FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1"
+                            "SELECT * FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1",
                         )
                         .bind(user_id)
                         .bind(token)
