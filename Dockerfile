@@ -1,15 +1,26 @@
 # ===============================================
-# Dockerfile Nook – Build complet + Distroless
+# Dockerfile Nook – Build depuis sources
+# Utilisé par : test-nook.yml + docker-compose
+#
+# ⚠️  PAS de --platform=$BUILDPLATFORM sur le builder :
+#     ce flag cause une incompatibilité de proc-macros
+#     (async-trait, serde_derive...) entre le cache
+#     warmup et le vrai build quand on ne fait pas
+#     de cross-compilation explicite.
+#
+# ⚠️  rust:1.88 minimum requis :
+#     - home@0.5.12 exige rustc 1.88
+#     - edition2024 des dépendances crypto exige rustc 1.85+
 # ===============================================
 
 # ===============================================
-# ÉTAPE 1 : Build Rust
+# ÉTAPE 1 : Build Rust depuis les sources
 # ===============================================
-FROM --platform=$BUILDPLATFORM rust:1.88-bookworm AS builder
+FROM rust:1.88-bookworm AS builder
 
 WORKDIR /usr/src/nook
 
-# Cache dependencies
+# Cache layer : compile un dummy main pour warm up les deps
 COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
     cargo build --release && rm -rf src
@@ -47,7 +58,7 @@ COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
 COPY --from=prep --chown=nonroot:nonroot /app /app
 
-# Copie du frontend build
+# Frontend build fourni par le job frontend (artifact CI)
 COPY --chown=nonroot:nonroot frontend/build /app/static
 
 WORKDIR /app
