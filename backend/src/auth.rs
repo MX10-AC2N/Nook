@@ -396,19 +396,27 @@ pub async fn change_password(
 }
 
 // ==================================================
-// MIDDLEWARE AUTH GLOBAL – VERSION PROPRE & STABLE
+// CURRENT USER + MIDDLEWARE AUTH GLOBAL (propre & moderne)
 // ==================================================
 use axum::{
     body::Body,
-    extract::State,
-    http::{header::COOKIE, Request},
+    extract::{State, Extension},
+    http::{header::COOKIE, Request, StatusCode},
     middleware::Next,
     response::Response,
 };
+use std::sync::Arc;
+use crate::SharedState;
+use crate::db::User;
 
+/// Utilisateur courant injecté dans toutes les routes protégées
+#[derive(Clone)]
+pub struct CurrentUser(pub User);   // accès via current_user.0 ou on peut ajouter des méthodes helper
+
+/// Middleware qui vérifie le cookie ET injecte l'utilisateur
 pub async fn require_auth(
     State(state): State<Arc<SharedState>>,
-    req: Request<Body>,
+    mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let headers = req.headers();
@@ -432,7 +440,8 @@ pub async fn require_auth(
                         .await
                         .unwrap_or(None);
 
-                        if user.is_some() {
+                        if let Some(user) = user {
+                            req.extensions_mut().insert(CurrentUser(user));
                             return Ok(next.run(req).await);
                         }
                     }
