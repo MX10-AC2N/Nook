@@ -23,19 +23,15 @@ lazy_static = "1.4"
 chrono = { version = "0.4", features = ["serde"] }
 bytes = "1"
 
-# ⚠️ PAS d'openssl vendored — compile du C via proc-macros qui crashe Docker
-# rustls est du Rust pur, compatible distroless et multi-arch sans problème
-rustls = { version = "0.23", features = ["ring"] }
-rustls-native-certs = "0.8"
+# HTTP client — reqwest 0.13 utilise rustls par défaut, pas besoin de feature TLS
+# ⚠️ PAS de openssl vendored : compile du C via build.rs → crash proc-macro dans Docker
+reqwest = { version = "0.13", features = ["json"] }
 
 # rand 0.9 pour webrtc.rs (rng() + RngCore + fill_bytes)
 rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
 
 # rand_core 0.6 explicitement pour argon2/password-hash (diamond dep fix)
 rand_core = { version = "0.6", features = ["std", "getrandom"] }
-
-# HTTP client — rustls uniquement (pas d'openssl)
-reqwest = { version = "^0.13", features = ["json", "rustls-tls-native-roots"] }
 
 # Auth & crypto
 argon2 = "0.5"
