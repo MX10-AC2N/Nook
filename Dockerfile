@@ -2,38 +2,34 @@
 # Dockerfile Nook – Build depuis sources
 # Utilisé par : test-nook.yml + docker-compose
 #
-# Utilise cargo-chef pour le cache des dépendances.
-# La technique "dummy fn main()" cause une
-# incompatibilité de proc-macros (async-trait) car
-# Cargo compile les deps dans un contexte différent
-# de celui du vrai build --bin.
-# cargo-chef résout ce problème proprement.
+# Stratégie : BuildKit cache mounts pour ~/.cargo
+# et target/ — plus fiable que cargo-chef ou
+# dummy main, zéro problème de proc-macros.
 # ===============================================
 
-# ===============================================
-# ÉTAPE 0 : cargo-chef – préparation du recipe
-# ===============================================
-FROM rust:1.88-bookworm AS chef
-RUN cargo install cargo-chef --locked
+# syntax=docker/dockerfile:1
+FROM rust:1.88-bookworm AS builder
+
 WORKDIR /usr/src/nook
 
-FROM chef AS planner
-COPY backend/ .
-RUN cargo chef prepare --recipe-path recipe.json
+# Copie des fichiers de dépendances
+COPY backend/Cargo.toml backend/Cargo.lock ./
+
+# Copie des sources
+COPY backend/ ./
+
+# Build avec cache mount BuildKit
+# --mount=type=cache garde ~/.cargo/registry et target/
+# entre les builds sans jamais mélanger les contextes de compilation
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/usr/src/nook/target \
+    cargo build --release --bin nook-backend && \
+    # Copier le binaire hors du cache avant que le layer soit finalisé
+    cp target/release/nook-backend /usr/local/bin/nook-backend
 
 # ===============================================
-# ÉTAPE 1 : Build des dépendances (layer cacheable)
-# ===============================================
-FROM chef AS builder
-COPY --from=planner /usr/src/nook/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-
-# Build réel (seul le code source change ici)
-COPY backend/ .
-RUN cargo build --release --bin nook-backend
-
-# ===============================================
-# ÉTAPE 2 : Préparation de l'image finale
+# ÉTAPE 2 : Préparation
 # ===============================================
 FROM debian:bookworm-slim AS prep
 
@@ -46,7 +42,7 @@ RUN addgroup --system --gid 1000 app && \
 
 RUN mkdir -p /app/data /app/static && chown -R app:app /app
 
-COPY --from=builder --chown=app:app /usr/src/nook/target/release/nook-backend /app/nook-backend
+COPY --from=builder --chown=app:app /usr/local/bin/nook-backend /app/nook-backend
 
 # ===============================================
 # ÉTAPE 3 : Image finale Distroless
