@@ -11,6 +11,9 @@ services:
       - "6300:3000"
 
     volumes:
+      # Volumes Docker nommés — pas de bind mounts ./data ./logs
+      # Les bind mounts créent les dossiers avec uid=root → Permission denied
+      # car le container tourne en nonroot (uid 65532, distroless)
       - nook-data:/app/data
       - nook-logs:/app/logs
 
@@ -47,8 +50,9 @@ networks:
     driver: bridge
     name: nook-network
 
+# ⚠️ Les volumes DOIVENT être déclarés ici ET dans le service
 volumes:
-  data:
+  nook-data:
     driver: local
-
-    
+  nook-logs:
+    driver: local
