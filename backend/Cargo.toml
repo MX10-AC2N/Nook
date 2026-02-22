@@ -1,6 +1,6 @@
 [package]
 name = "nook-backend"
-version = "0.1.1"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
@@ -17,18 +17,25 @@ uuid = { version = "1.0", features = ["v4"] }
 futures-util = "0.3"
 tower-service = "0.3"
 http = "1.0"
-openssl = { version = "0.10", features = ["vendored"] }
 serde_urlencoded = "0.7"
-reqwest = { version = "0.13", features = ["json"] }
 urlencoding = "2.1"
 lazy_static = "1.4"
 chrono = { version = "0.4", features = ["serde"] }
+bytes = "1"
+
+# ⚠️ PAS d'openssl vendored — compile du C via proc-macros qui crashe Docker
+# rustls est du Rust pur, compatible distroless et multi-arch sans problème
+rustls = { version = "0.23", features = ["ring"] }
+rustls-native-certs = "0.8"
 
 # rand 0.9 pour webrtc.rs (rng() + RngCore + fill_bytes)
 rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
 
-# rand_core 0.6 explicitement pour argon2/password-hash (évite le diamond dep)
+# rand_core 0.6 explicitement pour argon2/password-hash (diamond dep fix)
 rand_core = { version = "0.6", features = ["std", "getrandom"] }
+
+# HTTP client — rustls uniquement (pas d'openssl)
+reqwest = { version = "0.13", features = ["json", "rustls-tls"] }
 
 # Auth & crypto
 argon2 = "0.5"
@@ -48,4 +55,3 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Compatibilité
 home = "0.5"
-bytes = "1"
