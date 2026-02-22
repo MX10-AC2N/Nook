@@ -12,98 +12,34 @@
 
 **Erreur CI** :
 ```
-[vite-plugin-svelte:compile-module] src/lib/conversationStore.svelte.ts:4:0
-Cannot export state from a module if it is reassigned.
-Either export a function returning the state value or only mutate the state value's properties
-https://svelte.dev/e/state_invalid_export
+[vite-plugin-svelte:compile-module] src/lib/conversationStore.svelte.ts
+Cannot export state from a module if it is reassigned. → state_invalid_export
 ```
 
-**Cause** : `conversationStore.svelte.ts` exporte des variables `$state` qui sont ensuite réassignées.
-```typescript
-// LIGNE 4-7 — CASSÉ
-export let conversations = $state<Conversation[]>([]);
-export let activeConversationId = $state<string | null>(null);
-export let participants = $state<Participant[]>([]);
-export let availableUsers = $state<Participant[]>([]);
-// Plus loin : conversations = [...]; activeConversationId = id; → ERREUR
-```
+**Cause** : `conversationStore.svelte.ts` exporte des variables `$state` réassignées.
 
-**Fix** : Convertir en objet `$state` unique (même pattern que `chatStore.svelte.ts`).
+**Fix** :
 ```typescript
-// CORRECT
-export interface ConversationState {
-  conversations: Conversation[];
-  activeConversationId: string | null;
-  participants: Participant[];
-  availableUsers: Participant[];
-}
+// ✅ Convertir en objet $state unique
 export const conversationStore = $state<ConversationState>({
   conversations: [], activeConversationId: null, participants: [], availableUsers: []
 });
 // Puis partout : conversationStore.conversations = [...] au lieu de conversations = [...]
 ```
 
-**Fichier concerné** : `frontend/src/lib/conversationStore.svelte.ts`  
-**Status** : 🔴 Non résolu — bloque le build et donc le CI/CD complet
+**Status** : 🔴 Non résolu — bloque le CI complet
 
 ---
 
 ### Bug #2 — IMPORTS CASSÉS dans authStore ❌
 
-**Cause** : `authStore.svelte.js` a été refactorisé en classe mais n'exporte plus les noms attendus par le reste du projet.
+**Cause** : `authStore.svelte.js` refactorisé en classe mais n'exporte plus les noms attendus.
 
-**Fichiers qui importent des noms inexistants** :
+**Exports manquants** : `authUser`, `isAuthenticated`, `isAdmin`, `needsPasswordChange`,
+`authLoading`, `initAuth()`, `setAuthenticated()`
 
-| Fichier | Imports cassés |
-|---------|---------------|
-| `src/routes/+layout.svelte` | `isAuthenticated`, `isAdmin`, `needsPasswordChange`, `initAuth` |
-| `src/routes/+page.svelte` | `isAuthenticated`, `isAdmin`, `authLoading` |
-| `src/routes/login/+page.svelte` | `isAuthenticated`, `needsPasswordChange`, `setAuthenticated` |
-| `src/routes/chat/+page.svelte` | `isAuthenticated`, `authUser` |
-| `src/routes/calendar/+page.svelte` | `isAuthenticated` |
-| `src/routes/call/+page.svelte` | `isAuthenticated` |
-| `src/routes/admin/+page.svelte` | `isAdmin` |
-| `src/routes/change-password/+page.svelte` | `needsPasswordChange` |
-| `src/lib/conversationStore.svelte.ts` | `authUser`, `isAuthenticated` |
-| `src/lib/chatStore.svelte.ts` | `authUser`, `isAuthenticated` |
-| `src/lib/webrtc-calls.svelte.ts` | `authUser` |
-| `src/lib/crypto.ts` | `authUser` |
-| `src/lib/mediaStore.svelte.js` | `authUser` |
-
-**Fix** : Ajouter les exports de compatibilité dans `authStore.svelte.js` :
-```javascript
-// Ajouter à la fin de authStore.svelte.js
-
-// Compatibilité avec les anciens imports
-export const authUser = $derived(() => authStore.user);
-export const isAuthenticated = $derived(() => authStore.isAuthenticated);
-export const isAdmin = $derived(() => authStore.user?.role === 'admin');
-export const needsPasswordChange = $derived(() => 
-  authStore.user?.needs_password_change ?? false
-);
-export let authLoading = $state(true);
-
-export function setAuthenticated(user, token) {
-  authStore.login(user, token);
-}
-
-export async function initAuth() {
-  authLoading = true;
-  try {
-    const resp = await fetch('/api/auth/me', { credentials: 'include' });
-    const data = await resp.json();
-    if (data.authenticated && data.user) {
-      authStore.user = data.user;
-    }
-  } catch (e) {
-    console.error('initAuth error:', e);
-  } finally {
-    authLoading = false;
-  }
-}
-```
-
-⚠️ **Attention** : `$derived` dans un module `.svelte.js` — à tester. Si non supporté, utiliser des fonctions getter à la place.
+**Fichiers impactés** : layout, login, chat, calendar, call, admin, change-password,
+conversationStore, chatStore, webrtc-calls, crypto, mediaStore
 
 **Status** : 🔴 Non résolu
 
@@ -111,27 +47,15 @@ export async function initAuth() {
 
 ### Bug #3 — `connectionError.set()` cassé ❌
 
-**Cause** : `connectionError` n'est plus un writable Svelte 4 store, c'est maintenant un champ dans l'objet `chatStore`.
+**Cause** : `connectionError` n'est plus un writable store, c'est un champ de `chatStore`.
 
-**Fichiers cassés** :
-
-| Fichier | Pattern cassé | Fix |
-|---------|--------------|-----|
-| `src/lib/conversationStore.svelte.ts` | `connectionError.set(null)` | `setConnectionError(null)` |
-| `src/lib/mediaStore.svelte.js` | `connectionError.set('...')` | `setConnectionError('...')` |
-| `src/components/MediaPlayer.svelte` | `connectionError.set('...')` | `setConnectionError('...')` |
-| `src/components/MediaRecorder.svelte` | `connectionError.set('...')` | `setConnectionError('...')` |
-
-**Import à changer** :
+**Fix** :
 ```typescript
-// ❌ AVANT
-import { connectionError } from './chatStore.svelte.ts';
-connectionError.set('Erreur...');
-
-// ✅ APRÈS
-import { setConnectionError } from './chatStore.svelte.ts';
-setConnectionError('Erreur...');
+// ❌ import { connectionError } from './chatStore.svelte.ts';
+// ✅ import { setConnectionError } from './chatStore.svelte.ts';
 ```
+
+**Fichiers** : conversationStore, mediaStore, MediaPlayer, MediaRecorder
 
 **Status** : 🔴 Non résolu
 
@@ -139,21 +63,14 @@ setConnectionError('Erreur...');
 
 ### Bug #4 — `sodiumLoading` / `sodiumError` cassés dans layout ❌
 
-**Cause** : Le layout utilise `sodiumLoading.subscribe(...)` et `$sodiumError` (syntaxe store Svelte 4) mais `sodium.svelte.js` n'exporte que `sodiumState` (objet `$state`).
+**Cause** : layout utilise la syntaxe store Svelte 4 (`sodiumLoading.subscribe()`, `$sodiumError`)
+mais `sodium.svelte.js` n'exporte que `sodiumState` (objet `$state`).
 
-**Fix dans `+layout.svelte`** :
+**Fix** :
 ```svelte
-// ❌ AVANT
-import { sodiumLoading, sodiumError } from '$lib/sodium.svelte.js';
-// ... sodiumLoading.subscribe($loading => { ... })
-// ... get(sodiumError)
-// ... {$sodiumError.message}
-
-// ✅ APRÈS
+// ✅ Utiliser waitForSodium() + sodiumState directement
 import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-// Attendre directement
 await waitForSodium();
-// Lire l'état
 sodiumState.error // au lieu de get(sodiumError)
 ```
 
@@ -163,250 +80,213 @@ sodiumState.error // au lieu de get(sodiumError)
 
 ### Bug #5 — Incohérence schéma SQL ⚠️
 
-**Cause** : `001_initial.sql` crée `conversation_members` mais `db.rs` utilise `conversation_participants`.
+**Cause** : `001_initial.sql` crée `conversation_members` mais `db.rs` utilise
+`conversation_participants`.
 
-```sql
--- 001_initial.sql crée :
-CREATE TABLE conversation_members (...)
+**Fix** : Corriger `db.rs` pour utiliser `conversation_members` (évite migration destructive).
 
--- db.rs utilise :
-"INSERT INTO conversation_participants ..."  -- ← table inexistante !
+**Status** : 🟡 Non bloquant CI, mais crash runtime
+
+---
+
+## ✅ BUGS RÉSOLUS
+
+### [Résolu] Diamond dependency rand_core 0.6/0.9
+
+**Contexte** : Upgrade de rand 0.8 → 0.9 avec argon2 0.5 qui utilise rand_core 0.6.
+
+**Erreur** :
+```
+error[E0277]: the trait `CryptoRngCore` is not implemented for `&mut rand::rngs::OsRng`
 ```
 
-**Fix** : Soit renommer la table dans la migration, soit corriger `db.rs`.
-Recommandation : corriger `db.rs` pour utiliser `conversation_members` (évite migration destructive).
+**Cause** : `rand 0.9` utilise `rand_core 0.9`, mais `argon2 0.5` / `password-hash 0.5`
+attendent `rand_core 0.6`. Les deux `OsRng` sont des types incompatibles.
 
-**Status** : 🟡 Non bloquant en CI (pas de test d'intégration DB) mais bug runtime critique
+**Fix** :
+```toml
+# Cargo.toml — deux crates rand coexistent
+rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
+rand_core = { version = "0.6", features = ["std", "getrandom"] }  # pour argon2
+```
+```rust
+// auth.rs
+use rand_core::OsRng;  // ← 0.6, compatible argon2
+// webrtc.rs
+use rand::RngCore;
+rand::rng().fill_bytes(&mut buf);  // ← rand 0.9
+```
+
+---
+
+### [Résolu] axum 0.7 → 0.8 breaking changes
+
+**Changements** :
+- `axum::extract::Host` supprimé → extraire depuis `HeaderMap` :
+  ```rust
+  let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("localhost:3000");
+  ```
+- `Message::Text(String)` → `Message::Text(Utf8Bytes)` : utiliser `.into()` pour convertir
+- `text.clone()` (Utf8Bytes) vers channel String → `.to_string()`
+- Middleware `FromFn<(), ...>` → retirer `Host` extractor de la signature
+
+---
+
+### [Résolu] Cargo.lock désynchronisé après upgrade Cargo.toml
+
+**Symptôme** : Docker compilait avec `axum 0.7.9` malgré `axum = "0.8"` dans Cargo.toml.
+`async-trait` incompatible déclenché car axum 0.7 en dépend différemment.
+
+**Cause** : `Cargo.lock` jamais régénéré après les modifications du `Cargo.toml`.
+
+**Fix** :
+```bash
+cd backend
+rm Cargo.lock
+cargo update
+git add Cargo.lock && git commit -m "chore(deps): regenerate Cargo.lock"
+```
+
+**Versions après fix** : axum 0.8.8, rand 0.9.2, reqwest 0.13.2, tower_governor 0.8.0
+
+---
+
+### [Résolu] `home@0.5.12 requires rustc 1.88`
+
+**Symptôme** :
+```
+error: rustc 1.85.1 is not supported by the following package:
+  home@0.5.12 requires rustc 1.88
+```
+
+**Fix** : `FROM rust:1.88-bookworm` dans tous les Dockerfiles.
+
+---
+
+### [Résolu] proc-macro async-trait incompatible en Docker
+
+**Symptôme** (récurrent sur 5 tentatives !) :
+```
+error: cannot produce proc-macro for `async-trait v0.1.89` as the target
+`x86_64-unknown-linux-gnu` does not support these crate types
+```
+
+**Causes identifiées et fixes** (par ordre de découverte) :
+
+| # | Cause | Fix |
+|---|-------|-----|
+| 1 | `FROM --platform=$BUILDPLATFORM rust:...` | Supprimer `--platform=$BUILDPLATFORM` |
+| 2 | `BUILDKIT_INLINE_CACHE: "1"` dans docker-compose | Supprimer ce build-arg |
+| 3 | Technique "dummy fn main()" pour cache deps | Remplacer par `cargo-chef` |
+| 4 | **Cargo.lock désynchronisé** (cause racine réelle) | `rm Cargo.lock && cargo update` |
+
+**Cause racine finale** : Cargo.lock pointait vers axum 0.7 (qui dépend d'async-trait
+d'une façon incompatible avec le contexte Docker) malgré Cargo.toml demandant axum 0.8.
+Toutes les autres tentatives masquaient le vrai problème.
+
+**Leçon clé** : Après tout upgrade de `Cargo.toml`, **toujours régénérer `Cargo.lock`**
+localement et le commiter avant de pusher.
+
+---
+
+### [Résolu] ARG non interpolé dans COPY
+
+**Symptôme** : `COPY ${BACKEND_PATH}/Cargo.toml ./` échoue car BuildKit n'interpole
+pas les ARG utilisateur dans les chemins sources des COPY.
+
+**Fix** : Hardcoder tous les chemins dans les COPY.
+
+---
+
+### [Résolu] npm_net externe crash CI
+
+**Cause** : `docker-compose.yml` référençait `npm_net` comme réseau externe (pour
+Nginx Proxy Manager en prod). Ce réseau n'existe pas sur les runners GitHub.
+
+**Fix** : Un `docker-compose.yml` sans réseaux externes, compatible CI.
 
 ---
 
 ## ✅ DÉCISIONS ARCHITECTURALES
 
-### Pattern stores Svelte 5 retenu pour Nook
+### Deux Dockerfiles distincts
 
-**Validé** : objet `$state` unique par domaine fonctionnel, exposé via fonctions getter/setter.
+- `Dockerfile` : compilation depuis sources avec `cargo-chef`. Utilisé par test-nook.yml et docker-compose.
+- `Dockerfile.release` : binaires pré-compilés par Backend.yml. Utilisé par Docker.yml et ci-new2.yml.
+
+**Raison** : le multi-arch Docker (linux/amd64 + linux/arm64) est incompatible avec la
+compilation Rust dans le même Dockerfile — les proc-macros cassent. Solution : compiler
+séparément dans Backend.yml (matrice), puis assembler dans Docker.yml.
+
+---
+
+### Versioning unifié via fichier `VERSION`
+
+- **Source de vérité** : `VERSION` à la racine (`0.5.0`)
+- `release.yml` bumpe `VERSION` + `backend/Cargo.toml` + `frontend/package.json` + tag git
+- `Docker.yml` lit `VERSION` pour tagger l'image GHCR
+- Badges README via `ghcr-badge.egpl.dev` → affichage automatique version + taille image
+
+---
+
+### Pattern stores Svelte 5 retenu
 
 ```typescript
-// Pattern à suivre partout
-export const xxxStore = $state<XxxState>(createInitialState());
-export function getXxx(): XxxType { return xxxStore.xxx; }
-export function setXxx(val: XxxType): void { xxxStore.xxx = val; }
-export function resetXxx(): void { Object.assign(xxxStore, createInitialState()); }
+// fichier: src/lib/monStore.svelte.ts
+export const monStore = $state<MonState>(createInitialState());
+export function setData(data: string[]): void { monStore.data = data; }
+export function getData(): string[] { return monStore.data; }
+export function reset(): void { Object.assign(monStore, createInitialState()); }
 ```
 
-Stores existants qui suivent ce pattern : `chatStore`, `callStore`, `sodiumState`, `recordingState`  
-Stores à corriger : `conversationStore` (bug #1), `authStore` (bug #2)
+Stores conformes : `chatStore`, `callStore`, `sodiumState`, `recordingState`  
+Stores à corriger : `conversationStore` (Bug #1), `authStore` (Bug #2)
 
 ---
 
-### Chiffrement E2EE — Architecture retenue
+### Auth : Cookie HttpOnly
 
-```
-Côté client uniquement :
-  1. Génération paire de clés Curve25519 (libsodium crypto_box_keypair)
-  2. Clé privée chiffrée avec password (ChaCha20-Poly1305) → stockée IndexedDB
-  3. Clé publique envoyée au backend (en clair)
-  
-Envoi d'un message :
-  1. Génération clé de session symétrique aléatoire
-  2. Chiffrement du message avec la clé de session (XSalsa20-Poly1305)
-  3. Chiffrement de la clé de session avec la clé publique de chaque destinataire (crypto_box)
-  4. Envoi : { content: encrypted_bytes, encrypted_keys: {userId: encrypted_session_key}, nonce }
-  
-Réception :
-  1. Récupération clé de session chiffrée pour l'userId courant
-  2. Déchiffrement clé de session avec clé privée
-  3. Déchiffrement message avec clé de session
-```
-
-**Modules** : `src/lib/crypto.ts` (fonctions) + `src/lib/storage.ts` (IndexedDB) + `src/lib/sodium.svelte.js` (init)
-
----
-
-### Auth : Cookie vs JWT
-
-**Choix retenu** : Cookie HttpOnly `auth_token=userId:token`  
-**Raison** : Simplicité, protection XSS automatique, pas de refresh token nécessaire (24h)  
-**Token stocké** en DB dans `users.token` → révocable côté serveur (logout)  
-**Changement de mdp** → nouveau token généré → cookie mis à jour → session continuée
+Cookie `auth_token=userId:token` (HttpOnly, SameSite=Lax, Max-Age=86400).  
+Token stocké en DB → révocable côté serveur. Changement de mdp → nouveau token.
 
 ---
 
 ### Docker : Image Distroless
 
-**Choix** : `gcr.io/distroless/cc-debian12:nonroot`  
-**Raison** : Surface d'attaque minimale (~5-10 MB), pas de shell, pas de package manager  
-**Librairies copiées manuellement** : libsqlite3, libsodium, libssl, libcrypto  
-**User** : `nonroot` (uid 65532), pas de root  
-**Build multi-stage** : libs-extractor → app-prep → distroless
+`gcr.io/distroless/cc-debian12:nonroot` — ~8-15 MB, pas de shell, user nonroot (65532).
+Libs copiées manuellement : libsqlite3, libsodium, libssl, libcrypto.
 
 ---
 
 ## 📝 SESSIONS DE TRAVAIL
 
 ### Session 1 — 2026-02-19
+- Analyse complète du projet
+- Identification des 5 bugs actifs (Svelte 5 runes)
+- Création de CLAUDE.md et LEARNING.md
 
-**Contexte** : Première analyse complète du projet. Build frontend cassé en CI.
+### Session 2 — 2026-02-21 (matin)
+- Upgrade dépendances Rust : axum 0.7→0.8, rand 0.8→0.9, reqwest 0.12→0.13
+- Fix diamond dependency rand_core 0.6/0.9
+- Fix axum 0.8 breaking changes (Host, Message::Text, middleware)
+- Fix GitHub Actions workflow test-nook.yml (Dockerfile ARG, docker-compose CI)
 
-**Analyse réalisée** :
-- Lecture de tous les stores, routes, config, backend, CI
-- Identification de 5 bugs actifs (voir section BUGS ACTIFS)
-- Bug #1 est le seul bloquant le CI (erreur `state_invalid_export`)
+### Session 3 — 2026-02-21 (après-midi)
+- Debugging récurrent erreur proc-macro async-trait (5 tentatives)
+- Découverte cause racine : Cargo.lock désynchronisé
+- Fix : `rm Cargo.lock && cargo update` → versions correctes dans le lock
+- Refonte complète architecture workflows CI :
+  - `Backend.yml` + `Frontend.yml` : workflows manuels standalone
+  - `test-nook.yml` : intégration avec Dockerfile (cargo-chef)
+  - `Docker.yml` : assemblage artifacts + Dockerfile.release
+  - `release.yml` : nouveau workflow de versioning sémantique
+- Ajout `VERSION`, `Dockerfile.release`
+- Mise à jour `README.md` avec badges dynamiques GHCR
+- Création de `DOCKER.md` (règles et pièges Docker)
 
-**Fichiers analysés** :
-- `frontend/src/lib/` : tous les stores `.svelte.ts` et `.svelte.js`
-- `frontend/src/routes/+layout.svelte`
-- `frontend/svelte.config.js`, `vite.config.js`, `tsconfig.json`, `package.json`
-- `backend/src/main.rs`, `auth.rs`, `db.rs`, `Cargo.toml`
-- `backend/migrations/001_initial.sql`
-- `.github/workflows/ci-new2.yml`, `Dockerfile`
-
-**Fichiers créés** : `CLAUDE.md`, `LEARNING.md`
-
-**À faire prochaine session** :
-1. Corriger `conversationStore.svelte.ts` (bug #1 — bloquant)
-2. Compléter `authStore.svelte.js` avec les exports manquants (bug #2)
-3. Corriger imports `connectionError` → `setConnectionError` (bug #3)
-4. Corriger le layout pour `sodiumLoading`/`sodiumError` (bug #4)
-5. Corriger incohérence nom table SQL (bug #5)
-
----
-
-## 💡 OPPORTUNITÉS D'AMÉLIORATION
-
-> Idées notées pour discussion future avec MX10-AC2N
-
-### Frontend
-
-- **`authStore.svelte.js` → `.svelte.ts`** : migrer en TypeScript pour avoir le typage complet
-- **Service Worker** : actuellement désactivé (`register: false`) → à activer quand stable pour vrai PWA offline
-- **`get()` de svelte/store dans layout** : présence de `import { get } from 'svelte/store'` dans le layout → code legacy à nettoyer
-- **Gestion d'erreurs globale** : actuellement en try/catch éparpillé → centraliser dans un errorStore
-- **`$derived` in modules** : vérifier si Svelte 5.46+ supporte `$derived` dans `.svelte.ts` (comportement changeant)
-
-### Backend
-
-- **Middleware d'auth manquant** : `Extension(user_id)` dans `db.rs` mais pas de middleware qui l'injecte dans `main.rs` → bug runtime probable sur les routes `/conversations`
-- **Gestion d'erreurs typées** : `StatusCode::INTERNAL_SERVER_ERROR` partout → implémenter `thiserror` pour des erreurs plus informatives
-- **Token storage** : token auth en clair en DB → à hasher (même Argon2 light ou SHA256)
-- **Rate limiting** : `tower_governor` en dépendance mais pas encore branché dans le router
-- **Pagination messages** : `/conversations/:id/messages` fait un LIMIT 50 DESC → les messages arrivent dans le mauvais ordre côté client
-
-### Infrastructure
-
-- **Health check** : `/api/health` existe → l'utiliser dans `docker-compose.yml` (`healthcheck:`)
-- **Logs structurés** : `tracing` installé mais utilisé via `eprintln!()` partout → migrer vers `tracing::info!()`, `tracing::error!()`
-- **SQLX_OFFLINE** : `.sqlx/queries.json` est commité → s'assurer qu'il est à jour à chaque changement de requête SQL
-
----
-
-## 🔧 SNIPPETS DE RÉFÉRENCE
-
-### Store Svelte 5 complet (module)
-```typescript
-// src/lib/exempleStore.svelte.ts
-import { browser } from '$app/environment';
-
-interface ExempleState {
-  items: string[];
-  loading: boolean;
-  error: string | null;
-}
-
-function createInitialState(): ExempleState {
-  return { items: [], loading: false, error: null };
-}
-
-export const exempleStore = $state<ExempleState>(createInitialState());
-
-// Mutateurs (appelables depuis n'importe où)
-export function setItems(items: string[]): void { exempleStore.items = items; }
-export function setLoading(v: boolean): void { exempleStore.loading = v; }
-export function setError(err: string | null): void { exempleStore.error = err; }
-export function reset(): void { Object.assign(exempleStore, createInitialState()); }
-
-// Getters
-export function getItems(): string[] { return exempleStore.items; }
-
-// Initialisation (à appeler depuis onMount dans un composant)
-export async function initExempleStore(): Promise<void> {
-  if (!browser) return;
-  setLoading(true);
-  try {
-    const resp = await fetch('/api/exemples', { credentials: 'include' });
-    const data = await resp.json();
-    setItems(data.items ?? []);
-    setError(null);
-  } catch (err) {
-    setError('Erreur de chargement');
-  } finally {
-    setLoading(false);
-  }
-}
-```
-
-### Composant Svelte 5 qui consomme un store module
-```svelte
-<script lang="ts">
-  import { onMount } from 'svelte';
-  import { exempleStore, initExempleStore } from '$lib/exempleStore.svelte.ts';
-  
-  // Props
-  interface Props { title?: string; }
-  let { title = 'Ma liste' }: Props = $props();
-  
-  // State local
-  let selected = $state<string | null>(null);
-  
-  // Derived local depuis le store
-  let hasItems = $derived(exempleStore.items.length > 0);
-  
-  onMount(async () => {
-    await initExempleStore();
-  });
-</script>
-
-{#if exempleStore.loading}
-  <p>Chargement...</p>
-{:else if exempleStore.error}
-  <p class="error">{exempleStore.error}</p>
-{:else}
-  <h2>{title}</h2>
-  {#each exempleStore.items as item}
-    <button onclick={() => selected = item}>{item}</button>
-  {/each}
-{/if}
-```
-
-### Handler Axum avec extraction cookie auth
-```rust
-pub async fn mon_handler(
-    State(state): State<Arc<SharedState>>,
-    headers: HeaderMap,
-    Json(payload): Json<MonPayload>,
-) -> impl IntoResponse {
-    // Récupérer user depuis cookie
-    let user_id = match crate::auth::get_cookie(&headers, "auth_token") {
-        Some(cookie) => {
-            let parts: Vec<&str> = cookie.split(':').collect();
-            if parts.len() == 2 { parts[0].to_string() } 
-            else { return (StatusCode::UNAUTHORIZED, Json(json!({"error": "Invalid token"}))).into_response(); }
-        }
-        None => return (StatusCode::UNAUTHORIZED, Json(json!({"error": "Not authenticated"}))).into_response(),
-    };
-
-    // ... logique métier ...
-    Json(json!({"success": true})).into_response()
-}
-```
-
-### Migration SQLx
-```sql
--- backend/migrations/003_ma_migration.sql
-ALTER TABLE messages ADD COLUMN reactions TEXT DEFAULT '{}';
-CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
-```
-```bash
-# Après modification SQL, régénérer le cache :
-DATABASE_URL=sqlite:./dev.db cargo sqlx prepare --bin nook-backend
-```
+### À faire — prochaine session
+1. Corriger `conversationStore.svelte.ts` (Bug #1 — bloquant CI frontend)
+2. Compléter `authStore.svelte.js` avec les exports manquants (Bug #2)
+3. Corriger imports `connectionError` → `setConnectionError` (Bug #3)
+4. Corriger layout pour `sodiumLoading`/`sodiumError` (Bug #4)
+5. Corriger incohérence nom table SQL `conversation_members` vs `conversation_participants` (Bug #5)
