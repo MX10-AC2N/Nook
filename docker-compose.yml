@@ -11,8 +11,8 @@ services:
       - "6300:3000"
 
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - nook-data:/app/data
+      - nook-logs:/app/logs
 
     environment:
       - RUST_LOG=info
