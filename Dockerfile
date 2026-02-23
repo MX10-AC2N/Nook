@@ -4,15 +4,17 @@
 # ===============================================
 
 # syntax=docker/dockerfile:1
+
+# ===============================================
+# ÉTAPE 1 : Build Rust
+# ⚠️ Copie EXPLICITE — on exclut .cargo/config.toml
+# qui force le linker x86_64-linux-gnu-gcc et met
+# Cargo en mode cross-compilation → crash proc-macros
+# ===============================================
 FROM rust:1.88-bookworm AS builder
 
 WORKDIR /usr/src/nook
 
-# ⚠️ Copie EXPLICITE de chaque dossier — on exclut volontairement .cargo/
-# backend/.cargo/config.toml force le linker x86_64-linux-gnu-gcc et met
-# Cargo en mode cross-compilation → les proc-macros (displaydoc, async-trait...)
-# ne peuvent plus être compilées pour la target → erreur de build.
-# Dans Docker, le linker par défaut de rust:1.88-bookworm suffit parfaitement.
 COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
 COPY backend/migrations ./migrations
@@ -25,7 +27,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cp target/release/nook-backend /usr/local/bin/nook-backend
 
 # ===============================================
-# ÉTAPE 2 : Préparation
+# ÉTAPE 2 : Préparation des libs et permissions
+#
+# ⚠️ DISTROLESS + VOLUMES : clé du fonctionnement
+# L'uid "nonroot" dans gcr.io/distroless/cc-debian12:nonroot = 65532
+# Les volumes Docker nommés préservent les permissions de l'image
+# au PREMIER montage → /app/data chown 65532:65532 ici
+# sera writable par le process nonroot dans distroless
 # ===============================================
 FROM debian:bookworm-slim AS prep
 
@@ -33,12 +41,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-0 libsodium23 libssl3 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-RUN addgroup --system --gid 1000 app && \
-    adduser --system --uid 1000 --ingroup app app
+# Créer les dossiers avec uid=65532 (= nonroot dans distroless)
+RUN mkdir -p /app/data /app/static /app/logs && \
+    chown -R 65532:65532 /app
 
-RUN mkdir -p /app/data /app/static && chown -R app:app /app
-
-COPY --from=builder --chown=app:app /usr/local/bin/nook-backend /app/nook-backend
+COPY --from=builder --chown=65532:65532 /usr/local/bin/nook-backend /app/nook-backend
 
 # ===============================================
 # ÉTAPE 3 : Image finale Distroless
@@ -51,9 +58,11 @@ COPY --from=prep /usr/lib/*/libsodium.so* /usr/lib/
 COPY --from=prep /usr/lib/*/libssl.so* /usr/lib/
 COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
-COPY --from=prep --chown=nonroot:nonroot /app /app
+# Copie /app avec toutes les permissions (65532:65532)
+COPY --from=prep /app /app
 
-COPY --chown=nonroot:nonroot frontend/build /app/static
+# Frontend build (fourni par le job CI via artifact)
+COPY --chown=65532:65532 frontend/build /app/static
 
 WORKDIR /app
 EXPOSE 3000
