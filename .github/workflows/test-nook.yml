@@ -59,7 +59,6 @@ jobs:
 
   # ============================================================
   # 3. Intégration – Docker build depuis sources + tests E2E
-  #    Utilise Dockerfile (compilation Rust complète dans Docker)
   # ============================================================
   integration:
     name: 🔗 Intégration Docker
@@ -89,14 +88,47 @@ jobs:
       - name: ✅ Test APIs
         run: |
           curl -f http://localhost:6300/health
-          curl -sf -X POST http://localhost:6300/api/auth/register \
-            -H "Content-Type: application/json" \
-            -d '{"username":"ci_test","email":"ci@test.local","password":"Test123!","name":"CI Test"}' || true
           STATUS=$(curl -sw "%{http_code}" -o /dev/null http://localhost:6300/api/auth/me)
           echo "GET /api/auth/me → $STATUS"
           [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
           curl -sf -I http://localhost:6300/ | head -5
           echo "✅ APIs OK"
+
+      - name: 🔧 Setup user E2E
+        run: |
+          # 1. Register le user e2e_ci (|| true = idempotent si déjà créé)
+          curl -sf -X POST http://localhost:6300/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}' || true
+
+          # 2. Login admin → récupérer le cookie
+          ADMIN_COOKIE=$(curl -sf -c - -X POST http://localhost:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"changeme2026"}' \
+            | grep auth_token | awk '{print $6}' || echo "")
+
+          if [ -z "$ADMIN_COOKIE" ]; then
+            echo "❌ Login admin échoué"
+            exit 1
+          fi
+          echo "✅ Admin connecté"
+
+          # 3. Récupérer l'id du user e2e_ci en attente
+          E2E_USER_ID=$(curl -sf \
+            -H "Cookie: auth_token=$ADMIN_COOKIE" \
+            http://localhost:6300/api/pending-users-json \
+            | python3 -c "import sys,json; users=json.load(sys.stdin).get('users',[]); u=[x for x in users if x['username']=='e2e_ci']; print(u[0]['id'] if u else '')")
+
+          if [ -z "$E2E_USER_ID" ]; then
+            echo "⚠️ e2e_ci déjà approuvé ou introuvable, on continue"
+          else
+            # 4. Approuver le user
+            curl -sf -X POST http://localhost:6300/api/approve \
+              -H "Content-Type: application/json" \
+              -H "Cookie: auth_token=$ADMIN_COOKIE" \
+              -d "{\"user_id\":\"$E2E_USER_ID\"}"
+            echo "✅ User e2e_ci approuvé (id: $E2E_USER_ID)"
+          fi
 
       - name: 🧪 E2E Playwright
         run: |
