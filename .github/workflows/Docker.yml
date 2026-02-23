@@ -87,7 +87,6 @@ jobs:
           tags: |
             type=raw,value=${{ steps.version.outputs.tag }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=sha-
 
       - name: Build & Push
         uses: docker/build-push-action@v6
