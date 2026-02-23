@@ -1,7 +1,7 @@
 {
   "name": "nook-frontend",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "clean": "rm -rf .svelte-kit build node_modules/.vite",
-    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force"
+    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",
@@ -31,7 +32,8 @@
     "tailwindcss": "^4.1.18",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "@playwright/test": "^1.40.0"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
