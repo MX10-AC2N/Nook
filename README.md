@@ -11,6 +11,7 @@
 
 [![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=&ignore=sha-*,latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size&tag=latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
+[![Release Date](https://img.shields.io/github/release-date/MX10-AC2N/Nook?label=last%20build&color=informational)](https://github.com/MX10-AC2N/Nook/releases)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
 [![Rust](https://img.shields.io/badge/Backend-Rust%201.88%20%2B%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
@@ -78,8 +79,11 @@ Ou depuis l'image GHCR directement (sans compiler) :
 
 ```bash
 docker run -d \
+  --name nook \
+  --restart unless-stopped \
   -p 6300:3000 \
   -v nook-data:/app/data \
+  -v nook-logs:/app/logs \
   -e PUBLIC_SITE_URL=http://ton-serveur:6300 \
   ghcr.io/mx10-ac2n/nook:latest
 ```
@@ -90,6 +94,41 @@ Va sur `http://localhost:6300` — c'est parti ! 🎉
 
 > **Premier lancement** : un compte `admin` est créé automatiquement avec le mot de passe `changeme2026`.  
 > **Change-le immédiatement** lors de la première connexion.
+
+---
+
+## Mise à jour
+
+```bash
+# Récupérer la nouvelle image
+docker compose pull
+
+# Redémarrer le service (zéro downtime data : les volumes sont persistés)
+docker compose up -d
+
+# Vérifier que tout tourne
+docker compose logs -f nook
+```
+
+Pour les instances GHCR :
+```bash
+docker pull ghcr.io/mx10-ac2n/nook:latest
+docker stop nook && docker rm nook
+# puis relancer le docker run de la section précédente
+```
+
+---
+
+## Accès depuis l'extérieur (reverse proxy)
+
+Pour un accès HTTPS depuis internet, place Nook derrière un reverse proxy.  
+Exemples compatibles : **Nginx Proxy Manager**, **Caddy**, **Traefik**.
+
+```
+https://nook.ta-famille.fr  →  http://localhost:6300
+```
+
+Pense à mettre à jour `PUBLIC_SITE_URL` avec ton domaine public dans `docker-compose.yml`.
 
 ---
 
