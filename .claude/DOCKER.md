@@ -1,266 +1,232 @@
-# 🐳 DOCKER.md — Référence Docker & CI du projet Nook
+# 🐳 DOCKER.md — Règles Docker & CI
 
-> Fichier dédié aux règles Docker, pièges connus et architecture CI.  
-> Né de 3 sessions de debugging intensif (2026-02-21).  
-> **Lire avant toute modification de Dockerfile ou workflow.**
+> Né de 7 sessions de debugging. Lire avant toute modification Dockerfile ou workflow.
 
 ---
 
-## 🏗️ Architecture des deux Dockerfiles
+## 🏗️ Deux Dockerfiles
 
-### `Dockerfile` — Build depuis les sources
-**Utilisé par** : `test-nook.yml` (CI intégration) + `docker-compose` (local/dev)  
-**Stratégie** : `cargo-chef` pour le cache des dépendances, compilation complète dans Docker
-
-```dockerfile
-FROM rust:1.88-bookworm AS chef      # ← rust:1.88 minimum (voir règle #3)
-RUN cargo install cargo-chef --locked
-# planner → cook → builder → prep → distroless
-```
-
-### `Dockerfile.release` — Binaires pré-compilés
-**Utilisé par** : `Docker.yml` (production) + `ci-new2.yml` (CI complet)  
-**Stratégie** : pas de Rust dans l'image, binaires livrés par `Backend.yml`
-
-```dockerfile
-FROM debian:bookworm-slim AS prep
-ARG TARGETARCH
-COPY backend/nook-backend-${TARGETARCH} /app/nook-backend  # amd64 ou arm64
-```
+| Fichier | Utilisé par | Stratégie |
+|---------|-------------|-----------|
+| `Dockerfile` | `test-nook.yml` + `docker-compose` local | `cargo-chef` + compilation complète |
+| `Dockerfile.release` | `Docker.yml` | Binaires pré-compilés par `Backend.yml` |
 
 ---
 
-## 🚨 RÈGLES CRITIQUES — À NE JAMAIS VIOLER
+## 🚨 RÈGLES CRITIQUES — NE JAMAIS VIOLER
 
-### Règle #1 : JAMAIS `--platform=$BUILDPLATFORM` sur le builder Rust
-
+### R1 — JAMAIS `--platform=$BUILDPLATFORM` sur le builder Rust
 ```dockerfile
-# ❌ BANNI — cause l'erreur proc-macro async-trait
+# ❌ → proc-macro async-trait/serde_derive incompatibles
 FROM --platform=$BUILDPLATFORM rust:1.88-bookworm AS builder
-
-# ✅ CORRECT — pas de flag platform sur le builder source
+# ✅
 FROM rust:1.88-bookworm AS builder
 ```
 
-**Pourquoi** : `$BUILDPLATFORM` active le mode multi-plateforme de BuildKit. Les
-proc-macros (`async-trait`, `serde_derive`, `tokio-macros`...) sont alors compilées
-pour une plateforme différente de la target → incompatibilité au link.
-
-**Uniquement dans `Dockerfile.release`** le multi-plateforme est OK car `TARGETARCH`
-est utilisé juste pour sélectionner un binaire déjà compilé, pas pour compiler.
-
----
-
-### Règle #2 : JAMAIS la technique du "dummy fn main()" pour le cache
-
+### R2 — JAMAIS la technique "dummy fn main()" pour le cache
 ```dockerfile
-# ❌ BANNI — cause la même erreur proc-macro
+# ❌ → crash proc-macro au vrai build
+RUN echo "fn main() {}" > src/main.rs && cargo build --release
+# ✅ → utiliser cargo-chef
+```
+
+### R3 — Rust minimum 1.88
+```dockerfile
+# ❌ home@0.5.12 exige 1.88
+FROM rust:1.85-bookworm AS builder
+# ✅
+FROM rust:1.88-bookworm AS builder
+```
+
+### R4 — JAMAIS copier `.cargo/config.toml` dans le build Docker
+```dockerfile
+# ❌ config.toml spécifie un linker externe non installé dans Docker
+#    → Cargo détecte cross-compilation → proc-macros incompatibles
+COPY backend/ ./   # copie .cargo/config.toml → CRASH
+
+# ✅ copier explicitement sans .cargo/
 COPY backend/Cargo.toml backend/Cargo.lock ./
-RUN mkdir -p src && echo "fn main() {}" > src/main.rs && \
-    cargo build --release && rm -rf src
-COPY backend/ ./
-RUN cargo build --release --bin nook-backend  # ← CRASH proc-macro ici
-
-# ✅ CORRECT — utiliser cargo-chef
-FROM rust:1.88-bookworm AS chef
-RUN cargo install cargo-chef --locked
-
-FROM chef AS planner
-COPY backend/ .
-RUN cargo chef prepare --recipe-path recipe.json
-
-FROM chef AS builder
-COPY --from=planner /usr/src/nook/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
-COPY backend/ .
-RUN cargo build --release --bin nook-backend
+COPY backend/src ./src
+COPY backend/migrations ./migrations
+COPY backend/.sqlx ./.sqlx
+# .cargo/ intentionnellement exclu
 ```
 
-**Pourquoi** : `cargo build` sans `--bin` compile les dépendances dans un contexte
-de crate différent. Quand le vrai build `--bin nook-backend` arrive, Cargo redétecte
-des proc-macros incompatibles avec les artifacts en cache → crash.
-`cargo-chef` analyse le graphe réel du projet avant de compiler les deps, garantissant
-la cohérence complète.
-
----
-
-### Règle #3 : Rust minimum 1.88
-
-```dockerfile
-# ❌ TROP VIEUX
-FROM rust:1.80-bookworm AS builder  # home@0.5.12 exige 1.88
-FROM rust:1.85-bookworm AS builder  # home@0.5.12 exige 1.88
-
-# ✅ CORRECT
-FROM rust:1.88-bookworm AS builder
-```
-
-**Pourquoi** : `home@0.5.12` (dépendance transitive) déclare `rust-version = "1.88"`
-dans son manifeste. Cargo refuse de compiler avec une version inférieure.
-De plus, `edition2024` (utilisé par certaines dépendances crypto) exige rustc 1.85+.
-
----
-
-### Règle #4 : JAMAIS `BUILDKIT_INLINE_CACHE` dans docker-compose pour CI
-
+### R5 — JAMAIS `npm_net` réseau externe dans docker-compose
 ```yaml
-# ❌ BANNI dans docker-compose.yml pour les builds CI
-build:
-  args:
-    BUILDKIT_INLINE_CACHE: "1"   # active le mode multi-plateforme → bug proc-macro
-
-# ✅ CORRECT
-build:
-  context: .
-  dockerfile: Dockerfile
-  # pas de BUILDKIT_INLINE_CACHE
-```
-
-**Pourquoi** : `BUILDKIT_INLINE_CACHE: "1"` active implicitement des comportements
-de cache cross-plateforme dans BuildKit, qui réintroduit le même problème que
-`--platform=$BUILDPLATFORM`.
-
----
-
-### Règle #5 : JAMAIS de `ARG` dans les chemins `COPY`
-
-```dockerfile
-# ❌ BANNI — BuildKit n'interpole PAS les ARG dans les sources COPY
-ARG BACKEND_PATH=backend
-COPY ${BACKEND_PATH}/Cargo.toml ./   # cherche '/Cargo.toml' → not found
-
-# ✅ CORRECT — chemins hardcodés
-COPY backend/Cargo.toml ./
-```
-
-**Uniquement exception** : `COPY backend/nook-backend-${TARGETARCH}` dans
-`Dockerfile.release` fonctionne car `TARGETARCH` est un ARG système de BuildKit
-(pas un ARG utilisateur), et il est dans la destination, pas la source.
-
----
-
-### Règle #6 : `npm_net` externe = crash en CI
-
-```yaml
-# ❌ BANNI dans docker-compose.yml
+# ❌ n'existe pas sur les runners GitHub
 networks:
   npm_net:
-    external: true   # n'existe pas sur les runners GitHub → crash immédiat
-  nook-network:
-    driver: bridge
-
-# ✅ CORRECT
+    external: true
+# ✅
 networks:
   nook-network:
     driver: bridge
     name: nook-network
 ```
 
----
-
-### Règle #7 : `env_file: .env` = crash en CI
-
+### R6 — JAMAIS `env_file: .env` dans docker-compose (CI)
 ```yaml
-# ❌ BANNI dans docker-compose.yml pour CI
-env_file:
-  - .env    # fichier absent sur les runners GitHub → crash
-
-# ✅ CORRECT — variables explicites avec valeurs par défaut
+# ❌ .env absent sur runners → crash
+env_file: .env
+# ✅ variables explicites avec défauts
 environment:
   - DATABASE_URL=sqlite:/app/data/nook.db
-  - STATIC_FILES_DIR=/app/static
-  - UPLOADS_DIR=/app/data/uploads
+```
+
+### R7 — distroless nonroot (uid 65532) ne peut pas écrire dans les volumes root
+```yaml
+# ❌ Docker crée les volumes avec uid=root → Permission denied
+volumes:
+  - nook-data:/app/data
+# ✅ init container qui chown avant le démarrage
+services:
+  nook-init:
+    image: alpine:3
+    command: ["sh", "-c", "chown -R 65532:65532 /app/data /app/logs"]
+    volumes:
+      - nook-data:/app/data
+  nook:
+    depends_on:
+      nook-init:
+        condition: service_completed_successfully
+```
+
+### R8 — JAMAIS `CMD-SHELL` healthcheck dans distroless
+```yaml
+# ❌ distroless n'a pas curl ni bash
+healthcheck:
+  test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
+# ✅ supprimer le healthcheck (monitoring externe) ou TCP check
+```
+
+### R9 — CORS : `allow_credentials(true)` incompatible avec wildcards
+```rust
+// ❌ panic au démarrage : "Cannot combine credentials with Allow-Headers: *"
+CorsLayer::new().allow_origin(Any).allow_headers(Any).allow_credentials(true)
+// ✅ lister explicitement
+CorsLayer::new()
+    .allow_origin(["http://localhost:5173".parse().unwrap(), ...])
+    .allow_methods([Method::GET, Method::POST, ...])
+    .allow_headers([CONTENT_TYPE, AUTHORIZATION, ACCEPT, COOKIE])
+    .allow_credentials(true)
+```
+
+### R10 — SQLite : toujours `create_if_missing(true)`
+```rust
+// ❌ SQLITE_CANTOPEN (code 14) si le fichier n'existe pas encore
+let pool = SqlitePool::connect(url).await?;
+// ✅
+let opts = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
+let pool = SqlitePool::connect_with(opts).await?;
+```
+
+### R11 — Axum 0.8 : routes `{param}` (plus `:param`)
+```rust
+// ❌ panic : "Path segments must not start with ':'"
+.route("/conversations/:id", get(handler))
+// ✅
+.route("/conversations/{id}", get(handler))
+// Les extracteurs Path(id): Path<String> ne changent PAS
+```
+
+### R12 — `download-artifact@v4` ne peut pas télécharger cross-workflow
+```yaml
+# ❌ cherche uniquement dans le workflow courant
+- uses: actions/download-artifact@v4
+  with:
+    name: nook-backend-x86_64-unknown-linux-gnu
+# ✅ utiliser dawidd6 pour cross-workflow
+- uses: dawidd6/action-download-artifact@v6
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    workflow: Backend.yml
+    branch: ${{ github.ref_name }}
+    name: nook-backend-x86_64-unknown-linux-gnu
 ```
 
 ---
 
-## 📦 Architecture CI — 5 workflows
+## 📦 Architecture CI/CD
 
-### Flow manuel (développement)
+### Flow manuel (développement / release)
 
 ```
-1. Backend.yml   → artifacts : nook-backend-amd64 + nook-backend-arm64
-2. Frontend.yml  → artifact  : nook-frontend
+1. Backend.yml   → nook-backend-amd64 + nook-backend-arm64  (retention 7j)
+2. Frontend.yml  → nook-frontend                             (retention 7j)
          ↓
-3. test-nook.yml → Docker build depuis sources, tests API + Playwright
+3. test-nook.yml → Dockerfile (cargo-chef) + docker-compose.ci.yml
+                 → tests API + Playwright E2E
          ↓ si OK
-4. Docker.yml    → assemble 1+2 dans Dockerfile.release → GHCR
+4. Docker.yml    → dawidd6 télécharge 1+2 → Dockerfile.release → GHCR
 ```
 
-### Flow automatique (CI sur push)
+### test-nook.yml — setup E2E
 
+```yaml
+# Utiliser le compose CI override qui ajoute E2E_SETUP=1
+docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --build
+
+# Attendre /api/health (pas /health qui retourne du HTML via fallback)
+timeout 180s bash -c 'until curl -sf http://localhost:6300/api/health; do sleep 3; done'
 ```
-ci-new2.yml : fmt → backend (matrix) + frontend → docker
-```
+
+**E2E_SETUP=1** → `check_initial_admin` crée le user `e2e_ci` (approved=1, sans changement mdp)  
+→ Playwright se connecte directement avec `e2e_ci / E2eTest123!`
 
 ### Flow release
 
 ```
-release.yml (choix patch/minor/major)
+Release.yml (patch/minor/major)
   → bumpe VERSION + Cargo.toml + package.json
   → crée tag git vX.Y.Z
-  → puis lancer manuellement les 4 workflows ci-dessus
+  → déclencher manuellement Backend.yml → Frontend.yml → test-nook.yml → Docker.yml
 ```
 
 ---
 
-## 🏷️ Nommage des artifacts
+## 🏷️ Artifacts
 
-| Workflow | Artifact uploadé | Chemin dans artifact |
-|----------|-----------------|---------------------|
-| `Backend.yml` | `nook-backend-x86_64-unknown-linux-gnu` | `nook-backend-amd64` |
-| `Backend.yml` | `nook-backend-aarch64-unknown-linux-gnu` | `nook-backend-arm64` |
-| `Frontend.yml` | `nook-frontend` | `index.html` + assets |
-
-**Règle** : les noms d'artifacts sont **fixes et stables**. Ne jamais y ajouter
-`${{ github.sha }}` ou autre variable — `Docker.yml` les télécharge par nom exact.
+| Workflow | Artifact | Contenu | Retention |
+|----------|---------|---------|-----------|
+| `Backend.yml` | `nook-backend-x86_64-unknown-linux-gnu` | `nook-backend-amd64` | 7j |
+| `Backend.yml` | `nook-backend-aarch64-unknown-linux-gnu` | `nook-backend-arm64` | 7j |
+| `Frontend.yml` | `nook-frontend` | `index.html` + assets | 7j |
 
 ---
 
-## 🏷️ Tags Docker produits par `Docker.yml`
+## 🏷️ Tags Docker
 
 ```
-ghcr.io/mx10-ac2n/nook:v0.5.1      ← version sémantique (badge README)
-ghcr.io/mx10-ac2n/nook:v0.5        ← majeur.mineur
-ghcr.io/mx10-ac2n/nook:latest      ← uniquement sur branch main
-ghcr.io/mx10-ac2n/nook:sha-abc1234 ← SHA court pour traçabilité
+ghcr.io/mx10-ac2n/nook:v0.5.0   ← version sémantique (badge README)
+ghcr.io/mx10-ac2n/nook:latest   ← uniquement sur branch main
+ghcr.io/mx10-ac2n/nook:sha-abc  ← SHA court traçabilité
 ```
 
-La version est lue depuis le fichier `VERSION` à la racine du repo.
+---
+
+## 🔬 Diagnostic rapide
+
+| Erreur | Cause | Fix |
+|--------|-------|-----|
+| `cannot produce proc-macro for async-trait` | `--platform=$BUILDPLATFORM` ou `.cargo/config.toml` copié | R1 + R4 |
+| `SQLITE_CANTOPEN (code 14)` | `SqlitePool::connect` sans `create_if_missing` | R10 |
+| `Path segments must not start with ':'` | Routes axum 0.7 style | R11 |
+| `Cannot combine credentials with *` | CORS wildcard + credentials | R9 |
+| `Permission denied /app/data` | Volume Docker root + user nonroot 65532 | R7 |
+| `Artifact not found` | download-artifact@v4 cross-workflow | R12 |
+| `home@0.5.12 requires rustc 1.88` | Image Rust trop ancienne | R3 |
+| `Login admin failed: 401` | Ne pas utiliser curl pour le setup E2E → utiliser E2E_SETUP=1 | voir test-nook.yml |
 
 ---
 
-## 🔬 Diagnostic rapide des erreurs Docker
-
-### `cannot produce proc-macro for async-trait`
-→ Vérifier : `--platform=$BUILDPLATFORM` présent ? Supprimer.  
-→ Vérifier : technique "dummy fn main()" ? Remplacer par cargo-chef.  
-→ Vérifier : `BUILDKIT_INLINE_CACHE: "1"` dans docker-compose ? Supprimer.  
-→ Vérifier : `Cargo.lock` à jour avec les versions du `Cargo.toml` ? `cargo update`.
-
-### `home@0.5.12 requires rustc 1.88`
-→ Changer l'image builder : `rust:1.88-bookworm`
-
-### `failed to calculate checksum... not found`
-→ Vérifier les `COPY` avec `ARG` dans le chemin source. Hardcoder les chemins.
-
-### `npm_net` network not found
-→ Supprimer le réseau externe de `docker-compose.yml`.
-
-### `env_file .env not found`
-→ Supprimer `env_file:` et mettre les variables directement dans `environment:`.
-
----
-
-## 📊 Image finale — caractéristiques
+## 📊 Image distroless
 
 | Propriété | Valeur |
 |-----------|--------|
-| Base image | `gcr.io/distroless/cc-debian12:nonroot` |
-| Architectures | `linux/amd64`, `linux/arm64` |
-| User | `nonroot` (uid 65532) — pas de root |
-| Shell | Aucun (distroless) |
-| Taille cible | ~8-15 MB |
-| Libs incluses | libsqlite3, libsodium, libssl, libcrypto, ca-certificates |
-| Healthcheck | `curl -sf http://localhost:3000/health` |
-| Port exposé | 3000 (mappé 6300:3000 en local) |
+| Base | `gcr.io/distroless/cc-debian12:nonroot` |
+| User | `nonroot` uid 65532 |
+| Shell | Aucun |
+| Port | 3000 interne → 6300 mappé |
+| Libs | libsqlite3, libssl, libcrypto (copiées depuis debian:bookworm-slim) |
+| Healthcheck | Aucun (distroless sans curl) — monitoring externe |
