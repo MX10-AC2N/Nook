@@ -1,6 +1,6 @@
 # Nook — La messagerie qui protège ta famille 🏠
 
-> ⚠️ **WORK IN PROGRESS** — projet en développement actif
+> ⚠️ **WORK IN PROGRESS** — v0.2.0-beta.1 en développement actif
 
 <div align="center">
 
@@ -14,7 +14,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
 [![Rust](https://img.shields.io/badge/Backend-Rust%201.88%20%2B%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
-[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%205%20Runes-FF3E00?logo=svelte)](https://kit.svelte.dev/)
+[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%202.49%20%2B%20Svelte%205-FF3E00?logo=svelte)](https://kit.svelte.dev/)
 [![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite)](https://sqlite.org/)
 [![Docker](https://img.shields.io/badge/Runtime-Distroless%20Docker-2496ED?logo=docker)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -36,23 +36,26 @@ Nook, c'est simple :
 
 ## Ce que Nook sait faire
 
-### 💬 Messagerie privée
-Conversations textuelles instantanées et chiffrées. Partage de fichiers, photos, documents — tout reste entre vous.
+### 💬 Chat familial
+Messages instantanés et chiffrés, partage de fichiers, photos, GIFs — tout reste entre vous.
 
 ### 📞 Appels audio & vidéo
-WebRTC pour des connexions directes entre appareils. Le serveur établit la connexion mais ne voit jamais le flux — zéro donnée transit via Nook.
+WebRTC pour des connexions directes entre appareils. Le serveur établit la connexion mais ne transit jamais le flux — zéro donnée exposée.
 
-### 📅 Calendrier familial
-Organisez vos événements partagés sans passer par Google ou Apple.
+### 📅 Calendrier partagé
+Gérez les événements de la famille sans passer par Google ou Apple.
 
-### 📊 Sondages & votes
-Décidez ensemble où partir en vacances, quoi manger le soir — sans quitter l'app.
+### 📊 Sondages familiaux
+Décidez ensemble où partir en vacances, quoi manger ce soir — directement dans l'app.
+
+### 🎨 Thèmes personnalisables
+Trois ambiances au choix : **🌿 Jardin Secret** (doux, aquarelle), **🚀 Space Hub** (futuriste, néon), **🏠 Maison Chaleureuse** (feutre, bois).
 
 ### 🔐 Chiffrement de bout en bout
 XChaCha20-Poly1305 pour les fichiers. Tes clés sont générées chez toi, stockées chez toi. Comme un coffre-fort dont seul toi as la clé.
 
-### 👨‍👩‍👧 Gestion familiale
-Système d'invitation par lien, approbation admin, gestion des comptes. Tu contrôles qui rejoint ton espace.
+### 👨‍👩‍👧 Contrôle total
+Invitations par lien, approbation admin, gestion des comptes. Tu décides qui rejoint ton espace.
 
 ---
 
@@ -71,12 +74,12 @@ cd Nook
 docker compose up -d
 ```
 
-Ou directement depuis l'image GHCR (sans compiler) :
+Ou depuis l'image GHCR directement (sans compiler) :
 
 ```bash
 docker run -d \
   -p 6300:3000 \
-  -v ./data:/app/data \
+  -v nook-data:/app/data \
   -e PUBLIC_SITE_URL=http://ton-serveur:6300 \
   ghcr.io/mx10-ac2n/nook:latest
 ```
@@ -97,10 +100,12 @@ Variables d'environnement dans `docker-compose.yml` :
 | Variable | Défaut | Description |
 |----------|--------|-------------|
 | `PUBLIC_SITE_URL` | `http://localhost:6300` | URL publique de l'instance |
-| `DATABASE_URL` | `sqlite:/app/data/nook.db` | Chemin vers la DB SQLite |
-| `UPLOADS_DIR` | `/app/data/uploads` | Stockage des fichiers |
+| `DATABASE_URL` | `sqlite:/app/data/nook.db` | Chemin de la base SQLite |
+| `UPLOADS_DIR` | `/app/data/uploads` | Dossier de stockage des fichiers |
 | `RUST_LOG` | `info` | Niveau de logs (`debug`, `info`, `warn`) |
 | `TZ` | `Europe/Paris` | Fuseau horaire |
+
+Les données sont persistées dans des volumes Docker nommés (`nook-data`, `nook-logs`).
 
 ---
 
@@ -108,7 +113,8 @@ Variables d'environnement dans `docker-compose.yml` :
 
 - **Docker** et **Docker Compose** — c'est tout
 - Un navigateur récent (Chrome, Firefox, Safari, Edge)
-- **Architectures supportées** : `linux/amd64` (PC/serveur) · `linux/arm64` (Raspberry Pi 4+, NAS ARM)
+- **Architectures** : `linux/amd64` (PC/serveur) · `linux/arm64` (Raspberry Pi 4+, NAS ARM)
+- **Ressources minimales** : 0.5 CPU · 256 MB RAM (max alloué : 1.5 CPU · 1 GB)
 
 ---
 
@@ -117,26 +123,25 @@ Variables d'environnement dans `docker-compose.yml` :
 ```
 Nook/
 ├── backend/               # 🦀 Rust 1.88 + Axum 0.8 — API REST + WebSocket
-├── frontend/              # 🎨 SvelteKit 5 Runes — UI réactive TypeScript
+├── frontend/              # 🎨 SvelteKit 2.49 + Svelte 5 Runes — TypeScript strict
 ├── Dockerfile             # 🔧 Build depuis sources (dev + CI tests)
-├── Dockerfile.release     # 🚀 Image finale distroless (production)
-├── docker-compose.yml     # 📦 Stack production
-└── docker-compose.ci.yml  # 🧪 Override CI (tests E2E automatisés)
+├── Dockerfile.release     # 🚀 Binaires pré-compilés → image distroless (prod)
+└── docker-compose.yml     # 📦 Stack complète avec named volumes + init container
 ```
 
 ### Stack
 
 | Composant | Technologie |
 |-----------|------------|
-| Backend | Rust 1.88 · Axum 0.8 · SQLx 0.8 · SQLite |
-| Auth | Argon2id (hash mdp) · Cookie HttpOnly · XChaCha20-Poly1305 (fichiers) |
-| Frontend | SvelteKit 5 · Svelte Runes · TypeScript strict |
-| Runtime | Docker Distroless `gcr.io/distroless/cc-debian12:nonroot` |
+| Backend | Rust 1.88 · Axum 0.8 · SQLx 0.8.6 · SQLite |
+| Auth | Argon2id · Cookie HttpOnly · XChaCha20-Poly1305 |
+| Frontend | SvelteKit 2.49 · Svelte 5.46 Runes · TypeScript |
+| Runtime | `gcr.io/distroless/cc-debian12:nonroot` (~10 MB, pas de shell) |
 | Tests | Playwright E2E · cargo test · cargo clippy |
 
 ### Pourquoi Distroless ?
 
-L'image finale ne contient **que le strict nécessaire** : le binaire Rust compilé + les libs système. Pas de shell, pas d'outils, pas de surface d'attaque inutile. Résultat : ~10 MB et une sécurité maximale.
+L'image finale ne contient **que le strict nécessaire** : le binaire Rust + les libs système. Pas de shell, pas d'outils, pas de surface d'attaque. Résultat : ~10 MB et une sécurité maximale.
 
 ---
 
@@ -152,8 +157,8 @@ Frontend.yml ──┘   (Docker + E2E)
 |----------|------|
 | `Backend.yml` | Compile Rust pour `amd64` + `arm64` → artifacts |
 | `Frontend.yml` | Build SvelteKit → artifact |
-| `test-nook.yml` | Intégration Docker + tests API + Playwright E2E |
-| `Docker.yml` | Assemble les artifacts → image distroless → GHCR |
+| `test-nook.yml` | Stack Docker complète + tests API + Playwright E2E |
+| `Docker.yml` | Assemble les artifacts → image distroless multi-arch → GHCR |
 | `Release.yml` | Bump version sémantique + tag git |
 
 **Ordre de lancement** : `Backend.yml` → `Frontend.yml` → `test-nook.yml` → `Docker.yml`
@@ -166,16 +171,19 @@ Frontend.yml ──┘   (Docker + E2E)
 Pas du tout. Docker s'occupe de tout. Une commande, c'est lancé.
 
 **"Mes données sont où ?"**  
-Sur ta machine, dans le dossier `./data/`. Rien ne part sur un serveur tiers.
+Dans des volumes Docker sur ta machine (`nook-data`, `nook-logs`). Rien ne part sur un serveur tiers.
 
 **"Je peux l'utiliser sur mon NAS ?"**  
-Oui ! NAS ARM (Synology, QNAP, TrueNAS) et Raspberry Pi 4+ sont supportés nativement grâce au build `arm64`.
+Oui ! NAS ARM (Synology, QNAP, TrueNAS) et Raspberry Pi 4+ supportés nativement.
 
-**"Les appels vidéo passent par votre serveur ?"**  
+**"Les appels vidéo passent par ton serveur ?"**  
 Non. WebRTC établit une connexion directe entre les appareils. Le serveur ne voit jamais le flux audio/vidéo.
 
-**"Comment ajouter des membres ?"**  
+**"Comment ajouter des membres à la famille ?"**  
 L'admin génère un lien d'invitation depuis le panneau d'administration. La personne crée son compte, l'admin l'approuve.
+
+**"Je peux changer l'apparence ?"**  
+Oui ! Trois thèmes disponibles dans les Paramètres : Jardin Secret, Space Hub, Maison Chaleureuse.
 
 ---
 
