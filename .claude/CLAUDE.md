@@ -1,187 +1,201 @@
-# 🤖 CLAUDE.md — Référence opérationnelle du projet Nook
+# 🤖 CLAUDE.md — Référence opérationnelle Nook
 
-> Fichier de référence destiné à Claude. À lire en priorité avant toute intervention.  
-> Dernière mise à jour : 2026-02-21
+> Lire ce fichier EN PREMIER avant toute intervention.  
+> Dernière mise à jour : **2026-02-23** (sessions 1→7)
 
 ---
 
-## 📍 Localisation du projet
+## 📍 Localisation
 
 - **Repo** : https://github.com/MX10-AC2N/Nook
-- **Branche de travail** : `MX10-AC2N-patch-svelte5-runes`
-- **Lire les fichiers** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/MX10-AC2N-patch-svelte5-runes/[chemin]`
-- **Lire `.claude/`** en priorité avant toute intervention
+- **Branche** : `MX10-AC2N-patch-svelte5-runes`
+- **Raw** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/MX10-AC2N-patch-svelte5-runes/[chemin]`
+- **Lire aussi** : `DOCKER.md`, `BUGS.md`, `SESSIONS.md` dans ce dossier
 
 ---
 
-## 🏗️ Architecture complète
+## 🏗️ Architecture
 
 ```
 Nook/
-├── backend/                    # API Rust (Axum 0.8 + SQLite)
+├── backend/
 │   ├── src/
-│   │   ├── main.rs             # Point d'entrée, router Axum, middleware base_inject
-│   │   ├── auth.rs             # Register/Login/Logout/Me/ChangePassword + Argon2
-│   │   ├── db.rs               # Structs SQLx + handlers conversations/messages
-│   │   ├── admin.rs            # Gestion utilisateurs, approbation, invites
-│   │   ├── invites.rs          # Génération/validation liens d'invitation
-│   │   ├── upload.rs           # Upload fichiers chiffrés (max 50Mo, TTL 48h)
-│   │   ├── webrtc.rs           # Signaling WebRTC (WebSocket) + crypto XChaCha20
-│   │   ├── cleanup.rs          # Nettoyage fichiers expirés
-│   │   ├── prune.rs            # Pruning DB périodique (toutes les 24h)
-│   │   └── emergency.rs        # Mode urgence
+│   │   ├── main.rs        # Router Axum 0.8, middleware base_inject, init DB, E2E_SETUP
+│   │   ├── auth.rs        # Register/Login/Logout/Me/ChangePassword — cookie HttpOnly
+│   │   ├── db.rs          # Conversations + messages (SQLx)
+│   │   ├── admin.rs       # Approbation users, invites, gestion
+│   │   ├── invites.rs     # Génération/validation liens invitation
+│   │   ├── upload.rs      # Upload fichiers (max 50Mo, TTL 48h)
+│   │   ├── webrtc.rs      # Signaling WebSocket + XChaCha20-Poly1305
+│   │   ├── prune.rs       # Nettoyage DB toutes les 24h
+│   │   ├── cleanup.rs     # Nettoyage fichiers expirés
+│   │   ├── config.rs      # Config depuis env vars
+│   │   └── emergency.rs   # Mode urgence
 │   ├── migrations/
 │   │   ├── 001_initial.sql
 │   │   └── 002_add_file_id_to_messages.sql
-│   ├── .sqlx/queries.json      # Cache SQLx offline mode (CI)
+│   ├── .sqlx/queries.json # Cache offline SQLx (CI/Docker)
+│   ├── .cargo/config.toml # Linkers cross + crt-static (Backend.yml seulement !)
 │   ├── Cargo.toml
-│   └── Cargo.lock              # Régénéré 2026-02-21 — axum 0.8 + rand 0.9
+│   └── Cargo.lock
 │
-├── frontend/                   # SvelteKit 5 + TypeScript strict
-│   ├── src/lib/
-│   │   ├── authStore.svelte.js         # ⚠️ exports manquants (Bug #2)
-│   │   ├── chatStore.svelte.ts         # ✅ pattern correct
-│   │   ├── conversationStore.svelte.ts # ⚠️ state_invalid_export (Bug #1)
-│   │   ├── mediaStore.svelte.js
-│   │   ├── webrtc-calls.svelte.ts
-│   │   └── sodium.svelte.js
-│   └── package.json             # v0.5.0
+├── frontend/
+│   ├── src/
+│   │   ├── lib/           # Stores Svelte 5, crypto, auth, webrtc
+│   │   └── routes/        # login, register, chat, admin, calendar, call, settings…
+│   ├── tests/e2e.spec.ts  # Tests Playwright E2E
+│   ├── playwright.config.ts
+│   └── package.json       # v0.5.0 — @playwright/test inclus
 │
-├── VERSION                      # Source de vérité version (0.5.0)
+├── VERSION                # Source de vérité : 0.1.0
+├── Dockerfile             # Build depuis sources (test-nook.yml + docker-compose local)
+├── Dockerfile.release     # Binaires pré-compilés (Docker.yml)
+├── docker-compose.yml     # Production (bind mounts, sans E2E_SETUP)
+├── docker-compose.ci.yml  # Override CI (named volumes, init container, E2E_SETUP=1)
 │
-├── .github/workflows/
-│   ├── Backend.yml              # Manuel : compile Rust x86_64 + aarch64
-│   ├── Frontend.yml             # Manuel : build SvelteKit
-│   ├── test-nook.yml            # Manuel : intégration Docker + tests API
-│   ├── Docker.yml               # Manuel : assemble artifacts → GHCR
-│   ├── ci-new2.yml              # Auto : pipeline complet sur push
-│   └── release.yml              # Manuel : bump VERSION + tag git
-│
-├── Dockerfile                   # Build sources (test-nook.yml + docker-compose)
-├── Dockerfile.release           # Binaires pré-compilés (Docker.yml + ci-new2.yml)
-└── docker-compose.yml
+└── .github/workflows/
+    ├── Backend.yml        # Manuel — compile Rust amd64 + arm64 → artifacts 7j
+    ├── Frontend.yml       # Manuel — build SvelteKit → artifact 7j
+    ├── test-nook.yml      # Manuel — intégration Docker + E2E Playwright
+    ├── Docker.yml         # Manuel — assemble artifacts → GHCR (dawidd6)
+    ├── Release.yml        # Manuel — bump VERSION + tag git
+    └── update-frontend-lock.yml  # Manuel — régénère package-lock.json
 ```
 
 ---
 
-## 🦀 Stack Backend (Rust)
+## 🦀 Stack Backend
 
-| Crate | Cargo.toml | Cargo.lock | Rôle |
-|-------|-----------|-----------|------|
-| axum | 0.8 | 0.8.8 | HTTP + WebSocket + multipart |
-| axum-extra | 0.10 | 0.10.3 | TypedHeader |
-| tokio | 1.0 | 1.49 | Runtime async |
-| sqlx | 0.8.6 | 0.8.6 | SQLite + migrations |
-| argon2 | 0.5 | 0.5.3 | Hash password |
-| chacha20poly1305 | 0.10.1 | 0.10.1 | Chiffrement XChaCha20 |
-| rand | 0.9 | 0.9.2 | RNG — `rand::rng()` |
-| rand_core | 0.6 | 0.6.4 | OsRng pour argon2 |
-| base64ct | 1.6 | 1.6.0 | Encodage base64 |
-| tower-http | 0.6.8 | 0.6.8 | CORS, ServeDir, Compression |
-| tower_governor | 0.8 | 0.8.0 | Rate limiting |
-| reqwest | 0.13 | 0.13.2 | Client HTTP |
-| headers | 0.4 | 0.4.1 | ContentDisposition |
-| tracing | 0.1 | 0.1.44 | Logs |
-| chrono | 0.4 | 0.4.43 | Timestamps |
+| Crate | Version | Rôle |
+|-------|---------|------|
+| axum | 0.8 | HTTP + WebSocket + multipart |
+| sqlx | 0.8.6 | SQLite + migrations offline |
+| argon2 | 0.5 | Hash password |
+| rand | 0.9 | RNG (`rand::rng()`) |
+| rand_core | **0.6** | OsRng pour argon2 ⚠️ diamond dep |
+| tower-http | 0.6.8 | CORS, ServeDir, Compression |
+| chacha20poly1305 | 0.10.1 | Chiffrement fichiers |
+| tokio | 1.0 | Runtime async |
+| reqwest | 0.13 | Client HTTP (rustls) |
 
-**⚠️ Points critiques :**
-- `rand_core` doit être **0.6** — argon2 l'attend, diamond dependency avec rand 0.9
-- `use rand_core::OsRng` (pas `rand::rngs::OsRng`)
-- `rand::rng()` remplace `rand::thread_rng()` (supprimé en rand 0.9)
-- `Message::Text(msg.into())` — axum 0.8 attend `Utf8Bytes`
-- `axum::extract::Host` n'existe plus → extraire depuis `headers.get("host")`
+### ⚠️ Points critiques Rust
 
----
+```rust
+// rand_core 0.6 OBLIGATOIRE pour argon2 (pas rand::rngs::OsRng)
+use rand_core::OsRng;
 
-## ⚠️ RÈGLES CRITIQUES SVELTE 5
+// rand 0.9 : thread_rng() supprimé
+rand::rng().fill_bytes(&mut buf);  // ✅
 
-### Export de `$state` réassignable = ERREUR DE BUILD
-```typescript
-// ❌ INTERDIT
-export let conversations = $state<Conversation[]>([]);
-conversations = newData; // → state_invalid_export
+// axum 0.8 : routes avec {param} (plus :param)
+.route("/conversations/{id}", get(handler))  // ✅
 
-// ✅ CORRECT
-export const conversationStore = $state<ConversationState>(createInitialState());
-conversationStore.conversations = newData;
-```
+// axum 0.8 : Message::Text attend Utf8Bytes
+Message::Text(msg.into())  // ✅
 
-### `$derived` / `$effect` = uniquement dans les composants `.svelte`
-```typescript
-// ❌ INTERDIT en module .svelte.ts
-export const active = $derived(() => ...);
+// axum 0.8 : Host supprimé → extraire depuis HeaderMap
+headers.get("host").and_then(|v| v.to_str().ok())
 
-// ✅ CORRECT en module
-export function getActive() { return conversationStore.conversations.find(...); }
-```
+// CORS : allow_credentials(true) incompatible avec Any
+// → lister origines, méthodes et headers explicitement
 
-### Stores Svelte 4 = BANNIS
-```typescript
-// ❌ INTERDIT
-import { writable } from 'svelte/store';
+// SQLite : toujours SqliteConnectOptions avec create_if_missing(true)
+// SqlitePool::connect() refuse d'ouvrir un fichier inexistant → SQLITE_CANTOPEN (code 14)
 ```
 
 ---
 
-## 🐳 Docker & CI
+## 🎨 Stack Frontend
 
-> ⚠️ Voir `DOCKER.md` pour le détail complet des règles et pièges.
+- **SvelteKit 5** + TypeScript strict
+- **Svelte 5 Runes** — voir règles dans `BUGS.md`
+- Port dev : 5173 | Port prod : 6300
 
-**Deux Dockerfiles** :
+### Routes principales
 
-| Fichier | Utilisé par | Stratégie |
-|---------|-------------|-----------|
-| `Dockerfile` | `test-nook.yml`, `docker-compose` | `cargo-chef` + sources |
-| `Dockerfile.release` | `Docker.yml`, `ci-new2.yml` | Binaires pré-compilés |
-
-**Flow manuel** :
-```
-Backend.yml  ──┐
-               ├──▶ test-nook.yml ──▶ Docker.yml ──▶ GHCR
-Frontend.yml ──┘
-```
-
-**Versioning** : `VERSION` à la racine = source de vérité.  
-`release.yml` bumpe VERSION + Cargo.toml + package.json + tag git.
+| Route | Fichier | Description |
+|-------|---------|-------------|
+| `/` | `+page.svelte` | Redirect auto (admin→/admin, user→/chat, anon→/login) |
+| `/login` | `login/+page.svelte` | Inputs `id="username"` + `id="password"` |
+| `/chat` | `chat/+page.svelte` | Groupe Global hardcodé, textarea "Envoyer un message..." |
+| `/admin` | `admin/+page.svelte` | Gestion users, approbation |
+| `/register` | `register/+page.svelte` | Inscription (approved=0 par défaut) |
 
 ---
 
 ## 🗄️ Schéma DB
 
 ```sql
-users(id, username, email, password_hash, name, role, approved, needs_password_change, token, created_at)
+users(id, username, email, password_hash, name, role, approved,
+      needs_password_change, token, created_at)
+-- Admin initial : approved=1, needs_password_change=1, mdp "changeme2026"
+-- E2E CI user   : approved=1, needs_password_change=0, mdp "E2eTest123!" (si E2E_SETUP=1)
+
 conversations(id, name, is_group, created_at, created_by, updated_at)
-conversation_participants(conversation_id, user_id, joined_at)  -- ⚠️ Bug #5
-messages(id, conversation_id, sender_id, content, message_type, file_id, encrypted, timestamp, created_at, edited_at)
-uploads(id, conversation_id, from_user_id, file_name, file_path, file_size, content_type, uploaded_at, encrypted, nonce, key_text)
+conversation_members(conversation_id, user_id, joined_at)   -- NOM RÉEL EN DB
+-- ⚠️ db.rs utilise "conversation_participants" → incohérence à corriger (Bug #5)
+messages(id, conversation_id, sender_id, content, message_type,
+         file_id, encrypted, timestamp, created_at, edited_at)
+uploads(id, conversation_id, from_user_id, file_name, file_path,
+        file_size, content_type, uploaded_at, encrypted, nonce, key_text)
 invites(code, created_by, created_at, expires_at, max_uses, current_uses)
 ```
 
 ---
 
-## 📋 Commandes utiles
+## 🔐 Auth : Cookie HttpOnly
 
-```bash
-# Backend
-cd backend
-cargo check
-cargo update                    # régénérer Cargo.lock
-SQLX_OFFLINE=true cargo build
-cargo clippy -- -D warnings
+```
+Set-Cookie: auth_token=<userId>:<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400
+```
 
-# Frontend
-cd frontend && npm ci && npm run build
+- Token stocké en DB → révocable
+- `require_auth` vérifie `approved=1` ET token valide
+- `needs_password_change` **non vérifié** dans `require_auth` → admin peut appeler les API même avec ce flag
 
-# Docker local
-docker compose up -d
-docker compose logs -f
+---
+
+## 📋 API Endpoints
+
+```
+POST /api/auth/register      — inscription (approved=0)
+POST /api/auth/login         — login → cookie
+POST /api/auth/logout        — révoque token
+GET  /api/auth/me            — infos user courant (401 si non auth)
+POST /api/auth/change-password
+
+GET  /api/conversations      — liste conversations (auth)
+POST /api/conversations      — créer conversation
+GET  /api/conversations/{id}
+POST /api/conversations/{id}/join
+GET  /api/conversations/{id}/messages
+POST /api/conversations/{id}/messages
+
+POST /api/upload
+POST /api/upload/chat
+
+GET  /api/pending-users-json  — admin : users en attente (SimpleUser[])
+GET  /api/all-users-json      — admin : tous les users
+POST /api/approve             — admin : { user_id: string }
+GET  /api/list-invites
+POST /api/delete-invite
+POST /api/generate-invite
+
+GET  /api/health              — "OK" (texte, pas JSON)
+GET  /api/invite/validate
+POST /api/join
+
+WS   /ws                      — WebSocket signaling WebRTC
+POST /api/webrtc/offer
+POST /api/webrtc/answer
 ```
 
 ---
 
-## 🔄 Workflow Claude ↔ MX10-AC2N
+## 🔄 Workflow de collaboration
 
-1. Lire `.claude/` + fichiers GitHub avant d'intervenir
-2. Fournir le contenu **complet** des fichiers (jamais de diffs partiels)
-3. Toujours livrer en `.txt` pour éviter les bugs de téléchargement
-4. Mettre à jour `.claude/` après chaque session
+1. **Toujours lire le repo avant d'intervenir** — fetcher les fichiers concernés via Raw GitHub
+2. **Fournir le contenu complet** des fichiers (jamais de diffs partiels)
+3. **Livrer en `.txt`** pour éviter les bugs de téléchargement Claude.ai
+4. **Mettre à jour `.claude/`** après chaque session
+5. **Lire `BUGS.md`** pour ne pas réintroduire des bugs déjà résolus
