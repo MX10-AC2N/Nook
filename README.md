@@ -4,26 +4,20 @@
 
 <div align="center">
 
-<!-- Statut général -->
 [![CI Backend](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml)
 [![CI Frontend](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml)
 [![CI Tests](https://github.com/MX10-AC2N/Nook/actions/workflows/test-nook.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/test-nook.yml)
 [![Docker Build](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml)
 
-<!-- Image Docker -->
 [![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
-<!-- Stack -->
-[![Rust](https://img.shields.io/badge/Backend-Rust%20%2B%20Axum-orange?logo=rust)](https://www.rust-lang.org/)
-[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%205-FF3E00?logo=svelte)](https://kit.svelte.dev/)
+[![Rust](https://img.shields.io/badge/Backend-Rust%201.88%20%2B%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
+[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%205%20Runes-FF3E00?logo=svelte)](https://kit.svelte.dev/)
 [![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite)](https://sqlite.org/)
 [![Docker](https://img.shields.io/badge/Runtime-Distroless%20Docker-2496ED?logo=docker)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-
-<!-- Licence -->
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Built with love](https://img.shields.io/badge/build%20with%20🫶-for%20family-8A2BE2)](https://github.com/MX10-AC2N/Nook)
 
 </div>
 
@@ -31,28 +25,34 @@
 
 ## Pourquoi Nook ?
 
-Tu en as marre que les grandes firmes vendent tes données ? Que tes messages servent à alimenter leurs pubs ciblées ? Nous aussi. 😤
+Tu en as marre que les grandes firmes lisent tes messages et vendent tes données ? Nous aussi. 😤
 
 Nook, c'est simple :
-- C'est **toi** qui héberges l'application (sur ton serveur, ton NAS, ou même un Raspberry Pi)
-- C'est **toi** qui contrôles tes données (elles ne vont nulle part ailleurs)
-- C'est **chiffré** de bout en bout (même nous on ne peut pas lire tes messages)
+- **Toi** qui héberges — sur ton serveur, ton NAS, ou un Raspberry Pi
+- **Tes données** qui restent chez toi — elles ne vont nulle part ailleurs
+- **Chiffré** de bout en bout — même l'hébergeur ne peut pas lire tes messages
 
 ---
 
 ## Ce que Nook sait faire
 
-### 💬 Discuter en toute liberté
-Des conversations textuelles simples, rapides, et surtout privées.
+### 💬 Messagerie privée
+Conversations textuelles instantanées et chiffrées. Partage de fichiers, photos, documents — tout reste entre vous.
 
-### 📞 S'entendre et se voir
-Appels audio et vidéo pour garder le contact avec ceux qu'on aime, même quand ils sont loin.
+### 📞 Appels audio & vidéo
+WebRTC pour des connexions directes entre appareils. Le serveur établit la connexion mais ne voit jamais le flux — zéro donnée transit via Nook.
 
-### 📁 Partager sans complexe
-Photos de famille, vidéos des kids, documents importants... Tout ce que tu partages reste entre vous.
+### 📅 Calendrier familial
+Organisez vos événements partagés sans passer par Google ou Apple.
 
-### 🔐 Sécurité de ninja
-On utilise libsodium + XChaCha20-Poly1305 pour chiffrer tes fichiers. Tes clés sont générées chez toi, stockées chez toi. C'est un peu comme un coffre-fort dont seul toi as la clé.
+### 📊 Sondages & votes
+Décidez ensemble où partir en vacances, quoi manger le soir — sans quitter l'app.
+
+### 🔐 Chiffrement de bout en bout
+XChaCha20-Poly1305 pour les fichiers. Tes clés sont générées chez toi, stockées chez toi. Comme un coffre-fort dont seul toi as la clé.
+
+### 👨‍👩‍👧 Gestion familiale
+Système d'invitation par lien, approbation admin, gestion des comptes. Tu contrôles qui rejoint ton espace.
 
 ---
 
@@ -71,29 +71,44 @@ cd Nook
 docker compose up -d
 ```
 
-Ou avec l'image depuis GHCR (pas besoin de compiler) :
+Ou directement depuis l'image GHCR (sans compiler) :
 
 ```bash
-docker pull ghcr.io/mx10-ac2n/nook:latest
 docker run -d \
-  -p 3000:3000 \
-  -v nook-data:/app/data \
+  -p 6300:3000 \
+  -v ./data:/app/data \
+  -e PUBLIC_SITE_URL=http://ton-serveur:6300 \
   ghcr.io/mx10-ac2n/nook:latest
 ```
 
 ### 3. Ouvrir ton navigateur
 
-Va sur `http://localhost:3000` et c'est parti ! 🎉
+Va sur `http://localhost:6300` — c'est parti ! 🎉
 
-> **Premier lancement** : un compte `admin` est créé automatiquement avec le mot de passe `changeme2026`. Change-le immédiatement après la première connexion.
+> **Premier lancement** : un compte `admin` est créé automatiquement avec le mot de passe `changeme2026`.  
+> **Change-le immédiatement** lors de la première connexion.
+
+---
+
+## Configuration
+
+Variables d'environnement dans `docker-compose.yml` :
+
+| Variable | Défaut | Description |
+|----------|--------|-------------|
+| `PUBLIC_SITE_URL` | `http://localhost:6300` | URL publique de l'instance |
+| `DATABASE_URL` | `sqlite:/app/data/nook.db` | Chemin vers la DB SQLite |
+| `UPLOADS_DIR` | `/app/data/uploads` | Stockage des fichiers |
+| `RUST_LOG` | `info` | Niveau de logs (`debug`, `info`, `warn`) |
+| `TZ` | `Europe/Paris` | Fuseau horaire |
 
 ---
 
 ## Ce qu'il faut
 
-- Docker et Docker Compose (c'est tout !)
-- Un navigateur récent (Chrome, Firefox, Safari, Edge... ça marche partout)
-- **Architecture supportée** : `linux/amd64` (PC/serveur) · `linux/arm64` (Raspberry Pi 4+, NAS ARM)
+- **Docker** et **Docker Compose** — c'est tout
+- Un navigateur récent (Chrome, Firefox, Safari, Edge)
+- **Architectures supportées** : `linux/amd64` (PC/serveur) · `linux/arm64` (Raspberry Pi 4+, NAS ARM)
 
 ---
 
@@ -101,16 +116,27 @@ Va sur `http://localhost:3000` et c'est parti ! 🎉
 
 ```
 Nook/
-├── backend/          # 🦀 Rust + Axum  — API REST + WebSocket + crypto
-├── frontend/         # 🎨 SvelteKit 5  — UI réactive avec runes
-├── Dockerfile        # 🔧 Build depuis sources (dev / tests CI)
-├── Dockerfile.release# 🚀 Image finale distroless (production)
-└── docker-compose.yml# 📦 Stack complète pour auto-hébergement
+├── backend/               # 🦀 Rust 1.88 + Axum 0.8 — API REST + WebSocket
+├── frontend/              # 🎨 SvelteKit 5 Runes — UI réactive TypeScript
+├── Dockerfile             # 🔧 Build depuis sources (dev + CI tests)
+├── Dockerfile.release     # 🚀 Image finale distroless (production)
+├── docker-compose.yml     # 📦 Stack production
+└── docker-compose.ci.yml  # 🧪 Override CI (tests E2E automatisés)
 ```
+
+### Stack
+
+| Composant | Technologie |
+|-----------|------------|
+| Backend | Rust 1.88 · Axum 0.8 · SQLx 0.8 · SQLite |
+| Auth | Argon2id (hash mdp) · Cookie HttpOnly · XChaCha20-Poly1305 (fichiers) |
+| Frontend | SvelteKit 5 · Svelte Runes · TypeScript strict |
+| Runtime | Docker Distroless `gcr.io/distroless/cc-debian12:nonroot` |
+| Tests | Playwright E2E · cargo test · cargo clippy |
 
 ### Pourquoi Distroless ?
 
-L'image Docker finale ne contient **que le strict nécessaire** : le binaire Rust + les libs système. Pas de shell, pas d'outils, pas de surface d'attaque inutile. Résultat : une image de quelques MB seulement (voir le badge en haut 👆).
+L'image finale ne contient **que le strict nécessaire** : le binaire Rust compilé + les libs système. Pas de shell, pas d'outils, pas de surface d'attaque inutile. Résultat : ~10 MB et une sécurité maximale.
 
 ---
 
@@ -119,50 +145,51 @@ L'image Docker finale ne contient **que le strict nécessaire** : le binaire Rus
 ```
 Backend.yml  ──┐
                ├──▶ test-nook.yml ──▶ Docker.yml ──▶ GHCR
-Frontend.yml ──┘         │
-                    (tests API +
-                     Playwright)
+Frontend.yml ──┘   (Docker + E2E)
 ```
 
 | Workflow | Rôle |
 |----------|------|
-| `Backend.yml` | Compile + teste Rust pour `amd64` et `arm64` |
-| `Frontend.yml` | Build SvelteKit |
-| `test-nook.yml` | Tests d'intégration (API + E2E) |
+| `Backend.yml` | Compile Rust pour `amd64` + `arm64` → artifacts |
+| `Frontend.yml` | Build SvelteKit → artifact |
+| `test-nook.yml` | Intégration Docker + tests API + Playwright E2E |
 | `Docker.yml` | Assemble les artifacts → image distroless → GHCR |
+| `Release.yml` | Bump version sémantique + tag git |
+
+**Ordre de lancement** : `Backend.yml` → `Frontend.yml` → `test-nook.yml` → `Docker.yml`
 
 ---
 
 ## FAQ
 
-**"C'est compliqué à installer ?"**
-Pas du tout ! Docker s'occupe de tout. Une fois que c'est lancé, tu n'as plus rien à faire.
+**"C'est compliqué à installer ?"**  
+Pas du tout. Docker s'occupe de tout. Une commande, c'est lancé.
 
-**"Mes données sont où ?"**
-Sur ta machine ! Aucune donnée ne part sur un serveur tiers. C'est le principe de l'auto-hébergement.
+**"Mes données sont où ?"**  
+Sur ta machine, dans le dossier `./data/`. Rien ne part sur un serveur tiers.
 
-**"Je peux l'utiliser sur mon NAS ?"**
-Absolument ! NAS ARM (Synology, QNAP, TrueNAS...) et Raspberry Pi 4+ sont supportés nativement grâce au build `arm64`.
+**"Je peux l'utiliser sur mon NAS ?"**  
+Oui ! NAS ARM (Synology, QNAP, TrueNAS) et Raspberry Pi 4+ sont supportés nativement grâce au build `arm64`.
 
-**"Les appels vidéo ça consomme beaucoup ?"**
-On utilise WebRTC pour des connexions directes entre les appareils. Le serveur ne voit jamais le flux vidéo — il sert juste à établir la connexion.
+**"Les appels vidéo passent par votre serveur ?"**  
+Non. WebRTC établit une connexion directe entre les appareils. Le serveur ne voit jamais le flux audio/vidéo.
 
-**"L'image Docker est vraiment petite ?"**
-Oui ! Grâce à l'image Distroless de Google, le binaire Rust est lié statiquement et l'image finale ne contient que l'essentiel. Le badge en haut du README affiche la taille réelle.
+**"Comment ajouter des membres ?"**  
+L'admin génère un lien d'invitation depuis le panneau d'administration. La personne crée son compte, l'admin l'approuve.
 
 ---
 
 ## Besoin d'aide ?
 
-Tu bloques sur quelque chose ? [Ouvre une issue](https://github.com/MX10-AC2N/Nook/issues) sur GitHub, on sera ravis de t'aider !
+Tu bloques ? [Ouvre une issue](https://github.com/MX10-AC2N/Nook/issues) sur GitHub !
 
 ---
 
 <div align="center">
 
-Nook, c'est un projet construit avec l'envie de proposer une alternative aux géants du web.
-Pas de pub, pas de tracking, pas de revente de données.
-Juste un outil pour que ta famille puisse communiquer en toute sérénité.
+Nook, c'est un projet construit avec l'envie de proposer une alternative aux géants du web.  
+Pas de pub, pas de tracking, pas de revente de données.  
+Juste un outil pour que ta famille communique en toute sérénité.
 
 **Amuse-toi bien ! 🎈**
 
