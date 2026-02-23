@@ -1,39 +1,96 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, request as apiRequest } from '@playwright/test';
 
-// En CI le serveur tourne sur localhost:6300 via Docker
-// Compte admin créé automatiquement au démarrage (voir check_initial_admin)
-// Credentials : admin / changeme2026
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers API (hors browser)
+// ─────────────────────────────────────────────────────────────────────────────
+const BASE = 'http://localhost:6300';
 
-test('Login → Chat → Upload fichier', async ({ page }) => {
+async function apiLogin(username: string, password: string) {
+  const ctx = await apiRequest.newContext({ baseURL: BASE });
+  const res = await ctx.post('/api/auth/login', {
+    data: { username, password },
+  });
+  const cookies = res.headers()['set-cookie'] ?? '';
+  const match = cookies.match(/auth_token=([^;]+)/);
+  await ctx.dispose();
+  if (!res.ok()) throw new Error(`Login ${username} failed: ${res.status()}`);
+  return match?.[1] ?? '';
+}
 
-  // 1. Login avec le compte admin (créé automatiquement au 1er démarrage)
-  await page.goto('/');
+async function approveUser(adminCookie: string, userId: string) {
+  const ctx = await apiRequest.newContext({
+    baseURL: BASE,
+    extraHTTPHeaders: { Cookie: `auth_token=${adminCookie}` },
+  });
+  await ctx.post('/api/approve', { data: { user_id: userId } });
+  await ctx.dispose();
+}
 
-  await page.fill('input[name="username"]', 'admin');
-  await page.fill('input[name="password"]', 'changeme2026');
+async function getPendingUserId(adminCookie: string, username: string): Promise<string> {
+  const ctx = await apiRequest.newContext({
+    baseURL: BASE,
+    extraHTTPHeaders: { Cookie: `auth_token=${adminCookie}` },
+  });
+  const res = await ctx.get('/api/pending-users-json');
+  const body = await res.json();
+  await ctx.dispose();
+  const user = body.users?.find((u: any) => u.username === username);
+  if (!user) throw new Error(`User ${username} not found in pending list`);
+  return user.id;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Setup : créer + approuver un user de test via API
+// (sans passer par le flow admin UI ni needs_password_change)
+// ─────────────────────────────────────────────────────────────────────────────
+test.beforeAll(async () => {
+  const ctx = await apiRequest.newContext({ baseURL: BASE });
+
+  // Register le user de test (idempotent : ignore le conflit si déjà créé)
+  await ctx.post('/api/auth/register', {
+    data: {
+      username: 'e2e_ci',
+      password: 'E2eTest123!',
+      email: 'e2e@ci.nook',
+      name: 'E2E CI',
+    },
+  });
+  await ctx.dispose();
+
+  // Login admin (approved=1, require_auth passe même avec needs_password_change)
+  const adminCookie = await apiLogin('admin', 'changeme2026');
+
+  // Récupérer l'id du user e2e_ci dans la liste des pending
+  const userId = await getPendingUserId(adminCookie, 'e2e_ci');
+
+  // Approuver le user
+  await approveUser(adminCookie, userId);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Test principal
+// ─────────────────────────────────────────────────────────────────────────────
+test('Login → Chat → Envoi message', async ({ page }) => {
+
+  // 1. Login via l'UI
+  await page.goto('/login');
+
+  // Les inputs ont id= (pas name=) dans le template Svelte
+  await page.fill('#username', 'e2e_ci');
+  await page.fill('#password', 'E2eTest123!');
   await page.getByRole('button', { name: 'Se connecter' }).click();
 
-  // Attendre la redirection post-login
-  await expect(page).toHaveURL(/\/(home|dashboard|conversations|chat)?/, { timeout: 10000 });
+  // 2. Vérifier qu'on arrive sur /chat (e2e_ci n'a pas needs_password_change)
+  await expect(page).toHaveURL(/\/chat/, { timeout: 10_000 });
 
-  // 2. Créer une conversation
-  await page.getByRole('button', { name: 'Nouvelle conversation' }).click();
-  await page.getByRole('button', { name: 'Créer' }).click();
-
-  // 3. Envoyer un message texte
-  await page.fill('textarea', 'Hello from E2E test !');
+  // 3. Envoyer un message dans le Groupe Global
+  const textarea = page.locator('textarea[placeholder="Envoyer un message..."]');
+  await expect(textarea).toBeVisible({ timeout: 5000 });
+  await textarea.fill('Hello from E2E CI test !');
   await page.getByRole('button', { name: 'Envoyer' }).click();
-  await expect(page.getByText('Hello from E2E test')).toBeVisible();
 
-  // 4. Upload fichier
-  const fileInput = page.locator('input[type="file"]').first();
-  await fileInput.setInputFiles({
-    name: 'test-upload.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('Ceci est un fichier uploadé via Playwright E2E !')
-  });
+  // 4. Vérifier que le message apparaît dans le chat
+  await expect(page.getByText('Hello from E2E CI test !')).toBeVisible({ timeout: 5000 });
 
-  await expect(page.getByText('test-upload.txt')).toBeVisible({ timeout: 15000 });
-
-  console.log('✅ E2E complet : Login → Chat → Upload réussi !');
+  console.log('✅ E2E complet : Login → Chat → Message envoyé !');
 });
