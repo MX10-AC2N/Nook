@@ -181,14 +181,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/change-password", post(auth::change_password))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
-        .route("/conversations/:id", get(db::get_conversation))
-        .route("/conversations/:id/join", post(db::join_conversation))
+        .route("/conversations/{id}", get(db::get_conversation))
+        .route("/conversations/{id}/join", post(db::join_conversation))
         .route(
-            "/conversations/:id/messages",
+            "/conversations/{id}/messages",
             get(db::get_conversation_messages),
         )
         .route(
-            "/conversations/:id/messages",
+            "/conversations/{id}/messages",
             post(db::send_message),
         )
         .route("/upload", post(upload::upload_handler))
