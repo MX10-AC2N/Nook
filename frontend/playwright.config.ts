@@ -17,6 +17,8 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:6300',
-    reuseExistingServer: !process.env.CI,
+    // En CI : le serveur tourne déjà dans Docker → on le réutilise
+    // En local : pas de serveur → Playwright démarre npm run dev
+    reuseExistingServer: !!process.env.CI,
   },
 });
