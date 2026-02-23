@@ -1,4 +1,13 @@
 services:
+  # Service init : chown les volumes pour nonroot (uid 65532) avant démarrage
+  # Utilise une image alpine minimaliste, exit 0 immédiatement après
+  nook-init:
+    image: alpine:3
+    command: sh -c "chown -R 65532:65532 /app/data /app/logs"
+    volumes:
+      - nook-data:/app/data
+      - nook-logs:/app/logs
+
   nook:
     build:
       context: .
@@ -6,14 +15,14 @@ services:
     image: nook:latest
     container_name: nook
     restart: unless-stopped
+    depends_on:
+      nook-init:
+        condition: service_completed_successfully
 
     ports:
       - "6300:3000"
 
     volumes:
-      # Volumes Docker nommés — pas de bind mounts ./data ./logs
-      # Les bind mounts créent les dossiers avec uid=root → Permission denied
-      # car le container tourne en nonroot (uid 65532, distroless)
       - nook-data:/app/data
       - nook-logs:/app/logs
 
@@ -26,12 +35,6 @@ services:
       - UPLOADS_DIR=/app/data/uploads
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:6300}
 
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
 
     deploy:
       resources:
@@ -50,7 +53,6 @@ networks:
     driver: bridge
     name: nook-network
 
-# ⚠️ Les volumes DOIVENT être déclarés ici ET dans le service
 volumes:
   nook-data:
     driver: local
