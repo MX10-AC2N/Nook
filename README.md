@@ -11,7 +11,7 @@
 
 [![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=&ignore=sha-*,latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size&tag=latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-[![Release Date](https://img.shields.io/github/release-date/MX10-AC2N/Nook?label=last%20build&color=informational)](https://github.com/MX10-AC2N/Nook/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/MX10-AC2N/Nook/main?label=last%20build&color=informational)](https://github.com/MX10-AC2N/Nook/commits/main)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
 [![Rust](https://img.shields.io/badge/Backend-Rust%201.88%20%2B%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
@@ -186,21 +186,36 @@ L'image finale ne contient **que le strict nécessaire** : le binaire Rust + les
 
 ## Pipeline CI/CD
 
+Deux façons de produire l'image Docker :
+
+### 🔁 Automatique — `ci-new2.yml`
+Se déclenche sur chaque push vers `develop` ou `main`. Pipeline complet en un seul workflow.
+
+```
+push → fmt → backend (amd64 + arm64) ──┐
+           → frontend               ──┴──▶ Docker multi-arch → GHCR
+```
+
+### 🎯 Manuel — flow en 4 étapes
+Pour les releases officielles avec un tag de version propre.
+
 ```
 Backend.yml  ──┐
                ├──▶ test-nook.yml ──▶ Docker.yml ──▶ GHCR
 Frontend.yml ──┘   (Docker + E2E)
 ```
 
-| Workflow | Rôle |
-|----------|------|
-| `Backend.yml` | Compile Rust pour `amd64` + `arm64` → artifacts |
-| `Frontend.yml` | Build SvelteKit → artifact |
-| `test-nook.yml` | Stack Docker complète + tests API + Playwright E2E |
-| `Docker.yml` | Assemble les artifacts → image distroless multi-arch → GHCR |
-| `Release.yml` | Bump version sémantique + tag git |
+| Workflow | Déclenchement | Rôle |
+|----------|--------------|------|
+| `ci-new2.yml` | Auto (push `develop`/`main`) + Manuel | Pipeline complet : fmt → build → docker |
+| `Backend.yml` | Manuel | Compile Rust `amd64` + `arm64` → artifacts (7j) |
+| `Frontend.yml` | Manuel | Build SvelteKit → artifact (7j) |
+| `test-nook.yml` | Manuel | Stack Docker complète + tests API + Playwright E2E |
+| `Docker.yml` | Manuel | Assemble artifacts → image `vX.Y.Z` → GHCR |
+| `Release.yml` | Manuel | Bump version dans `VERSION`, `Cargo.toml`, `package.json` + tag git |
 
-**Ordre de lancement** : `Backend.yml` → `Frontend.yml` → `test-nook.yml` → `Docker.yml`
+**Tags produits par `ci-new2.yml`** : SHA du commit, nom de branche, `latest` (sur `main`)  
+**Tags produits par `Docker.yml`** : `vX.Y.Z` (depuis fichier `VERSION`), `latest` (sur `main`)
 
 ---
 
