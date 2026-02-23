@@ -13,8 +13,8 @@ use axum::{
 };
 use bytes::Bytes;
 use chrono::Utc;
-use sqlx::{migrate, SqlitePool};
-use std::{net::SocketAddr, path::PathBuf, sync::Arc};
+use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
+use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -46,8 +46,6 @@ pub struct SharedState {
 
 // ---------------------------------------------------------------------
 // Middleware base inject
-// Axum 0.8 : Host extractor déplacé dans axum-extra.
-// On l'extrait directement depuis le HeaderMap (plus simple et sans dépendance supplémentaire).
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     headers: HeaderMap,
@@ -96,7 +94,11 @@ async fn base_inject_middleware(
 // DB + Initial admin
 // ---------------------------------------------------------------------
 async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
-    let pool = SqlitePool::connect(url).await?;
+    // ⚠️ SqlitePool::connect() refuse d'ouvrir un fichier inexistant (SQLITE_CANTOPEN / code 14)
+    // SqliteConnectOptions avec create_if_missing(true) crée le fichier si besoin
+    let opts = SqliteConnectOptions::from_str(url)?
+        .create_if_missing(true);
+    let pool = SqlitePool::connect_with(opts).await?;
     migrate!("./migrations").run(&pool).await?;
     eprintln!("[DB] Migrations appliquées");
     Ok(pool)
