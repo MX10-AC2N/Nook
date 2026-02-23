@@ -39,11 +39,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 512M
+          cpus: "1.5"
+          memory: 1028M
         reservations:
-          cpus: "0.25"
-          memory: 128M
+          cpus: "0.5"
+          memory: 256M
 
     networks:
       - nook-network
