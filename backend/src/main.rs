@@ -17,7 +17,7 @@ use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
-    cors::{Any, CorsLayer},
+    cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
 
@@ -217,10 +217,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
         .layer(
+            // ⚠️ CORS : allow_credentials(true) est incompatible avec Any (wildcard *)
+            // La spec HTTP interdit : Access-Control-Allow-Credentials: true
+            //                      + Access-Control-Allow-Headers: *  (ou Origin/Methods)
+            // tower-http 0.6 le vérifie au démarrage → panic
+            // Solution : lister les origines, méthodes et headers explicitement
             CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any)
+                .allow_origin([
+                    "http://localhost:5173".parse().unwrap(),
+                    "http://localhost:6300".parse().unwrap(),
+                    "http://127.0.0.1:6300".parse().unwrap(),
+                ])
+                .allow_methods([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::PUT,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::OPTIONS,
+                ])
+                .allow_headers([
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::ACCEPT,
+                    axum::http::header::COOKIE,
+                ])
                 .allow_credentials(true),
         )
         .with_state(shared_state);
