@@ -20,23 +20,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsqlite3-0 libsodium23 libssl3 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-RUN addgroup --system --gid 1000 app && \
-    adduser --system --uid 1000 --ingroup app app
-
-RUN mkdir -p /app/data /app/static && chown -R app:app /app
+RUN mkdir -p /app/data /app/static
 
 # Copie du binaire correspondant à l'architecture cible
 COPY backend/nook-backend-${TARGETARCH} /app/nook-backend
-RUN chmod +x /app/nook-backend && chown app:app /app/nook-backend
+RUN chmod +x /app/nook-backend
 
 # Copie du frontend build
 COPY frontend/ /app/static/
-RUN chown -R app:app /app/static
 
 # ===============================================
 # ÉTAPE 2 : Image finale Distroless
 # ===============================================
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/cc-debian12:latest
 
 COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=prep /usr/lib/*/libsqlite3.so* /usr/lib/
@@ -44,7 +40,7 @@ COPY --from=prep /usr/lib/*/libsodium.so* /usr/lib/
 COPY --from=prep /usr/lib/*/libssl.so* /usr/lib/
 COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
 
-COPY --from=prep --chown=nonroot:nonroot /app /app
+COPY --from=prep /app /app
 
 WORKDIR /app
 EXPOSE 3000
