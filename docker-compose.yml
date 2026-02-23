@@ -1,23 +1,8 @@
 services:
-  # Service init : chown les volumes pour nonroot (uid 65532) avant démarrage
-  # Utilise une image alpine minimaliste, exit 0 immédiatement après
-  nook-init:
-    image: alpine:3
-    command: sh -c "chown -R 65532:65532 /app/data /app/logs"
-    volumes:
-      - nook-data:/app/data
-      - nook-logs:/app/logs
-
   nook:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: nook:latest
+    image: ghcr.io/mx10-ac2n/nook:latest
     container_name: nook
     restart: unless-stopped
-    depends_on:
-      nook-init:
-        condition: service_completed_successfully
 
     ports:
       - "6300:3000"
@@ -34,7 +19,6 @@ services:
       - STATIC_FILES_DIR=/app/static
       - UPLOADS_DIR=/app/data/uploads
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:6300}
-
 
     deploy:
       resources:
