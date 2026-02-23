@@ -88,6 +88,12 @@ docker run -d \
   ghcr.io/mx10-ac2n/nook:latest
 ```
 
+> **Bind mounts sur un chemin personnalisé ?** L'image tourne en `nonroot` (uid 65532).  
+> Si tu montes un dossier existant (`-v /mon/chemin:/app/data`), il faut d'abord corriger les permissions :
+> ```bash
+> sudo chown -R 65532:65532 /mon/chemin/nook-data /mon/chemin/nook-logs
+> ```
+
 ### 3. Ouvrir ton navigateur
 
 Va sur `http://localhost:6300` — c'est parti ! 🎉
