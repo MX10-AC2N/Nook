@@ -2,24 +2,119 @@ name: 4==> 🐳 Docker Build & Push
 
 on:
   workflow_dispatch:
+  # Auto-déclenché si on le souhaite après le workflow de test
+  # workflow_run:
+  #   workflows: ["3==> 🧪 CI – Test Nook"]
+  #   types: [completed]
+  #   branches: [main]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  docker:
-    name: 🐳 Docker Multi-Arch (Distroless)
+  # ============================================================
+  # 1. Build Backend binaries (amd64 + arm64)
+  # ============================================================
+  build-backend:
+    name: 🦀 Backend (${{ matrix.target }})
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
+    defaults:
+      run:
+        working-directory: ./backend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            arch: amd64
+          - target: aarch64-unknown-linux-gnu
+            arch: arm64
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── Lecture de la version depuis la source de vérité ──────────
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: ${{ matrix.target }}
+
+      - name: Build release
+        env:
+          SQLX_OFFLINE: "true"
+          CARGO_PROFILE_RELEASE_LTO: "true"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+          echo "📏 Taille :"
+          ls -lh target/${{ matrix.target }}/release/nook-backend
+
+      - name: Préparer le binaire
+        run: |
+          mkdir -p artifacts
+          cp target/${{ matrix.target }}/release/nook-backend \
+             artifacts/nook-backend-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nook-backend-${{ matrix.arch }}
+          path: backend/artifacts/nook-backend-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 1
+
+  # ============================================================
+  # 2. Build Frontend
+  # ============================================================
+  build-frontend:
+    name: 🎨 Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install & Build
+        working-directory: ./frontend
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nook-frontend-release
+          path: frontend/build
+          if-no-files-found: error
+          retention-days: 1
+
+  # ============================================================
+  # 3. Docker Build & Push (multi-arch)
+  # ============================================================
+  docker:
+    name: 🐳 Docker Multi-Arch
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Lire la version
         id: version
         run: |
@@ -31,19 +126,19 @@ jobs:
       - name: Download backend amd64
         uses: actions/download-artifact@v4
         with:
-          name: nook-backend-x86_64-unknown-linux-gnu
+          name: nook-backend-amd64
           path: docker-context/backend
 
       - name: Download backend arm64
         uses: actions/download-artifact@v4
         with:
-          name: nook-backend-aarch64-unknown-linux-gnu
+          name: nook-backend-arm64
           path: docker-context/backend
 
       - name: Download frontend
         uses: actions/download-artifact@v4
         with:
-          name: nook-frontend
+          name: nook-frontend-release
           path: docker-context/frontend
 
       - name: Vérification du contexte
@@ -57,7 +152,7 @@ jobs:
           test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
           chmod +x docker-context/backend/nook-backend-amd64
           chmod +x docker-context/backend/nook-backend-arm64
-          echo "✅ Contexte Docker prêt — version ${{ steps.version.outputs.version }}"
+          echo "✅ Contexte Docker prêt — v${{ steps.version.outputs.version }}"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -73,13 +168,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # Tag version sémantique lisible : v0.5.1
             type=raw,value=${{ steps.version.outputs.tag }}
-            # Tag majeur.mineur : v0.5
-            type=raw,value=v{{ steps.version.outputs.version | split('.') | first }}.{{ steps.version.outputs.version | split('.')[1] }}
-            # latest uniquement sur main
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            # SHA court pour traçabilité (non affiché dans le badge)
             type=sha,prefix=sha-
 
       - name: Build & Push
@@ -103,4 +193,4 @@ jobs:
           echo "| **Image** | \`ghcr.io/${{ github.repository }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Version** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Platforms** | \`linux/amd64\` · \`linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Lien** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Registry** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
