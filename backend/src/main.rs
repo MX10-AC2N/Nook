@@ -55,6 +55,11 @@ async fn base_inject_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, axum::http::StatusCode> {
+    // ============================================================
+    // 🔍 LOG: Début du middleware d'injection du base href
+    // ============================================================
+    let start_time = std::time::Instant::now();
+    
     // Nginx Proxy Manager injecte X-Forwarded-Proto = "https"
     let scheme = headers
         .get("x-forwarded-proto")
@@ -69,18 +74,42 @@ async fn base_inject_middleware(
 
     let base_url = format!("{}://{}/", scheme, host_str);
     let replacement = format!("<base href=\"{}\" />", base_url);
+    
+    // ============================================================
+    // 📝 LOG: URL de base détectée pour ce请求
+    // ============================================================
+    tracing::debug!(
+        method = %req.method(),
+        uri = %req.uri(),
+        scheme = %scheme,
+        host = %host_str,
+        base_url = %base_url,
+        "→ Traitement de la requête HTTP"
+    );
 
     let resp = next.run(req).await;
+    let elapsed = start_time.elapsed();
 
     if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
         if ct.to_str().is_ok_and(|s| s.starts_with("text/html")) {
+            // ============================================================
+            // 📄 LOG: Modification du HTML pour injecter le base href
+            // ============================================================
+            tracing::debug!(content_type = %ct.to_str().unwrap_or("unknown"), "Injection du base href dans le HTML");
+            
             let (parts, body) = resp.into_parts();
             let bytes = to_bytes(body, 10_000_000)
                 .await
-                .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+                .map_err(|e| {
+                    tracing::error!(error = %e, "Erreur lors de la lecture du corps de la réponse");
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR
+                })?;
             let mut body_str = String::from_utf8_lossy(&bytes).into_owned();
             if body_str.contains("<base-placeholder/>") {
                 body_str = body_str.replace("<base-placeholder/>", &replacement);
+                tracing::debug!(base_href = %replacement, "Base href injecté avec succès");
+            } else {
+                tracing::trace!("Aucun placeholder <base-placeholder/> trouvé dans le HTML");
             }
             let body_bytes = Bytes::from(body_str);
             let content_length = body_bytes.len();
@@ -88,9 +117,28 @@ async fn base_inject_middleware(
             if let Ok(len) = HeaderValue::from_str(&content_length.to_string()) {
                 new_resp.headers_mut().insert(CONTENT_LENGTH, len);
             }
+            
+            // ============================================================
+            // ✅ LOG: Réponse HTML modifiée renvoyée
+            // ============================================================
+            tracing::debug!(
+                content_length = content_length,
+                elapsed_ms = elapsed.as_millis(),
+                "← Réponse HTML avec base href servie"
+            );
+            
             return Ok(new_resp.into_response());
         }
     }
+    
+    // ============================================================
+    // 📦 LOG: Réponse non-HTML (CSS, JS, images, etc.)
+    // ============================================================
+    tracing::trace!(
+        elapsed_ms = elapsed.as_millis(),
+        "← Réponse statique servie (non-HTML)"
+    );
+    
     Ok(resp)
 }
 
@@ -98,24 +146,61 @@ async fn base_inject_middleware(
 // DB + Initial admin
 // ---------------------------------------------------------------------
 async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
+    // ============================================================
+    // 🗄️ LOG: Initialisation de la base de données SQLite
+    // ============================================================
+    tracing::info!(database_url = %url, "Initialisation de la connexion SQLite");
+    
     // SqliteConnectOptions avec create_if_missing(true) crée le fichier si besoin
     // (SqlitePool::connect() refuse d'ouvrir un fichier inexistant → SQLITE_CANTOPEN code 14)
-    let opts = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
+    let opts = SqliteConnectOptions::from_str(url)?
+        .create_if_missing(true)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::WAL)
+        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
+    
+    tracing::debug!(
+        create_if_missing = true,
+        journal_mode = "WAL",
+        synchronous = "Normal",
+        "Options de connexion SQLite configurées"
+    );
+    
     let pool = SqlitePool::connect_with(opts).await?;
+    
+    tracing::info!("✓ Connexion SQLite établie avec succès");
+    
+    // ============================================================
+    // 🔄 LOG: Application des migrations de base de données
+    // ============================================================
+    tracing::info!("Application des migrations de base de données...");
     migrate!("./migrations").run(&pool).await?;
-    eprintln!("[DB] Migrations appliquées");
+    tracing::info!("✓ Migrations appliquées avec succès");
+    
     Ok(pool)
 }
 
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // ============================================================
+    // 👤 LOG: Vérification de l'existence d'un administrateur
+    // ============================================================
+    tracing::debug!("Vérification de la présence d'un administrateur initial...");
+    
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
         .await?;
 
+    tracing::info!(user_count = count.0, "Nombre d'utilisateurs dans la base de données");
+
     if count.0 == 0 {
+        // ============================================================
+        // 🆕 LOG: Création de l'administrateur initial
+        // ============================================================
+        tracing::warn!("⚠️  Aucun utilisateur trouvé - création de l'administrateur initial");
+        
         let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
         let password_hash = crate::auth::hash_password("changeme2026");
         let now = Utc::now().timestamp();
+        
         sqlx::query(
             r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
                VALUES (?, ?, ?, ?, ?, 'admin', 1, 1, ?)"#,
@@ -128,12 +213,26 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         .bind(now)
         .execute(pool)
         .await?;
+        
+        tracing::info!(
+            username = "admin",
+            email = "admin@nook.local",
+            role = "admin",
+            "✓ Administrateur initial créé avec succès"
+        );
         eprintln!("[Init] Admin initial créé — identifiants : admin / changeme2026");
         eprintln!("[Init] ⚠️  Changez le mot de passe dès la première connexion !");
+    } else {
+        tracing::debug!("Administrateur initial déjà existant");
     }
 
     // Support E2E_SETUP=1 (CI Playwright)
     if std::env::var("E2E_SETUP").as_deref() == Ok("1") {
+        // ============================================================
+        // 🧪 LOG: Configuration E2E détectée
+        // ============================================================
+        tracing::info!("Mode E2E détecté - configuration de l'utilisateur de test");
+        
         let e2e_count: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'e2e_ci'")
                 .fetch_one(pool)
@@ -152,7 +251,16 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .bind(now)
             .execute(pool)
             .await?;
+            
+            tracing::info!(
+                username = "e2e_ci",
+                email = "e2e@nook.local",
+                role = "user",
+                "✓ Utilisateur E2E créé pour les tests Playwright"
+            );
             eprintln!("[E2E] Utilisateur e2e_ci créé pour les tests Playwright");
+        } else {
+            tracing::debug!("Utilisateur E2E déjà existant");
         }
     }
 
@@ -164,39 +272,154 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 // ---------------------------------------------------------------------
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    // ============================================================
+    // 🚀 LOG: Démarrage de l'application Nook
+    // ============================================================
+    let start_time = std::time::Instant::now();
+    
+    // Informations système
+    let hostname = hostname::get()
+        .map(|h| h.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+    
+    let pid = std::process::id();
+    let args: Vec<String> = std::env::args().collect();
+    
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        pid = pid,
+        hostname = %hostname,
+        args = ?args,
+        "╔════════════════════════════════════════════════════════════╗"
+    );
+    tracing::info!(
+        "║              🚀 NOOK - Serveur démarré                      ║"
+    );
+    tracing::info!(
+        "╚════════════════════════════════════════════════════════════╝"
+    );
+    
+    // Initialisation du logger avec configuration
+    tracing_subscriber::fmt()
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .init();
+    
+    tracing::debug!("Logger tracing configuré avec debugging activé");
+    
+    // ============================================================
+    // ⚙️ LOG: Chargement de la configuration
+    // ============================================================
+    tracing::info!("Chargement de la configuration depuis les variables d'environnement...");
     let config = Config::load();
+    
+    tracing::info!(
+        port = config.port,
+        static_dir = %config.static_dir,
+        uploads_dir = %config.uploads_dir,
+        database_url = %config.database_url,
+        "✓ Configuration chargée"
+    );
+    
+    // Affichage des origins autorisées
+    tracing::info!("Origines CORS autorisées:");
+    for origin in &config.allowed_origins {
+        tracing::info!("  • {}", origin);
+    }
 
+    // ============================================================
+    // 📁 LOG: Création des répertoires nécessaires
+    // ============================================================
+    tracing::debug!("Vérification/création des répertoires de données...");
+    
     tokio::fs::create_dir_all("/app/data").await?;
+    tracing::debug!(path = "/app/data", "Répertoire de données vérifié");
+    
     tokio::fs::create_dir_all(&config.uploads_dir).await?;
+    tracing::debug!(path = %config.uploads_dir, "Répertoire d'uploads vérifié");
+    
+    tracing::info!("✓ Répertoires de travail créés/vérifiés");
 
+    // ============================================================
+    // 🗄️ LOG: Connexion à la base de données
+    // ============================================================
+    tracing::info!("Connexion à la base de données SQLite...");
     let pool = init_db(&config.database_url).await?;
+    
+    // ============================================================
+    // 👤 LOG: Vérification de l'administrateur initial
+    // ============================================================
+    tracing::info!("Vérification de l'administrateur initial...");
     check_initial_admin(&pool).await?;
+    tracing::info!("✓ Base de données initialisée");
 
+    // ============================================================
+    // 📂 LOG: Initialisation du gestionnaire de fichiers
+    // ============================================================
+    tracing::info!("Initialisation du gestionnaire de fichiers WebRTC...");
     let uploads_dir = PathBuf::from(&config.uploads_dir);
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
-    let webrtc_state = WebRtcState::new();
+    
+    tracing::info!(
+        uploads_dir = %uploads_dir.display(),
+        "✓ Gestionnaire de fichiers initialisé"
+    );
 
+    // ============================================================
+    // 🔄 LOG: Initialisation de l'état WebRTC
+    // ============================================================
+    tracing::debug!("Initialisation de l'état des connexions WebRTC...");
+    let webrtc_state = WebRtcState::new();
+    tracing::info!("✓ État WebRTC initialisé");
+
+    // ============================================================
+    // 🧹 LOG: Démarrage de la tâche de nettoyage des fichiers
+    // ============================================================
+    tracing::info!("Démarrage de la tâche de nettoyage automatique des fichiers...");
     let fm_clone = (*file_manager).clone();
     tokio::spawn(async move {
+        tracing::debug!("Tâche de nettoyage des fichiers démarrée");
         fm_clone.start_cleanup_task().await;
     });
+    tracing::info!("✓ Tâche de nettoyage des fichiers planifiée");
 
+    // ============================================================
+    // 🗑️ LOG: Démarrage de la tâche de suppression des anciennes données
+    // ============================================================
+    tracing::info!("Démarrage de la tâche de suppression des anciennes données...");
     let pool_clone = pool.clone();
     tokio::spawn(async move {
+        tracing::debug!("Tâche de suppression des anciennes données démarrée");
         tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        tracing::debug!("Première exécution du nettoyage des données dans 10 secondes");
         loop {
-            let _ = prune_old_data(&pool_clone).await;
+            let result = prune_old_data(&pool_clone).await;
+            match result {
+                Ok(_) => tracing::debug!("Nettoyage des anciennes données terminé"),
+                Err(e) => tracing::error!(error = %e, "Erreur lors du nettoyage des anciennes données"),
+            }
             tokio::time::sleep(tokio::time::Duration::from_secs(24 * 3600)).await;
         }
     });
+    tracing::info!("✓ Tâche de suppression planifiée (toutes les 24 heures)");
 
+    // ============================================================
+    // 🔗 LOG: Création de l'état partagé
+    // ============================================================
+    tracing::debug!("Création de l'état partagé de l'application...");
     let shared_state = Arc::new(SharedState {
         db: pool,
         webrtc_state,
         file_manager,
     });
+    tracing::debug!("✓ État partagé créé avec {} références", Arc::strong_count(&shared_state));
 
+    // ============================================================
+    // 🛣️ LOG: Configuration des routes publiques
+    // ============================================================
+    tracing::debug!("Configuration des routes publiques...");
     let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
@@ -204,7 +427,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invite/validate", get(invites::validate_invite))
         .route("/generate-invite", post(invites::generate_invite))
         .route("/health", get(|| async { "OK" }));
+    
+    tracing::info!(
+        routes = [
+            "POST /auth/register",
+            "POST /auth/login",
+            "POST /join",
+            "GET /invite/validate",
+            "POST /generate-invite",
+            "GET /health"
+        ],
+        "✓ Routes publiques configurées"
+    );
 
+    // ============================================================
+    // 🔐 LOG: Configuration des routes protégées
+    // ============================================================
+    tracing::debug!("Configuration des routes protégées (authentification requise)...");
     let protected_routes = Router::new()
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
@@ -232,12 +471,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             shared_state.clone(),
             auth::require_auth,
         ));
+    
+    tracing::info!(
+        protected_routes = 16,
+        "✓ Routes protégées configurées avec middleware d'authentification"
+    );
 
-    let api_router = Router::new().merge(public_routes).merge(protected_routes);
+    // ============================================================
+    // 🌐 LOG: Configuration du routeur API
+    // ============================================================
+    tracing::debug!("Fusion des routes publiques et protégées...");
+    let api_router = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes);
+    
+    tracing::info!("✓ Routeur API configuré");
 
+    // ============================================================
+    // 📦 LOG: Configuration du service de fichiers statiques
+    // ============================================================
+    tracing::debug!(
+        static_dir = %config.static_dir,
+        "Configuration du service de fichiers statiques..."
+    );
     let static_service = ServeDir::new(&config.static_dir)
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(format!("{}/index.html", config.static_dir)));
+    
+    tracing::info!(
+        static_dir = %config.static_dir,
+        "✓ Service de fichiers statiques configuré"
+    );
 
     // -----------------------------------------------------------------------
     // CORS dynamique — origines lues depuis Config (PUBLIC_SITE_URL + ALLOWED_ORIGINS)
@@ -249,16 +513,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // LAN  : http://192.168.x.x:6300      → ajouté via PUBLIC_SITE_URL ou ALLOWED_ORIGINS
     // WAN  : https://nook.mondomaine.com  → ajouté via ALLOWED_ORIGINS
     // -----------------------------------------------------------------------
+    tracing::debug!("Configuration du layer CORS...");
     let allowed_origins: Vec<axum::http::HeaderValue> = config
         .allowed_origins
         .iter()
         .filter_map(|o| o.parse().ok())
         .collect();
 
-    eprintln!("[CORS] Origines autorisées :");
+    tracing::info!("═══════════════════════════════════════════════════════════");
+    tracing::info!("[CORS] Origines autorisées :");
     for o in &config.allowed_origins {
-        eprintln!("         - {}", o);
+        tracing::info!("         • {}", o);
     }
+    tracing::info!("═══════════════════════════════════════════════════════════");
 
     let cors_layer = CorsLayer::new()
         .allow_origin(allowed_origins)
@@ -276,7 +543,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::COOKIE,
         ])
         .allow_credentials(true);
+    
+    tracing::debug!(
+        allowed_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowed_headers = ["CONTENT-TYPE", "AUTHORIZATION", "ACCEPT", "COOKIE"],
+        allow_credentials = true,
+        "✓ Layer CORS configuré"
+    );
 
+    // ============================================================
+    // 🏗️ LOG: Construction de l'application Axum finale
+    // ============================================================
+    tracing::debug!("Construction de l'application Axum avec tous les layers...");
+    
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
@@ -286,13 +565,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(CompressionLayer::new())
         .layer(cors_layer)
         .with_state(shared_state);
+    
+    tracing::info!("✓ Application Axum construite avec tous les layers");
+    tracing::debug!(
+        layers = [
+            "base_inject_middleware",
+            "CompressionLayer",
+            "CorsLayer",
+            "SharedState"
+        ],
+        "Layers enregistrés"
+    );
 
+    // ============================================================
+    // 🎧 LOG: Démarrage du serveur HTTP
+    // ============================================================
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
+    
+    tracing::info!("═══════════════════════════════════════════════════════════");
+    tracing::info!("║  🎉 NOOK - SERVEUR PRÊT À RECEVOIR DES REQUÊTES           ║");
+    tracing::info!("═══════════════════════════════════════════════════════════");
+    tracing::info!(
+        address = %addr,
+        port = config.port,
+        "Serveur HTTP en écoute sur 0.0.0.0 (toutes les interfaces)"
+    );
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        axum_version = "0.8",
+        rand_version = "0.9",
+        "Version des dépendances principales"
+    );
+    tracing::info!("═══════════════════════════════════════════════════════════");
+    
     eprintln!(
         "[🚀] Nook démarré sur http://0.0.0.0:{} (axum 0.8 + rand 0.9)",
         config.port
     );
+    
     let listener = tokio::net::TcpListener::bind(&addr).await?;
+    
+    let startup_duration = start_time.elapsed();
+    tracing::info!(
+        startup_time_ms = startup_duration.as_millis(),
+        "Temps de démarrage total"
+    );
+    
     axum::serve(listener, app).await?;
 
     Ok(())
