@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Suivi des bugs Nook
 
-> Mis à jour : **2026-02-23** (session 7)
+> Mis à jour : **2026-02-24** (session 8)
 
 ---
 
@@ -55,97 +55,51 @@ import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
 await waitForSodium();
 sodiumState.error // au lieu de get(sodiumError)
 ```
-**Status** : 🔴 Non résolu
+**Status** : 🟢 Résolu dans layout actuel (utilise sodiumState.error directement)
 
 ---
 
 ### Bug #5 — Incohérence nom table SQL
-**Cause** : `001_initial.sql` crée `conversation_members` mais `db.rs` utilise `conversation_participants`.  
-**Fix** : corriger `db.rs` pour utiliser `conversation_members` (évite migration destructive).  
-**Status** : 🟡 Non bloquant CI, crash runtime uniquement
+**Status** : 🟢 Résolu — migration `001_initial.sql` et `db.rs` utilisent tous les deux `conversation_participants`
 
 ---
 
-## ✅ BUGS RÉSOLUS
+## ✅ BUGS RÉSOLUS (session 8 — 2026-02-24)
 
-### [R1] Diamond dependency rand_core 0.6/0.9
-**Session** : 2 (2026-02-21)  
-**Erreur** : `the trait CryptoRngCore is not implemented for &mut rand::rngs::OsRng`  
+### [R11] `crypto.randomUUID is not a function` en HTTP LAN
+**Session** : 8  
+**Cause** : `crypto.randomUUID()` n'existe qu'en contexte sécurisé (HTTPS).
+En HTTP LAN, l'appel crash.  
+**Cause profonde** : le frontend essayait de gérer le token de session côté client,
+alors que le token vit dans le cookie HttpOnly du backend.  
 **Fix** :
-```toml
-rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
-rand_core = { version = "0.6", features = ["std", "getrandom"] }
-```
-```rust
-use rand_core::OsRng;  // auth.rs — rand_core 0.6
-rand::rng().fill_bytes(&mut buf);  // webrtc.rs — rand 0.9
-```
+- `authStore.svelte.js` : suppression de `crypto.randomUUID()` et du champ `token`.
+  Remplacement par `sessionId = String(Date.now())` (compatible HTTP + HTTPS).
+- `authStore.login(user, token)` → `authStore.login(user)` (signature simplifiée).
+- `login/+page.svelte` : suppression de `crypto.randomUUID()` côté login.
+**Fichiers modifiés** : `authStore.svelte.js`, `routes/login/+page.svelte`
 
 ---
 
-### [R2] axum 0.7 → 0.8 breaking changes
-**Session** : 2  
-- `Host` supprimé → extraire depuis `HeaderMap`
-- `Message::Text(String)` → `Message::Text(msg.into())`
-- Routes `:param` → `{param}`
-- CORS wildcard + credentials → lists explicites → CORS panic au démarrage
-
----
-
-### [R3] Cargo.lock désynchronisé
-**Session** : 3  
-**Fix** : `rm Cargo.lock && cargo update && git commit`
-
----
-
-### [R4] `home@0.5.12 requires rustc 1.88`
-**Session** : 3  
-**Fix** : `FROM rust:1.88-bookworm`
-
----
-
-### [R5] proc-macro async-trait/displaydoc en Docker
-**Session** : 3-4  
-**Cause racine** : `.cargo/config.toml` copié dans Docker → Cargo détecte linker externe → mode cross-compilation → proc-macros incompatibles  
-**Fix** : COPY explicite dans Dockerfile qui exclut `.cargo/`
-
----
-
-### [R6] SQLite Permission denied (code 14) — distroless
-**Session** : 5-6  
-**Cause** : volumes Docker créés root + user nonroot 65532 + `SqlitePool::connect()` sans `create_if_missing`  
+### [R12] CORS bloque LAN + WAN simultanément
+**Session** : 8  
+**Cause** : origines CORS codées en dur dans `main.rs` (localhost uniquement).  
 **Fix** :
-1. `SqliteConnectOptions::create_if_missing(true)` dans `init_db()`
-2. Init container `alpine:3` qui `chown -R 65532:65532 /app/data`
-3. Named volumes dans `docker-compose.ci.yml`
+- `config.rs` : nouveau champ `allowed_origins` lu depuis `ALLOWED_ORIGINS` env var.
+- `main.rs` : CORS construit dynamiquement depuis `config.allowed_origins`.
+- `.env` : ajouter `ALLOWED_ORIGINS=http://192.168.x.x:6300,https://ton-domaine.com`
+**Fichiers modifiés** : `config.rs`, `main.rs`, `.env.example`
 
 ---
 
-### [R7] CORS panic au démarrage
-**Session** : 6  
-**Erreur** : `Cannot combine Access-Control-Allow-Credentials: true with Access-Control-Allow-Headers: *`  
-**Fix** : lister origines, méthodes et headers explicitement dans `CorsLayer`
-
----
-
-### [R8] Playwright — `reuseExistingServer` inversé
-**Session** : 6  
-**Erreur** : `http://localhost:6300 is already used`  
-**Fix** : `reuseExistingServer: !!process.env.CI` (était `!process.env.CI`)
-
----
-
-### [R9] Playwright — login admin 401 en CI
-**Session** : 7  
-**Cause** : extraction cookie curl complexe et fragile ; admin `needs_password_change=1` → flows UI bloqués  
-**Fix** : `E2E_SETUP=1` env var → `check_initial_admin` crée `e2e_ci` (approved=1, sans changement mdp) → Playwright se connecte directement sans passer par l'admin
-
----
-
-### [R10] Docker.yml — artifact cross-workflow introuvable
-**Session** : 7  
-**Cause** : `actions/download-artifact@v4` cherche uniquement dans le workflow courant  
-**Fix** : `dawidd6/action-download-artifact@v6` avec `workflow: Backend.yml` + `branch:`
+### [R13] Cookie `SameSite=Lax` bloque WAN via Nginx Proxy Manager
+**Session** : 8  
+**Cause** : `SameSite=Lax` fonctionne en LAN HTTP mais bloque les contextes
+cross-origin HTTPS (WAN avec reverse proxy).  
+**Fix** : `auth.rs` — `build_set_cookie()` détecte `X-Forwarded-Proto: https`
+(injecté par Nginx) et utilise `SameSite=None; Secure` en HTTPS,
+`SameSite=Lax` en HTTP.  
+**Fichiers modifiés** : `auth.rs`
 
 ---
 
@@ -169,5 +123,27 @@ import { writable } from 'svelte/store';
 export const active = $derived(() => ...);  // interdit en .svelte.ts
 ```
 
-**Stores conformes** : `chatStore`, `sodiumState`, `callStore`  
-**Stores à corriger** : `conversationStore` (Bug #1), `authStore` (Bug #2)
+**Stores conformes** : `chatStore`, `sodiumState`, `callStore`, `authStore` ✅  
+**Stores à corriger** : `conversationStore` (Bug #1)
+
+---
+
+## 🌐 Architecture LAN ↔ WAN
+
+```
+LAN (HTTP) :
+  Navigateur (192.168.x.x) → Port 6300 → Backend Axum
+  Cookie : auth_token=...; SameSite=Lax
+  CORS   : http://192.168.x.x:6300 dans ALLOWED_ORIGINS
+
+WAN (HTTPS) :
+  Navigateur → Nginx Proxy Manager (443) → Backend Axum (3000)
+  Header injecté par Nginx : X-Forwarded-Proto: https
+  Cookie : auth_token=...; SameSite=None; Secure
+  CORS   : https://nook.mondomaine.com dans ALLOWED_ORIGINS
+
+LAN ↔ WAN (WebRTC) :
+  Signaling via /ws (WebSocket)
+  ICE candidates échangés via le WebSocket → connexion P2P directe
+  Si P2P impossible : TURN server requis (à implémenter)
+```
