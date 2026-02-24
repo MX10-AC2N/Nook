@@ -155,7 +155,7 @@ async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     // (SqlitePool::connect() refuse d'ouvrir un fichier inexistant → SQLITE_CANTOPEN code 14)
     let opts = SqliteConnectOptions::from_str(url)?
         .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::WAL)
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
 
     tracing::debug!(
