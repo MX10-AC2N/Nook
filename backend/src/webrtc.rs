@@ -1,8 +1,12 @@
-// webrtc.rs - Signalisation P2P + Chiffrement fichiers (libsodium-compatible)
-// Axum 0.8 + rand 0.9 compatible
+// backend/src/webrtc.rs
+// Signalisation P2P + Chiffrement fichiers (XChaCha20-Poly1305)
+// Session 9 — fix sécurité : authentification du WebSocket
+//   → le cookie auth_token est vérifié dès la connexion WS
+//   → connexion refusée si token invalide ou manquant
 
 use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
+    http::{header::COOKIE, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -13,7 +17,6 @@ use chacha20poly1305::aead::Aead;
 use chacha20poly1305::KeyInit;
 use chacha20poly1305::XChaCha20Poly1305;
 use futures_util::{SinkExt, StreamExt};
-// rand 0.9 : RngCore est dans rand directement via feature "std"
 use rand::RngCore;
 use serde_json::{json, Value};
 use std::{
@@ -27,7 +30,9 @@ use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
-// === CRYPTO - Compatible libsodium (XChaCha20-Poly1305, nonces 24 bytes) ===
+// ════════════════════════════════════════════════════════════════
+// CRYPTO — Compatible libsodium (XChaCha20-Poly1305, nonces 24 bytes)
+// ════════════════════════════════════════════════════════════════
 
 const CRYPTO_SECRETBOX_NONCEBYTES: usize = 24;
 const CRYPTO_SECRETBOX_KEYBYTES: usize = 32;
@@ -36,67 +41,53 @@ const CRYPTO_SECRETBOX_MACBYTES: usize = 16;
 const FILE_EXPIRATION_HOURS: u64 = 48;
 const CLEANUP_INTERVAL_HOURS: u64 = 1;
 
-/// Génère une clé aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_keygen() -> Vec<u8> {
     let mut key = vec![0u8; CRYPTO_SECRETBOX_KEYBYTES];
-    // rand 0.9 : rand::rng() remplace rand::thread_rng()
     rand::rng().fill_bytes(&mut key);
     key
 }
 
-/// Génère un nonce aléatoire (compatible sodium.randombytes_buf)
 fn crypto_secretbox_nonce() -> Vec<u8> {
     let mut nonce = vec![0u8; CRYPTO_SECRETBOX_NONCEBYTES];
     rand::rng().fill_bytes(&mut nonce);
     nonce
 }
 
-/// Chiffrement compatible sodium.crypto_secretbox_easy
-/// Retourne: nonce || ciphertext
 fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(nonce.len() + message.len() + CRYPTO_SECRETBOX_MACBYTES);
     result.extend_from_slice(nonce);
 
     let cipher = XChaCha20Poly1305::new_from_slice(key).expect("Clé invalide");
     let nonce_array = GenericArray::from_slice(nonce);
-    let encrypted = cipher
-        .encrypt(nonce_array, message)
-        .expect("Échec du chiffrement");
-
+    let encrypted = cipher.encrypt(nonce_array, message).expect("Échec chiffrement");
     result.extend_from_slice(&encrypted);
     result
 }
 
-/// Déchiffrement compatible sodium.crypto_secretbox_open_easy
 #[allow(dead_code)]
 fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, &'static str> {
     if ciphertext.len() < CRYPTO_SECRETBOX_NONCEBYTES + CRYPTO_SECRETBOX_MACBYTES {
         return Err("Ciphertext trop court");
     }
-
     let nonce = &ciphertext[0..CRYPTO_SECRETBOX_NONCEBYTES];
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
-
     let cipher = XChaCha20Poly1305::new_from_slice(key).map_err(|_| "Clé invalide")?;
     let nonce_array = GenericArray::from_slice(nonce);
-
-    cipher
-        .decrypt(nonce_array, encrypted)
-        .map_err(|_| "Échec du déchiffrement")
+    cipher.decrypt(nonce_array, encrypted).map_err(|_| "Échec déchiffrement")
 }
 
-/// Encodage base64 (compatible sodium.to_base64)
 #[allow(dead_code)]
 pub fn to_base64(data: &[u8]) -> String {
     Base64Unpadded::encode_string(data)
 }
 
-/// Décodage base64 (compatible sodium.from_base64)
 pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
     Base64Unpadded::decode_vec(encoded).map_err(|_| "Base64 invalide")
 }
 
-// === STRUCTURES ===
+// ════════════════════════════════════════════════════════════════
+// STRUCTURES
+// ════════════════════════════════════════════════════════════════
 
 pub type BroadcastSender = broadcast::Sender<String>;
 pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
@@ -144,7 +135,6 @@ impl FileManager {
     pub async fn register_file(&self, file_id: &str, path: PathBuf) {
         let now = SystemTime::now();
         let expires_at = now + Duration::from_secs(FILE_EXPIRATION_HOURS * 3600);
-
         let mut files = self.tracked_files.lock().await;
         files.push(TrackedFile {
             file_id: file_id.to_string(),
@@ -152,11 +142,7 @@ impl FileManager {
             uploaded_at: now,
             expires_at,
         });
-
-        eprintln!(
-            "[FileManager] Fichier {} enregistré, expire dans {}h",
-            file_id, FILE_EXPIRATION_HOURS
-        );
+        tracing::debug!(file_id = %file_id, expires_in_hours = FILE_EXPIRATION_HOURS, "Fichier enregistré");
     }
 
     pub async fn cleanup_expired_files(&self) -> usize {
@@ -164,12 +150,11 @@ impl FileManager {
         let mut files = self.tracked_files.lock().await;
         let mut deleted_count = 0;
         let mut i = 0;
-
         while i < files.len() {
             if files[i].expires_at < now {
                 let file = files[i].clone();
                 if let Err(e) = tokio::fs::remove_file(&file.path).await {
-                    eprintln!("[FileManager] Erreur suppression {}: {}", file.file_id, e);
+                    tracing::warn!(file_id = %file.file_id, error = %e, "Échec suppression fichier expiré");
                 } else {
                     deleted_count += 1;
                 }
@@ -178,28 +163,25 @@ impl FileManager {
                 i += 1;
             }
         }
-
         deleted_count
     }
 
     pub async fn start_cleanup_task(self) {
         let mut tick = interval(Duration::from_secs(CLEANUP_INTERVAL_HOURS * 3600));
         sleep(Duration::from_secs(60)).await;
-
         loop {
             tick.tick().await;
             let deleted = self.cleanup_expired_files().await;
             if deleted > 0 {
-                eprintln!(
-                    "[FileManager] Nettoyage: {} fichiers expirés supprimés",
-                    deleted
-                );
+                tracing::info!(count = deleted, "FileManager : fichiers expirés supprimés");
             }
         }
     }
 }
 
-// === FONCTIONS PUBLIQUES POUR UPLOAD.RS ===
+// ════════════════════════════════════════════════════════════════
+// FONCTIONS PUBLIQUES POUR UPLOAD.RS
+// ════════════════════════════════════════════════════════════════
 
 pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
     let key = crypto_secretbox_keygen();
@@ -216,11 +198,9 @@ pub fn decrypt_file_from_storage(
 ) -> Result<Vec<u8>, &'static str> {
     let nonce = from_base64(nonce_base64)?;
     let key = from_base64(key_base64)?;
-
     let mut data = Vec::with_capacity(nonce.len() + ciphertext.len());
     data.extend_from_slice(&nonce);
     data.extend_from_slice(ciphertext);
-
     crypto_secretbox_open_easy(&data, &key)
 }
 
@@ -237,7 +217,49 @@ pub async fn broadcast_message(
     }
 }
 
-// === HANDLERS HTTP ===
+// ════════════════════════════════════════════════════════════════
+// AUTHENTIFICATION WEBSOCKET
+// ════════════════════════════════════════════════════════════════
+
+/// Extrait et vérifie le cookie auth_token depuis les headers WS.
+/// Retourne Some(user_id) si valide, None sinon.
+async fn verify_ws_auth(
+    headers: &axum::http::HeaderMap,
+    state: &Arc<crate::SharedState>,
+) -> Option<String> {
+    let cookie_header = headers.get(COOKIE)?.to_str().ok()?;
+
+    let token_value = cookie_header
+        .split(';')
+        .find(|c| c.trim().starts_with("auth_token="))
+        .and_then(|c| c.trim().strip_prefix("auth_token="))?;
+
+    // splitn(2) : user_id peut contenir ':' théoriquement
+    let mut parts = token_value.splitn(2, ':');
+    let user_id = parts.next()?;
+    let token = parts.next()?;
+
+    if user_id.is_empty() || token.is_empty() {
+        return None;
+    }
+
+    // Vérification en DB
+    let result: Option<(String,)> = sqlx::query_as(
+        "SELECT id FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1",
+    )
+    .bind(user_id)
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    result.map(|(id,)| id)
+}
+
+// ════════════════════════════════════════════════════════════════
+// HANDLERS HTTP WEBRTC
+// ════════════════════════════════════════════════════════════════
 
 pub async fn handle_offer(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
@@ -267,14 +289,11 @@ pub async fn handle_offer(
             let _ = tx.send(response.to_string());
         }
 
-        eprintln!("[Signalisation] Offre P2P diffusée pour {}", from_user_id);
-        (
-            axum::http::StatusCode::OK,
-            AxumJson(json!({"status": "offer_sent"})),
-        )
+        tracing::info!(from = %from_user_id, "Offre WebRTC diffusée");
+        (StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
     } else {
         (
-            axum::http::StatusCode::BAD_REQUEST,
+            StatusCode::BAD_REQUEST,
             AxumJson(json!({"error": "Missing offer"})),
         )
     }
@@ -308,52 +327,70 @@ pub async fn handle_answer(
             let _ = tx.send(response.to_string());
         }
 
-        eprintln!("[Signalisation] Réponse P2P diffusée pour {}", from_user_id);
-        (
-            axum::http::StatusCode::OK,
-            AxumJson(json!({"status": "answer_sent"})),
-        )
+        tracing::info!(from = %from_user_id, "Réponse WebRTC diffusée");
+        (StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
     } else {
         (
-            axum::http::StatusCode::BAD_REQUEST,
+            StatusCode::BAD_REQUEST,
             AxumJson(json!({"error": "Missing answer"})),
         )
     }
 }
 
-// === WEBSOCKET ===
+// ════════════════════════════════════════════════════════════════
+// WEBSOCKET — avec vérification d'authentification
+// ════════════════════════════════════════════════════════════════
 
 pub async fn ws_handler(
     ws: axum::extract::ws::WebSocketUpgrade,
+    // Les headers de la requête HTTP d'upgrade contiennent le cookie
+    headers: axum::http::HeaderMap,
     AxumState(state): AxumState<Arc<crate::SharedState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_websocket(socket, state))
+    // Vérification du cookie avant d'upgrader
+    let user_id = verify_ws_auth(&headers, &state).await;
+
+    match user_id {
+        Some(uid) => {
+            tracing::info!(user_id = %uid, "WebSocket : connexion authentifiée");
+            ws.on_upgrade(move |socket| handle_websocket(socket, state, uid))
+        }
+        None => {
+            tracing::warn!("WebSocket : tentative de connexion non authentifiée refusée");
+            // on_upgrade ne peut pas retourner une erreur HTTP directement —
+            // on refuse l'upgrade en renvoyant 401 sans appeler ws.on_upgrade
+            axum::http::Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .body(axum::body::Body::from("WebSocket : authentification requise"))
+                .unwrap()
+                .into_response()
+        }
+    }
 }
 
-async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
+async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, user_id: String) {
     let (mut sender, mut receiver) = socket.split();
     let id = Uuid::new_v4();
 
-    // Le channel broadcast travaille en String
     let (broadcast_tx, _) = broadcast::channel::<String>(100);
     let broadcast_tx_for_send = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
 
-    let mut guard = state.webrtc_state.broadcasts.lock().await;
-    guard.insert(id, broadcast_tx);
-    drop(guard);
+    {
+        let mut guard = state.webrtc_state.broadcasts.lock().await;
+        guard.insert(id, broadcast_tx);
+    }
 
-    eprintln!("[WebSocket] Client connecté: {}", id);
+    tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
 
     let send_task = tokio::spawn(async move {
         let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
-            // Axum 0.8 : Message::Text attend Utf8Bytes → .into() convertit String → Utf8Bytes
             if let Err(e) = sender
                 .send(axum::extract::ws::Message::Text(msg.into()))
                 .await
             {
-                eprintln!("[WebSocket] Erreur d'envoi: {}", e);
+                tracing::debug!(error = %e, "WebSocket : erreur d'envoi");
                 break;
             }
         }
@@ -363,50 +400,36 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
-                    // Axum 0.8 : text est Utf8Bytes, pas String
-                    // .as_str() ou .to_string() pour l'utiliser
                     let text_str = text.to_string();
-                    let parse_result = serde_json::from_str::<Value>(&text_str);
 
-                    match parse_result {
-                        Ok(json) => {
-                            let msg_type = json
-                                .get("type")
-                                .or(json.get("event"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown");
-                            let from_user = json
-                                .get("from_user_id")
-                                .or(json.get("sender_id"))
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown");
-                            eprintln!(
-                                "[Signalisation] Message {} de {}",
-                                msg_type, from_user
-                            );
-                        }
-                        Err(_) => {
-                            eprintln!(
-                                "[WebSocket] Message texte reçu: {} bytes",
-                                text_str.len()
-                            );
-                        }
+                    // Parse pour logging
+                    if let Ok(json) = serde_json::from_str::<Value>(&text_str) {
+                        let msg_type = json
+                            .get("type")
+                            .or(json.get("event"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        tracing::debug!(
+                            ws_id = %id,
+                            msg_type = %msg_type,
+                            "WebSocket : message reçu"
+                        );
                     }
 
-                    // broadcast_tx attend String, on envoie text_str
                     let _ = broadcast_tx_for_receive.send(text_str);
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
-                    eprintln!(
-                        "[WebSocket] Message binaire ignoré (P2P direct): {} bytes",
-                        data.len()
-                    );
+                    tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
                 }
-                Err(e) => {
-                    eprintln!("[WebSocket] Erreur de réception: {}", e);
+                Ok(axum::extract::ws::Message::Close(_)) => {
+                    tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
                     break;
                 }
-                _ => break,
+                Err(e) => {
+                    tracing::debug!(ws_id = %id, error = %e, "WebSocket : erreur réception");
+                    break;
+                }
+                _ => {}
             }
         }
     });
@@ -418,14 +441,19 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>) {
 
     let mut guard = state.webrtc_state.broadcasts.lock().await;
     guard.remove(&id);
-    eprintln!("[WebSocket] Client déconnecté: {}", id);
+    tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket déconnecté");
 }
 
-// === ROUTES ===
+// ════════════════════════════════════════════════════════════════
+// ROUTES
+// ════════════════════════════════════════════════════════════════
 
 pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
         .route("/api/webrtc/offer", post(handle_offer))
         .route("/api/webrtc/answer", post(handle_answer))
         .route("/ws", get(ws_handler))
+        // Note : /ws est authentifié via cookie dans ws_handler lui-même.
+        // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
+        // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
 }
