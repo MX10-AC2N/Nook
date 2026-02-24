@@ -13,8 +13,6 @@ use chrono::Utc;
 use http::header::SET_COOKIE;
 // OsRng depuis rand_core 0.6 — même version qu'attend argon2/password-hash.
 // rand 0.9 utilise rand_core 0.9 qui est INCOMPATIBLE avec password-hash 0.5.
-// Le compilateur signale le "diamond dependency" : deux versions de rand_core coexistent,
-// il faut utiliser celle de la même branche qu'argon2.
 use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -61,7 +59,6 @@ pub struct AuthResponse {
 
 // ====================== UTILITAIRES ======================
 pub fn hash_password(password: &str) -> String {
-    // OsRng (rand_core 0.6) → compatible avec SaltString::generate de password-hash 0.5
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     argon2
@@ -80,6 +77,27 @@ fn verify_password(password: &str, hashed: &str) -> bool {
         .is_ok()
 }
 
+/// Construit la valeur Set-Cookie en adaptant SameSite selon le contexte.
+/// - HTTPS (WAN via reverse proxy) → SameSite=None; Secure
+/// - HTTP (LAN direct)            → SameSite=Lax
+///
+/// La détection se fait via le header X-Forwarded-Proto injecté par Nginx.
+fn build_set_cookie(user_id: &str, token: &str, is_https: bool, max_age: i64) -> String {
+    if is_https {
+        // WAN via Nginx Proxy Manager avec TLS
+        format!(
+            "auth_token={}:{}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age={}",
+            user_id, token, max_age
+        )
+    } else {
+        // LAN direct en HTTP
+        format!(
+            "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+            user_id, token, max_age
+        )
+    }
+}
+
 // ====================== HANDLERS PUBLICS ======================
 pub async fn register(
     AxumState(state): AxumState<Arc<SharedState>>,
@@ -90,7 +108,7 @@ pub async fn register(
     let created_at = Utc::now().timestamp();
 
     let result = sqlx::query(
-        "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
+        "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)\
          VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)",
     )
     .bind(&user_id)
@@ -123,6 +141,8 @@ pub async fn register(
 
 pub async fn login(
     AxumState(state): AxumState<Arc<SharedState>>,
+    // On extrait les headers pour détecter HTTPS (X-Forwarded-Proto de Nginx)
+    headers: axum::http::HeaderMap,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
     let user: Option<User> = sqlx::query_as("SELECT * FROM users WHERE username = ?")
@@ -151,6 +171,15 @@ pub async fn login(
                 needs_password_change: user.needs_password_change,
             };
 
+            // Détection HTTPS via X-Forwarded-Proto (injecté par Nginx Proxy Manager)
+            let is_https = headers
+                .get("x-forwarded-proto")
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v == "https")
+                .unwrap_or(false);
+
+            let cookie = build_set_cookie(&user.id, &token, is_https, 86400);
+
             let mut response = Json(AuthResponse {
                 success: true,
                 message: "Connexion réussie".to_string(),
@@ -158,15 +187,9 @@ pub async fn login(
             })
             .into_response();
 
-            response.headers_mut().insert(
-                SET_COOKIE,
-                format!(
-                    "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
-                    user.id, token
-                )
-                .parse()
-                .unwrap(),
-            );
+            response
+                .headers_mut()
+                .insert(SET_COOKIE, cookie.parse().unwrap());
             response
         }
         _ => (
@@ -197,6 +220,8 @@ pub async fn me(
         needs_password_change: user.needs_password_change,
     };
 
+    // Note : on ne retourne PAS le token ici — il est dans le cookie HttpOnly.
+    // Le frontend n'a pas besoin de le connaître pour les requêtes API.
     Json(json!({
         "authenticated": true,
         "user": user_info
@@ -207,25 +232,37 @@ pub async fn me(
 pub async fn logout(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     AxumState(state): AxumState<Arc<SharedState>>,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
     let _ = sqlx::query("UPDATE users SET token = NULL WHERE id = ?")
         .bind(&user.id)
         .execute(&state.db)
         .await;
 
+    let is_https = headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "https")
+        .unwrap_or(false);
+
+    // Max-Age=0 supprime le cookie, SameSite doit correspondre à celui de login
+    let cookie = if is_https {
+        "auth_token=; Path=/; HttpOnly; SameSite=None; Secure; Max-Age=0".to_string()
+    } else {
+        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0".to_string()
+    };
+
     let mut response = Json(json!({"success": true})).into_response();
-    response.headers_mut().insert(
-        SET_COOKIE,
-        "auth_token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
-            .parse()
-            .unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert(SET_COOKIE, cookie.parse().unwrap());
     response
 }
 
 pub async fn change_password(
     Extension(CurrentUser(current_user)): Extension<CurrentUser>,
     AxumState(state): AxumState<Arc<SharedState>>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
     let target_id = payload.user_id.unwrap_or_else(|| current_user.id.clone());
@@ -244,20 +281,22 @@ pub async fn change_password(
 
     match result {
         Ok(_) => {
+            let is_https = headers
+                .get("x-forwarded-proto")
+                .and_then(|v| v.to_str().ok())
+                .map(|v| v == "https")
+                .unwrap_or(false);
+
+            let cookie = build_set_cookie(&target_id, &new_token, is_https, 86400);
+
             let mut response = (
                 StatusCode::OK,
                 Json(json!({"success": true, "message": "Mot de passe changé"})),
             )
                 .into_response();
-            response.headers_mut().insert(
-                SET_COOKIE,
-                format!(
-                    "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
-                    target_id, new_token
-                )
-                .parse()
-                .unwrap(),
-            );
+            response
+                .headers_mut()
+                .insert(SET_COOKIE, cookie.parse().unwrap());
             response
         }
         Err(_) => (
