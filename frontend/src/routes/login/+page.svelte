@@ -22,8 +22,9 @@
     try {
       const user = await login(username, password);
 
-      // Met à jour le store (token inclus dans user ou généré)
-      authStore.login(user, user.token ?? crypto.randomUUID());
+      // authStore.login ne prend plus que l'objet user.
+      // Le cookie HttpOnly est déjà posé par le backend dans la réponse HTTP.
+      authStore.login(user);
 
       if (user.needs_password_change) {
         const pending = await getPendingKeys(username);
@@ -162,7 +163,11 @@
     padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem;
     text-align: left; font-size: 0.9rem;
   }
-  .alert.error { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #dc2626; }
+  .alert.error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #dc2626;
+  }
 
   .login-form { display: flex; flex-direction: column; gap: 1.25rem; margin-bottom: 2rem; }
   .input-group { text-align: left; }
@@ -176,7 +181,11 @@
     width: 100%; padding: 0.75rem; border: 2px solid #e0e0e0;
     border-radius: 8px; font-size: 1rem; transition: border-color 0.2s;
   }
-  input:focus { border-color: #2d5a27; box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2); outline: none; }
+  input:focus {
+    border-color: #2d5a27;
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
+    outline: none;
+  }
   input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn-primary {
