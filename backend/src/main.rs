@@ -1,4 +1,6 @@
 // main.rs – Axum 0.8 + rand 0.9 compatible
+// CORS dynamique : origines lues depuis .env (ALLOWED_ORIGINS + PUBLIC_SITE_URL)
+// Cookie adaptatif : SameSite=None;Secure (HTTPS/WAN) ou SameSite=Lax (HTTP/LAN)
 
 use axum::{
     body::{to_bytes, Body},
@@ -45,13 +47,15 @@ pub struct SharedState {
 }
 
 // ---------------------------------------------------------------------
-// Middleware base inject
+// Middleware base inject — injecte <base href> dynamiquement
+// Fonctionne aussi bien en LAN (http://192.168.x.x) qu'en WAN (https://...)
 // ---------------------------------------------------------------------
 async fn base_inject_middleware(
     headers: HeaderMap,
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, axum::http::StatusCode> {
+    // Nginx Proxy Manager injecte X-Forwarded-Proto = "https"
     let scheme = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())
@@ -94,10 +98,9 @@ async fn base_inject_middleware(
 // DB + Initial admin
 // ---------------------------------------------------------------------
 async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
-    // ⚠️ SqlitePool::connect() refuse d'ouvrir un fichier inexistant (SQLITE_CANTOPEN / code 14)
     // SqliteConnectOptions avec create_if_missing(true) crée le fichier si besoin
-    let opts = SqliteConnectOptions::from_str(url)?
-        .create_if_missing(true);
+    // (SqlitePool::connect() refuse d'ouvrir un fichier inexistant → SQLITE_CANTOPEN code 14)
+    let opts = SqliteConnectOptions::from_str(url)?.create_if_missing(true);
     let pool = SqlitePool::connect_with(opts).await?;
     migrate!("./migrations").run(&pool).await?;
     eprintln!("[DB] Migrations appliquées");
@@ -108,6 +111,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
         .fetch_one(pool)
         .await?;
+
     if count.0 == 0 {
         let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
         let password_hash = crate::auth::hash_password("changeme2026");
@@ -124,8 +128,34 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         .bind(now)
         .execute(pool)
         .await?;
-        eprintln!("[Init] Admin initial créé (changez le mot de passe !)");
+        eprintln!("[Init] Admin initial créé — identifiants : admin / changeme2026");
+        eprintln!("[Init] ⚠️  Changez le mot de passe dès la première connexion !");
     }
+
+    // Support E2E_SETUP=1 (CI Playwright)
+    if std::env::var("E2E_SETUP").as_deref() == Ok("1") {
+        let e2e_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'e2e_ci'")
+                .fetch_one(pool)
+                .await?;
+
+        if e2e_count.0 == 0 {
+            let e2e_id = uuid::Uuid::new_v4().to_string();
+            let e2e_hash = crate::auth::hash_password("E2eTest123!");
+            let now = Utc::now().timestamp();
+            sqlx::query(
+                r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
+                   VALUES (?, 'e2e_ci', 'e2e@nook.local', ?, 'E2E Test User', 'user', 1, 0, ?)"#,
+            )
+            .bind(&e2e_id)
+            .bind(&e2e_hash)
+            .bind(now)
+            .execute(pool)
+            .await?;
+            eprintln!("[E2E] Utilisateur e2e_ci créé pour les tests Playwright");
+        }
+    }
+
     Ok(())
 }
 
@@ -209,6 +239,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(format!("{}/index.html", config.static_dir)));
 
+    // -----------------------------------------------------------------------
+    // CORS dynamique — origines lues depuis Config (PUBLIC_SITE_URL + ALLOWED_ORIGINS)
+    //
+    // ⚠️  Règle HTTP stricte :
+    //   allow_credentials(true) est INCOMPATIBLE avec les wildcards (*).
+    //   On doit lister explicitement chaque origine, méthode et header.
+    //
+    // LAN  : http://192.168.x.x:6300      → ajouté via PUBLIC_SITE_URL ou ALLOWED_ORIGINS
+    // WAN  : https://nook.mondomaine.com  → ajouté via ALLOWED_ORIGINS
+    // -----------------------------------------------------------------------
+    let allowed_origins: Vec<axum::http::HeaderValue> = config
+        .allowed_origins
+        .iter()
+        .filter_map(|o| o.parse().ok())
+        .collect();
+
+    eprintln!("[CORS] Origines autorisées :");
+    for o in &config.allowed_origins {
+        eprintln!("         - {}", o);
+    }
+
+    let cors_layer = CorsLayer::new()
+        .allow_origin(allowed_origins)
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+            axum::http::Method::OPTIONS,
+        ])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::ACCEPT,
+            axum::http::header::COOKIE,
+        ])
+        .allow_credentials(true);
+
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
@@ -216,33 +284,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fallback_service(static_service)
         .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
-        .layer(
-            // ⚠️ CORS : allow_credentials(true) est incompatible avec Any (wildcard *)
-            // La spec HTTP interdit : Access-Control-Allow-Credentials: true
-            //                      + Access-Control-Allow-Headers: *  (ou Origin/Methods)
-            // tower-http 0.6 le vérifie au démarrage → panic
-            // Solution : lister les origines, méthodes et headers explicitement
-            CorsLayer::new()
-                .allow_origin([
-                    "http://localhost:5173".parse().unwrap(),
-                    "http://localhost:6300".parse().unwrap(),
-                    "http://127.0.0.1:6300".parse().unwrap(),
-                ])
-                .allow_methods([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::PUT,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::OPTIONS,
-                ])
-                .allow_headers([
-                    axum::http::header::CONTENT_TYPE,
-                    axum::http::header::AUTHORIZATION,
-                    axum::http::header::ACCEPT,
-                    axum::http::header::COOKIE,
-                ])
-                .allow_credentials(true),
-        )
+        .layer(cors_layer)
         .with_state(shared_state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
