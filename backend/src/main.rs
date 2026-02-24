@@ -25,6 +25,7 @@ use tower_http::{
 
 mod admin;
 mod auth;
+mod chess;
 mod config;
 mod db;
 mod invites;
@@ -454,12 +455,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/approve", post(admin::approve_user))
         .route("/list-invites", get(admin::list_invites))
         .route("/delete-invite", post(admin::delete_invite))
+        .merge(chess::chess_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
         ));
 
     tracing::info!("✓ 16 routes protégées configurées avec middleware d'authentification");
+    tracing::info!("Routes chess ajoutées:");
+    tracing::info!("  • POST   /chess/create");
+    tracing::info!("  • GET    /chess/list");
+    tracing::info!("  • GET    /chess/{{id}}");
+    tracing::info!("  • POST   /chess/{{id}}/join");
+    tracing::info!("  • POST   /chess/{{id}}/move");
+    tracing::info!("  • POST   /chess/{{id}}/resign");
+    tracing::info!("  • POST   /chess/{{id}}/invite");
+    tracing::info!("  • GET    /chess/invitations");
+    tracing::info!("  • POST   /chess/invitations/{{id}}/accept");
+    tracing::info!("  • POST   /chess/invitations/{{id}}/decline");
 
     // ============================================================
     // 🌐 LOG: Configuration du routeur API
