@@ -18,7 +18,11 @@ services:
       - DATABASE_URL=sqlite:/app/data/nook.db
       - STATIC_FILES_DIR=/app/static
       - UPLOADS_DIR=/app/data/uploads
+      # URL publique principale — toujours incluse dans les origines CORS
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:6300}
+      # Origines CORS supplémentaires séparées par des virgules
+      # Exemple : http://192.168.1.192:6300,https://nook.mondomain.com
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
 
     deploy:
       resources:
