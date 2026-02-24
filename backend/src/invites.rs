@@ -1,4 +1,6 @@
-// backend/src/invites.rs - Gestion des invitations (génération + join, single-use, expiration 48h)
+// backend/src/invites.rs
+// Gestion des invitations — schéma corrigé (session 9)
+// Colonnes : id, token, created_by, created_at, expires_at, used, used_by, used_at
 
 use crate::{
     auth::{hash_password, UserInfo},
@@ -11,10 +13,13 @@ use axum::{
     Json,
 };
 use chrono::Utc;
+use http::header::SET_COOKIE;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
+
+// ====================== STRUCTURES ======================
 
 #[derive(Deserialize)]
 pub struct JoinPayload {
@@ -29,7 +34,34 @@ pub struct JoinResponse {
     pub user: Option<UserInfo>,
 }
 
-// Handler : Valider un token d'invitation (sans l'utiliser)
+// ====================== UTILITAIRE COOKIE ======================
+
+/// Même logique que auth.rs : adapte SameSite selon le contexte HTTP/HTTPS
+fn is_https(headers: &HeaderMap) -> bool {
+    headers
+        .get("x-forwarded-proto")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == "https")
+        .unwrap_or(false)
+}
+
+fn build_set_cookie(user_id: &str, token: &str, https: bool, max_age: i64) -> String {
+    if https {
+        format!(
+            "auth_token={}:{}; Path=/; HttpOnly; SameSite=None; Secure; Max-Age={}",
+            user_id, token, max_age
+        )
+    } else {
+        format!(
+            "auth_token={}:{}; Path=/; HttpOnly; SameSite=Lax; Max-Age={}",
+            user_id, token, max_age
+        )
+    }
+}
+
+// ====================== HANDLERS ======================
+
+/// Valider un token d'invitation (sans l'utiliser)
 pub async fn validate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
     Query(params): Query<std::collections::HashMap<String, String>>,
@@ -39,10 +71,7 @@ pub async fn validate_invite(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "success": false,
-                    "message": "Token manquant"
-                })),
+                Json(json!({ "success": false, "message": "Token manquant" })),
             )
                 .into_response();
         }
@@ -50,13 +79,15 @@ pub async fn validate_invite(
 
     let now = Utc::now().timestamp();
 
-    let invite: Option<(String, bool, i64, String)> =
-        sqlx::query_as("SELECT id, used, expires_at, created_by FROM invites WHERE token = ?")
-            .bind(token)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
+    // Schéma corrigé : colonnes id, used, expires_at, created_by, token
+    let invite: Option<(String, bool, i64, String)> = sqlx::query_as(
+        "SELECT id, used, expires_at, created_by FROM invites WHERE token = ?",
+    )
+    .bind(token)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
     match invite {
         Some((_id, used, expires_at, created_by)) => {
@@ -71,7 +102,6 @@ pub async fn validate_invite(
                 )
                     .into_response();
             }
-
             if now > expires_at {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -84,10 +114,7 @@ pub async fn validate_invite(
                     .into_response();
             }
 
-            // Calculer le temps restant
-            let remaining = expires_at - now;
-            let hours_left = remaining / 3600;
-
+            let hours_left = (expires_at - now) / 3600;
             (
                 StatusCode::OK,
                 Json(json!({
@@ -112,7 +139,7 @@ pub async fn validate_invite(
     }
 }
 
-// Handler : Créer un token d'invitation (ADMIN ONLY, 48h expiration)
+/// Créer un token d'invitation (ADMIN ONLY, 48h)
 pub async fn generate_invite(
     AxumState(state): AxumState<Arc<SharedState>>,
     headers: HeaderMap,
@@ -121,55 +148,52 @@ pub async fn generate_invite(
     let (user_id, session_token) = match headers
         .get("cookie")
         .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.split(';').find(|c| c.trim().starts_with("auth_token=")))
-        .and_then(|c| c.split('=').nth(1))
+        .and_then(|s| {
+            s.split(';').find(|c| c.trim().starts_with("auth_token="))
+        })
+        .and_then(|c| {
+            // splitn(2) pour ne splitter qu'une fois (au cas où le token contiendrait ':')
+            c.trim().strip_prefix("auth_token=")
+        })
         .and_then(|v| {
-            let parts: Vec<&str> = v.split(':').collect();
-            if parts.len() == 2 {
-                Some((parts[0].to_string(), parts[1].to_string()))
-            } else {
-                None
-            }
+            let mut parts = v.splitn(2, ':');
+            let uid = parts.next()?.to_string();
+            let tok = parts.next()?.to_string();
+            if uid.is_empty() || tok.is_empty() { None } else { Some((uid, tok)) }
         }) {
         Some(t) => t,
         None => {
             return (
                 StatusCode::FORBIDDEN,
-                Json(json!({
-                    "success": false,
-                    "message": "Non authentifié"
-                })),
+                Json(json!({ "success": false, "message": "Non authentifié" })),
             )
                 .into_response();
         }
     };
 
-    // Vérification role admin
-    let role: Option<String> = sqlx::query_as("SELECT role FROM users WHERE id = ? AND token = ?")
-        .bind(&user_id)
-        .bind(&session_token)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-        .map(|(r,): (String,)| r);
+    // Vérification rôle admin
+    let role: Option<(String,)> =
+        sqlx::query_as("SELECT role FROM users WHERE id = ? AND token = ?")
+            .bind(&user_id)
+            .bind(&session_token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
-    if role != Some("admin".to_string()) {
+    if role.as_ref().map(|(r,)| r.as_str()) != Some("admin") {
         return (
             StatusCode::FORBIDDEN,
-            Json(json!({
-                "success": false,
-                "message": "Accès refusé : admin requis"
-            })),
+            Json(json!({ "success": false, "message": "Accès refusé : admin requis" })),
         )
             .into_response();
     }
 
     // Génération invite
-    let token = Uuid::new_v4().to_string();
     let invite_id = Uuid::new_v4().to_string();
+    let token = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
-    let expires_at = now + (48 * 3600); // 48 heures
+    let expires_at = now + (48 * 3600);
 
     let result = sqlx::query(
         "INSERT INTO invites (id, token, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?)",
@@ -184,34 +208,37 @@ pub async fn generate_invite(
 
     match result {
         Ok(_) => {
-            let invite_link = format!("/invite?token={}", token);
+            tracing::info!(
+                invite_id = %invite_id,
+                created_by = %user_id,
+                expires_in_hours = 48,
+                "Invitation créée"
+            );
             (
                 StatusCode::OK,
                 Json(json!({
                     "success": true,
                     "message": "Invitation créée (expire dans 48h)",
-                    "invite_link": invite_link,
+                    "invite_link": format!("/invite?token={}", token),
                 })),
             )
                 .into_response()
         }
         Err(e) => {
-            eprintln!("[Invites] Erreur génération invite : {}", e);
+            tracing::error!(error = %e, "Erreur génération invite");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "success": false,
-                    "message": "Erreur serveur",
-                })),
+                Json(json!({ "success": false, "message": "Erreur serveur" })),
             )
                 .into_response()
         }
     }
 }
 
-// Handler : Rejoindre via token d'invitation
+/// Rejoindre via token d'invitation
 pub async fn join(
     AxumState(state): AxumState<Arc<SharedState>>,
+    headers: HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(payload): Json<JoinPayload>,
 ) -> impl IntoResponse {
@@ -220,10 +247,7 @@ pub async fn join(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "success": false,
-                    "message": "Token manquant",
-                })),
+                Json(json!({ "success": false, "message": "Token manquant" })),
             )
                 .into_response();
         }
@@ -244,10 +268,7 @@ pub async fn join(
         None => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "success": false,
-                    "message": "Token invalide",
-                })),
+                Json(json!({ "success": false, "message": "Token invalide" })),
             )
                 .into_response();
         }
@@ -256,39 +277,31 @@ pub async fn join(
     if used {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({
-                "success": false,
-                "message": "Token déjà utilisé",
-            })),
+            Json(json!({ "success": false, "message": "Token déjà utilisé" })),
         )
             .into_response();
     }
-
     if now > expires_at {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({
-                "success": false,
-                "message": "Token expiré",
-            })),
+            Json(json!({ "success": false, "message": "Token expiré" })),
         )
             .into_response();
     }
 
+    // Créer l'utilisateur
     let user_id = Uuid::new_v4().to_string();
-    let username = payload.name.to_lowercase().replace(" ", "_");
-    let temp_password = Uuid::new_v4().to_string()[..12].to_string();
-    let hashed = hash_password(&temp_password);
-
+    let username = payload.name.to_lowercase().replace(' ', "_");
+    let temp_password = &Uuid::new_v4().to_string()[..12];
+    let hashed = hash_password(temp_password);
     let now_ts = Utc::now().timestamp();
 
+    // INSERT avec public_key (colonne ajoutée par migration 002)
     let result = sqlx::query(
-        r#"
-        INSERT INTO users (
-            id, username, email, password_hash, name, role, approved, 
+        r#"INSERT INTO users (
+            id, username, email, password_hash, name, role, approved,
             needs_password_change, created_at, public_key
-        ) VALUES (?, ?, ?, ?, ?, 'user', 1, 1, ?, ?)
-        "#,
+        ) VALUES (?, ?, ?, ?, ?, 'user', 1, 1, ?, ?)"#,
     )
     .bind(&user_id)
     .bind(&username)
@@ -301,7 +314,7 @@ pub async fn join(
     .await;
 
     if let Err(e) = result {
-        eprintln!("[Join] Erreur création user : {}", e);
+        tracing::error!(error = %e, username = %username, "Erreur création user via invite");
         return (
             StatusCode::CONFLICT,
             Json(json!({
@@ -312,6 +325,7 @@ pub async fn join(
             .into_response();
     }
 
+    // Marquer l'invite comme utilisée
     sqlx::query("UPDATE invites SET used = 1, used_by = ?, used_at = ? WHERE id = ?")
         .bind(&user_id)
         .bind(now_ts)
@@ -320,6 +334,7 @@ pub async fn join(
         .await
         .ok();
 
+    // Créer la session
     let session_token = Uuid::new_v4().to_string();
     sqlx::query("UPDATE users SET token = ? WHERE id = ?")
         .bind(&session_token)
@@ -337,22 +352,21 @@ pub async fn join(
         needs_password_change: true,
     };
 
+    tracing::info!(user_id = %user_id, "Nouvel utilisateur créé via invitation");
+
+    // Cookie adaptatif LAN/WAN (fix bug #3 : point-virgule + SameSite)
+    let cookie = build_set_cookie(&user_id, &session_token, is_https(&headers), 86400);
+
     let mut response = Json(JoinResponse {
         success: true,
-        message: "Compte créé ! Change ton mot de passe dès maintenant.".to_string(),
+        message: "Compte créé ! Définis ton mot de passe dès maintenant.".to_string(),
         user: Some(user_info),
     })
     .into_response();
 
-    response.headers_mut().insert(
-        http::header::SET_COOKIE,
-        format!(
-            "auth_token={}:{}, Path=/; HttpOnly; SameSite=Lax; Max-Age=86400",
-            user_id, session_token,
-        )
-        .parse()
-        .unwrap(),
-    );
+    response
+        .headers_mut()
+        .insert(SET_COOKIE, cookie.parse().unwrap());
 
     response
 }
