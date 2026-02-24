@@ -7,6 +7,7 @@ pub struct Config {
     pub database_url: String,
     pub static_dir: String,
     pub uploads_dir: String,
+    #[allow(dead_code)]
     pub public_site_url: String,
     /// Liste des origines CORS autorisées, séparées par des virgules.
     /// Exemple : "http://192.168.1.10:6300,https://nook.mondomaine.com"
