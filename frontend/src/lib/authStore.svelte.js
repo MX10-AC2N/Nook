@@ -1,15 +1,23 @@
 // src/lib/authStore.svelte.js
 // Store d'authentification — Svelte 5 runes (pattern propre)
 //
+// Architecture auth :
+//   - Le token de session vit dans un cookie HttpOnly géré par le backend.
+//   - Le frontend n'a PAS accès au token (c'est le but du HttpOnly).
+//   - authStore.sessionId est un identifiant LOCAL (timestamp),
+//     uniquement pour savoir si l'utilisateur est "connu localement".
+//   - L'authentification réelle se fait via le cookie envoyé automatiquement
+//     par le navigateur à chaque requête /api/* (credentials: 'include').
+//
 // ✅ Règles d'usage dans les composants :
 //   import { authStore } from '$lib/authStore.svelte.js';
 //
-//   authStore.user          → utilisateur courant (réactif)
+//   authStore.user            → utilisateur courant (réactif)
 //   authStore.isAuthenticated → boolean (réactif)
-//   authStore.isAdmin       → boolean (réactif)
-//   authStore.loading       → boolean (réactif)
+//   authStore.isAdmin         → boolean (réactif)
+//   authStore.loading         → boolean (réactif)
 //
-//   authStore.login(user, token)
+//   authStore.login(user)     ← signature simplifiée, plus de token
 //   authStore.logout()
 //   authStore.updateUser({ name: '...' })
 //   await authStore.init()
@@ -21,51 +29,55 @@ import { browser } from '$app/environment';
 // =====================================================================
 class AuthStore {
   // --- État réactif ---
-  user    = $state(null);
-  token   = $state(null);
-  loading = $state(true);
+  user      = $state(null);
+  // sessionId : identifiant local de session, généré via Date.now()
+  // Compatible HTTP (LAN) et HTTPS (WAN) — pas d'API crypto.randomUUID()
+  sessionId = $state(null);
+  loading   = $state(true);
 
   // --- Dérivés réactifs ---
-  isAuthenticated  = $derived(this.user !== null && this.token !== null);
-  isAdmin          = $derived(this.user?.role === 'admin');
+  isAuthenticated     = $derived(this.user !== null && this.sessionId !== null);
+  isAdmin             = $derived(this.user?.role === 'admin');
   needsPasswordChange = $derived(this.user?.needs_password_change ?? false);
-  authHeaders      = $derived(
-    this.token ? { Authorization: `Bearer ${this.token}` } : {}
-  );
 
   constructor() {
     if (!browser) return;
     try {
-      const savedUser  = localStorage.getItem('nook_user');
-      const savedToken = localStorage.getItem('nook_token');
-      if (savedUser)  this.user  = JSON.parse(savedUser);
-      if (savedToken) this.token = savedToken;
+      const savedUser      = localStorage.getItem('nook_user');
+      const savedSessionId = localStorage.getItem('nook_session_id');
+      if (savedUser)      this.user      = JSON.parse(savedUser);
+      if (savedSessionId) this.sessionId = savedSessionId;
     } catch (e) {
       console.error('[AuthStore] Erreur lecture localStorage :', e);
     }
   }
 
   // ------------------------------------------------------------------
-  // login — appelé après authentification réussie
+  // login — appelé après authentification réussie.
+  // Le cookie HttpOnly est déjà posé par le backend.
+  // On stocke uniquement les infos user + un sessionId local (timestamp).
   // ------------------------------------------------------------------
-  login(userData, token) {
-    this.user  = userData;
-    this.token = token;
+  login(userData) {
+    this.user      = userData;
+    this.sessionId = String(Date.now());
     if (browser) {
-      localStorage.setItem('nook_user',  JSON.stringify(userData));
-      localStorage.setItem('nook_token', token);
+      localStorage.setItem('nook_user',       JSON.stringify(userData));
+      localStorage.setItem('nook_session_id', this.sessionId);
+      // Migration : supprimer l'ancien nook_token s'il traîne
+      localStorage.removeItem('nook_token');
     }
   }
 
   // ------------------------------------------------------------------
-  // logout — nettoyage complet
+  // logout — nettoyage complet (local + cookie révoqué côté serveur)
   // ------------------------------------------------------------------
   logout() {
-    this.user  = null;
-    this.token = null;
+    this.user      = null;
+    this.sessionId = null;
     if (browser) {
       localStorage.removeItem('nook_user');
-      localStorage.removeItem('nook_token');
+      localStorage.removeItem('nook_session_id');
+      localStorage.removeItem('nook_token'); // migration
     }
   }
 
@@ -81,7 +93,8 @@ class AuthStore {
   }
 
   // ------------------------------------------------------------------
-  // init — vérification de session côté serveur (appelé dans layout)
+  // init — vérification de session côté serveur (appelé dans layout).
+  // Le cookie HttpOnly est envoyé automatiquement par le navigateur.
   // ------------------------------------------------------------------
   async init() {
     this.loading = true;
@@ -93,19 +106,21 @@ class AuthStore {
       }
       const data = await resp.json();
       if (data.authenticated && data.user) {
-        // On conserve le token existant s'il n'en arrive pas un nouveau
-        this.user  = data.user;
-        this.token = data.token ?? this.token ?? crypto.randomUUID();
+        this.user = data.user;
+        // Régénérer sessionId si absent (ex: refresh navigateur)
+        if (!this.sessionId) {
+          this.sessionId = String(Date.now());
+        }
         if (browser) {
-          localStorage.setItem('nook_user',  JSON.stringify(this.user));
-          localStorage.setItem('nook_token', this.token);
+          localStorage.setItem('nook_user',       JSON.stringify(this.user));
+          localStorage.setItem('nook_session_id', this.sessionId);
         }
       } else {
         this.logout();
       }
     } catch (e) {
       console.error('[AuthStore] init error :', e);
-      this.logout();
+      // Erreur réseau : on garde la session locale si elle existe
     } finally {
       this.loading = false;
     }
@@ -113,6 +128,6 @@ class AuthStore {
 }
 
 // =====================================================================
-// SINGLETON — une seule instance pour toute l'application
+// SINGLETON
 // =====================================================================
 export const authStore = new AuthStore();
