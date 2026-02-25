@@ -417,7 +417,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/login", post(auth::login))
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
-        .route("/generate-invite", post(invites::generate_invite))
         .route("/health", get(|| async { "OK" }));
 
     tracing::info!("Routes publiques configurées:");
@@ -425,7 +424,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("  • POST   /auth/login");
     tracing::info!("  • POST   /join");
     tracing::info!("  • GET    /invite/validate");
-    tracing::info!("  • POST   /generate-invite");
     tracing::info!("  • GET    /health");
 
     // ============================================================
@@ -436,6 +434,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
+        .route("/generate-invite", post(invites::generate_invite))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/{id}", get(db::get_conversation))
@@ -462,6 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     tracing::info!("✓ 16 routes protégées configurées avec middleware d'authentification");
+    tracing::info!("  • POST   /generate-invite");
     tracing::info!("Routes chess ajoutées:");
     tracing::info!("  • POST   /chess/create");
     tracing::info!("  • GET    /chess/list");
