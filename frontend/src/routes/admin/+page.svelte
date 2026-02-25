@@ -28,8 +28,9 @@
       const data = await response.json();
 
       if (data.authenticated && data.user) {
-        // Synchronise le store avec les données serveur fraîches
-        authStore.login(data.user, data.token ?? authStore.token ?? crypto.randomUUID());
+        // authStore.login ne prend qu'un argument (user).
+        // Le cookie HttpOnly est géré par le navigateur automatiquement.
+        authStore.login(data.user);
 
         if (data.user.role !== 'admin') {
           goto('/chat');
