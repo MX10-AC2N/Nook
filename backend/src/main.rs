@@ -427,6 +427,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("  • GET    /health");
 
     // ============================================================
+    // 🔐 LOG: Configuration des routes admin
+    // ============================================================
+    tracing::debug!("Configuration des routes admin(authentification admin requise)...");
+    // Routes ADMIN (nouveau sous-routeur)
+    let admin_routes = Router::new()
+        .route("/users/pending", get(admin::pending_users))
+        .route("/users", get(admin::all_users))
+        .route("/users/approve", post(admin::approve_user))
+        .route("/invites", get(admin::list_invites))
+        .route("/invites", post(invites::generate_invite))   // ← déplacé ici !
+        .route("/invites/delete", post(admin::delete_invite))
+        .layer(middleware::from_fn(auth::require_admin));   // ← nouveau middleware
+
+    tracing::info!("  • POST   /generate-invite");
+
+
+    // ============================================================
     // 🔐 LOG: Configuration des routes protégées
     // ============================================================
     tracing::debug!("Configuration des routes protégées (authentification requise)...");
@@ -461,7 +478,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ));
 
     tracing::info!("✓ 16 routes protégées configurées avec middleware d'authentification");
-    tracing::info!("  • POST   /generate-invite");
     tracing::info!("Routes chess ajoutées:");
     tracing::info!("  • POST   /chess/create");
     tracing::info!("  • GET    /chess/list");
