@@ -1,4 +1,4 @@
-1// backend/src/auth.rs - Axum 0.8 + rand 0.9 + rand_core 0.6 compatible
+// backend/src/auth.rs - Axum 0.8 + rand 0.9 + rand_core 0.6 compatible
 
 use crate::{db::User, SharedState};
 use argon2::password_hash::{PasswordHash, SaltString};
