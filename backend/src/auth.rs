@@ -359,16 +359,8 @@ pub async fn require_auth(
 
 // ──────────────────────────────────────────────────────────────
 // Middleware Admin : seul l'admin peut passer
-// (doit être placé APRÈS require_auth qui injecte CurrentUser)
+// (doit être après require_auth qui injecte CurrentUser)
 // ──────────────────────────────────────────────────────────────
-use axum::{
-    body::Body,
-    extract::Extension,
-    http::{Request, StatusCode},
-    middleware::Next,
-    response::Response,
-};
-
 pub async fn require_admin(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     req: Request<Body>,
@@ -383,6 +375,5 @@ pub async fn require_admin(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    // On laisse passer la requête
     Ok(next.run(req).await)
 }
