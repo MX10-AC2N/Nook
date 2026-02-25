@@ -111,14 +111,7 @@ jobs:
             http://localhost:6300/api/pending-users-json)
           echo "pending-users : $PENDING_JSON"
 
-          E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-users = data.get('users', [])
-match = [u for u in users if u.get('username') == 'e2e_ci']
-print(match[0]['id'] if match else '')
-")
-
+          E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c "import sys, json; data = json.load(sys.stdin); users = data.get('users', []); match = [u for u in users if u.get('username') == 'e2e_ci']; print(match[0]['id'] if match else '')")
           if [ -z "$E2E_USER_ID" ]; then
             echo "⚠️  e2e_ci déjà approuvé ou introuvable → on continue"
           else
