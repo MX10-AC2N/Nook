@@ -4,62 +4,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ============================================================
-  # 1. Frontend Build
-  # ============================================================
   frontend:
     name: 🎨 Frontend Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-
       - name: Install & Build
         working-directory: ./frontend
         run: |
           npm ci --legacy-peer-deps
           npm run build
-
       - uses: actions/upload-artifact@v4
         with:
           name: nook-frontend
           path: frontend/build
           retention-days: 1
 
-  # ============================================================
-  # 2. Backend – check / test / clippy (host natif, pas de cross)
-  # ============================================================
   backend:
     name: 🦀 Backend Rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-
       - name: cargo check
         run: cargo check --manifest-path backend/Cargo.toml
-
       - name: cargo test
         run: cargo test --manifest-path backend/Cargo.toml
-
       - name: cargo clippy
         run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
-  # ============================================================
-  # 3. Intégration – Docker build depuis sources + tests E2E
-  # ============================================================
   integration:
     name: 🔗 Intégration Docker
     needs: [frontend, backend]
@@ -80,57 +63,75 @@ jobs:
 
       - name: Build & start stack
         run: |
-          docker compose up -d --build
+          docker compose up -d
           echo "⏳ Attente du healthcheck..."
           timeout 120s bash -c 'until curl -sf http://localhost:6300/health; do sleep 3; done'
           echo "✅ Stack démarrée"
 
       - name: ✅ Test APIs
         run: |
-          curl -f http://localhost:6300/health
           STATUS=$(curl -sw "%{http_code}" -o /dev/null http://localhost:6300/api/auth/me)
-          echo "GET /api/auth/me → $STATUS"
+          echo "GET /api/auth/me (sans auth) → $STATUS"
           [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
           curl -sf -I http://localhost:6300/ | head -5
           echo "✅ APIs OK"
 
       - name: 🔧 Setup user E2E
         run: |
-          # 1. Register le user e2e_ci (|| true = idempotent si déjà créé)
-          curl -sf -X POST http://localhost:6300/api/auth/register \
-            -H "Content-Type: application/json" \
-            -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}' || true
+          set -e
 
-          # 2. Login admin → récupérer le cookie
-          ADMIN_COOKIE=$(curl -sf -c - -X POST http://localhost:6300/api/auth/login \
+          # 1. Register e2e_ci (idempotent)
+          REG_HTTP=$(curl -s -o /tmp/reg.json -w "%{http_code}" -X POST \
+            http://localhost:6300/api/auth/register \
             -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"changeme2026"}' \
-            | grep auth_token | awk '{print $6}' || echo "")
+            -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
+          echo "POST /api/auth/register → $REG_HTTP : $(cat /tmp/reg.json)"
+          [[ "$REG_HTTP" == "200" || "$REG_HTTP" == "201" || "$REG_HTTP" == "409" ]] || \
+            (echo "❌ Register inattendu : $REG_HTTP" && exit 1)
+
+          # 2. Login admin — extraire Set-Cookie depuis les headers de réponse
+          LOGIN_HEADERS=$(curl -s -D - -o /dev/null -X POST \
+            http://localhost:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"changeme2026"}')
+
+          ADMIN_COOKIE=$(echo "$LOGIN_HEADERS" | grep -i "set-cookie" \
+            | grep -o "auth_token=[^;]*" | head -1)
 
           if [ -z "$ADMIN_COOKIE" ]; then
-            echo "❌ Login admin échoué"
+            echo "❌ Login admin échoué — cookie absent"
+            echo "$LOGIN_HEADERS"
             exit 1
           fi
           echo "✅ Admin connecté"
 
-          # 3. Récupérer l'id du user e2e_ci en attente
-          E2E_USER_ID=$(curl -sf \
-            -H "Cookie: auth_token=$ADMIN_COOKIE" \
-            http://localhost:6300/api/pending-users-json \
-            | python3 -c "import sys,json; users=json.load(sys.stdin).get('users',[]); u=[x for x in users if x['username']=='e2e_ci']; print(u[0]['id'] if u else '')")
+          # 3. Trouver e2e_ci en attente
+          PENDING_JSON=$(curl -sf \
+            -H "Cookie: $ADMIN_COOKIE" \
+            http://localhost:6300/api/pending-users-json)
+          echo "pending-users : $PENDING_JSON"
+
+          E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+users = data.get('users', [])
+match = [u for u in users if u.get('username') == 'e2e_ci']
+print(match[0]['id'] if match else '')
+")
 
           if [ -z "$E2E_USER_ID" ]; then
-            echo "⚠️ e2e_ci déjà approuvé ou introuvable, on continue"
+            echo "⚠️  e2e_ci déjà approuvé ou introuvable → on continue"
           else
-            # 4. Approuver le user
             curl -sf -X POST http://localhost:6300/api/approve \
               -H "Content-Type: application/json" \
-              -H "Cookie: auth_token=$ADMIN_COOKIE" \
+              -H "Cookie: $ADMIN_COOKIE" \
               -d "{\"user_id\":\"$E2E_USER_ID\"}"
             echo "✅ User e2e_ci approuvé (id: $E2E_USER_ID)"
           fi
 
       - name: 🧪 E2E Playwright
+        env:
+          CI: true
         run: |
           cd frontend
           npm ci --legacy-peer-deps
@@ -139,7 +140,7 @@ jobs:
 
       - name: 📋 Logs si échec
         if: failure()
-        run: docker compose logs --tail=100
+        run: docker compose logs --tail=200
 
       - name: 🧹 Cleanup
         if: always()
