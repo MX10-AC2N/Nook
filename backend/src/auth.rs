@@ -354,3 +354,16 @@ pub async fn require_auth(
 
     Err(StatusCode::UNAUTHORIZED)
 }
+
+// ──────────────────────────────────────────────────────────────
+// Middleware : seul l'admin peut passer
+// ──────────────────────────────────────────────────────────────
+pub async fn require_admin(
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<(), AppError> {   // ou ton type d'erreur habituel
+    if current_user.role != "admin" {
+        return Err(AppError::Forbidden("Accès administrateur requis".into()));
+    }
+    Ok(())
+}
+
