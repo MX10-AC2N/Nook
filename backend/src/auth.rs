@@ -309,8 +309,9 @@ pub async fn change_password(
     }
 }
 
+// ====================== MIDDLEWARE AUTH ======================
 pub async fn require_auth(
-    State(state): State<Arc<SharedState>>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
