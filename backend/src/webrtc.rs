@@ -234,10 +234,7 @@ async fn verify_ws_auth(
         .find(|c| c.trim().starts_with("auth_token="))
         .and_then(|c| c.trim().strip_prefix("auth_token="))?;
 
-    // splitn(2) : user_id peut contenir ':' théoriquement
-    let mut parts = token_value.splitn(2, ':');
-    let user_id = parts.next()?;
-    let token = parts.next()?;
+    let (user_id, token) = token_value.split_once(':')?;
 
     if user_id.is_empty() || token.is_empty() {
         return None;
