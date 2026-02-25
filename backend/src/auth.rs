@@ -356,11 +356,22 @@ pub async fn require_auth(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Middleware : seul l'admin peut passer (après require_auth)
+// Middleware Admin : seul l'admin peut passer
+// (doit être placé APRÈS require_auth qui injecte CurrentUser)
 // ──────────────────────────────────────────────────────────────
+use axum::{
+    body::Body,
+    extract::Extension,
+    http::{Request, StatusCode},
+    middleware::Next,
+    response::Response,
+};
+
 pub async fn require_admin(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
-) -> Result<(), StatusCode> {
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
     if user.role != "admin" {
         tracing::warn!(
             user_id = %user.id,
@@ -369,5 +380,7 @@ pub async fn require_admin(
         );
         return Err(StatusCode::FORBIDDEN);
     }
-    Ok(())
+
+    // On laisse passer la requête
+    Ok(next.run(req).await)
 }
