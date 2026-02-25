@@ -348,7 +348,7 @@ pub async fn require_auth(
 
     (
         StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({"success": false, "message": "Non authentifié"})),
+        Json(json!({"success": false, "message": "Non authentifié"})),
     )
     .into_response()
 }
@@ -369,7 +369,7 @@ pub async fn require_admin(
         );
         return (
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"success": false, "message": "Accès admin requis"})),
+            Json(json!({"success": false, "message": "Accès admin requis"})),
         )
         .into_response();
     }
