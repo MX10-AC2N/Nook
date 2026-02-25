@@ -409,7 +409,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::debug!("✓ État partagé créé");
 
     // ============================================================
-    // 🛣️ LOG: Configuration des routes publiques
+    // 🛣️ Routes publiques (aucune authentification)
     // ============================================================
     tracing::debug!("Configuration des routes publiques...");
     let public_routes = Router::new()
@@ -427,28 +427,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("  • GET    /health");
 
     // ============================================================
-    // 🔐 LOG: Configuration des routes admin
+    // 👑 Routes ADMIN uniquement (auth + rôle admin requis)
     // ============================================================
-    tracing::debug!("Configuration des routes admin(authentification admin requise)...");
-    // Routes ADMIN (nouveau sous-routeur)
+    tracing::debug!("Configuration des routes admin...");
     let admin_routes = Router::new()
         .route("/users/pending", get(admin::pending_users))
         .route("/users", get(admin::all_users))
         .route("/users/approve", post(admin::approve_user))
         .route("/invites", get(admin::list_invites))
-        .route("/invites", post(invites::generate_invite))
+        .route("/invites", post(invites::generate_invite))   // ← création d’invitation
         .route("/invites/delete", post(admin::delete_invite))
         .layer(middleware::from_fn(auth::require_admin));
 
-    tracing::info!("  • POST   /generate-invite");
-
-
     // ============================================================
-    // 🔐 LOG: Configuration des routes protégées
+    // 🔐 Routes protégées (tous les utilisateurs authentifiés)
     // ============================================================
-    tracing::debug!("Configuration des routes protégées (authentification requise)...");
+    tracing::debug!("Configuration des routes protégées...");
     let protected_routes = Router::new()
-        .merge(admin_routes)
+        .merge(admin_routes)   // ← les routes admin reçoivent require_auth + require_admin
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
@@ -466,29 +462,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
-        .route("/pending-users-json", get(admin::pending_users))
-        .route("/all-users-json", get(admin::all_users))
-        .route("/approve", post(admin::approve_user))
-        .route("/list-invites", get(admin::list_invites))
-        .route("/delete-invite", post(admin::delete_invite))
         .merge(chess::chess_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
         ));
 
-    tracing::info!("✓ 16 routes protégées configurées avec middleware d'authentification");
-    tracing::info!("Routes chess ajoutées:");
-    tracing::info!("  • POST   /chess/create");
-    tracing::info!("  • GET    /chess/list");
-    tracing::info!("  • GET    /chess/{{id}}");
-    tracing::info!("  • POST   /chess/{{id}}/join");
-    tracing::info!("  • POST   /chess/{{id}}/move");
-    tracing::info!("  • POST   /chess/{{id}}/resign");
-    tracing::info!("  • POST   /chess/{{id}}/invite");
-    tracing::info!("  • GET    /chess/invitations");
-    tracing::info!("  • POST   /chess/invitations/{{id}}/accept");
-    tracing::info!("  • POST   /chess/invitations/{{id}}/decline");
+    tracing::info!("✓ Routes protégées + admin configurées (sans doublons)");
+    tracing::info!("Routes admin disponibles :");
+    tracing::info!("  • GET    /users/pending");
+    tracing::info!("  • GET    /users");
+    tracing::info!("  • POST   /users/approve");
+    tracing::info!("  • GET    /invites");
+    tracing::info!("  • POST   /invites");
+    tracing::info!("  • POST   /invites/delete");
 
     // ============================================================
     // 🌐 LOG: Configuration du routeur API
