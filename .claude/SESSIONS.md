@@ -112,3 +112,44 @@
 | dawidd6 pour cross-workflow artifacts | `actions/download-artifact@v4` limité au workflow courant |
 | Cookie HttpOnly `auth_token=userId:token` | révocable côté serveur, pas de JWT |
 | rand_core 0.6 explicite | diamond dep avec argon2 0.5 qui attend rand_core 0.6 |
+
+## Session 8 — 2026-02-25
+
+### Problèmes résolus
+
+**Bug critique CI** : `test-nook.yml` échouait avec `JSONDecodeError` sur `GET /api/users/pending`
+
+- **Cause** : `require_auth` retournait `Err(StatusCode::UNAUTHORIZED)` (réponse vide) capturée par le `.fallback_service(static_service)` → le client recevait `index.html` au lieu d'un JSON 401
+- **Fix `backend/src/auth.rs`** : signature `-> Result<Response, StatusCode>` → `-> Response`, retour d'une réponse JSON complète avec `(StatusCode::UNAUTHORIZED, Json(...)).into_response()` pour `require_auth` ET `require_admin`
+- **Fix `backend/src/main.rs`** : ajout d'un `.fallback(|| async { (404, Json(...)) })` sur `api_router` pour garantir des réponses JSON sur toutes les routes `/api`
+
+### Assets PWA créés
+
+Analyse du frontend → 6 icônes SVG manquantes + tous les PNGs PWA absents.
+
+**Icônes SVG ajoutées** dans `frontend/static/icons/` :
+`lock.svg`, `login.svg`, `add-user.svg`, `at-sign.svg`, `check.svg`, `check-circle.svg`, `description.svg`
+
+**PNGs PWA générés** dans `frontend/static/` :
+`favicon.png` (32×32), `logo-192.png`, `logo-512.png`, `icon-72.png`, `icon-192.png`, `icon-72-dark.png`, `icon-192-dark.png`
+
+**`manifest.json`** corrigé : chemin `/logo.svg` → `/icons/logo.svg`, ajout `favicon.png` 32×32, `purpose: "any maskable"` sur 512.
+
+### vite.config.js optimisé
+
+`manualChunks` découpé en 4 chunks distincts : `libsodium`, `chess`, `svelte`, `vendor`
+→ chunk monolithique 938 kB fractionné, `chunkSizeWarningLimit: 600`
+
+### Workflow créé
+
+**`.github/workflows/generate-pwa-icons.yml`** (`1.5==> 🖼️ Génération des icônes PWA`)
+- Déclenché manuellement OU automatiquement si `logo-animated.svg` est modifié
+- Convertit le SVG animé en frame statique (suppression CSS animations)
+- Génère variantes light (`#f0fdf4`/`#2d5a27`) + dark (`#1a1a2e`/`#4ade80`)
+- Convertisseur : Inkscape (priorité) → resvg (fallback)
+- Optimisation sans perte avec oxipng
+- Commit automatique `[skip ci]` sur la branche courante
+
+**Fichiers modifiés** : `backend/src/auth.rs`, `backend/src/main.rs`, `frontend/vite.config.js`, `frontend/static/manifest.json`
+**Fichiers créés** : 7× `frontend/static/icons/*.svg`, 7× `frontend/static/*.png`, `.github/workflows/generate-pwa-icons.yml`
+
