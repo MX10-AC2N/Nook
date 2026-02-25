@@ -314,7 +314,7 @@ pub async fn require_auth(
     AxumState(state): AxumState<Arc<SharedState>>,
     mut req: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Response {
     let headers = req.headers();
 
     if let Some(cookie) = headers.get(COOKIE) {
@@ -338,7 +338,7 @@ pub async fn require_auth(
 
                         if let Some(user) = user {
                             req.extensions_mut().insert(CurrentUser(user));
-                            return Ok(next.run(req).await);
+                            return next.run(req).await;
                         }
                     }
                 }
@@ -346,7 +346,11 @@ pub async fn require_auth(
         }
     }
 
-    Err(StatusCode::UNAUTHORIZED)
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({"success": false, "message": "Non authentifié"})),
+    )
+    .into_response()
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -356,15 +360,19 @@ pub async fn require_admin(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     req: Request<Body>,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Response {
     if user.role != "admin" {
         tracing::warn!(
             user_id = %user.id,
             username = %user.username,
             "Tentative d'accès admin refusée (non-admin)"
         );
-        return Err(StatusCode::FORBIDDEN);
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"success": false, "message": "Accès admin requis"})),
+        )
+        .into_response();
     }
 
-    Ok(next.run(req).await)
+    next.run(req).await
 }
