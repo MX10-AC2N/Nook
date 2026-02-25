@@ -69,6 +69,8 @@ git clone https://github.com/MX10-AC2N/Nook.git
 cd Nook
 ```
 
+Attention a bien mettre a jour le fichier .env avec votre config perso.
+
 ### 2. Lancer avec Docker
 
 ```bash
