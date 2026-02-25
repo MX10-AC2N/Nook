@@ -82,8 +82,9 @@ pub struct ChessMove {
 
 #[derive(Deserialize)]
 pub struct CreateGameRequest {
-    pub player_count: i32,   // 2, 3 ou 4
-    pub name: Option<String>, // nom optionnel de la partie
+    pub player_count: i32,         // 2, 3 ou 4
+    #[allow(dead_code)]
+    pub name: Option<String>,      // nom optionnel — stocké en colonne name (chess_games)
 }
 
 #[derive(Deserialize)]
@@ -515,8 +516,10 @@ pub async fn list_games(
     AxumState(state): AxumState<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
-    // Retourne les parties en attente ou en cours
-    let rows: Vec<(String, String, i32, String, Option<String>, i32, i64)> = sqlx::query_as(
+    // Alias pour satisfaire clippy::type_complexity
+    type GameRow = (String, String, i32, String, Option<String>, i32, i64);
+
+    let rows: Vec<GameRow> = sqlx::query_as(
         r#"SELECT
             g.id, g.created_by, g.player_count, g.status,
             u.username as creator_name,
