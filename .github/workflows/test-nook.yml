@@ -89,7 +89,7 @@ jobs:
           [[ "$REG_HTTP" == "200" || "$REG_HTTP" == "201" || "$REG_HTTP" == "409" ]] || \
             (echo "❌ Register inattendu : $REG_HTTP" && exit 1)
 
-          # 2. Login admin — extraire Set-Cookie depuis les headers de réponse
+          # 2. Login admin
           LOGIN_HEADERS=$(curl -s -D - -o /dev/null -X POST \
             http://localhost:6300/api/auth/login \
             -H "Content-Type: application/json" \
@@ -105,23 +105,32 @@ jobs:
           fi
           echo "✅ Admin connecté"
 
-          # 3. Trouver e2e_ci en attente
+          # 3. Trouver e2e_ci en attente (NOUVELLE ROUTE)
+          sleep 2  # petit délai pour que le middleware soit bien chargé
           PENDING_JSON=$(curl -sf \
             -H "Cookie: $ADMIN_COOKIE" \
-            http://localhost:6300/api/pending-users-json)
-          echo "pending-users : $PENDING_JSON"
+            http://localhost:6300/api/users/pending)
+          echo "GET /api/users/pending → $PENDING_JSON"
 
-          E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c "import sys, json; data = json.load(sys.stdin); users = data.get('users', []); match = [u for u in users if u.get('username') == 'e2e_ci']; print(match[0]['id'] if match else '')")
+          # Parsing robuste (gère à la fois tableau ou {users: [...]})
+          E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+users = data if isinstance(data, list) else data.get("users", [])
+match = [u for u in users if u.get("username") == "e2e_ci"]
+print(match[0]["id"] if match else "")
+          ')
+
           if [ -z "$E2E_USER_ID" ]; then
             echo "⚠️  e2e_ci déjà approuvé ou introuvable → on continue"
           else
-            curl -sf -X POST http://localhost:6300/api/approve \
+            # APPROBATION (NOUVELLE ROUTE)
+            curl -sf -X POST http://localhost:6300/api/users/approve \
               -H "Content-Type: application/json" \
               -H "Cookie: $ADMIN_COOKIE" \
               -d "{\"user_id\":\"$E2E_USER_ID\"}"
             echo "✅ User e2e_ci approuvé (id: $E2E_USER_ID)"
           fi
-
       - name: 🧪 E2E Playwright
         env:
           CI: true
