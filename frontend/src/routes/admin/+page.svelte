@@ -28,9 +28,7 @@
       const data = await response.json();
 
       if (data.authenticated && data.user) {
-        // authStore.login ne prend qu'un argument (user).
-        // Le cookie HttpOnly est géré par le navigateur automatiquement.
-        authStore.login(data.user);
+        authStore.login(data.user);   // cookie HttpOnly géré par le navigateur
 
         if (data.user.role !== 'admin') {
           goto('/chat');
@@ -61,11 +59,18 @@
   async function loadUsers() {
     try {
       const [pendingRes, allRes] = await Promise.all([
-        fetch('/api/pending-users-json', { credentials: 'include' }),
-        fetch('/api/all-users-json',     { credentials: 'include' }),
+        fetch('/api/users/pending', { credentials: 'include' }),
+        fetch('/api/users',         { credentials: 'include' }),
       ]);
-      if (pendingRes.ok) { const d = await pendingRes.json(); pendingUsers = d.users || []; }
-      if (allRes.ok)     { const d = await allRes.json();     allUsers     = d.users || []; }
+
+      if (pendingRes.ok) {
+        const d = await pendingRes.json();
+        pendingUsers = Array.isArray(d) ? d : (d.users || []);
+      }
+      if (allRes.ok) {
+        const d = await allRes.json();
+        allUsers = Array.isArray(d) ? d : (d.users || []);
+      }
     } catch (e) {
       console.error('Erreur chargement utilisateurs :', e);
     }
@@ -73,8 +78,11 @@
 
   async function loadInvites() {
     try {
-      const res = await fetch('/api/list-invites', { credentials: 'include' });
-      if (res.ok) { const d = await res.json(); invites = d.invites || []; }
+      const res = await fetch('/api/invites', { credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
+        invites = Array.isArray(d) ? d : (d.invites || []);
+      }
     } catch (e) {
       console.error('Erreur chargement invitations :', e);
     }
@@ -82,7 +90,7 @@
 
   async function approveUser(userId: string) {
     try {
-      const response = await fetch('/api/approve', {
+      const response = await fetch('/api/users/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -90,6 +98,7 @@
       });
       if (response.ok) {
         await loadUsers();
+        alert('✅ Utilisateur approuvé avec succès');
       } else {
         alert("Erreur lors de l'approbation");
       }
@@ -101,16 +110,17 @@
 
   async function generateInvite() {
     generatingInvite = true;
-    inviteLink       = null;
+    inviteLink = null;
     try {
-      const response = await fetch('/api/generate-invite', {
-        method: 'POST', credentials: 'include',
+      const response = await fetch('/api/invites', {
+        method: 'POST',
+        credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
-        inviteLink = `${window.location.origin}/invite?token=${data.token}`;
+        inviteLink = `\( {window.location.origin}/invite?token= \){data.token}`;
         await navigator.clipboard.writeText(inviteLink);
-        alert('Lien copié dans le presse-papiers !');
+        alert('✅ Lien copié dans le presse-papiers !');
         await loadInvites();
       } else {
         alert('Erreur lors de la génération');
@@ -126,15 +136,19 @@
   async function deleteInvite(id: string) {
     if (!confirm('Supprimer cette invitation ?')) return;
     try {
-      await fetch('/api/delete-invite', {
+      const res = await fetch('/api/invites/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ id }),
       });
-      await loadInvites();
+      if (res.ok) {
+        await loadInvites();
+      } else {
+        alert('Erreur lors de la suppression');
+      }
     } catch (e) {
-      alert('Erreur suppression');
+      alert('Erreur réseau');
     }
   }
 
@@ -147,7 +161,7 @@
   }
 
   function isExpired(invite: any): boolean {
-    return Date.now() / 1000 > invite.expires_at;
+    return Date.now() / 1000 > (invite.expires_at || 0);
   }
 
   function getStatus(invite: any): string {
@@ -264,7 +278,7 @@
                     <td class="link">
                       <code>{invite.token.slice(0, 12)}…</code>
                       <button onclick={() => navigator.clipboard.writeText(
-                        `${window.location.origin}/invite?token=${invite.token}`
+                        `\( {window.location.origin}/invite?token= \){invite.token}`
                       )}>Copier</button>
                     </td>
                     <td>
