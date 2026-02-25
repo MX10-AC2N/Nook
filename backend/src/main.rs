@@ -486,7 +486,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .merge(protected_routes)
     .fallback(|| async {
         (
-  axum::http::StatusCode::NOT_FOUND,
+            axum::http::StatusCode::NOT_FOUND,
             axum::Json(serde_json::json!({"success": false, "message": "Route API introuvable"})),
         )
     });
