@@ -4,9 +4,11 @@ use crate::{db::User, SharedState};
 use argon2::password_hash::{PasswordHash, SaltString};
 use argon2::{Argon2, PasswordHasher, PasswordVerifier};
 use axum::{
+    body::Body,
     extract::{Extension, State as AxumState},
-    http::StatusCode,
-    response::IntoResponse,
+    http::{header::COOKIE, Request, StatusCode},
+    middleware::Next,
+    response::{IntoResponse, Response},
     Json,
 };
 use chrono::Utc;
