@@ -1,4 +1,4 @@
-// backend/src/auth.rs - Axum 0.8 + rand 0.9 + rand_core 0.6 compatible
+1// backend/src/auth.rs - Axum 0.8 + rand 0.9 + rand_core 0.6 compatible
 
 use crate::{db::User, SharedState};
 use argon2::password_hash::{PasswordHash, SaltString};
@@ -308,15 +308,6 @@ pub async fn change_password(
             .into_response(),
     }
 }
-
-// ====================== MIDDLEWARE AUTH ======================
-use axum::{
-    body::Body,
-    extract::State,
-    http::{header::COOKIE, Request},
-    middleware::Next,
-    response::Response,
-};
 
 pub async fn require_auth(
     State(state): State<Arc<SharedState>>,
