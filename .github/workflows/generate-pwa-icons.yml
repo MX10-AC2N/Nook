@@ -1,29 +1,22 @@
-name: 1.5==> 🖼️ Génération des icônes PWA
+name: "1.5==> Generation icones PWA"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Ce workflow génère automatiquement toutes les icônes PNG de la PWA à partir
-# du fichier SVG source frontend/static/logo-animated.svg, puis les commit
-# directement dans la branche courante.
+# Genere automatiquement les icones PNG de la PWA depuis logo-animated.svg
+# et les commit directement dans la branche courante.
 #
-# Icônes produites :
-#   favicon.png          32×32   — onglet navigateur
-#   logo-192.png        192×192  — manifest PWA (standard)
-#   logo-512.png        512×512  — manifest PWA (maskable)
-#   icon-72.png          72×72   — badge service worker (notifications)
-#   icon-192.png        192×192  — icône service worker (notifications)
-#   icon-72-dark.png     72×72   — badge mode sombre
-#   icon-192-dark.png   192×192  — icône mode sombre
-#
-# Déclencheurs :
-#   - Manuel (workflow_dispatch)
-#   - Automatique si logo-animated.svg est modifié sur la branche de travail
-# ─────────────────────────────────────────────────────────────────────────────
+# Icones produites :
+#   favicon.png         32x32   - onglet navigateur
+#   logo-192.png       192x192  - manifest PWA standard
+#   logo-512.png       512x512  - manifest PWA maskable
+#   icon-72.png         72x72   - badge service worker
+#   icon-192.png       192x192  - icone service worker
+#   icon-72-dark.png    72x72   - badge mode sombre
+#   icon-192-dark.png  192x192  - icone mode sombre
 
 on:
   workflow_dispatch:
     inputs:
       force:
-        description: "Forcer la régénération même si le SVG n'a pas changé"
+        description: "Forcer la regeneration meme si le SVG n'a pas change"
         required: false
         default: "false"
         type: boolean
@@ -36,302 +29,197 @@ on:
       - "frontend/static/logo-animated.svg"
 
 permissions:
-  contents: write   # pour commit + push des PNGs générés
+  contents: write
 
 jobs:
   generate-icons:
-    name: 🖼️ Génération icônes PWA
+    name: "Generation icones PWA"
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Checkout ───────────────────────────────────────────────────────
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 2. Vérifier que le SVG source existe ─────────────────────────────
-      - name: 🔍 Vérification SVG source
+      - name: "Verification SVG source"
         run: |
           if [ ! -f frontend/static/logo-animated.svg ]; then
-            echo "❌ frontend/static/logo-animated.svg introuvable"
+            echo "SVG source introuvable"
             exit 1
           fi
-          SVG_SIZE=$(wc -c < frontend/static/logo-animated.svg)
-          echo "✅ SVG source trouvé (${SVG_SIZE} octets)"
+          echo "SVG source OK ($(wc -c < frontend/static/logo-animated.svg) octets)"
 
-      # ── 3. Installer les outils de conversion SVG→PNG ────────────────────
-      # On utilise Inkscape (meilleur rendu SVG complexe + fonts)
-      # Fallback : resvg via npm si Inkscape échoue sur certains éléments
-      - name: 📦 Installation Inkscape + resvg
+      - name: "Installation Inkscape"
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends inkscape 2>/dev/null \
-            && echo "✅ Inkscape $(inkscape --version | head -1)" \
-            || echo "⚠️  Inkscape indisponible — fallback resvg actif"
+          sudo apt-get install -y --no-install-recommends inkscape
+          inkscape --version
 
-          # resvg via npm (rendu Rust ultra-fidèle, gère les CSS animations comme statiques)
-          npm install -g @resvg/resvg-cli --silent 2>/dev/null \
-            && echo "✅ resvg $(resvg --version)" \
-            || echo "⚠️  resvg indisponible"
-
-      # ── 4. Préparer le SVG statique pour l'export PNG ────────────────────
-      # Le SVG animé utilise CSS animations qui ne se rendent pas en PNG.
-      # On crée une version "frame finale" (lettres pleines, splatters visibles).
-      - name: 🎨 Préparer SVG statique (frame finale)
+      - name: "Preparation SVG statique"
         run: |
-          python3 << 'PYEOF'
-          import re
+          cat > /tmp/prep_svg.py << 'PYEOF'
+          import re, sys
 
           with open("frontend/static/logo-animated.svg", "r") as f:
               svg = f.read()
 
-          # ── Suppression de toutes les animations CSS ──────────────────────
-          # On garde uniquement le rendu final (lettres remplies, splatters visibles)
-          style_static = """
-            .letter {
-              fill: currentColor;
-              stroke: currentColor;
-              stroke-width: 8;
-              stroke-linecap: round;
-              stroke-linejoin: round;
-              font-family: 'Courier New', Courier, monospace;
-              font-weight: 900;
-              font-size: 100px;
-            }
-            .splatter {
-              fill: currentColor;
-              opacity: 0.3;
-            }
-          """
-
-          # Remplacer le bloc <style>...</style>
-          svg_static = re.sub(
-              r"<style>.*?</style>",
-              f"<style>{style_static}</style>",
-              svg,
-              flags=re.DOTALL,
+          style_static = (
+              "\n  .letter {\n"
+              "    fill: currentColor;\n"
+              "    stroke: currentColor;\n"
+              "    stroke-width: 8;\n"
+              "    stroke-linecap: round;\n"
+              "    stroke-linejoin: round;\n"
+              "    font-family: 'Courier New', Courier, monospace;\n"
+              "    font-weight: 900;\n"
+              "    font-size: 100px;\n"
+              "  }\n"
+              "  .splatter { fill: currentColor; opacity: 0.3; }\n"
           )
 
-          # Supprimer les classes d'animation (n1, o1, o2, k, s1..s4)
-          svg_static = re.sub(r' class="letter [^"]*"', ' class="letter"', svg_static)
-          svg_static = re.sub(r' class="splatter [^"]*"', ' class="splatter"', svg_static)
-
-          # Supprimer les balises <animate> inline (ligne de base)
-          svg_static = re.sub(r"<animate[^/]*/?>", "", svg_static)
-
-          # Rendre la ligne de base visible (opacity fixe)
-          svg_static = svg_static.replace('opacity="0">', 'opacity="0.2">')
+          svg2 = re.sub(r"<style>.*?</style>", "<style>" + style_static + "</style>", svg, flags=re.DOTALL)
+          svg2 = re.sub(r' class="letter [^"]*"', ' class="letter"', svg2)
+          svg2 = re.sub(r' class="splatter [^"]*"', ' class="splatter"', svg2)
+          svg2 = re.sub(r"<animate[^/]*/?>", "", svg2)
+          svg2 = svg2.replace('opacity="0">', 'opacity="0.2">')
 
           with open("/tmp/logo-static.svg", "w") as f:
-              f.write(svg_static)
-
-          print("✅ SVG statique prêt → /tmp/logo-static.svg")
+              f.write(svg2)
+          print("OK")
           PYEOF
+          python3 /tmp/prep_svg.py
 
-      # ── 5. Générer les variantes SVG light / dark ─────────────────────────
-      - name: 🌗 Variantes light / dark
+      - name: "Variantes light et dark"
         run: |
-          python3 << 'PYEOF'
+          cat > /tmp/variants.py << 'PYEOF'
           with open("/tmp/logo-static.svg") as f:
               svg = f.read()
 
-          # ── Light : fond #f0fdf4, texte #2d5a27 ──────────────────────────
-          light = svg
-          # Injecter fond + couleur si pas déjà présent
-          if 'currentColor' in light:
-              light = light.replace(
-                  '<svg ',
-                  '<svg style="background:#f0fdf4;color:#2d5a27" ',
-                  1
-              )
+          light = svg.replace("<svg ", '<svg style="background:#f0fdf4;color:#2d5a27" ', 1)
           with open("/tmp/logo-light.svg", "w") as f:
               f.write(light)
 
-          # ── Dark : fond #1a1a2e, texte #4ade80 ───────────────────────────
-          dark = svg.replace(
-              '<svg ',
-              '<svg style="background:#1a1a2e;color:#4ade80" ',
-              1
-          )
+          dark = svg.replace("<svg ", '<svg style="background:#1a1a2e;color:#4ade80" ', 1)
           with open("/tmp/logo-dark.svg", "w") as f:
               f.write(dark)
-
-          print("✅ logo-light.svg + logo-dark.svg prêts")
+          print("OK")
           PYEOF
+          python3 /tmp/variants.py
 
-      # ── 6. Conversion SVG → PNG (Inkscape si dispo, sinon resvg) ─────────
-      - name: 🖼️ Conversion SVG → PNG
+      - name: "Conversion SVG vers PNG"
         run: |
           STATIC="frontend/static"
           LIGHT="/tmp/logo-light.svg"
           DARK="/tmp/logo-dark.svg"
 
-          # Détecter le convertisseur disponible
-          if command -v inkscape &>/dev/null; then
-            CONVERTER="inkscape"
-            echo "🖌️  Convertisseur : Inkscape"
-          elif command -v resvg &>/dev/null; then
-            CONVERTER="resvg"
-            echo "🦀  Convertisseur : resvg"
-          else
-            echo "❌ Aucun convertisseur SVG→PNG disponible"
-            exit 1
-          fi
-
-          # Fonction de conversion
-          convert_svg() {
-            local src="$1"
-            local dst="$2"
-            local width="$3"
-            local height="${4:-$width}"  # carré par défaut
-
-            if [ "$CONVERTER" = "inkscape" ]; then
-              inkscape \
-                --export-type=png \
-                --export-filename="$dst" \
-                --export-width="$width" \
-                --export-height="$height" \
-                --export-background-opacity=1 \
-                "$src" 2>/dev/null
-            else
-              resvg \
-                --width "$width" \
-                --height "$height" \
-                "$src" "$dst" 2>/dev/null
-            fi
-
-            if [ -f "$dst" ]; then
-              SIZE=$(wc -c < "$dst")
-              echo "  ✅ $(basename $dst)  ${width}×${height}  (${SIZE} octets)"
-            else
-              echo "  ❌ Échec : $dst"
-              return 1
-            fi
+          do_convert() {
+            local src="$1" dst="$2" w="$3"
+            inkscape \
+              --export-type=png \
+              --export-filename="$dst" \
+              --export-width="$w" \
+              --export-height="$w" \
+              --export-background-opacity=1 \
+              "$src" 2>/dev/null
+            [ -f "$dst" ] \
+              && echo "OK $dst ($(wc -c < "$dst") octets)" \
+              || { echo "ECHEC $dst"; return 1; }
           }
 
-          echo ""
-          echo "=== Icônes Light (fond vert clair) ==="
-          convert_svg "$LIGHT" "$STATIC/favicon.png"   32
-          convert_svg "$LIGHT" "$STATIC/logo-192.png" 192
-          convert_svg "$LIGHT" "$STATIC/logo-512.png" 512
-          convert_svg "$LIGHT" "$STATIC/icon-72.png"   72
-          convert_svg "$LIGHT" "$STATIC/icon-192.png" 192
+          echo "--- Light ---"
+          do_convert "$LIGHT" "$STATIC/favicon.png"   32
+          do_convert "$LIGHT" "$STATIC/logo-192.png" 192
+          do_convert "$LIGHT" "$STATIC/logo-512.png" 512
+          do_convert "$LIGHT" "$STATIC/icon-72.png"   72
+          do_convert "$LIGHT" "$STATIC/icon-192.png" 192
 
-          echo ""
-          echo "=== Icônes Dark (fond sombre) ==="
-          convert_svg "$DARK" "$STATIC/icon-72-dark.png"  72
-          convert_svg "$DARK" "$STATIC/icon-192-dark.png" 192
+          echo "--- Dark ---"
+          do_convert "$DARK" "$STATIC/icon-72-dark.png"  72
+          do_convert "$DARK" "$STATIC/icon-192-dark.png" 192
 
-          echo ""
-          echo "✅ Toutes les icônes générées"
           ls -lh "$STATIC"/*.png
 
-      # ── 7. Optimisation PNG avec oxipng ──────────────────────────────────
-      - name: ⚡ Optimisation PNG (oxipng)
+      - name: "Optimisation PNG oxipng"
         run: |
-          # oxipng = optimiseur PNG sans perte (Rust, très rapide)
-          cargo install oxipng --quiet 2>/dev/null \
-            || npm install -g @napi-rs/oxipng-cli --silent 2>/dev/null \
-            || { echo "⚠️  oxipng indisponible — optimisation ignorée"; exit 0; }
+          if ! command -v oxipng &>/dev/null; then
+            npm install -g oxipng-bin --silent 2>/dev/null || true
+          fi
+          if command -v oxipng &>/dev/null; then
+            oxipng --opt 4 --strip all frontend/static/*.png
+            ls -lh frontend/static/*.png
+          else
+            echo "oxipng indisponible - etape ignoree"
+          fi
 
-          STATIC="frontend/static"
-          BEFORE=$(du -sh "$STATIC"/*.png | awk '{sum += $1} END {print sum}')
-
-          # Niveau 4 = bon compromis vitesse/compression
-          oxipng --opt 4 --strip all "$STATIC"/*.png 2>/dev/null \
-            || npx oxipng --opt 4 "$STATIC"/*.png 2>/dev/null \
-            || true
-
-          echo "✅ Optimisation terminée"
-          ls -lh "$STATIC"/*.png
-
-      # ── 8. Vérification finale ────────────────────────────────────────────
-      - name: ✅ Vérification des icônes
+      - name: "Verification des icones"
         run: |
           STATIC="frontend/static"
-          REQUIRED=(
-            "favicon.png"
-            "logo-192.png"
-            "logo-512.png"
-            "icon-72.png"
-            "icon-192.png"
-            "icon-72-dark.png"
-            "icon-192-dark.png"
-          )
+          REQUIRED="favicon.png logo-192.png logo-512.png icon-72.png icon-192.png icon-72-dark.png icon-192-dark.png"
           ALL_OK=true
-          for f in "${REQUIRED[@]}"; do
+          for f in $REQUIRED; do
             if [ -f "$STATIC/$f" ] && [ -s "$STATIC/$f" ]; then
-              echo "  ✅ $f ($(wc -c < "$STATIC/$f") octets)"
+              echo "OK $f ($(wc -c < "$STATIC/$f") octets)"
             else
-              echo "  ❌ $f — MANQUANT ou VIDE"
+              echo "MANQUANT $f"
               ALL_OK=false
             fi
           done
-
           $ALL_OK || exit 1
-          echo ""
-          echo "✅ Toutes les icônes PWA sont présentes et valides"
+          echo "Toutes les icones PWA sont presentes"
 
-      # ── 9. Commit & Push ──────────────────────────────────────────────────
-      - name: 📝 Commit des icônes générées
+      - name: "Commit des icones"
         run: |
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add frontend/static/favicon.png \
-                  frontend/static/logo-192.png \
-                  frontend/static/logo-512.png \
-                  frontend/static/icon-72.png \
-                  frontend/static/icon-192.png \
-                  frontend/static/icon-72-dark.png \
-                  frontend/static/icon-192-dark.png
+          git add \
+            frontend/static/favicon.png \
+            frontend/static/logo-192.png \
+            frontend/static/logo-512.png \
+            frontend/static/icon-72.png \
+            frontend/static/icon-192.png \
+            frontend/static/icon-72-dark.png \
+            frontend/static/icon-192-dark.png
 
-          # Ne commit que si des fichiers ont changé
           if git diff --cached --quiet; then
-            echo "ℹ️  Aucun changement détecté — commit ignoré"
+            echo "Aucun changement - commit ignore"
           else
             CHANGED=$(git diff --cached --name-only | wc -l)
-            git commit -m "chore(pwa): régénération des icônes PWA depuis logo-animated.svg [skip ci]
-
-Icônes mises à jour : ${CHANGED} fichier(s)
-Source : frontend/static/logo-animated.svg
-Convertisseur : $(command -v inkscape &>/dev/null && inkscape --version | head -1 || echo resvg)
-Workflow : ${{ github.workflow }} #${{ github.run_number }}"
-
-            git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Icônes commitées sur ${{ github.ref_name }}"
+            git commit -m "chore(pwa): regeneration icones PWA [skip ci]" \
+              -m "Icones mises a jour: ${CHANGED} fichier(s)" \
+              -m "Workflow: ${{ github.workflow }} run ${{ github.run_number }}"
+            git push origin "HEAD:${{ github.ref_name }}"
+            echo "Icones commitees sur ${{ github.ref_name }}"
           fi
 
-      # ── 10. Résumé ────────────────────────────────────────────────────────
-      - name: 📊 Résumé
+      - name: "Resume"
         if: always()
         run: |
-          echo "## 🖼️ Icônes PWA générées" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Fichier | Taille | Usage |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|--------|-------|" >> $GITHUB_STEP_SUMMARY
-
-          STATIC="frontend/static"
-          declare -A USAGE=(
-            ["favicon.png"]="Onglet navigateur"
-            ["logo-192.png"]="Manifest PWA standard"
-            ["logo-512.png"]="Manifest PWA maskable"
-            ["icon-72.png"]="Badge notifications (light)"
-            ["icon-192.png"]="Icône notifications (light)"
-            ["icon-72-dark.png"]="Badge notifications (dark)"
-            ["icon-192-dark.png"]="Icône notifications (dark)"
-          )
-
-          for f in "${!USAGE[@]}"; do
-            if [ -f "$STATIC/$f" ]; then
-              SIZE=$(du -sh "$STATIC/$f" | cut -f1)
-              echo "| \`$f\` | ${SIZE} | ${USAGE[$f]} |" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "| \`$f\` | ❌ manquant | ${USAGE[$f]} |" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Source : \`frontend/static/logo-animated.svg\`" >> $GITHUB_STEP_SUMMARY
-          echo "> Branche : \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Icones PWA generees"
+            echo ""
+            echo "| Fichier | Taille | Usage |"
+            echo "|---------|--------|-------|"
+            for entry in \
+              "favicon.png:Onglet navigateur" \
+              "logo-192.png:Manifest PWA standard" \
+              "logo-512.png:Manifest PWA maskable" \
+              "icon-72.png:Badge notifications light" \
+              "icon-192.png:Icone notifications light" \
+              "icon-72-dark.png:Badge notifications dark" \
+              "icon-192-dark.png:Icone notifications dark"
+            do
+              f="${entry%%:*}"
+              usage="${entry##*:}"
+              if [ -f "frontend/static/$f" ]; then
+                size=$(du -sh "frontend/static/$f" | cut -f1)
+                echo "| \`${f}\` | ${size} | ${usage} |"
+              else
+                echo "| \`${f}\` | manquant | ${usage} |"
+              fi
+            done
+            echo ""
+            echo "> Source: frontend/static/logo-animated.svg"
+            echo "> Branche: ${{ github.ref_name }}"
+          } >> "$GITHUB_STEP_SUMMARY"
