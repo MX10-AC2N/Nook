@@ -482,14 +482,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================================
     tracing::debug!("Fusion des routes publiques et protégées...");
     let api_router = Router::new()
-    .merge(public_routes)
-    .merge(protected_routes)
-    .fallback(|| async {
-        (
-            axum::http::StatusCode::NOT_FOUND,
-            axum::Json(serde_json::json!({"success": false, "message": "Route API introuvable"})),
-        )
-    });
+        .merge(public_routes)
+        .merge(protected_routes)
+        .fallback(|| async {
+            (
+                axum::http::StatusCode::NOT_FOUND,
+                axum::Json(serde_json::json!({
+                    "success": false,
+                    "message": "Route API introuvable"
+                })),
+            )
+        });
+
     tracing::info!("✓ Routeur API configuré");
 
     // ============================================================
