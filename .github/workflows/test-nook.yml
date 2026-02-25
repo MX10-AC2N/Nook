@@ -1,11 +1,11 @@
-name: 3==> 🧪 CI – Test Nook (Backend + Frontend + Intégration)
+name: "3==> CI - Test Nook (Backend + Frontend + Integration)"
 
 on:
   workflow_dispatch:
 
 jobs:
   frontend:
-    name: 🎨 Frontend Build
+    name: "Frontend Build"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
           retention-days: 1
 
   backend:
-    name: 🦀 Backend Rust
+    name: "Backend Rust"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
         run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
   integration:
-    name: 🔗 Intégration Docker
+    name: "Integration Docker"
     needs: [frontend, backend]
     runs-on: ubuntu-latest
     steps:
@@ -56,38 +56,54 @@ jobs:
           name: nook-frontend
           path: frontend/build
 
-      - name: Vérification frontend build
+      - name: "Verification frontend build"
         run: |
-          test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
-          echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
+          test -f frontend/build/index.html || (echo "index.html manquant" && exit 1)
+          echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
-      - name: Build & start stack
+      # ── Build l'image depuis les sources (pas de pull GHCR) ──────────────
+      # On passe le frontend/build comme contexte pour le COPY dans le Dockerfile
+      - name: "Build image Docker depuis les sources"
         run: |
-          docker compose up -d
-          echo "⏳ Attente du healthcheck..."
+          docker build \
+            --tag nook-ci:local \
+            --file Dockerfile \
+            .
+          echo "Image nook-ci:local construite"
+          docker images nook-ci:local
+
+      # ── Démarrer avec l'image locale via override ─────────────────────────
+      - name: "Demarrage stack avec image locale"
+        run: |
+          # Surcharge l'image du docker-compose.yml par celle buildee localement
+          NOOK_IMAGE=nook-ci:local docker compose \
+            -f docker-compose.yml \
+            up -d
+
+          echo "Attente du healthcheck..."
           timeout 120s bash -c 'until curl -sf http://localhost:6300/health; do sleep 3; done'
-          echo "✅ Stack démarrée"
+          echo "Stack demarree"
 
-      - name: ✅ Test APIs
+      - name: "Test APIs"
         run: |
           STATUS=$(curl -sw "%{http_code}" -o /dev/null http://localhost:6300/api/auth/me)
-          echo "GET /api/auth/me (sans auth) → $STATUS"
-          [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
+          echo "GET /api/auth/me (sans auth) : $STATUS"
+          [ "$STATUS" = "401" ] || (echo "Attendu 401, recu $STATUS" && exit 1)
           curl -sf -I http://localhost:6300/ | head -5
-          echo "✅ APIs OK"
+          echo "APIs OK"
 
-      - name: 🔧 Setup user E2E
+      - name: "Setup user E2E"
         run: |
           set -e
 
-          # 1. Register e2e_ci (idempotent)
+          # 1. Register e2e_ci
           REG_HTTP=$(curl -s -o /tmp/reg.json -w "%{http_code}" -X POST \
             http://localhost:6300/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
-          echo "POST /api/auth/register → $REG_HTTP : $(cat /tmp/reg.json)"
+          echo "POST /api/auth/register : $REG_HTTP : $(cat /tmp/reg.json)"
           [[ "$REG_HTTP" == "200" || "$REG_HTTP" == "201" || "$REG_HTTP" == "409" ]] || \
-            (echo "❌ Register inattendu : $REG_HTTP" && exit 1)
+            (echo "Register inattendu : $REG_HTTP" && exit 1)
 
           # 2. Login admin
           LOGIN_HEADERS=$(curl -s -D - -o /dev/null -X POST \
@@ -99,20 +115,27 @@ jobs:
             | grep -o "auth_token=[^;]*" | head -1)
 
           if [ -z "$ADMIN_COOKIE" ]; then
-            echo "❌ Login admin échoué — cookie absent"
+            echo "Login admin echoue - cookie absent"
             echo "$LOGIN_HEADERS"
             exit 1
           fi
-          echo "✅ Admin connecté"
+          echo "Admin connecte (cookie: ${#ADMIN_COOKIE} chars)"
 
-          # 3. Trouver e2e_ci en attente (NOUVELLE ROUTE)
-          sleep 2  # petit délai pour que le middleware soit bien chargé
-          PENDING_JSON=$(curl -sf \
+          # 3. Verifier que /api/users/pending retourne bien du JSON
+          sleep 2
+          PENDING_RESP=$(curl -s -w "\n%{http_code}" \
             -H "Cookie: $ADMIN_COOKIE" \
             http://localhost:6300/api/users/pending)
-          echo "GET /api/users/pending → $PENDING_JSON"
 
-          # Parsing robuste (gère à la fois tableau ou {users: [...]})
+          PENDING_HTTP=$(echo "$PENDING_RESP" | tail -1)
+          PENDING_JSON=$(echo "$PENDING_RESP" | head -1)
+
+          echo "GET /api/users/pending : HTTP $PENDING_HTTP"
+          echo "Body: $PENDING_JSON"
+
+          [ "$PENDING_HTTP" = "200" ] || (echo "Attendu 200, recu $PENDING_HTTP" && exit 1)
+
+          # 4. Trouver et approuver e2e_ci
           E2E_USER_ID=$(echo "$PENDING_JSON" | python3 -c '
           import sys, json
           data = json.load(sys.stdin)
@@ -122,16 +145,19 @@ jobs:
           ')
 
           if [ -z "$E2E_USER_ID" ]; then
-            echo "⚠️  e2e_ci déjà approuvé ou introuvable → on continue"
+            echo "e2e_ci deja approuve ou introuvable - on continue"
           else
-            # APPROBATION (NOUVELLE ROUTE)
-            curl -sf -X POST http://localhost:6300/api/users/approve \
+            APPROVE_HTTP=$(curl -s -o /tmp/approve.json -w "%{http_code}" \
+              -X POST http://localhost:6300/api/users/approve \
               -H "Content-Type: application/json" \
               -H "Cookie: $ADMIN_COOKIE" \
-              -d "{\"user_id\":\"$E2E_USER_ID\"}"
-            echo "✅ User e2e_ci approuvé (id: $E2E_USER_ID)"
+              -d "{\"user_id\":\"$E2E_USER_ID\"}")
+            echo "POST /api/users/approve : $APPROVE_HTTP : $(cat /tmp/approve.json)"
+            [ "$APPROVE_HTTP" = "200" ] || (echo "Approbation echouee" && exit 1)
+            echo "User e2e_ci approuve (id: $E2E_USER_ID)"
           fi
-      - name: 🧪 E2E Playwright
+
+      - name: "E2E Playwright"
         env:
           CI: true
         run: |
@@ -140,10 +166,10 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test
 
-      - name: 📋 Logs si échec
+      - name: "Logs si echec"
         if: failure()
         run: docker compose logs --tail=200
 
-      - name: 🧹 Cleanup
+      - name: "Cleanup"
         if: always()
         run: docker compose down -v --rmi local
