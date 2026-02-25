@@ -356,14 +356,18 @@ pub async fn require_auth(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Middleware : seul l'admin peut passer
+// Middleware : seul l'admin peut passer (après require_auth)
 // ──────────────────────────────────────────────────────────────
 pub async fn require_admin(
-    Extension(current_user): Extension<CurrentUser>,
-) -> Result<(), AppError> {   // ou ton type d'erreur habituel
-    if current_user.role != "admin" {
-        return Err(AppError::Forbidden("Accès administrateur requis".into()));
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> Result<(), StatusCode> {
+    if user.role != "admin" {
+        tracing::warn!(
+            user_id = %user.id,
+            username = %user.username,
+            "Tentative d'accès admin refusée (non-admin)"
+        );
+        return Err(StatusCode::FORBIDDEN);
     }
     Ok(())
 }
-
