@@ -554,25 +554,6 @@ pub async fn get_game(
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
-    let row: Option<(
-        String, String, i32,
-        Option<String>, Option<String>, Option<String>, Option<String>,
-        String, String, String, String, i32, i32, String, i64, i64,
-    )> = sqlx::query_as(
-        r#"SELECT
-            id, created_by, player_count,
-            player1_id, player2_id, player3_id, player4_id,
-            player1_color, player2_color, player3_color, player4_color,
-            current_turn, status, board_state, winner_id,
-            move_history, eliminated, created_at, updated_at
-           FROM chess_games WHERE id = ?"#,
-    )
-    .bind(&game_id)
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or(None);
-
-    // Requête simplifiée pour éviter un tuple trop grand
     let row = sqlx::query(
         "SELECT * FROM chess_games WHERE id = ?"
     )
@@ -670,8 +651,8 @@ pub async fn join_game(
                };
 
     // Vérifier que l'utilisateur ne joue pas déjà
-    for p in [&p1, &p2, &p3, &p4].iter().flatten() {
-        if *p == &user.id {
+    for p in [p1.as_ref(), p2.as_ref(), p3.as_ref(), p4.as_ref()].into_iter().flatten() {
+        if *p == user.id {
             return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Vous participez déjà à cette partie" }))).into_response();
         }
     }
