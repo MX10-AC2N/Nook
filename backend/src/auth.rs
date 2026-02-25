@@ -351,7 +351,6 @@ pub async fn require_auth(
 
 // ──────────────────────────────────────────────────────────────
 // Middleware Admin : seul l'admin peut passer
-// (doit être après require_auth qui injecte CurrentUser)
 // ──────────────────────────────────────────────────────────────
 pub async fn require_admin(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
