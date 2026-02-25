@@ -436,9 +436,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/users", get(admin::all_users))
         .route("/users/approve", post(admin::approve_user))
         .route("/invites", get(admin::list_invites))
-        .route("/invites", post(invites::generate_invite))   // ← déplacé ici !
+        .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
-        .layer(middleware::from_fn(auth::require_admin));   // ← nouveau middleware
+        .layer(middleware::from_fn(auth::require_admin));
 
     tracing::info!("  • POST   /generate-invite");
 
@@ -448,10 +448,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================================
     tracing::debug!("Configuration des routes protégées (authentification requise)...");
     let protected_routes = Router::new()
+        .merge(admin_routes)
         .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/change-password", post(auth::change_password))
-        .route("/generate-invite", post(invites::generate_invite))
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/{id}", get(db::get_conversation))
