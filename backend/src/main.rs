@@ -227,6 +227,28 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         tracing::debug!("Administrateur initial déjà existant");
     }
 
+    // ============================================================
+    // 🌐 Création de la conversation globale si inexistante
+    // ============================================================
+    let conv_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM conversations WHERE id = 'default_global'")
+            .fetch_one(pool)
+            .await?;
+
+    if conv_count.0 == 0 {
+        let now = Utc::now().timestamp();
+        sqlx::query(
+            r#"INSERT INTO conversations (id, name, is_group, created_by, created_at, updated_at)
+               VALUES ('default_global', 'Groupe Global', 1, 'admin-initial-id-0000-0000-000000000001', ?, ?)"#,
+        )
+        .bind(now)
+        .bind(now)
+        .execute(pool)
+        .await?;
+        tracing::info!("✓ Conversation globale 'default_global' créée");
+        eprintln!("[Init] Conversation globale créée");
+    }
+
     // Support E2E_SETUP=1 (CI Playwright)
     if std::env::var("E2E_SETUP").as_deref() == Ok("1") {
         // ============================================================
