@@ -37,7 +37,7 @@
   }
 
   function selectGif(gifUrl: string) {
-    newMessage = `\( {newMessage}<img src=" \){gifUrl}" alt="GIF"/>`;
+    newMessage = `${newMessage}<img src="${gifUrl}" alt="GIF"/>`;
     toggleGifs();
   }
 
@@ -72,10 +72,10 @@
 
       let content = '';
       if (file.type.startsWith('image/')) {
-        content = `<img src="\( {data.url}" alt=" \){data.file_name}" class="uploaded-image" />`;
+        content = `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`;
       } else {
         content = `<div class="file-attachment">
-          <a href="\( {data.url}" download=" \){data.file_name}">📎 \( {data.file_name} ( \){formatFileSize(file.size)})</a>
+          <a href="${data.url}" download="${data.file_name}">📎 ${data.file_name} (${formatFileSize(file.size)})</a>
         </div>`;
       }
 
