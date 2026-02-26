@@ -207,3 +207,55 @@ Conséquence directe des bugs 2+3+4 : le message était "envoyé" côté client 
 - ✅ Messages chargés correctement depuis le backend
 - ✅ Test E2E devrait passer entièrement
 - ⚠️  Chiffrement E2E désactivé temporairement (envoi en clair) — à réactiver quand système de clés par utilisateur sera en place
+
+---
+
+## Session 12 — 2026-02-26
+
+### Contexte
+Premier retour utilisateur complet (homeserver Zimaboard 832). Analyse du USER_TEST.md.
+
+### Bugs identifiés via test manuel
+
+| Bug | Source | Gravité |
+|---|---|---|
+| Lien invitation `token=undefined` | Backend retourne `invite_link`, frontend lit `data.token` | 🔴 |
+| Bouton "Copier" lien invite non fonctionnel | Pas de feedback + crash silencieux HTTP | 🔴 |
+| Thème ne change pas | CSS utilise `.theme-X` (classe) mais code applique `data-theme=X` (attribut) | 🔴 |
+| Mise à jour profil → "Route API introuvable" | Route `POST /api/user/update` manquante | 🔴 |
+| Création événement → "Route API introuvable" | Route `GET|POST /api/events` manquante | 🔴 |
+| Upload fichier → FK constraint failed | Conversation `default_global` non créée (session 11 non déployé) | 🔴 |
+| Menu incomplet (manque Chess, Polls) | navItems trop court dans layout | 🟡 |
+| sendGif URL incorrecte | `/api/messages` au lieu de `/api/conversations/{id}/messages` | 🟡 |
+| Chess pas de refresh temps réel | WebSocket côté client non abonné aux coups adverses | 🟡 |
+
+### Corrections apportées
+
+#### Frontend
+- **`admin/+page.svelte`** : extraction du token depuis `data.invite_link` + bouton Copier avec fallback `prompt()`
+- **`settings/+page.svelte`** : `applyTheme()` applique maintenant la classe `.theme-X` sur `<body>` en plus de `data-theme`
+- **`+layout.svelte`** : ajout de Chess (♟️) et Polls (📊) dans navItems
+- **`chatStore.svelte.ts`** : `sendGif` corrige URL → `/api/conversations/${id}/messages`
+
+#### Backend — nouvelles routes
+- **`db.rs`** : handlers `update_user_profile`, `get_events`, `create_event`, `delete_event`
+- **`main.rs`** : routes `POST /api/user/update`, `GET|POST /api/events`, `DELETE /api/events/{id}`
+- **`migrations/001_initial.sql`** : table `events` ajoutée
+
+### Fichiers modifiés
+- `frontend/src/routes/admin/+page.svelte`
+- `frontend/src/routes/settings/+page.svelte`
+- `frontend/src/routes/+layout.svelte`
+- `frontend/src/lib/chatStore.svelte.ts`
+- `backend/src/db.rs`
+- `backend/src/main.rs`
+- `backend/migrations/001_initial.sql`
+- `.claude/USER_TEST.md` (template de test structuré)
+
+### Ce qui reste à faire
+- [ ] Chess temps réel : le WS côté client doit s'abonner aux coups adverses
+- [ ] Polls : assignation d'utilisateurs aux sondages
+- [ ] Chat : liste des utilisateurs connectés
+- [ ] Page Aide : mise à jour du contenu
+- [ ] Mobile : corrections des débordements CSS
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
