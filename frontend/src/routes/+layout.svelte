@@ -86,13 +86,13 @@
         appError = 'Impossible de vérifier votre session. Réessayez.';
       }
     } finally {
-      setTimeout(() => { loading = false; }, 800);
+      loading = false;
     }
   });
 </script>
 
 {#if loading || !cryptoInitialized}
-  <div class="loading-screen">
+  <div class="loading-screen" data-testid="loading-screen">
     <div class="loading-spinner"></div>
     {#if !cryptoInitialized}
       <p>Initialisation de la sécurité...</p>
