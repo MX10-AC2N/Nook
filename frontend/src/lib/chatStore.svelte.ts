@@ -225,7 +225,7 @@ export async function sendGif(
       media_url: gifUrl,
     };
 
-    const response = await fetch('/api/messages', {
+    const response = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
