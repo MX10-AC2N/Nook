@@ -291,6 +291,7 @@ class ChessStore {
     }
   }
 
+  // Charge la partie ET (re)connecte le WebSocket — appel initial uniquement
   async loadGame(gameId: string): Promise<void> {
     this.loading = true;
     this.error = null;
@@ -301,11 +302,29 @@ class ChessStore {
       if (!data.success) throw new Error(data.message);
       this.currentGame = data.game;
       this.determineMySlot();
-      this.connectWebSocket(gameId);
+      this.connectWebSocket(gameId); // connecte le WS (guard interne évite les doublons)
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
     } finally {
       this.loading = false;
+    }
+  }
+
+  // Rafraîchit uniquement le board depuis le serveur — appelé depuis le WS onmessage
+  // Ne rappelle PAS connectWebSocket pour éviter toute boucle infinie
+  private async refreshBoard(gameId: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success) return;
+      this.currentGame = data.game;
+      this.determineMySlot();
+      // Annuler la sélection en cours (le coup adverse a peut-être pris notre pièce)
+      this.selectedPiece = null;
+      this.validMoves = [];
+    } catch {
+      // Silencieux — le refresh échoue gracieusement
     }
   }
 
@@ -431,20 +450,12 @@ class ChessStore {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'chess_move' && msg.game_id === gameId) {
-          // Mettre à jour l'état de la partie depuis le message
-          if (this.currentGame) {
-            this.currentGame = {
-              ...this.currentGame,
-              current_turn: msg.next_turn,
-              status: msg.status,
-              winner_id: msg.winner_id,
-              eliminated: msg.eliminated ?? this.currentGame.eliminated,
-              updated_at: msg.timestamp,
-            };
-          }
+          // Recharger la partie depuis le serveur pour obtenir le board_state à jour.
+          // On évite d'appliquer le coup localement pour rester en sync avec la source de vérité.
+          this.refreshBoard(gameId).catch(console.error);
         }
       } catch {
-        // message non-JSON (normal pour d'autres types de messages)
+        // message non-JSON (normal pour d'autres types de messages WebSocket)
       }
     };
 
