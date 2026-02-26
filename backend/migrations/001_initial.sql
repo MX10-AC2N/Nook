@@ -194,3 +194,19 @@ CREATE TABLE IF NOT EXISTS chess_invitations (
 
 CREATE INDEX IF NOT EXISTS idx_chess_inv_user ON chess_invitations(invited_user_id, status);
 CREATE INDEX IF NOT EXISTS idx_chess_inv_game ON chess_invitations(game_id);
+
+-- TABLE events (calendrier)
+-- Ajoutée en Session 12
+CREATE TABLE IF NOT EXISTS events (
+    id          TEXT    NOT NULL PRIMARY KEY,
+    title       TEXT    NOT NULL,
+    date        TEXT    NOT NULL,            -- format ISO: "2026-02-26"
+    time        TEXT,                        -- format "HH:MM" optionnel
+    description TEXT,
+    created_by  TEXT    NOT NULL,
+    created_at  INTEGER NOT NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_date       ON events(date ASC);
+CREATE INDEX IF NOT EXISTS idx_events_created_by ON events(created_by);
