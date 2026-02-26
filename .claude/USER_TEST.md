@@ -26,12 +26,14 @@ Mais le bouton pour 'copier' le lien ne fonctionne pas.
 
   - Autre retour d'info plus général.
 Le menu n'est pas complet, il manque plein d'accès on y trouve seulement :
+```
 Menu Nook
 💬 Chat
 📅 Calendrier
 👑 Administration
 ⚙️ Paramètres
 ❓ Aide
+```
 Le Chat ne permet pas de voir les utilisateurs connectés, => impossible de lancé une conversation 🤦
 la page Aide n'est pas a jour du tout..!
 
