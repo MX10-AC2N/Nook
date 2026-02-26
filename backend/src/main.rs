@@ -10,7 +10,7 @@ use axum::{
     },
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use bytes::Bytes;
@@ -484,6 +484,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
+        .route("/user/update", post(db::update_user_profile))
+        .route("/events", get(db::get_events))
+        .route("/events", post(db::create_event))
+        .route("/events/{id}", delete(db::delete_event))
         .merge(chess::chess_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
