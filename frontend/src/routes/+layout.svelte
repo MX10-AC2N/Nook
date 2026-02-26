@@ -16,11 +16,13 @@
   let menuElement     = $state<HTMLElement | undefined>(undefined);
 
   const navItems = [
-    { path: '/chat',     label: '💬 Chat',          requiresAuth: true  },
-    { path: '/calendar', label: '📅 Calendrier',     requiresAuth: true  },
-    { path: '/admin',    label: '👑 Administration',  requiresAuth: true, requiresAdmin: true },
-    { path: '/settings', label: '⚙️ Paramètres',     requiresAuth: true  },
-    { path: '/help',     label: '❓ Aide',            requiresAuth: false },
+    { path: '/chat',      label: '💬 Chat',           requiresAuth: true  },
+    { path: '/chess',     label: '♟️ Échecs',          requiresAuth: true  },
+    { path: '/calendar',  label: '📅 Calendrier',      requiresAuth: true  },
+    { path: '/polls',     label: '📊 Sondages',        requiresAuth: true  },
+    { path: '/admin',     label: '👑 Administration',   requiresAuth: true, requiresAdmin: true },
+    { path: '/settings',  label: '⚙️ Paramètres',      requiresAuth: true  },
+    { path: '/help',      label: '❓ Aide',             requiresAuth: false },
   ];
 
   function toggleMenu() {
