@@ -50,6 +50,14 @@
 
   function applyTheme() {
     if (typeof document !== 'undefined') {
+      const body = document.body;
+      // Retirer toutes les classes de thème existantes
+      body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse');
+      // Appliquer le nouveau thème (classe CSS)
+      body.classList.add(`theme-${selectedTheme}`);
+      // Mode sombre
+      body.classList.toggle('dark-mode', darkMode);
+      // Conserver aussi data-theme pour compatibilité future
       document.documentElement.setAttribute('data-theme', selectedTheme);
       document.documentElement.setAttribute('data-dark',  darkMode.toString());
       localStorage.setItem('nook-theme',     selectedTheme);
