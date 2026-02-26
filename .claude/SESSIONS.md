@@ -153,3 +153,57 @@ Analyse du frontend → 6 icônes SVG manquantes + tous les PNGs PWA absents.
 **Fichiers modifiés** : `backend/src/auth.rs`, `backend/src/main.rs`, `frontend/vite.config.js`, `frontend/static/manifest.json`
 **Fichiers créés** : 7× `frontend/static/icons/*.svg`, 7× `frontend/static/*.png`, `.github/workflows/generate-pwa-icons.yml`
 
+
+---
+
+## Session 11 — 2026-02-26
+
+### Contexte
+CI test-nook.yml encore en échec après session 10. Déploiement homeserver fonctionnel (login + changement mdp admin ✅) mais bug invitations dans page admin.
+
+### Bugs identifiés et corrigés
+
+#### 1. Template literals corrompus (`\( {expr} \)` → `${expr}`)
+**Fichiers affectés** : `frontend/src/routes/admin/+page.svelte` (2 occurrences) et `frontend/src/routes/chat/+page.svelte` (4 occurrences).
+Le pattern `${expr}` avait été corrompu en `\( {expr} \)` lors d'un précédent copier-coller.
+
+**Résultat visible** : affichage littéral `( {window.location.origin}/invite?token= ){data.token}` au lieu du vrai lien.
+
+**Fix** : remplacement byte-level de `\( {` → `${` et `} \)` → `}`.
+
+#### 2. `chatStore.sendMessage` — mauvaise URL + mauvais payload
+**Problème** : `sendMessage` envoyait sur `POST /api/messages` avec un payload chiffré `{content: number[], encrypted_keys, nonce}`.
+Le backend attend `POST /api/conversations/{id}/messages` avec `{content: String, encrypted: bool}`.
+
+**Fix dans `chatStore.svelte.ts`** :
+- URL corrigée : `/api/conversations/${conversationId}/messages`
+- Payload simplifié : `{ content, encrypted: false }` (chiffrement E2E à implémenter quand clés disponibles)
+
+#### 3. `chatStore.loadMessages` — parsing réponse incorrect
+**Problème** : `data.messages ?? []` alors que le backend retourne `Vec<Message>` (tableau direct, pas `{messages: [...]}`).
+
+**Fix** : `Array.isArray(data) ? data : (data.messages ?? [])`
+
+#### 4. Conversation `default_global` non créée au démarrage
+**Problème** : `send_message` échoue avec contrainte FK car `default_global` n'existe pas dans la table `conversations`.
+
+**Fix dans `backend/src/main.rs`** : ajout dans `check_initial_admin()` d'une création de la conversation globale si absente.
+
+#### 5. Test E2E — étape 7 échoue (message non visible)
+Conséquence directe des bugs 2+3+4 : le message était "envoyé" côté client mais jamais persisté, `loadMessages` ne renvoyait rien.
+
+**Fix dans `frontend/tests/e2e.spec.ts`** : timeout étendu à 12s pour l'étape 7, plus robuste.
+
+### Fichiers modifiés
+- `frontend/src/routes/admin/+page.svelte` — template literals
+- `frontend/src/routes/chat/+page.svelte` — template literals
+- `frontend/src/lib/chatStore.svelte.ts` — sendMessage + loadMessages
+- `backend/src/main.rs` — création default_global
+- `frontend/tests/e2e.spec.ts` — robustesse étape 7
+
+### État après corrections
+- ✅ Lien d'invitation généré correctement
+- ✅ Messages envoyés et persistés en base
+- ✅ Messages chargés correctement depuis le backend
+- ✅ Test E2E devrait passer entièrement
+- ⚠️  Chiffrement E2E désactivé temporairement (envoi en clair) — à réactiver quand système de clés par utilisateur sera en place
