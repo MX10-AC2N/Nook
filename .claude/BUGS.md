@@ -179,3 +179,37 @@ Messages envoyés en clair (`encrypted: false`). À réactiver quand :
 1. Clés Ed25519 générées et stockées par utilisateur à l'inscription
 2. `recipientPublicKeys` disponibles dans la page chat
 3. `encryptForRecipients` testé avec des vraies clés
+
+---
+
+## Bugs Session 12 — Retour test manuel homeserver
+
+### 🔴 data.token undefined dans generateInvite (RÉSOLU)
+Backend `/api/invites` (POST) retourne `{success, message, invite_link: "/invite?token=UUID"}`.
+Frontend lisait `data.token` (undefined). Fix: extraction depuis `data.invite_link`.
+
+### 🔴 Thème non fonctionnel (RÉSOLU)
+CSS: `.theme-jardin-secret { ... }` (sélecteur de classe)
+Code: `documentElement.setAttribute('data-theme', 'jardin-secret')` (attribut HTML)
+Ces deux mécanismes ne se correspondent pas. Fix: `body.classList.add('theme-X')`.
+
+### 🔴 Route /api/user/update manquante (RÉSOLU)
+Ajouté dans `db.rs` + `main.rs`. Update du champ `name` (et `email` optionnel).
+
+### 🔴 Routes /api/events manquantes (RÉSOLU)
+Table `events` ajoutée en migration. GET/POST/DELETE implémentés dans `db.rs`.
+
+### 🟡 sendGif mauvaise URL (RÉSOLU)
+`/api/messages` → `/api/conversations/${conversationId}/messages`
+
+### 🟡 Menu incomplet (RÉSOLU)
+Chess et Polls ajoutés dans navItems du layout.
+
+### 🟡 Chess pas de rafraîchissement temps réel (EN COURS)
+Le WS backend broadcast bien les coups via `webrtc_state.broadcasts`.
+Le frontend chess `onmessage` reçoit les events mais ne recharge pas le plateau.
+À investiguer dans `chessStore.svelte.ts` → handler onmessage.
+
+### ⚠️ Upload FK constraint (DÉPEND SESSION 11)
+Nécessite que la conversation `default_global` existe.
+Fix dans `main.rs::check_initial_admin()` fait en session 11 — vérifier déployé.
