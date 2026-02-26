@@ -23,6 +23,8 @@ Mais le bouton pour 'copier' le lien ne fonctionne pas.
   - Test de Chess :
       - Création d'une partie => OK mais il manque la possibilité d'invités les autres joueurs
       - Connexion entre 2 joueurs => OK, j'ai testé une partie, cela fonctionne le seul problème était le rafraîchissement de plateau de jeux a chaque coup. Si je joue les blancs, il fallait que les noirs actualise la page web pour voir le déplacement malgré que la page indique déjà bien 'a vous de joué'
+  - Test de création d'un événement dans calendrier => Échec avec retour => Route API introuvable
+  - Test de la page 'polls' qui n'est pas accessible depuis le menu, mais accessible si j'utilise http://192.168.1.192:6300/polls => création du sondage a l'air de fonctionné mais impossible de marqué les utilisateurs concerné par ce sondage..
 
   - Autre retour d'info plus général.
 Le menu n'est pas complet, il manque plein d'accès on y trouve seulement :
