@@ -15,7 +15,7 @@ on:
       keep:
         description: "Versions taguées à conserver (défaut : 5)"
         required: false
-        default: "5"
+        default: "8"
       dry_run:
         description: "Simulation — liste sans supprimer"
         type: boolean
