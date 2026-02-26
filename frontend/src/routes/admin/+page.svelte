@@ -118,9 +118,17 @@
       });
       if (response.ok) {
         const data = await response.json();
-        inviteLink = `${window.location.origin}/invite?token=${data.token}`;
-        await navigator.clipboard.writeText(inviteLink);
-        alert('✅ Lien copié dans le presse-papiers !');
+        // Le backend retourne invite_link: "/invite?token=UUID"
+        // On extrait le token depuis invite_link pour construire l'URL complète
+        const inviteToken = data.invite_link?.split('token=')[1] ?? data.token;
+        inviteLink = `${window.location.origin}/invite?token=${inviteToken}`;
+        try {
+          await navigator.clipboard.writeText(inviteLink);
+          alert('✅ Lien copié dans le presse-papiers !');
+        } catch {
+          // clipboard API peut échouer sur HTTP non-localhost
+          console.warn('Clipboard non disponible, lien affiché ci-dessous');
+        }
         await loadInvites();
       } else {
         alert('Erreur lors de la génération');
@@ -277,9 +285,15 @@
                     <td class="status">{getStatus(invite)}</td>
                     <td class="link">
                       <code>{invite.token.slice(0, 12)}…</code>
-                      <button onclick={() => navigator.clipboard.writeText(
-                        `${window.location.origin}/invite?token=${invite.token}`
-                      )}>Copier</button>
+                      <button onclick={async () => {
+                        const link = `${window.location.origin}/invite?token=${invite.token}`;
+                        try {
+                          await navigator.clipboard.writeText(link);
+                          alert('✅ Lien copié !');
+                        } catch {
+                          prompt('Copiez ce lien :', link);
+                        }
+                      }}>Copier</button>
                     </td>
                     <td>
                       <button class="delete-btn" onclick={() => deleteInvite(invite.id)}
