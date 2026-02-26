@@ -147,3 +147,35 @@ LAN ↔ WAN (WebRTC) :
   ICE candidates échangés via le WebSocket → connexion P2P directe
   Si P2P impossible : TURN server requis (à implémenter)
 ```
+
+---
+
+## Bugs Session 11 — Template Literals + Chat
+
+### 🔴 Template literals corrompus (RÉSOLU)
+**Pattern** : `${expr}` → `\( {expr} \)` (corruption lors copier-coller entre sessions)
+**Impact** : liens d'invitation affichés en clair, GIFs/uploads cassés dans le chat
+**Fix** : remplacement byte-level dans admin/+page.svelte et chat/+page.svelte
+
+### 🔴 sendMessage mauvaise URL (RÉSOLU)
+**Avant** : `POST /api/messages`  
+**Après** : `POST /api/conversations/${conversationId}/messages`
+
+### 🔴 sendMessage mauvais payload (RÉSOLU)
+**Avant** : payload chiffré `{content: number[], encrypted_keys, nonce, ...}`  
+**Après** : `{content: string, encrypted: false}`  
+**Note** : chiffrement E2E à réactiver quand clés par-utilisateur implémentées
+
+### 🔴 loadMessages parsing incorrect (RÉSOLU)
+**Avant** : `data.messages ?? []` → toujours vide (backend retourne tableau direct)  
+**Après** : `Array.isArray(data) ? data : (data.messages ?? [])`
+
+### 🔴 Conversation default_global manquante (RÉSOLU)
+**Symptôme** : POST /api/conversations/default_global/messages → 500 (FK constraint)  
+**Fix** : création dans `check_initial_admin()` au démarrage si absente
+
+### ⚠️ Chiffrement E2E désactivé temporairement
+Messages envoyés en clair (`encrypted: false`). À réactiver quand :
+1. Clés Ed25519 générées et stockées par utilisateur à l'inscription
+2. `recipientPublicKeys` disponibles dans la page chat
+3. `encryptForRecipients` testé avec des vraies clés
