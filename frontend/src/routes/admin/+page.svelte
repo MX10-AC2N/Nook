@@ -118,7 +118,7 @@
       });
       if (response.ok) {
         const data = await response.json();
-        inviteLink = `\( {window.location.origin}/invite?token= \){data.token}`;
+        inviteLink = `${window.location.origin}/invite?token=${data.token}`;
         await navigator.clipboard.writeText(inviteLink);
         alert('✅ Lien copié dans le presse-papiers !');
         await loadInvites();
@@ -278,7 +278,7 @@
                     <td class="link">
                       <code>{invite.token.slice(0, 12)}…</code>
                       <button onclick={() => navigator.clipboard.writeText(
-                        `\( {window.location.origin}/invite?token= \){invite.token}`
+                        `${window.location.origin}/invite?token=${invite.token}`
                       )}>Copier</button>
                     </td>
                     <td>
