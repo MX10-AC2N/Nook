@@ -158,7 +158,8 @@ export async function loadMessages(conversationId: string): Promise<void> {
     if (!response.ok) throw new Error('Impossible de charger les messages');
 
     const data = await response.json();
-    setMessages(data.messages ?? []);
+    // Le backend retourne directement Vec<Message> (tableau), pas { messages: [...] }
+    setMessages(Array.isArray(data) ? data : (data.messages ?? []));
     setConnectionError(null);
   } catch (err) {
     setConnectionError('Erreur de chargement des messages');
@@ -173,23 +174,14 @@ export async function sendMessage(
   senderPrivateKey: Uint8Array
 ): Promise<void> {
   try {
-    const encrypted = await encryptForRecipients(content, recipientPublicKeys, senderPrivateKey);
-
+    // Envoi en clair pour l'instant — le chiffrement E2E sera activé
+    // quand les clés des destinataires seront disponibles.
     const messagePayload = {
-      conversation_id: conversationId,
-      content: Array.from(encrypted.encryptedContent),
-      encrypted_keys: Object.fromEntries(
-        Object.entries(encrypted.encryptedKeys).map(([userId, key]) => [
-          userId,
-          Array.from(key),
-        ])
-      ),
-      nonce: Array.from(encrypted.nonce),
-      media_type: null,
-      media_url: null,
+      content,
+      encrypted: false,
     };
 
-    const response = await fetch('/api/messages', {
+    const response = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
