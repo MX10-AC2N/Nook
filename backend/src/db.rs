@@ -270,3 +270,190 @@ pub async fn get_conversation_messages(
 
     Ok(Json(messages))
 }
+
+// =============================================================================
+// PROFIL UTILISATEUR — update_user_profile
+// Route : POST /api/user/update
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateProfileRequest {
+    pub name: Option<String>,
+    pub email: Option<String>,
+}
+
+pub async fn update_user_profile(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Json(req): Json<UpdateProfileRequest>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    // Mettre à jour uniquement les champs fournis
+    if let Some(ref name) = req.name {
+        if name.trim().is_empty() {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": "Le nom ne peut pas être vide" })),
+            );
+        }
+        let result = sqlx::query("UPDATE users SET name = ? WHERE id = ?")
+            .bind(name.trim())
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+
+        if result.is_err() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur lors de la mise à jour" })),
+            );
+        }
+    }
+
+    if let Some(ref email) = req.email {
+        let result = sqlx::query("UPDATE users SET email = ? WHERE id = ?")
+            .bind(email.trim())
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+
+        if result.is_err() {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur lors de la mise à jour de l'email" })),
+            );
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(json!({ "success": true, "message": "Profil mis à jour avec succès" })),
+    )
+}
+
+// =============================================================================
+// ÉVÉNEMENTS — get_events / create_event / delete_event
+// Routes : GET|POST /api/events, DELETE /api/events/{id}
+// =============================================================================
+
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Event {
+    pub id: String,
+    pub title: String,
+    pub date: String,
+    pub time: Option<String>,
+    pub description: Option<String>,
+    pub created_by: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEventRequest {
+    pub title: String,
+    pub date: String,
+    pub time: Option<String>,
+    pub description: Option<String>,
+}
+
+pub async fn get_events(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(_user)): Extension<CurrentUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let events = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events ORDER BY date ASC, time ASC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        eprintln!("[Events] Erreur GET: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(serde_json::json!({ "events": events })))
+}
+
+pub async fn create_event(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Json(req): Json<CreateEventRequest>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    if req.title.trim().is_empty() || req.date.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Titre et date requis" })),
+        );
+    }
+
+    let id = Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().timestamp();
+
+    let result = sqlx::query(
+        "INSERT INTO events (id, title, date, time, description, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&id)
+    .bind(req.title.trim())
+    .bind(req.date.trim())
+    .bind(&req.time)
+    .bind(&req.description)
+    .bind(&user.id)
+    .bind(now)
+    .execute(&state.db)
+    .await;
+
+    match result {
+        Ok(_) => (
+            StatusCode::OK,
+            Json(json!({ "success": true, "message": "Événement créé", "id": id })),
+        ),
+        Err(e) => {
+            eprintln!("[Events] Erreur INSERT: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur lors de la création" })),
+            )
+        }
+    }
+}
+
+pub async fn delete_event(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    // Seul le créateur ou un admin peut supprimer
+    let event: Option<(String,)> = sqlx::query_as(
+        "SELECT created_by FROM events WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    match event {
+        None => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Événement introuvable" }))),
+        Some((created_by,)) if created_by != user.id && user.role != "admin" => {
+            return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Accès refusé" })));
+        }
+        _ => {}
+    }
+
+    let result = sqlx::query("DELETE FROM events WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "message": "Erreur suppression" }))),
+    }
+}
