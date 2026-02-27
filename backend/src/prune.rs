@@ -1,6 +1,9 @@
 // backend/src/prune.rs
 // Nettoyage périodique des données anciennes (> 7 jours)
 // Session 9 — correction conversation_members → conversation_participants
+// Session 10 — FIX: ne pas supprimer les conversations de groupe (is_group = 1)
+//               Cause : default_global (groupe, 0 messages au boot) était supprimée
+//               par le prune 10s après sa création → POST /messages retournait 404
 
 use crate::db::Upload;
 use sqlx::{Error, SqlitePool};
@@ -66,19 +69,24 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     );
 
     // ─── 3. Conversations vides ───────────────────────────────────────────
+    // ⚠️  IMPORTANT : on ne supprime QUE les conversations directes (is_group = 0).
+    // Les groupes (is_group = 1, ex: default_global) sont créés intentionnellement
+    // par un admin et peuvent légitimement être vides au démarrage ou entre deux
+    // messages. Les supprimer causait un 404 sur POST /messages en CI (bug session 10).
     let deleted_convos = sqlx::query(
         r#"
         DELETE FROM conversations
-        WHERE NOT EXISTS (
+        WHERE is_group = 0
+          AND NOT EXISTS (
             SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id
-        )
+          )
         "#,
     )
     .execute(pool)
     .await?
     .rows_affected();
 
-    tracing::info!(count = deleted_convos, "Prune : conversations vides supprimées");
+    tracing::info!(count = deleted_convos, "Prune : conversations directes vides supprimées");
 
     // ─── 4. Participants orphelins ────────────────────────────────────────
     // FIX session 9 : conversation_members → conversation_participants
