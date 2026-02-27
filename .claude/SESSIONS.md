@@ -259,3 +259,40 @@ Premier retour utilisateur complet (homeserver Zimaboard 832). Analyse du USER_T
 - [ ] Page Aide : mise à jour du contenu
 - [ ] Mobile : corrections des débordements CSS
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
+
+## Session 13 — 2026-02-27
+
+### Contexte
+Analyse du workflow CI `test-nook` en échec (run #22477567766).
+
+### Diagnostic
+- **Backend Rust** : ✅ `cargo check`, `cargo test`, `cargo clippy` — tous OK
+- **Frontend Build** : ✅ `npm run build` — OK, artifact uploadé (83 fichiers, 522 kB)
+- **Integration Docker** : ❌ Test E2E Playwright échoue
+
+### Bug identifié et corrigé — [R14]
+
+**Symptôme** : `POST /api/conversations/default_global/messages` → HTTP 404, 3 tentatives, toutes identiques.
+
+**Analyse des logs** :
+```
+✓ Conversation globale 'default_global' créée         ← boot OK
+[prune] conversations vides supprimées count=1         ← 10s après = DESTRUCTION
+[send_message] Conversation 'default_global' introuvable   ← 404
+```
+
+**Cause racine** : Le job prune (`prune.rs`) se lance 10 secondes après le démarrage du serveur. Sa requête DELETE supprimait **toutes** les conversations sans messages, y compris `default_global` (groupe système, vide au boot).
+
+**Fix** : `backend/src/prune.rs` — ajout de `AND is_group = 0` dans le DELETE conversations vides. Les groupes ne sont jamais supprimés automatiquement.
+
+### Fichier modifié
+- `backend/src/prune.rs`
+
+### Ce qui reste à faire
+- [ ] Chess temps réel : le WS côté client doit s'abonner aux coups adverses
+- [ ] Polls : assignation d'utilisateurs aux sondages
+- [ ] Chat : liste des utilisateurs connectés
+- [ ] Page Aide : mise à jour du contenu
+- [ ] Mobile : corrections des débordements CSS
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+
