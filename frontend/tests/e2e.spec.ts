@@ -1,7 +1,7 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 16
+// Suite E2E complète — Session 17
 // Corrections :
-//   - loginAsAdmin() : gère le flow complet needs_password_change
+//   - loginAsAdmin() : clearCookies() avant login pour éviter $effect de redirection (session partagée entre tests Admin)
 //     login → détecte /change-password → remplit le formulaire → attend /admin
 //   - Les tests Admin UI sont désormais pleinement exécutés (plus de skip)
 //   - Chess page : locator('.btn-create, h1') → strict mode violation (3 éléments)
@@ -17,7 +17,7 @@ const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 // ─────────────────────────────────────────────
 
 /**
- * Login utilisateur standard (e2e_ci) → attend /chat
+ * Login utilisateur standard → attend /chat
  */
 async function loginAs(page: Page, username: string, password: string) {
   await page.goto('/login');
@@ -30,50 +30,59 @@ async function loginAs(page: Page, username: string, password: string) {
 /**
  * Login admin avec gestion du changement de mot de passe obligatoire.
  *
- * Flow :
- *   1. POST /login → redirigé vers /change-password si needs_password_change=1
- *   2. Remplit #new-password + #confirm-password avec ADMIN_NEW_PASSWORD
- *   3. Soumet → attend "Redirection en cours…" puis /admin (timeout 5s après succès)
- *   4. Lors des prochains appels (mdp déjà changé) → arrive directement sur /admin
+ * Problème identifié session 16 : les tests Admin partagent le même browser context
+ * (workers:1, fullyParallel:true). Après le 1er test Admin, le cookie de session admin
+ * est actif → page.goto('/login') déclenche le $effect() de redirection avant que
+ * les inputs soient interactifs → #username est disabled/détaché → timeout.
  *
- * Idempotent : si le mdp a déjà été changé lors d'un retry, loginAsAdmin
- * tente d'abord avec ADMIN_NEW_PASSWORD, puis avec le mdp initial si ça échoue.
+ * Fix : clearCookies() avant chaque appel pour repartir d'un état propre,
+ * puis goto('/login') pour avoir les inputs disponibles sans redirection parasite.
+ *
+ * Flow idempotent :
+ *   1. Clear cookies → goto /login → inputs disponibles
+ *   2. Essai avec ADMIN_NEW_PASSWORD (mdp déjà changé lors d'un test précédent)
+ *   3. Si /login reste → fallback sur 'changeme2026' (premier passage)
+ *   4. Si /change-password → remplit formulaire → attend /admin
+ *   5. Vérification finale sur /admin
  */
 async function loginAsAdmin(page: Page) {
-  // Essai 1 : avec le nouveau mdp (cas retry ou 2ème test dans la suite)
+  // Effacer tous les cookies pour éviter la redirection automatique due au $effect()
+  // du store d'auth qui détecte isAuthenticated et redirige avant que les inputs soient prêts
+  await page.context().clearCookies();
+
   await page.goto('/login');
+  // Attendre que la page soit stable et les inputs activés (pas de redirection en cours)
+  await expect(page.locator('#username')).toBeEnabled({ timeout: 8_000 });
+
+  // Essai 1 : avec le nouveau mdp (mdp déjà changé dans un test précédent / retry)
   await page.fill('#username', 'admin');
   await page.fill('#password', ADMIN_NEW_PASSWORD);
   await page.getByRole('button', { name: 'Se connecter' }).click();
-
-  // Attendre la stabilisation (chat, admin, change-password, ou login si mdp incorrect)
   await page.waitForURL(/\/(chat|admin|change-password|login)/, { timeout: 12_000 });
 
-  // Si on est encore sur /login → le nouveau mdp n'est pas encore actif → utiliser l'ancien
+  // Si retour sur /login → ADMIN_NEW_PASSWORD inconnu → utiliser le mdp initial
   if (page.url().includes('/login')) {
+    await expect(page.locator('#username')).toBeEnabled({ timeout: 5_000 });
     await page.fill('#username', 'admin');
     await page.fill('#password', 'changeme2026');
     await page.getByRole('button', { name: 'Se connecter' }).click();
     await page.waitForURL(/\/(change-password|admin|chat)/, { timeout: 12_000 });
   }
 
-  // Si on est sur /change-password → effectuer le changement obligatoire
+  // Si /change-password → effectuer le changement de mot de passe obligatoire
   if (page.url().includes('/change-password')) {
     await page.fill('#new-password', ADMIN_NEW_PASSWORD);
     await page.fill('#confirm-password', ADMIN_NEW_PASSWORD);
     await page.getByRole('button', { name: /D.finir le mot de passe|Changer le mot de passe/i }).click();
-
-    // Attendre le message de succès
     await expect(page.locator('.alert.success')).toBeVisible({ timeout: 8_000 });
-    console.log('🔐 Changement de mot de passe admin effectué → attente redirection /admin');
-
+    console.log('🔐 Changement de mot de passe admin effectué');
     // La page fait setTimeout(2000) puis goto('/admin')
     await page.waitForURL(/\/admin/, { timeout: 10_000 });
   }
 
-  // Vérification finale : on doit être sur /admin
+  // Vérification finale
   await expect(page).toHaveURL(/\/admin/, { timeout: 8_000 });
-  console.log('✅ Admin connecté et sur /admin');
+  console.log('✅ Admin connecté sur /admin');
 }
 
 async function waitForAppReady(page: Page) {
