@@ -15,11 +15,11 @@ test('Login → Chat → Envoi message', async ({ page }) => {
   await expect(page).toHaveURL(/\/chat/, { timeout: 15_000 });
   console.log('✅ Redirection vers /chat OK');
 
-  // 3. Attendre que le spinner de chargement du layout disparaisse
+  // 3. Attendre que le spinner disparaisse
   await expect(page.locator('.loading-screen')).not.toBeVisible({ timeout: 15_000 });
   console.log('✅ Loading screen disparu');
 
-  // 4. Attendre que la sidebar soit visible
+  // 4. Sidebar visible
   await expect(
     page.locator('.conversation-item').first()
   ).toBeVisible({ timeout: 10_000 });
@@ -30,20 +30,30 @@ test('Login → Chat → Envoi message', async ({ page }) => {
   ).toHaveText('Groupe Global', { timeout: 5_000 });
   console.log('✅ Groupe Global trouvé');
 
-  // 5. Le champ de saisie
+  // 5. Input de saisie
   const input = page.locator('input.message-input');
   await expect(input).toBeVisible({ timeout: 10_000 });
   console.log('✅ Input de chat visible');
 
-  // 6. Envoyer le message
+  // 6. Envoyer le message — attendre que la requête POST aboutisse
   await input.fill('Hello from E2E CI test !');
-  await page.getByRole('button', { name: 'Envoyer' }).click();
-  console.log('📤 Message envoyé');
 
-  // 7. Attendre que le message apparaisse (loadMessages est async après envoi)
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      res => res.url().includes('/api/conversations/') && res.url().includes('/messages') && res.request().method() === 'POST',
+      { timeout: 10_000 }
+    ),
+    page.getByRole('button', { name: 'Envoyer' }).click(),
+  ]);
+
+  expect(response.status()).toBe(200);
+  console.log(`📤 POST /messages → HTTP ${response.status()}`);
+
+  // 7. Le message doit apparaître dans le DOM
+  // loadMessages() est appelé après sendMessage — on attend le rechargement
   await expect(
     page.locator('.message-content').filter({ hasText: 'Hello from E2E CI test !' })
-  ).toBeVisible({ timeout: 12_000 });
+  ).toBeVisible({ timeout: 15_000 });
 
-  console.log('🎉 E2E Test réussi : Login → Chat → Message envoyé !');
+  console.log('🎉 E2E Test réussi : Login → Chat → Message envoyé et affiché !');
 });
