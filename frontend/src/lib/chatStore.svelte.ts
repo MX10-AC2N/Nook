@@ -57,6 +57,11 @@ export function toggleGifs(): void {
   if (!chatStore.showGifs) chatStore.gifResults = [];
 }
 
+// Alias pour compatibilité avec conversationStore qui l'importe
+export function setConnectionError(err: string | null): void {
+  chatStore.connectionError = err;
+}
+
 export function resetChat(): void {
   chatStore.messages = [];
   chatStore.connectionError = null;
