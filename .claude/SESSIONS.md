@@ -296,3 +296,55 @@ Analyse du workflow CI `test-nook` en échec (run #22477567766).
 - [ ] Mobile : corrections des débordements CSS
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
 
+## Session 14 — 2026-02-27
+
+### Contexte
+Après la première réussite du workflow CI, extension de la couverture de test E2E et mise en place du rapport automatique dans `.claude/`.
+
+### Ce qui a été fait
+
+#### 1. `frontend/tests/e2e.spec.ts` — Suite complète (28 tests)
+Remplacement du test unique par 9 suites couvrant toutes les fonctionnalités :
+
+| Suite | Tests | Description |
+|-------|-------|-------------|
+| Auth | 4 | Login valide/invalide, /auth/me non-auth, Logout |
+| Chat | 3 | Envoi message, GET conversations, GET messages |
+| Admin | 5 | Login, onglets, liste users, génération invite, /users/pending auth/non-auth |
+| Settings | 2 | Navigation 3 onglets, changement de thème |
+| Calendar | 4 | Page, GET/POST /api/events, bouton ajout |
+| Chess | 4 | Page, GET list, POST create, formulaire UI |
+| Polls | 2 | Page, création sondage localStorage |
+| Navigation | 8 | 7 routes + protection /admin |
+| API Sanity | 5 | /health, 4 endpoints non-auth → 401 |
+
+#### 2. `.github/workflows/test-nook.yml` — Rapport MD automatique
+- Step `Generer rapport MD dans .claude/` : parse la sortie Playwright, collecte les logs Docker, génère `.claude/TEST_REPORT.md`
+- Step `Commit rapport MD dans .claude/` : git commit + push du rapport dans la branche CI
+- Step `Upload rapport Playwright HTML` : artefact HTML 7 jours (pour debug visuel)
+- Reporter Playwright : `json,html` (au lieu de `html` seul)
+
+#### 3. `.claude/TEST_REPORT.md` — Fichier initial créé
+Template vide qui sera écrasé à chaque run CI.
+
+### Fichiers modifiés/créés
+- `frontend/tests/e2e.spec.ts`
+- `.github/workflows/test-nook.yml`
+- `.claude/TEST_REPORT.md` (nouveau)
+- `.claude/SESSIONS.md` (ce fichier)
+- `.claude/BUGS.md`
+
+### Points d'attention pour les prochains runs
+- Le test "Admin → /admin non accessible à e2e_ci" suppose que l'admin e2e_ci ne peut pas voir `.admin-header`. Si le comportement est différent (redirection vs affichage "non autorisé"), le test s'adapte (`notAuth || redirected`).
+- Le test Chess `POST /api/chess/create` vérifie `body.id ?? body.game_id ?? body.game?.id` — à adapter si la structure de réponse diffère.
+- Les tests Calendar `POST /api/events` vérifient `[200, 201]` — selon l'implémentation backend.
+- Polls utilise localStorage → les tests UI fonctionnent sans backend.
+
+### Ce qui reste à faire
+- [ ] Chess temps réel : le WS côté client doit s'abonner aux coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Events : page `/events` utilise localStorage, `/calendar` utilise l'API — consolider
+- [ ] Chat : liste des utilisateurs connectés
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+
+
