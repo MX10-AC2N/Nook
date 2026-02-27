@@ -1,148 +1,113 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import {
-    messages,
+    chatStore,
     loadMessages,
     sendMessage,
-    formatTimestamp,
-    chatStore,
-    showGifs,
-    gifResults,
-    gifLoading,
+    sendGif,
     searchGifs,
+    toggleGifs,
+    formatTimestamp,
   } from '$lib/chatStore.svelte.ts';
 
   // -----------------------------------------------------------------
   // États locaux
   // -----------------------------------------------------------------
-  let newMessage = $state('');
-  let conversationId = $state('default_global'); // À rendre dynamique plus tard
-  let chatContainer: HTMLElement;
+  let newMessage     = $state('');
+  let conversationId = $state('default_global');
+  let chatContainer  = $state<HTMLElement | undefined>(undefined);
   let gifSearchQuery = $state('');
-  let fileInput: HTMLInputElement; // ref pour input file caché
+  let fileInput      = $state<HTMLInputElement | undefined>(undefined);
+  let sending        = $state(false);
+
+  // Polling 5s — en attendant le WS chat
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   // -----------------------------------------------------------------
-  // Fonctions utilitaires
+  // Handlers
   // -----------------------------------------------------------------
-  function toggleGifs() {
-    chatStore.toggleGifs();
+  async function handleSendMessage() {
+    if (!newMessage.trim() || sending) return;
+    sending = true;
+    const content = newMessage;
+    newMessage = '';
+    await sendMessage(content, conversationId, [], new Uint8Array());
+    sending = false;
   }
+
+  function handleMessageKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
+  }
+
+  function handleSubmit(e: Event) { e.preventDefault(); handleSendMessage(); }
 
   async function handleSearchGifs() {
-    if (gifSearchQuery.trim()) {
-      await searchGifs(gifSearchQuery);
-    }
+    if (gifSearchQuery.trim()) await searchGifs(gifSearchQuery);
   }
 
-  function selectGif(gifUrl: string) {
-    newMessage = `${newMessage}<img src="${gifUrl}" alt="GIF"/>`;
+  function handleGifKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); handleSearchGifs(); }
+  }
+
+  function handleSelectGif(url: string) {
+    sendGif(url, conversationId, [], new Uint8Array());
     toggleGifs();
   }
 
-  async function handleSendMessage() {
-    if (!newMessage.trim()) return;
-
-    await sendMessage(newMessage, conversationId, [], new Uint8Array());
-    newMessage = '';
-  }
-
-  // --------------------- UPLOAD DE FICHIERS ---------------------
   async function handleFileUpload(event: Event) {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
-
     const file = input.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('conversation_id', conversationId);
-    formData.append('from_user_id', authStore.user?.id || '');
-
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('conversation_id', conversationId);
+    fd.append('from_user_id', authStore.user?.id || '');
     try {
-      const response = await fetch('/api/upload/chat', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-
-      if (!response.ok) throw new Error('Upload échoué');
-
-      const data = await response.json();
-
-      let content = '';
-      if (file.type.startsWith('image/')) {
-        content = `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`;
-      } else {
-        content = `<div class="file-attachment">
-          <a href="${data.url}" download="${data.file_name}">📎 ${data.file_name} (${formatFileSize(file.size)})</a>
-        </div>`;
-      }
-
+      const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
+      if (!res.ok) throw new Error('Upload échoué');
+      const data = await res.json();
+      const content = file.type.startsWith('image/')
+        ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
+        : `<span class="file-attachment">📎 <a href="${data.url}" download="${data.file_name}">${data.file_name}</a></span>`;
       await sendMessage(content, conversationId, [], new Uint8Array());
-
-      // Reset input file
       input.value = '';
     } catch (err) {
-      console.error('[Upload] Erreur :', err);
-      alert('Échec de l\'upload du fichier');
+      console.error('[Upload]', err);
+      alert("Échec de l'upload");
     }
   }
 
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-
-  // --------------------- Autres handlers ---------------------
-  function handleGifKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      handleSearchGifs();
-    }
-  }
-
-  function handleMessageKeydown(event: KeyboardEvent) {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      handleSendMessage();
-    }
-  }
-
-  function handleSubmit(event: Event) {
-    event.preventDefault();
-    handleSendMessage();
-  }
-
-  function isMyMessage(senderId: string): boolean {
-    return authStore.user?.id === senderId;
-  }
+  function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
 
   // -----------------------------------------------------------------
   // Cycle de vie
   // -----------------------------------------------------------------
   onMount(async () => {
-    if (!authStore.isAuthenticated) {
-      goto('/login');
-      return;
-    }
-
+    if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadMessages(conversationId);
+    pollTimer = setInterval(() => loadMessages(conversationId), 5000);
   });
 
+  onDestroy(() => { if (pollTimer) clearInterval(pollTimer); });
+
+  // Auto-scroll quand de nouveaux messages arrivent
   $effect(() => {
-    if (chatContainer && messages.length > 0) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+    const _ = chatStore.messages.length; // dépendance réactive
+    if (chatContainer) {
+      Promise.resolve().then(() => {
+        if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+      });
     }
   });
 </script>
 
-<svelte:head>
-  <title>Chat - Nook</title>
-</svelte:head>
+<svelte:head><title>Chat — Nook</title></svelte:head>
 
 <div class="chat-page">
+
+  <!-- ─── SIDEBAR ─── -->
   <aside class="conversations-sidebar">
     <h2>Conversations</h2>
     <div class="conversation-list">
@@ -150,428 +115,260 @@
         <span class="avatar">👨‍👩‍👧‍👦</span>
         <div class="conversation-info">
           <span class="name">Groupe Global</span>
-          <span class="preview">Bienvenue sur Nook !</span>
+          <span class="preview">Canal familial</span>
         </div>
       </button>
     </div>
   </aside>
 
+  <!-- ─── ZONE CHAT ─── -->
   <main class="chat-area">
+
     <header class="chat-header">
       <h2>👨‍👩‍👧‍👦 Groupe Global</h2>
+      {#if chatStore.connectionError}
+        <span class="conn-error">⚠️ {chatStore.connectionError}</span>
+      {/if}
     </header>
 
+    <!-- Messages — lit chatStore.messages directement ($state réactif) -->
     <div class="messages-container" bind:this={chatContainer}>
-      {#each messages as message (message.id)}
-        <div class="message" class:mine={isMyMessage(message.sender_id)}>
-          <div class="message-sender">{message.sender_name}</div>
-          <div class="message-content">{@html message.content}</div>
-          <div class="message-time">{formatTimestamp(String(message.timestamp))}</div>
-        </div>
-      {/each}
+      {#if chatStore.messages.length === 0}
+        <div class="empty-state">Aucun message — soyez le premier à écrire 👋</div>
+      {:else}
+        {#each chatStore.messages as msg (msg.id)}
+          <div class="message" class:mine={isMyMessage(msg.sender_id)}>
+            {#if !isMyMessage(msg.sender_id)}
+              <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
+            {/if}
+            <div class="message-content">{@html msg.content}</div>
+            <div class="message-time">{formatTimestamp(msg.timestamp)}</div>
+          </div>
+        {/each}
+      {/if}
     </div>
 
-    {#if $showGifs}
+    <!-- GIF panel -->
+    {#if chatStore.showGifs}
       <div class="gif-panel">
         <div class="gif-search">
-          <input
-            type="text"
-            placeholder="Rechercher des GIFs..."
-            bind:value={gifSearchQuery}
-            onkeydown={handleGifKeydown}
-            class="gif-input"
-          />
+          <input type="text" placeholder="Rechercher des GIFs…"
+            bind:value={gifSearchQuery} onkeydown={handleGifKeydown} class="gif-input" />
           <button onclick={handleSearchGifs} class="search-btn">🔍</button>
+          <button onclick={toggleGifs} class="close-btn">✕</button>
         </div>
-
-        {#if $gifLoading}
-          <div class="gif-loading">Chargement…</div>
-        {:else if $gifResults.length > 0}
-          <div class="gif-results">
-            {#each $gifResults as gif}
-              <button class="gif-item" onclick={() => selectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
-                <img src={gif.media?.[0]?.tinygif?.url ?? ''} alt={gif.title} />
+        {#if chatStore.gifLoading}
+          <div class="gif-status">Chargement…</div>
+        {:else if chatStore.gifResults.length > 0}
+          <div class="gif-grid">
+            {#each chatStore.gifResults as gif}
+              <button class="gif-item"
+                onclick={() => handleSelectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
+                <img src={gif.media?.[0]?.tinygif?.url ?? ''} alt={gif.title} loading="lazy" />
               </button>
             {/each}
           </div>
         {:else}
-          <div class="gif-empty">Recherchez des GIFs pour les envoyer</div>
+          <div class="gif-status">Tapez un mot pour chercher des GIFs</div>
         {/if}
       </div>
     {/if}
 
-    <form class="message-input-area" onsubmit={handleSubmit}>
-      <button type="button" class="attach-btn" onclick={() => fileInput.click()}>📎</button>
-      <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none;" />
+    <!-- Zone saisie -->
+    <form class="input-area" onsubmit={handleSubmit}>
+      <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre un fichier">📎</button>
+      <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
 
-      <button type="button" class="gif-toggle" onclick={toggleGifs}>🎬</button>
+      <button type="button" class="icon-btn" onclick={toggleGifs} title="GIF">🎬</button>
 
       <input
         type="text"
+        class="message-input"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
-        class="message-input"
         onkeydown={handleMessageKeydown}
+        disabled={sending}
       />
 
-      <button type="submit" class="send-btn" disabled={!newMessage.trim()}>Envoyer</button>
+      <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
+        {sending ? '…' : 'Envoyer'}
+      </button>
     </form>
+
   </main>
 </div>
 
 <style>
-  /* -----------------------------------------------------------------
-     LAYOUT GLOBAL
-     ----------------------------------------------------------------- */
   .chat-page {
     display: flex;
     height: calc(100vh - 60px);
-    max-height: calc(100vh - 60px);
+    overflow: hidden;
   }
 
-  /* -----------------------------------------------------------------
-     SIDEBAR – CONVERSATIONS
-     ----------------------------------------------------------------- */
+  /* ── Sidebar ── */
   .conversations-sidebar {
-    width: 280px;
-    background-color: var(--bg-secondary, #f1f5f9);
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--bg-secondary, #f1f5f9);
     border-right: 1px solid var(--border, #e2e8f0);
     padding: 1rem;
     overflow-y: auto;
   }
-
   .conversations-sidebar h2 {
-    font-size: 1.25rem;
-    margin-bottom: 1rem;
-    color: var(--text-primary, #1e293b);
-  }
-
-  .conversation-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .conversation-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem;
-    background: none;
-    border: none;
-    border-radius: var(--radius-lg, 0.75rem);
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 0.2s;
-    width: 100%;
-  }
-
-  .conversation-item:hover,
-  .conversation-item.active {
-    background-color: var(--bg-tertiary, #e2e8f0);
-  }
-
-  .avatar {
-    font-size: 1.5rem;
-  }
-
-  .conversation-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .conversation-info .name {
-    display: block;
-    font-weight: 500;
-    color: var(--text-primary, #1e293b);
-  }
-
-  .conversation-info .preview {
-    display: block;
-    font-size: 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
     color: var(--text-secondary, #64748b);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    margin-bottom: .75rem;
   }
-
-  /* -----------------------------------------------------------------
-     ZONE DE CHAT
-     ----------------------------------------------------------------- */
-  .chat-area {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    background-color: var(--bg-primary, #ffffff);
+  .conversation-list { display: flex; flex-direction: column; gap: .25rem; }
+  .conversation-item {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem .75rem;
+    background: none; border: none; border-radius: .5rem;
+    cursor: pointer; text-align: left; width: 100%;
+    transition: background .15s;
   }
-
-  .chat-header {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border, #e2e8f0);
-    background-color: var(--bg-primary, #ffffff);
+  .conversation-item:hover, .conversation-item.active {
+    background: var(--bg-tertiary, #e2e8f0);
   }
-
-  .chat-header h2 {
-    margin: 0;
-    font-size: 1.25rem;
+  .avatar { font-size: 1.4rem; flex-shrink: 0; }
+  .conversation-info { flex: 1; min-width: 0; }
+  .conversation-info .name {
+    display: block; font-weight: 600; font-size: .9rem;
     color: var(--text-primary, #1e293b);
   }
+  .conversation-info .preview {
+    display: block; font-size: .78rem; color: var(--text-secondary, #64748b);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
+  /* ── Zone chat ── */
+  .chat-area {
+    flex: 1; min-width: 0;
+    display: flex; flex-direction: column;
+    background: var(--bg-primary, #fff);
+  }
+  .chat-header {
+    padding: .75rem 1rem; flex-shrink: 0;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    display: flex; align-items: center; gap: 1rem;
+  }
+  .chat-header h2 { margin: 0; font-size: 1.05rem; color: var(--text-primary, #1e293b); }
+  .conn-error { font-size: .78rem; color: #dc2626; margin-left: auto; }
+
+  /* ── Messages ── */
   .messages-container {
-    flex: 1;
-    overflow-y: auto;
-    padding: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    flex: 1; overflow-y: auto;
+    padding: 1rem; display: flex; flex-direction: column; gap: .5rem;
   }
-
+  .empty-state {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-secondary, #94a3b8); font-size: .9rem; text-align: center;
+  }
   .message {
-    max-width: 75%;
-    padding: 0.75rem 1rem;
-    border-radius: var(--radius-xl, 1rem);
-    background-color: var(--chat-theirs, #f1f5f9);
+    max-width: 72%; padding: .55rem .9rem;
+    border-radius: 1rem;
+    background: var(--chat-theirs, #f1f5f9);
     align-self: flex-start;
-    animation: slide-up 0.3s ease;
+    word-break: break-word;
+    animation: pop .18s ease;
   }
-
   .message.mine {
-    background-color: var(--chat-mine, #dcfce7);
+    background: var(--chat-mine, #dcfce7);
     align-self: flex-end;
   }
-
   .message-sender {
-    font-weight: 500;
-    font-size: 0.85rem;
-    color: var(--accent, #4ade80);
-    margin-bottom: 0.25rem;
+    font-size: .75rem; font-weight: 700;
+    color: var(--accent, #4ade80); margin-bottom: .15rem;
   }
-
   .message-content {
-    color: var(--text-primary, #1e293b);
-    line-height: 1.5;
+    font-size: .9rem; color: var(--text-primary, #1e293b); line-height: 1.5;
   }
-
+  .message-content :global(img.uploaded-image),
+  .message-content :global(img.chat-gif) {
+    max-width: 260px; border-radius: 8px; margin-top: .3rem; display: block;
+  }
   .message-time {
-    font-size: 0.75rem;
-    color: var(--text-secondary, #64748b);
-    margin-top: 0.5rem;
-    text-align: right;
+    font-size: .68rem; color: var(--text-secondary, #94a3b8);
+    margin-top: .25rem; text-align: right;
   }
+  @keyframes pop { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
 
-  @keyframes slide-up {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  /* -----------------------------------------------------------------
-     PANEL GIF
-     ----------------------------------------------------------------- */
+  /* ── GIF panel ── */
   .gif-panel {
-    border-top: 1px solid var(--border, #e2e8f0);
-    padding: 1rem;
-    background-color: var(--bg-secondary, #f8fafc);
+    flex-shrink: 0; border-top: 1px solid var(--border, #e2e8f0);
+    padding: .75rem 1rem; background: var(--bg-secondary, #f8fafc);
+    max-height: 220px; overflow-y: auto;
   }
-
-  .gif-search {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
+  .gif-search { display: flex; gap: .4rem; margin-bottom: .6rem; }
   .gif-input {
-    flex: 1;
-    padding: 0.5rem 1rem;
-    border: 2px solid var(--border, #e2e8f0);
-    border-radius: var(--radius-lg, 0.75rem);
-    font-size: 0.9rem;
-    outline: none;
+    flex: 1; padding: .4rem .7rem;
+    border: 1.5px solid var(--border, #e2e8f0); border-radius: .45rem;
+    font-size: .88rem; outline: none;
   }
-
-  .gif-input:focus {
-    border-color: var(--accent, #4ade80);
+  .gif-input:focus { border-color: var(--accent, #4ade80); }
+  .search-btn, .close-btn {
+    padding: .4rem .7rem; border: none; border-radius: .45rem;
+    cursor: pointer; font-size: .88rem;
   }
-
-  .search-btn {
-    padding: 0.5rem 1rem;
-    background-color: var(--accent, #4ade80);
-    color: white;
-    border: none;
-    border-radius: var(--radius-lg, 0.75rem);
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .search-btn:hover {
-    background-color: var(--button-hover, #22c55e);
-  }
-
-  .gif-loading,
-  .gif-empty {
-    text-align: center;
-    padding: 2rem;
-    color: var(--text-secondary, #64748b);
-  }
-
-  .gif-results {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
+  .search-btn { background: var(--accent, #4ade80); color: #fff; }
+  .close-btn  { background: var(--bg-tertiary, #e2e8f0); color: var(--text-secondary, #64748b); }
+  .gif-status { text-align: center; padding: .75rem; color: var(--text-secondary, #94a3b8); font-size: .83rem; }
+  .gif-grid { display: flex; flex-wrap: wrap; gap: .35rem; }
   .gif-item {
-    width: 100px;
-    height: 100px;
-    border: none;
-    border-radius: var(--radius-md, 0.5rem);
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s;
-    padding: 0;
+    width: 85px; height: 85px;
+    border: none; border-radius: .4rem; overflow: hidden;
+    cursor: pointer; padding: 0; transition: transform .15s;
   }
+  .gif-item:hover { transform: scale(1.05); }
+  .gif-item img { width: 100%; height: 100%; object-fit: cover; }
 
-  .gif-item:hover {
-    transform: scale(1.05);
-  }
-
-  .gif-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /* -----------------------------------------------------------------
-     INPUT MESSAGE
-     ----------------------------------------------------------------- */
-  .message-input-area {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 1rem;
+  /* ── Zone saisie ── */
+  .input-area {
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: .4rem;
+    padding: .7rem 1rem;
     border-top: 1px solid var(--border, #e2e8f0);
-    background-color: var(--bg-primary, #ffffff);
+    background: var(--bg-primary, #fff);
   }
-
-  .gif-toggle {
-    padding: 0.5rem;
-    background: none;
-    border: none;
-    font-size: 1.25rem;
-    cursor: pointer;
-    border-radius: var(--radius-full, 50%);
-    transition: background-color 0.2s;
+  .icon-btn {
+    padding: .45rem; background: none; border: none;
+    font-size: 1.15rem; cursor: pointer; border-radius: 50%;
+    transition: background .15s; flex-shrink: 0;
   }
-
-  .gif-toggle:hover {
-    background-color: var(--bg-secondary, #f1f5f9);
-  }
-
+  .icon-btn:hover { background: var(--bg-secondary, #f1f5f9); }
   .message-input {
-    flex: 1;
-    padding: 0.75rem 1rem;
-    border: 2px solid var(--border, #e2e8f0);
-    border-radius: var(--radius-full, 9999px);
-    font-size: 0.9rem;
-    outline: none;
-    transition: border-color 0.2s;
+    flex: 1; min-width: 0;
+    padding: .6rem 1rem;
+    border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: 9999px; font-size: .9rem; outline: none;
+    transition: border-color .15s;
   }
-
-  .message-input:focus {
-    border-color: var(--accent, #4ade80);
-  }
-
+  .message-input:focus { border-color: var(--accent, #4ade80); }
+  .message-input:disabled { opacity: .6; }
   .send-btn {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--accent, #4ade80);
-    color: white;
-    border: none;
-    border-radius: var(--radius-full, 9999px);
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
+    flex-shrink: 0;
+    padding: .6rem 1.2rem;
+    background: var(--accent, #4ade80); color: #fff;
+    border: none; border-radius: 9999px;
+    font-weight: 700; font-size: .88rem; cursor: pointer;
+    transition: all .15s; white-space: nowrap;
   }
+  .send-btn:hover:not(:disabled) { background: var(--button-hover, #22c55e); transform: translateY(-1px); }
+  .send-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-  .send-btn:hover:not(:disabled) {
-    background-color: var(--button-hover, #22c55e);
-    transform: translateY(-1px);
-  }
-
-  .send-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* -----------------------------------------------------------------
-     STYLES SPÉCIFIQUES AUX UPLOADS
-     ----------------------------------------------------------------- */
-  .uploaded-image {
-    max-width: 300px;
-    border-radius: 8px;
-    margin: 0.5rem 0;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-
-  .file-attachment {
-    background: rgba(0,0,0,0.05);
-    padding: 0.75rem;
-    border-radius: 8px;
-    margin: 0.5rem 0;
-    display: inline-block;
-  }
-
-  .file-attachment a {
-    color: var(--accent, #4ade80);
-    text-decoration: none;
-    font-weight: 500;
-  }
-
-  .file-attachment a:hover {
-    text-decoration: underline;
-  }
-
-  .attach-btn {
-    padding: 0.5rem;
-    background: none;
-    border: none;
-    font-size: 1.25rem;
-    cursor: pointer;
-    border-radius: 50%;
-    transition: background-color 0.2s;
-  }
-
-  .attach-btn:hover {
-    background-color: var(--bg-secondary, #f1f5f9);
-  }
-
-  /* -----------------------------------------------------------------
-     RESPONSIVE
-     ----------------------------------------------------------------- */
-  @media (max-width: 768px) {
-    .chat-page {
-      flex-direction: column;
-    }
-
+  /* ── Responsive mobile ── */
+  @media (max-width: 640px) {
+    .chat-page { flex-direction: column; }
     .conversations-sidebar {
-      width: 100%;
-      max-height: 150px;
-      border-right: none;
-      border-bottom: 1px solid var(--border, #e2e8f0);
+      width: 100%; max-height: 90px; padding: .4rem;
+      border-right: none; border-bottom: 1px solid var(--border, #e2e8f0);
     }
-
-    .conversation-list {
-      flex-direction: row;
-      overflow-x: auto;
-    }
-
-    .conversation-item {
-      flex-shrink: 0;
-      width: 200px;
-    }
+    .conversation-list { flex-direction: row; overflow-x: auto; }
+    .conversation-item { flex-shrink: 0; padding: .35rem .5rem; }
+    .conversation-info .preview { display: none; }
+    .message { max-width: 88%; }
   }
 </style>
