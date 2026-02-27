@@ -1,29 +1,79 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 15
+// Suite E2E complète — Session 16
 // Corrections :
-//   - loginAs() accepte /change-password (admin a needs_password_change=1)
-//   - Logout : cibler aria-label="Déconnexion" sur le bouton header (pas dans le menu)
-//   - Tests Admin : naviguer vers /admin explicitement + graceful skip si needs_password_change
-//   - GET /api/conversations : e2e_ci est maintenant participant (fix backend session 15)
+//   - loginAsAdmin() : gère le flow complet needs_password_change
+//     login → détecte /change-password → remplit le formulaire → attend /admin
+//   - Les tests Admin UI sont désormais pleinement exécutés (plus de skip)
+//   - Chess page : locator('.btn-create, h1') → strict mode violation (3 éléments)
+//     → remplacé par locator('.btn-create') seul
 
 import { test, expect, type Page } from '@playwright/test';
+
+// Mot de passe que le test définit pour l'admin (doit être ≥8 chars)
+const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 
 // ─────────────────────────────────────────────
 // Helpers partagés
 // ─────────────────────────────────────────────
 
 /**
- * Login et attend une URL stable après redirection.
- * - e2e_ci → /chat
- * - admin  → /change-password (needs_password_change=1) ou /admin ou /chat
+ * Login utilisateur standard (e2e_ci) → attend /chat
  */
 async function loginAs(page: Page, username: string, password: string) {
   await page.goto('/login');
   await page.fill('#username', username);
   await page.fill('#password', password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
-  // Accepte chat, admin ET change-password (admin avec mdp temporaire)
   await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+}
+
+/**
+ * Login admin avec gestion du changement de mot de passe obligatoire.
+ *
+ * Flow :
+ *   1. POST /login → redirigé vers /change-password si needs_password_change=1
+ *   2. Remplit #new-password + #confirm-password avec ADMIN_NEW_PASSWORD
+ *   3. Soumet → attend "Redirection en cours…" puis /admin (timeout 5s après succès)
+ *   4. Lors des prochains appels (mdp déjà changé) → arrive directement sur /admin
+ *
+ * Idempotent : si le mdp a déjà été changé lors d'un retry, loginAsAdmin
+ * tente d'abord avec ADMIN_NEW_PASSWORD, puis avec le mdp initial si ça échoue.
+ */
+async function loginAsAdmin(page: Page) {
+  // Essai 1 : avec le nouveau mdp (cas retry ou 2ème test dans la suite)
+  await page.goto('/login');
+  await page.fill('#username', 'admin');
+  await page.fill('#password', ADMIN_NEW_PASSWORD);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
+
+  // Attendre la stabilisation (chat, admin, change-password, ou login si mdp incorrect)
+  await page.waitForURL(/\/(chat|admin|change-password|login)/, { timeout: 12_000 });
+
+  // Si on est encore sur /login → le nouveau mdp n'est pas encore actif → utiliser l'ancien
+  if (page.url().includes('/login')) {
+    await page.fill('#username', 'admin');
+    await page.fill('#password', 'changeme2026');
+    await page.getByRole('button', { name: 'Se connecter' }).click();
+    await page.waitForURL(/\/(change-password|admin|chat)/, { timeout: 12_000 });
+  }
+
+  // Si on est sur /change-password → effectuer le changement obligatoire
+  if (page.url().includes('/change-password')) {
+    await page.fill('#new-password', ADMIN_NEW_PASSWORD);
+    await page.fill('#confirm-password', ADMIN_NEW_PASSWORD);
+    await page.getByRole('button', { name: /D.finir le mot de passe|Changer le mot de passe/i }).click();
+
+    // Attendre le message de succès
+    await expect(page.locator('.alert.success')).toBeVisible({ timeout: 8_000 });
+    console.log('🔐 Changement de mot de passe admin effectué → attente redirection /admin');
+
+    // La page fait setTimeout(2000) puis goto('/admin')
+    await page.waitForURL(/\/admin/, { timeout: 10_000 });
+  }
+
+  // Vérification finale : on doit être sur /admin
+  await expect(page).toHaveURL(/\/admin/, { timeout: 8_000 });
+  console.log('✅ Admin connecté et sur /admin');
 }
 
 async function waitForAppReady(page: Page) {
@@ -152,36 +202,21 @@ test.describe('Chat', () => {
 
 test.describe('Admin', () => {
 
-  test('Admin login → URL valide (chat, admin ou change-password)', async ({ page }) => {
-    test.setTimeout(30_000);
-    await loginAs(page, 'admin', 'changeme2026');
-    const url = page.url();
-    expect(url).toMatch(/\/(chat|admin|change-password)/);
-    console.log(`✅ Admin login OK → ${url}`);
-  });
-
-  test('Page /admin → header visible ou not-authorized', async ({ page }) => {
-    test.setTimeout(30_000);
-    await loginAs(page, 'admin', 'changeme2026');
-    await page.goto('/admin');
-    await page.waitForTimeout(2_000);
-    const adminHeader = await page.locator('.admin-header').isVisible().catch(() => false);
-    const notAuth = await page.locator('.not-authorized').isVisible().catch(() => false);
-    // L'une des deux vues doit être affichée
-    expect(adminHeader || notAuth).toBe(true);
-    console.log(`✅ /admin admin OK (header=${adminHeader}, not-auth=${notAuth})`);
+  test('Admin login → changement de mot de passe obligatoire → /admin', async ({ page }) => {
+    // Ce test valide le flow complet needs_password_change :
+    // login → /change-password → formulaire → /admin
+    // Il DOIT passer avant tous les autres tests Admin (ordre d'exécution Playwright)
+    test.setTimeout(40_000);
+    await loginAsAdmin(page);
+    // À ce stade on est sur /admin avec .admin-header visible
+    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
+    console.log('✅ Flow complet : login admin → change-password → /admin');
   });
 
   test('Page /admin → tous les onglets visibles', async ({ page }) => {
     test.setTimeout(30_000);
-    await loginAs(page, 'admin', 'changeme2026');
-    await page.goto('/admin');
-    const notAuth = await page.locator('.not-authorized').isVisible({ timeout: 3_000 }).catch(() => false);
-    if (notAuth) {
-      console.log('⚠️  Admin bloqué par needs_password_change — test ignoré gracefully');
-      return;
-    }
-    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 10_000 });
+    await loginAsAdmin(page);
+    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
     await expect(page.locator('.admin-tabs .tab').nth(0)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(1)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(2)).toBeVisible();
@@ -190,14 +225,8 @@ test.describe('Admin', () => {
 
   test('Admin → onglet "Tous les utilisateurs" liste admin et e2e_ci', async ({ page }) => {
     test.setTimeout(30_000);
-    await loginAs(page, 'admin', 'changeme2026');
-    await page.goto('/admin');
-    const notAuth = await page.locator('.not-authorized').isVisible({ timeout: 3_000 }).catch(() => false);
-    if (notAuth) {
-      console.log('⚠️  Admin needs_password_change — test ignoré gracefully');
-      return;
-    }
-    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 10_000 });
+    await loginAsAdmin(page);
+    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
     await page.locator('.admin-tabs .tab').nth(1).click();
     await expect(page.locator('.user-card').first()).toBeVisible({ timeout: 8_000 });
     const usernames = await page.locator('.user-username').allTextContents();
@@ -207,14 +236,8 @@ test.describe('Admin', () => {
 
   test('Admin → génération lien d\'invitation', async ({ page }) => {
     test.setTimeout(30_000);
-    await loginAs(page, 'admin', 'changeme2026');
-    await page.goto('/admin');
-    const notAuth = await page.locator('.not-authorized').isVisible({ timeout: 3_000 }).catch(() => false);
-    if (notAuth) {
-      console.log('⚠️  Admin needs_password_change — test ignoré gracefully');
-      return;
-    }
-    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 10_000 });
+    await loginAsAdmin(page);
+    await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
     const [response] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().includes('/api/invites') && res.request().method() === 'POST',
@@ -231,7 +254,7 @@ test.describe('Admin', () => {
 
   test('GET /api/users/pending avec admin → 200', async ({ page }) => {
     test.setTimeout(20_000);
-    await loginAs(page, 'admin', 'changeme2026');
+    await loginAsAdmin(page);
     const res = await page.request.get('/api/users/pending');
     expect(res.status()).toBe(200);
     console.log('✅ GET /api/users/pending → 200');
@@ -339,7 +362,9 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chess');
     await waitForAppReady(page);
-    await expect(page.locator('.btn-create, h1')).toBeVisible({ timeout: 10_000 });
+    // '.btn-create, h1' provoque une strict mode violation : le layout a un h1 "🌱 Nook"
+    // + la page chess a un h1 "Échecs" → 3 éléments résolus, Playwright refuse
+    await expect(page.locator('.btn-create')).toBeVisible({ timeout: 10_000 });
     console.log('✅ Page /chess chargée');
   });
 
