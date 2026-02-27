@@ -49,6 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Nécessaire pour pouvoir commiter le rapport MD en fin de job
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download frontend build
         uses: actions/download-artifact@v4
@@ -61,8 +64,7 @@ jobs:
           test -f frontend/build/index.html || (echo "index.html manquant" && exit 1)
           echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
-      # ── Build l'image depuis les sources (pas de pull GHCR) ──────────────
-      # On passe le frontend/build comme contexte pour le COPY dans le Dockerfile
+      # ── Build l'image depuis les sources ──────────────────────────────────
       - name: "Build image Docker depuis les sources"
         run: |
           docker build \
@@ -72,10 +74,9 @@ jobs:
           echo "Image nook-ci:local construite"
           docker images nook-ci:local
 
-      # ── Démarrer avec l'image locale via override ─────────────────────────
+      # ── Démarrer avec l'image locale ──────────────────────────────────────
       - name: "Demarrage stack avec image locale"
         run: |
-          # Surcharge l'image du docker-compose.yml par celle buildee localement
           NOOK_IMAGE=nook-ci:local docker compose \
             -f docker-compose.yml \
             up -d
@@ -157,18 +158,170 @@ jobs:
             echo "User e2e_ci approuve (id: $E2E_USER_ID)"
           fi
 
+      # ── Tests E2E Playwright ──────────────────────────────────────────────
       - name: "E2E Playwright"
+        id: playwright
         env:
           CI: true
         run: |
           cd frontend
           npm ci --legacy-peer-deps
           npx playwright install --with-deps chromium
-          npx playwright test
+          # Reporter JSON pour extraire les résultats dans le step suivant
+          npx playwright test --reporter=json,html 2>&1 | tee /tmp/playwright-output.txt || true
+          # Extraire le code de sortie réel
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          # Toujours continuer pour générer le rapport
+          exit $EXIT_CODE
+
+      # ── Génération et commit du rapport MD ────────────────────────────────
+      - name: "Generer rapport MD dans .claude/"
+        if: always()
+        env:
+          PLAYWRIGHT_EXIT: ${{ steps.playwright.outputs.playwright_exit }}
+        run: |
+          # ── Collecter les infos du run ──────────────────────────────────
+          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          BRANCH="${{ github.ref_name }}"
+
+          # ── Parser les résultats Playwright depuis l'output ────────────
+          # Extraire la ligne de résumé "X passed, Y failed, Z skipped"
+          SUMMARY_LINE=$(grep -oE '[0-9]+ passed|[0-9]+ failed|[0-9]+ skipped' \
+            /tmp/playwright-output.txt 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "N/A")
+
+          PASSED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "?")
+          FAILED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "?")
+          SKIPPED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ skipped' | grep -oE '[0-9]+' || echo "0")
+
+          if [ "$FAILED" = "0" ] || [ "$FAILED" = "?" -a "$PLAYWRIGHT_EXIT" = "0" ]; then
+            STATUS_ICON="✅"
+            STATUS_TEXT="SUCCÈS"
+          else
+            STATUS_ICON="❌"
+            STATUS_TEXT="ÉCHEC"
+          fi
+
+          # ── Extraire les tests individuels depuis la sortie ─────────────
+          # Récupère les lignes "✓" (pass) et "✗" / "×" (fail) de Playwright
+          TEST_LINES=$(grep -E '^\s+(✓|✗|×|F|·)\s+' /tmp/playwright-output.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            | awk '{$1=$1; print "  " $0}' \
+            | head -80 || echo "  (résultats détaillés non disponibles)")
+
+          # ── Extraire les erreurs ────────────────────────────────────────
+          ERROR_LINES=$(grep -A 5 'Error:' /tmp/playwright-output.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            | head -40 || echo "")
+
+          # ── Collecter les logs Docker ────────────────────────────────────
+          DOCKER_ERRORS=$(docker compose logs --tail=50 2>/dev/null \
+            | grep -iE 'error|warn|WARN|ERROR' \
+            | sed 's/.*Z //' \
+            | head -20 || echo "(pas de logs disponibles)")
+
+          # ── Écrire le fichier MD ────────────────────────────────────────
+          REPORT_FILE=".claude/TEST_REPORT.md"
+
+          cat > "$REPORT_FILE" << ENDOFMD
+          # 🧪 Rapport de test E2E — Nook
+
+          > Généré automatiquement par le workflow CI \`test-nook.yml\`
+          > **Dernière mise à jour : ${RUN_DATE}**
+
+          ---
+
+          ## Résumé du run
+
+          | Champ | Valeur |
+          |-------|--------|
+          | **Statut** | ${STATUS_ICON} ${STATUS_TEXT} |
+          | **Tests passés** | ${PASSED} |
+          | **Tests échoués** | ${FAILED} |
+          | **Tests ignorés** | ${SKIPPED} |
+          | **Branche** | \`${BRANCH}\` |
+          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+          | **Run CI** | [Voir le run complet](${RUN_URL}) |
+
+          ---
+
+          ## Résultats détaillés
+
+          \`\`\`
+          ${TEST_LINES}
+          \`\`\`
+
+          ---
+
+          ## Suites couvertes
+
+          | Suite | Description |
+          |-------|-------------|
+          | **Auth** | Login valide/invalide, /auth/me non-auth → 401, Logout |
+          | **Chat** | Envoi message, affichage DOM, GET conversations, GET messages |
+          | **Admin** | Login admin, onglets, liste users, génération invitation |
+          | **Settings** | Navigation onglets (profil/sécurité/apparence), changement thème |
+          | **Calendar** | Chargement page, GET/POST /api/events, bouton ajout |
+          | **Chess** | Chargement page, GET /api/chess/list, POST /api/chess/create, formulaire UI |
+          | **Polls** | Chargement page, création sondage (localStorage) |
+          | **Navigation** | 7 routes testées (chat, calendar, chess, polls, settings, help, events) |
+          | **API Sanity** | /health, /conversations, /events, /chess/list, /invites (non-auth → 401) |
+
+          ---
+
+          ## Erreurs détectées
+
+          \`\`\`
+          ${ERROR_LINES:-Aucune erreur détectée}
+          \`\`\`
+
+          ---
+
+          ## Logs backend (warnings/erreurs)
+
+          \`\`\`
+          ${DOCKER_ERRORS}
+          \`\`\`
+
+          ---
+
+          *Rapport généré par \`.github/workflows/test-nook.yml\` — session 14*
+          ENDOFMD
+
+          echo "Rapport généré : $REPORT_FILE"
+          cat "$REPORT_FILE"
+
+      - name: "Commit rapport MD dans .claude/"
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .claude/TEST_REPORT.md
+
+          # Ne commiter que si le fichier a changé
+          if git diff --staged --quiet; then
+            echo "Aucune modification du rapport — pas de commit"
+          else
+            git commit -m "ci: mise à jour TEST_REPORT.md [run ${{ github.run_id }}]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Rapport commité et poussé"
+          fi
 
       - name: "Logs si echec"
         if: failure()
         run: docker compose logs --tail=200
+
+      - name: "Upload rapport Playwright HTML"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
 
       - name: "Cleanup"
         if: always()
