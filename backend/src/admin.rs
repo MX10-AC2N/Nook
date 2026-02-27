@@ -1,4 +1,7 @@
 // backend/src/admin.rs - Gestion admin avec Extension<CurrentUser>
+// Session 15 — FIX: approve_user insère aussi le user dans conversation_participants
+//               Cause : un user inscrit via /api/auth/register n'était jamais ajouté
+//               à default_global → GET /api/conversations retournait [] après approbation
 
 use crate::{auth::CurrentUser, SharedState};
 use axum::{
@@ -135,7 +138,26 @@ pub async fn approve_user(
         .await;
 
     match result {
-        Ok(res) if res.rows_affected() == 1 => Ok(Json(json!({"success": true}))),
+        Ok(res) if res.rows_affected() == 1 => {
+            // FIX session 15 : ajouter l'utilisateur approuvé à default_global
+            // INSERT OR IGNORE → safe si déjà participant (re-approbation, double clic, etc.)
+            let now = chrono::Utc::now().timestamp();
+            let _ = sqlx::query(
+                "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+                 VALUES ('default_global', ?, ?)",
+            )
+            .bind(&payload.user_id)
+            .bind(now)
+            .execute(&state.db)
+            .await;
+
+            tracing::info!(
+                user_id = %payload.user_id,
+                "✓ Utilisateur approuvé et ajouté à default_global"
+            );
+
+            Ok(Json(json!({"success": true})))
+        }
         _ => Err((
             StatusCode::BAD_REQUEST,
             Json(json!({"success": false, "message": "Utilisateur non trouvé"})),
