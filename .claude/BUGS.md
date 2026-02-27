@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Suivi des bugs Nook
 
-> Mis à jour : **2026-02-24** (session 8)
+> Mis à jour : **2026-02-27** (session 13)
 
 ---
 
@@ -61,6 +61,38 @@ sodiumState.error // au lieu de get(sodiumError)
 
 ### Bug #5 — Incohérence nom table SQL
 **Status** : 🟢 Résolu — migration `001_initial.sql` et `db.rs` utilisent tous les deux `conversation_participants`
+
+---
+
+## ✅ BUGS RÉSOLUS (session 13 — 2026-02-27)
+
+### [R14] Prune supprime `default_global` au démarrage → POST /messages 404
+**Session** : 13  
+**Fichier** : `backend/src/prune.rs`  
+**Symptôme CI** : Test E2E `Login → Chat → Envoi message` échoue systématiquement — `POST /api/conversations/default_global/messages` retourne 404 (3 tentatives, toutes 404).  
+**Cause racine** :
+- `default_global` est créée au boot (vide, 0 messages)
+- Le job prune se déclenche **10 secondes** après le démarrage
+- La requête DELETE supprimait **toutes** les conversations sans messages, y compris les groupes
+- `default_global` était donc détruite avant que le test e2e puisse l'utiliser
+**Fix** : Ajout de `AND is_group = 0` dans la clause DELETE conversations vides.
+Les groupes (`is_group = 1`) sont créés intentionnellement par des admins et ne doivent jamais être supprimés automatiquement, même s'ils sont temporairement vides.
+**Fichier modifié** : `backend/src/prune.rs`  
+**Diff clé** :
+```sql
+-- AVANT (bug) :
+DELETE FROM conversations
+WHERE NOT EXISTS (
+    SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id
+)
+
+-- APRÈS (fix) :
+DELETE FROM conversations
+WHERE is_group = 0
+  AND NOT EXISTS (
+    SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id
+  )
+```
 
 ---
 
