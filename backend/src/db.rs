@@ -38,8 +38,9 @@ pub struct Conversation {
     pub updated_at: i64,
 }
 
-/// Message brut en base (sans sender_name) — utilisé uniquement pour send_message
+/// Message brut en base (sans sender_name) — référence structurelle
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(dead_code)]
 pub struct Message {
     pub id: String,
     pub conversation_id: String,
