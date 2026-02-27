@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-02-27 09:36 UTC**
+> **Dernière mise à jour : 2026-02-27 10:33 UTC**
 
 ---
 
@@ -14,8 +14,8 @@
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `MX10-AC2N-patch-svelte5-runes` |
-| **Commit** | [`63ee435`](https://github.com/MX10-AC2N/Nook/commit/63ee4354840ba2f42ba7398653cecba49cc860a2) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22480497663) |
+| **Commit** | [`850d9f0`](https://github.com/MX10-AC2N/Nook/commit/850d9f04f616b4e7dee03989f3ef9f5b03643a71) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22482476191) |
 
 ---
 
@@ -46,46 +46,46 @@
 ## Erreurs détectées
 
 ```
-                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /d.connect/i })\u001b[22m\n\n\n  63 |     await expect(menuToggle).toBeVisible({ timeout: 8_000 });\n  64 |     await menuToggle.click();\n> 65 |     await page.getByRole('button', { name: /d.connect/i }).click();\n     |                                                            ^\n  66 |     await expect(page).toHaveURL(/\\/login/, { timeout: 10_000 });\n  67 |     console.log('✅ Logout → /login');\n  68 |   });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:65:60"
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36",
+                        "location": {
+                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
+                          "column": 36,
+                          "line": 171
+                        },
+--
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  169 |     const notAuth = await page.locator('.not-authorized').isVisible().catch(() => false);\n  170 |     // L'une des deux vues doit être affichée\n> 171 |     expect(adminHeader || notAuth).toBe(true);\n      |                                    ^\n  172 |     console.log(`✅ /admin admin OK (header=${adminHeader}, not-auth=${notAuth})`);\n  173 |   });\n  174 |\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
 --
-                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /d.connect/i })\u001b[22m\n\n\n  63 |     await expect(menuToggle).toBeVisible({ timeout: 8_000 });\n  64 |     await menuToggle.click();\n> 65 |     await page.getByRole('button', { name: /d.connect/i }).click();\n     |                                                            ^\n  66 |     await expect(page).toHaveURL(/\\/login/, { timeout: 10_000 });\n  67 |     console.log('✅ Logout → /login');\n  68 |   });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:65:60"
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36",
+                        "location": {
+                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
+                          "column": 36,
+                          "line": 171
+                        },
+--
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  169 |     const notAuth = await page.locator('.not-authorized').isVisible().catch(() => false);\n  170 |     // L'une des deux vues doit être affichée\n> 171 |     expect(adminHeader || notAuth).toBe(true);\n      |                                    ^\n  172 |     console.log(`✅ /admin admin OK (header=${adminHeader}, not-auth=${notAuth})`);\n  173 |   });\n  174 |\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
 --
-                          "message": "Error: locator.click: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByRole('button', { name: /d.connect/i })\u001b[22m\n\n\n  63 |     await expect(menuToggle).toBeVisible({ timeout: 8_000 });\n  64 |     await menuToggle.click();\n> 65 |     await page.getByRole('button', { name: /d.connect/i }).click();\n     |                                                            ^\n  66 |     await expect(page).toHaveURL(/\\/login/, { timeout: 10_000 });\n  67 |     console.log('✅ Logout → /login');\n  68 |   });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:65:60"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 2,
---
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:127:26",
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 26,
-                          "line": 127
+                          "column": 36,
+                          "line": 171
                         },
 --
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n  125 |     const body = await res.json();\n  126 |     const convs = Array.isArray(body) ? body : body.conversations ?? [];\n> 127 |     expect(convs.length).toBeGreaterThan(0);\n      |                          ^\n  128 |     const global = convs.find((c: { id: string }) => c.id === 'default_global');\n  129 |     expect(global).toBeDefined();\n  130 |     console.log(`✅ GET /api/conversations → ${convs.length} conversation(s), default_global présente`);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:127:26"
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  169 |     const notAuth = await page.locator('.not-authorized').isVisible().catch(() => false);\n  170 |     // L'une des deux vues doit être affichée\n> 171 |     expect(adminHeader || notAuth).toBe(true);\n      |                                    ^\n  172 |     console.log(`✅ /admin admin OK (header=${adminHeader}, not-auth=${notAuth})`);\n  173 |   });\n  174 |\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:171:36"
                         }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
---
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:127:26",
-                        "location": {
-                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
 ```
 
 ---
@@ -93,7 +93,7 @@
 ## Logs backend (warnings/erreurs)
 
 ```
-
+nook  | [2m2026-02-27T10:30:16.434465Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
 ```
 
 ---
