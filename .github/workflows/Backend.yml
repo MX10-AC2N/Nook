@@ -156,63 +156,63 @@ jobs:
           fi
 
           cat > "$REPORT" << ENDOFMD
-# 🏗️ Backend Build Report — Nook
+          # 🏗️ Backend Build Report — Nook
 
-> Généré automatiquement par \`Backend.yml\`
-> **${RUN_DATE}**
+          > Généré automatiquement par \`Backend.yml\`
+          > **${RUN_DATE}**
 
----
+          ---
 
-## Résumé
+          ## Résumé
 
-| Champ | Valeur |
-|-------|--------|
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Rust** | \`${RUSTC_VER}\` |
-| **Run** | [Voir le run](${RUN_URL}) |
+          | Champ | Valeur |
+          |-------|--------|
+          | **Branche** | \`${BRANCH}\` |
+          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+          | **Rust** | \`${RUSTC_VER}\` |
+          | **Run** | [Voir le run](${RUN_URL}) |
 
----
+          ---
 
-## Architecture : ${ARCH}
+          ## Architecture : ${ARCH}
 
-| Étape | Statut | Détail |
-|-------|--------|--------|
-| **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT} |
-| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} (-D warnings) |
-| **cargo build --release** | ${BUILD_ICON} | ${BIN_SIZE:-N/A} stripped |
+          | Étape | Statut | Détail |
+          |-------|--------|--------|
+          | **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT} |
+          | **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} (-D warnings) |
+          | **cargo build --release** | ${BUILD_ICON} | ${BIN_SIZE:-N/A} stripped |
 
-### Erreurs cargo check
+          ### Erreurs cargo check
 
-\`\`\`
-${CHECK_ERRORS}
-\`\`\`
+          \`\`\`
+          ${CHECK_ERRORS}
+          \`\`\`
 
-### Warnings clippy (-D warnings → build fail si présents)
+          ### Warnings clippy (-D warnings → build fail si présents)
 
-\`\`\`
-${CLIPPY_WARNS}
-\`\`\`
+          \`\`\`
+          ${CLIPPY_WARNS}
+          \`\`\`
 
-### Erreurs build release
+          ### Erreurs build release
 
-\`\`\`
-${BUILD_ERRORS}
-\`\`\`
+          \`\`\`
+          ${BUILD_ERRORS}
+          \`\`\`
 
-### Crates compilées (dernières 20)
+          ### Crates compilées (dernières 20)
 
-\`\`\`
-${CRATES}
-${FINISHED}
-\`\`\`
+          \`\`\`
+          ${CRATES}
+          ${FINISHED}
+          \`\`\`
 
-${OTHER_SECTION}
+          ${OTHER_SECTION}
 
----
+          ---
 
-*Rapport généré par \`.github/workflows/Backend.yml\`*
-ENDOFMD
+          *Rapport généré par \`.github/workflows/Backend.yml\`*
+          ENDOFMD
 
           echo "✅ BACKEND-BUILD-REPORT.md généré (${ARCH})"
 
