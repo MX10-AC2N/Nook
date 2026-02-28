@@ -1,9 +1,11 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 18
+// Suite E2E complète — Session 19
 // Corrections :
-//   - loginAsAdmin() : addInitScript() pour vider localStorage Nook AVANT le constructeur
-//     AuthStore — seule approche fiable car le constructeur lit localStorage synchroniquement
-//     avant que tout script post-navigation puisse intervenir
+//   - loginAsAdmin() : approche API-first — POST /api/auth/login via page.request
+//     qui pose le cookie HttpOnly dans le browser context, puis page.goto('/admin')
+//     directement → jamais de passage par /login → #username jamais en jeu
+//   - beforeAll dans Admin : change le mdp admin une seule fois via l'API
+//     avant tous les tests Admin, stocke le cookie pour réutilisation
 //   - Chess : locator('.btn-create') seul (strict mode violation sur h1 dupliqué)
 
 import { test, expect, type Page } from '@playwright/test';
@@ -27,86 +29,69 @@ async function loginAs(page: Page, username: string, password: string) {
 }
 
 /**
- * Login admin avec gestion du changement de mot de passe obligatoire.
+ * Login admin via l'API backend (page.request) — bypass total de la page /login.
  *
- * Problème identifié session 16 : les tests Admin partagent le même browser context
- * (workers:1, fullyParallel:true). Après le 1er test Admin, le cookie de session admin
- * est actif → page.goto('/login') déclenche le $effect() de redirection avant que
- * les inputs soient interactifs → #username est disabled/détaché → timeout.
+ * APPROCHE SESSION 19 — après 4 sessions d'échecs sur l'approche browser :
  *
- * Fix : page.addInitScript() — injecte le clear avant que AuthStore() lise localStorage.
- * puis goto('/login') pour avoir les inputs disponibles sans redirection parasite.
+ *   Problème fondamental : les tests Admin partagent le même BrowserContext (workers:1).
+ *   Le localStorage de localhost:6300 (nook_user, nook_session_id) persiste entre les tests.
+ *   AuthStore lit ces valeurs synchroniquement dans son constructeur ES6 → isAuthenticated=true
+ *   avant toute navigation → $effect() du layout redirige /login → #username disabled.
  *
- * Flow idempotent :
- *   1. Clear cookies → goto /login → inputs disponibles
- *   2. Essai avec ADMIN_NEW_PASSWORD (mdp déjà changé lors d'un test précédent)
- *   3. Si /login reste → fallback sur 'changeme2026' (premier passage)
- *   4. Si /change-password → remplit formulaire → attend /admin
- *   5. Vérification finale sur /admin
+ *   Tentatives échouées (sessions 16-18) :
+ *     • clearCookies()                    → ne touche pas localStorage
+ *     • goto('about:blank') + clear       → about:blank = origine différente, localStorage isolé
+ *     • addInitScript() sur la page       → s'exécute sur about:blank (état initial de la page),
+ *                                           pas sur localhost:6300 → localStorage de l'app intact
+ *
+ *   Fix : page.request.post('/api/auth/login') pose le cookie auth_token directement
+ *   dans le browser context sans jamais charger la page /login dans le browser.
+ *   Puis page.goto('/admin') → cookie valide → /admin se charge correctement.
+ *   Le localStorage n'est jamais un obstacle car on ne passe plus par /login.
  */
 async function loginAsAdmin(page: Page) {
-  // SOLUTION DÉFINITIVE — Session 18 :
-  //
-  // Historique des tentatives :
-  //   • clearCookies() seul  → localStorage intact → isAuthenticated=true → #username disabled
-  //   • goto('about:blank') + localStorage.clear() → about:blank a une ORIGINE DIFFÉRENTE
-  //     de localhost:6300 → le localStorage de l'app n'est pas effacé
-  //
-  // Cause racine : le constructeur de AuthStore lit localStorage SYNCHRONIQUEMENT
-  // avant même que le DOM soit prêt. Aucune navigation post-chargement ne peut
-  // effacer ce state assez tôt — le $effect() de redirection se déclenche en premier.
-  //
-  // Fix : page.addInitScript() — Playwright injecte un script qui s'exécute
-  // AVANT tout JS de la page (avant le constructeur AuthStore).
-  // Ce script vide les clés Nook du localStorage au niveau navigateur,
-  // rendant isAuthenticated=false dès la construction du store.
+  const BASE = 'http://localhost:6300/api';
 
-  // Étape 1 : vider le cookie de session backend (HttpOnly)
-  await page.context().clearCookies();
-
-  // Étape 2 : injecter un script qui vide le localStorage Nook AVANT AuthStore()
-  // addInitScript s'exécute à chaque navigation de cette page jusqu'à sa fin
-  await page.addInitScript(() => {
-    try {
-      localStorage.removeItem('nook_user');
-      localStorage.removeItem('nook_session_id');
-      localStorage.removeItem('nook_token');
-    } catch (_) {}
+  // Essai 1 : mdp déjà changé (tests 2+ de la suite, ou retries)
+  let loginRes = await page.request.post(`${BASE}/auth/login`, {
+    data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
   });
 
-  // Étape 3 : naviguer vers /login — AuthStore() trouve localStorage vide
-  // → isAuthenticated=false → pas de redirection → #username activé immédiatement
-  await page.goto('/login');
-  await expect(page.locator('#username')).toBeEnabled({ timeout: 10_000 });
-
-  // Essai 1 : ADMIN_NEW_PASSWORD (mdp déjà changé lors d'un test précédent / retry)
-  await page.fill('#username', 'admin');
-  await page.fill('#password', ADMIN_NEW_PASSWORD);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
-  await page.waitForURL(/\/(chat|admin|change-password|login)/, { timeout: 12_000 });
-
-  // Si /login → ADMIN_NEW_PASSWORD pas encore actif → mdp initial
-  if (page.url().includes('/login')) {
-    await expect(page.locator('#username')).toBeEnabled({ timeout: 8_000 });
-    await page.fill('#username', 'admin');
-    await page.fill('#password', 'changeme2026');
-    await page.getByRole('button', { name: 'Se connecter' }).click();
-    await page.waitForURL(/\/(change-password|admin|chat)/, { timeout: 12_000 });
+  // Essai 2 : mdp initial (premier appel de la suite CI)
+  if (!loginRes.ok()) {
+    loginRes = await page.request.post(`${BASE}/auth/login`, {
+      data: { username: 'admin', password: 'changeme2026' },
+    });
+    if (!loginRes.ok()) {
+      throw new Error(`Login admin API échoué : HTTP ${loginRes.status()}`);
+    }
   }
 
-  // Si /change-password → effectuer le changement obligatoire
-  if (page.url().includes('/change-password')) {
-    await page.fill('#new-password', ADMIN_NEW_PASSWORD);
-    await page.fill('#confirm-password', ADMIN_NEW_PASSWORD);
-    await page.getByRole('button', { name: /D.finir le mot de passe|Changer le mot de passe/i }).click();
-    await expect(page.locator('.alert.success')).toBeVisible({ timeout: 8_000 });
-    console.log('🔐 Changement de mot de passe admin effectué');
-    await page.waitForURL(/\/admin/, { timeout: 10_000 });
+  const loginBody = await loginRes.json();
+
+  // Si needs_password_change → changer le mdp via l'API (pas via le formulaire browser)
+  if (loginBody.user?.needs_password_change) {
+    const changeRes = await page.request.post(`${BASE}/auth/change-password`, {
+      data: { new_password: ADMIN_NEW_PASSWORD, user_id: loginBody.user.id },
+    });
+    if (!changeRes.ok()) {
+      throw new Error(`Changement mdp admin échoué : HTTP ${changeRes.status()}`);
+    }
+    // Re-login avec le nouveau mdp pour avoir un cookie valide avec needs_password_change=false
+    loginRes = await page.request.post(`${BASE}/auth/login`, {
+      data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
+    });
+    if (!loginRes.ok()) {
+      throw new Error(`Re-login après changement mdp échoué : HTTP ${loginRes.status()}`);
+    }
+    console.log('🔐 Mot de passe admin changé via API');
   }
 
-  // Vérification finale
-  await expect(page).toHaveURL(/\/admin/, { timeout: 8_000 });
-  console.log('✅ Admin connecté sur /admin');
+  // Le cookie auth_token est maintenant dans le browser context via page.request
+  // Naviguer directement vers /admin — pas de /login → pas de problème de localStorage
+  await page.goto('/admin');
+  await expect(page).toHaveURL(/\/admin/, { timeout: 10_000 });
+  console.log('✅ Admin connecté sur /admin (API login)');
 }
 
 async function waitForAppReady(page: Page) {
