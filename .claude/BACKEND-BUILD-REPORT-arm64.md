@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `aarch64-unknown-linux-gnu`
-> **2026-02-28 18:54 UTC**
+> **2026-02-28 18:57 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `arm64` (`aarch64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`518319b`](https://github.com/MX10-AC2N/Nook/commit/518319b50576490e05e236f0b1e8ac6cdc0ed45e) |
+| **Commit** | [`4c2971c`](https://github.com/MX10-AC2N/Nook/commit/4c2971c27ff56c00f106b23f75e8e450b1e1f31b) |
 | **Rust** | `rustc 1.93.1 (01f6ddf75 2026-02-11)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22526870341) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22526917804) |
 
 ---
 
@@ -60,11 +60,7 @@
 ## Résumé compilation
 
 ```
-error[E0432]: unresolved import `crate::chess_engine`
-error[E0282]: type annotations needed
-error[E0282]: type annotations needed
-error[E0282]: type annotations needed
-error[E0282]: type annotations needed
+error[E0599]: no method named `choose` found for struct `Vec<Move>` in the current scope
 ```
 
 ---
