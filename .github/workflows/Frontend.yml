@@ -93,7 +93,7 @@ jobs:
             | sed 's/\x1b\[[0-9;]*m//g' | head -10 || echo "(non vérifié)")
 
           REPORT=".claude/FRONTEND-BUILD-REPORT.md"
-          cat > "$REPORT" << ENDOFMD
+          cat > "$REPORT" <<-'ENDOFMD'
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par \`Frontend.yml\`
@@ -148,7 +148,7 @@ ${NPM_AUDIT}
 ---
 
 *Rapport généré par \`.github/workflows/Frontend.yml\`*
-ENDOFMD
+          ENDOFMD
 
           echo "✅ FRONTEND-BUILD-REPORT.md généré"
           cat "$REPORT"
