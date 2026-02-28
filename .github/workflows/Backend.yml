@@ -228,7 +228,7 @@ jobs:
           else
             git commit -m "ci: BACKEND-BUILD-REPORT.md [${{ matrix.target }}] [run ${{ github.run_id }}]"
             git pull --rebase origin ${{ github.ref_name }}
-            git push origin HEAD:${{ github.ref_name }}
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité"
           fi
 
