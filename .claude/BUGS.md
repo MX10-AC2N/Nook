@@ -327,8 +327,4 @@ Le localStorage et le `$effect()` de redirection ne sont plus jamais impliqués.
 simultanément sur le même fichier → conflit git → un rapport est systématiquement perdu.
 **Solution** : fichiers séparés `BACKEND-BUILD-REPORT-amd64.md` et `BACKEND-BUILD-REPORT-arm64.md`.
 
-### Heredoc indenté dans les workflows GitHub Actions
-**Problème** : `cat > file << ENDOFMD` avec indentation YAML produit des lignes avec
-des espaces en début → Markdown invalide (listes cassées, code blocks mal détectés).
-**Solution** : heredoc toujours au niveau colonne 0, même si le shell run est indenté
-dans le YAML (GitHub Actions ignore l'indentation du heredoc lui-même).
+Actions ignore l'indentation du heredoc lui-même).
