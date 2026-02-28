@@ -12,8 +12,216 @@ jobs:
     name: 🐳 Docker Multi-Arch (Distroless)
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lire la version
+        id: version
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Version : $VERSION"
+
+      # ── Téléchargement des artifacts cross-workflow ───────────────────
+      - name: Download backend amd64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ github.ref_name }}
+          name: nook-backend-x86_64-unknown-linux-gnu
+          path: docker-context/backend
+
+      - name: Download backend arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ github.ref_name }}
+          name: nook-backend-aarch64-unknown-linux-gnu
+          path: docker-context/backend
+
+      - name: Download frontend
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Frontend.yml
+          branch: ${{ github.ref_name }}
+          name: nook-frontend
+          path: docker-context/frontend
+
+      - name: Vérification du contexte
+        id: ctx
+        run: |
+          echo "=== Backend ==="
+          ls -la docker-context/backend/
+          echo "=== Frontend ==="
+          ls -la docker-context/frontend/
+          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ amd64 manquant" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ arm64 manquant" && exit 1)
+          test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
+          chmod +x docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-arm64
+
+          AMD64_SIZE=$(ls -lh docker-context/backend/nook-backend-amd64 | awk '{print $5}')
+          ARM64_SIZE=$(ls -lh docker-context/backend/nook-backend-arm64 | awk '{print $5}')
+          FRONT_FILES=$(ls docker-context/frontend | wc -l)
+          echo "amd64_size=$AMD64_SIZE" >> $GITHUB_OUTPUT
+          echo "arm64_size=$ARM64_SIZE" >> $GITHUB_OUTPUT
+          echo "front_files=$FRONT_FILES" >> $GITHUB_OUTPUT
+          echo "✅ Contexte Docker prêt — v${{ steps.version.outputs.version }}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.tag }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build & Push
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          file: Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Génération DOCKER-BUILD-REPORT.md ────────────────────────────
+      - name: Générer DOCKER-BUILD-REPORT.md
+        if: always()
+        run: |
+          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          VERSION="${{ steps.version.outputs.tag }}"
+          AMD64_SIZE="${{ steps.ctx.outputs.amd64_size }}"
+          ARM64_SIZE="${{ steps.ctx.outputs.arm64_size }}"
+          FRONT_FILES="${{ steps.ctx.outputs.front_files }}"
+          IMAGE="ghcr.io/${{ github.repository }}"
+          PUSH_DIGEST="${{ steps.push.outputs.digest }}"
+
+          # Statut global du push
+          if [ -n "$PUSH_DIGEST" ]; then
+            PUSH_STATUS="✅ OK"
+          else
+            PUSH_STATUS="❌ FAIL"
+          fi
+
+          REPORT=".claude/DOCKER-BUILD-REPORT.md"
+          cat > "$REPORT" << ENDOFMD
+# 🐳 Docker Build Report — Nook
+
+> Généré automatiquement par \`Docker.yml\`
+> **${RUN_DATE}**
+
+---
+
+## Statut
+
+| Champ | Valeur |
+|-------|--------|
+| **Push GHCR** | ${PUSH_STATUS} |
+| **Version** | \`${VERSION}\` |
+| **Image** | \`${IMAGE}\` |
+| **Digest** | \`${PUSH_DIGEST:-N/A}\` |
+| **Branche** | \`${BRANCH}\` |
+| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+| **Run** | [Voir le run](${RUN_URL}) |
+
+---
+
+## Artifacts intégrés
+
+| Composant | Taille | Statut |
+|-----------|--------|--------|
+| **Backend amd64** | ${AMD64_SIZE} | ✅ |
+| **Backend arm64** | ${ARM64_SIZE} | ✅ |
+| **Frontend** | ${FRONT_FILES} fichiers | ✅ |
+
+---
+
+## Tags publiés
+
+\`\`\`
+${{ steps.meta.outputs.tags }}
+\`\`\`
+
+---
+
+## Plateformes
+
+- \`linux/amd64\` → Zimaboard x86 + CI GitHub
+- \`linux/arm64\` → Raspberry Pi, Apple M1/M2
+
+---
+
+## Utilisation homeserver
+
+\`\`\`bash
+# Mettre à jour le homeserver Zimaboard
+docker pull ${IMAGE}:${VERSION}
+# ou
+docker pull ${IMAGE}:latest
+\`\`\`
+
+---
+
+*Rapport généré par \`.github/workflows/Docker.yml\`*
+ENDOFMD
+
+          echo "✅ DOCKER-BUILD-REPORT.md généré"
+          cat "$REPORT"
+
+      - name: Commit DOCKER-BUILD-REPORT.md
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude/DOCKER-BUILD-REPORT.md
+          if git diff --staged --quiet; then
+            echo "Aucune modification — pas de commit"
+          else
+            git pull --rebase origin ${{ github.ref_name }}
+            git commit -m "ci: DOCKER-BUILD-REPORT.md [run ${{ github.run_id }}]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Rapport commité"
+          fi
+
+      - name: Résumé GitHub
+        run: |
+          echo "## 🐳 Docker ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`ghcr.io/${{ github.repository }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Platforms** | \`linux/amd64\` · \`linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Registry** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+
 
     steps:
       - uses: actions/checkout@v4
