@@ -93,61 +93,61 @@ jobs:
             | sed 's/\x1b\[[0-9;]*m//g' | head -10 || echo "(non vérifié)")
 
           REPORT=".claude/FRONTEND-BUILD-REPORT.md"
-          cat > "$REPORT" <<-'ENDOFMD'
-# 🎨 Frontend Build Report — Nook
+          cat > "$REPORT" << ENDOFMD
+          # 🎨 Frontend Build Report — Nook
 
-> Généré automatiquement par \`Frontend.yml\`
-> **${RUN_DATE}**
+          > Généré automatiquement par \`Frontend.yml\`
+          > **${RUN_DATE}**
 
----
+          ---
 
-## Statut
+          ## Statut
 
-| Champ | Valeur |
-|-------|--------|
-| **Build** | ${STATUS_ICON} ${BUILD_STATUS:-INCONNU} |
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Node.js** | \`${NODE_VER}\` |
-| **Run** | [Voir le run](${RUN_URL}) |
+          | Champ | Valeur |
+          |-------|--------|
+          | **Build** | ${STATUS_ICON} ${BUILD_STATUS:-INCONNU} |
+          | **Branche** | \`${BRANCH}\` |
+          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+          | **Node.js** | \`${NODE_VER}\` |
+          | **Run** | [Voir le run](${RUN_URL}) |
 
----
+           ---
 
-## Erreurs TypeScript / Vite
+          ## Erreurs TypeScript / Vite
 
-\`\`\`
-${ERRORS}
-\`\`\`
+          \`\`\`
+          ${ERRORS}
+          \`\`\`
 
----
+          ---
 
-## Warnings svelte-vite-plugin (a11y, imports)
+          ## Warnings svelte-vite-plugin (a11y, imports)
 
-\`\`\`
-${WARNINGS}
-\`\`\`
+          \`\`\`
+          ${WARNINGS}
+          \`\`\`
 
----
+          ---
 
-## Bundle — modules et tailles (gzip)
+          ## Bundle — modules et tailles (gzip)
 
-\`\`\`
-${VITE_SUMMARY}
+          \`\`\`
+          ${VITE_SUMMARY}
 
-${CHUNKS}
-\`\`\`
+          ${CHUNKS}
+          \`\`\`
 
----
+          ---
 
-## npm audit
+          ## npm audit
 
-\`\`\`
-${NPM_AUDIT}
-\`\`\`
+          \`\`\`
+          ${NPM_AUDIT}
+          \`\`\`
 
----
+          ---
 
-*Rapport généré par \`.github/workflows/Frontend.yml\`*
+          *Rapport généré par \`.github/workflows/Frontend.yml\`*
           ENDOFMD
 
           echo "✅ FRONTEND-BUILD-REPORT.md généré"
