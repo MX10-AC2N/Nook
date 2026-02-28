@@ -1,19 +1,19 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `x86_64-unknown-linux-gnu`
-> **2026-02-28 11:39 UTC**
+> **2026-02-28 18:54 UTC**
 
 ---
 
-## Statut global : ✅ OK
+## Statut global : ❌ FAIL
 
 | Champ | Valeur |
 |-------|--------|
 | **Architecture** | `amd64` (`x86_64-unknown-linux-gnu`) |
-| **Branche** | `main` |
-| **Commit** | [`ea1d7f4`](https://github.com/MX10-AC2N/Nook/commit/ea1d7f493c2ac3052c28657bf6a7083b87df0edd) |
+| **Branche** | `develop` |
+| **Commit** | [`518319b`](https://github.com/MX10-AC2N/Nook/commit/518319b50576490e05e236f0b1e8ac6cdc0ed45e) |
 | **Rust** | `rustc 1.93.1 (01f6ddf75 2026-02-11)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22519997660) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22526870341) |
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Étape | Statut | Détail |
 |-------|--------|--------|
-| **cargo check** | ✅ | exit 0 |
-| **cargo clippy** | ✅ | exit 0 (-D warnings) |
-| **cargo build --release** | ✅ | binaire 6.7M stripped |
+| **cargo check** | ❌ | exit 101 |
+| **cargo clippy** | ❌ | exit 101 (-D warnings) |
+| **cargo build --release** | ❌ | binaire N/A stripped |
 
 ---
 
@@ -60,7 +60,11 @@
 ## Résumé compilation
 
 ```
-    Finished `release` profile [optimized] target(s) in 46.37s
+error[E0432]: unresolved import `crate::chess_engine`
+error[E0282]: type annotations needed
+error[E0282]: type annotations needed
+error[E0282]: type annotations needed
+error[E0282]: type annotations needed
 ```
 
 ---
