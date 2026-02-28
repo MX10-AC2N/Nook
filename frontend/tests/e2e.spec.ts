@@ -1,11 +1,10 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 17
+// Suite E2E complète — Session 18
 // Corrections :
-//   - loginAsAdmin() : clearCookies() avant login pour éviter $effect de redirection (session partagée entre tests Admin)
-//     login → détecte /change-password → remplit le formulaire → attend /admin
-//   - Les tests Admin UI sont désormais pleinement exécutés (plus de skip)
-//   - Chess page : locator('.btn-create, h1') → strict mode violation (3 éléments)
-//     → remplacé par locator('.btn-create') seul
+//   - loginAsAdmin() : goto('about:blank') + localStorage.clear() + clearCookies()
+//     → triple reset pour éviter que authStore (Svelte 5 $derived) ne lise nook_user
+//     depuis localStorage et redirige /login avant que #username soit interactif
+//   - Chess page : locator('.btn-create, h1') → strict mode violation → locator('.btn-create')
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -46,23 +45,41 @@ async function loginAs(page: Page, username: string, password: string) {
  *   5. Vérification finale sur /admin
  */
 async function loginAsAdmin(page: Page) {
-  // Effacer tous les cookies pour éviter la redirection automatique due au $effect()
-  // du store d'auth qui détecte isAuthenticated et redirige avant que les inputs soient prêts
+  // DOUBLE RESET de session — session 17 :
+  //   clearCookies() seul ne suffit pas : authStore lit localStorage au démarrage
+  //   (nook_user + nook_session_id) → isAuthenticated reste true → $effect() de la
+  //   page /login redirige immédiatement → #username reste disabled pendant la nav.
+  //
+  // Fix en 3 temps :
+  //   1. Aller sur about:blank (page neutre sans SvelteKit) pour pouvoir écrire
+  //      dans localStorage sans déclencher de réaction du store
+  //   2. Effacer localStorage ET cookies
+  //   3. Naviguer vers /login → store repart à zéro → inputs disponibles
+
+  // Étape 1 : page neutre pour accéder à localStorage sans effets de bord SvelteKit
+  await page.goto('about:blank');
+
+  // Étape 2 : vider localStorage (nook_user, nook_session_id, nook_token)
+  await page.evaluate(() => {
+    try { localStorage.clear(); } catch (_) {}
+  });
+
+  // Étape 3 : vider les cookies (cookie HttpOnly de session backend)
   await page.context().clearCookies();
 
+  // Maintenant la page /login s'affiche sans redirection (isAuthenticated = false)
   await page.goto('/login');
-  // Attendre que la page soit stable et les inputs activés (pas de redirection en cours)
-  await expect(page.locator('#username')).toBeEnabled({ timeout: 8_000 });
+  await expect(page.locator('#username')).toBeEnabled({ timeout: 10_000 });
 
-  // Essai 1 : avec le nouveau mdp (mdp déjà changé dans un test précédent / retry)
+  // Essai 1 : ADMIN_NEW_PASSWORD (mdp déjà changé lors d'un test précédent / retry)
   await page.fill('#username', 'admin');
   await page.fill('#password', ADMIN_NEW_PASSWORD);
   await page.getByRole('button', { name: 'Se connecter' }).click();
   await page.waitForURL(/\/(chat|admin|change-password|login)/, { timeout: 12_000 });
 
-  // Si retour sur /login → ADMIN_NEW_PASSWORD inconnu → utiliser le mdp initial
+  // Si retour sur /login → ADMIN_NEW_PASSWORD pas encore actif → mdp initial
   if (page.url().includes('/login')) {
-    await expect(page.locator('#username')).toBeEnabled({ timeout: 5_000 });
+    await expect(page.locator('#username')).toBeEnabled({ timeout: 8_000 });
     await page.fill('#username', 'admin');
     await page.fill('#password', 'changeme2026');
     await page.getByRole('button', { name: 'Se connecter' }).click();
