@@ -1,16 +1,30 @@
 # 🤖 CLAUDE.md — Référence opérationnelle Nook
 
 > Lire ce fichier EN PREMIER avant toute intervention.  
-> Dernière mise à jour : **2026-02-23** (sessions 1→7)
+> Dernière mise à jour : **2026-02-28** (session 20)
 
 ---
 
 ## 📍 Localisation
 
 - **Repo** : https://github.com/MX10-AC2N/Nook
-- **Branche** : `MX10-AC2N-patch-svelte5-runes`
-- **Raw** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/MX10-AC2N-patch-svelte5-runes/[chemin]`
+- **Branche active** : `main` ← tout le travail est sur main désormais
+- **Raw** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/[chemin]`
 - **Lire aussi** : `DOCKER.md`, `BUGS.md`, `SESSIONS.md` dans ce dossier
+
+## 📊 Rapports CI disponibles dans `.claude/`
+
+| Fichier | Généré par | Contenu |
+|---------|-----------|---------|
+| `FRONTEND-BUILD-REPORT.md` | `Frontend.yml` | Erreurs TS/Vite, warnings a11y svelte, tailles chunks gzip, npm audit |
+| `BACKEND-BUILD-REPORT-amd64.md` | `Backend.yml` (job amd64) | cargo check/clippy/build, warnings avec fichier:ligne, taille binaire |
+| `BACKEND-BUILD-REPORT-arm64.md` | `Backend.yml` (job arm64) | idem pour arm64 |
+| `DOCKER-BUILD-REPORT.md` | `Docker.yml` | digest GHCR, tags publiés, tailles artifacts intégrés |
+| `TEST_REPORT.md` | `test-nook.yml` | Résultats E2E Playwright (38 tests), logs Docker |
+
+> ⚠️ **Deux fichiers backend** — la matrix compile amd64 et arm64 en parallèle.
+> Un seul fichier partagé causerait une race condition (les deux jobs commitent simultanément).
+> Lire les deux rapports pour avoir le statut complet.
 
 ---
 
