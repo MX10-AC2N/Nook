@@ -1,6 +1,6 @@
 services:
   nook:
-    image: ${NOOK_IMAGE:-ghcr.io/mx10-ac2n/nook:v0.2.0-beta.1}
+    image: ${NOOK_IMAGE:-ghcr.io/mx10-ac2n/nook:latest}
     container_name: nook
     restart: unless-stopped
 
