@@ -348,3 +348,83 @@ Template vide qui sera écrasé à chaque run CI.
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
 
 
+
+## Sessions 15-18 — 2026-02-28 — Bataille E2E Admin (clearSession)
+
+### Contexte
+Après la session 14 qui a mis en place 28 tests E2E, 4 sessions consécutives ont été
+nécessaires pour résoudre un problème persistant : les 4 tests Admin UI échouaient
+systématiquement après le 1er test Admin, malgré diverses tentatives.
+
+### Chronologie des bugs et tentatives
+
+#### Session 15 — Bug A : `GET /api/conversations` vide pour e2e_ci
+**Cause** : e2e_ci n'était pas inséré dans `conversation_participants` → INNER JOIN retournait [].
+**Fix** : `main.rs::check_initial_admin()` + `admin.rs::approve_user()` — INSERT OR IGNORE vers default_global.
+
+#### Session 15 — Bug B : Admin login bloqué sur /change-password
+**Cause** : `loginAs()` attendait `/chat|admin` mais admin avait `needs_password_change=1`.
+**Fix** : accepter `/(chat|admin|change-password)` dans loginAs().
+
+#### Session 15 — Bug C : Logout button introuvable
+**Cause** : sélecteur texte ne matchait pas le bouton header (icône 🔌 seulement).
+**Fix** : `button[aria-label="Déconnexion"]`.
+
+#### Session 15 — Bug D : Chess strict mode violation
+**Cause** : `.btn-create, h1` résolvait 3 éléments (h1 layout + h1 chess + btn-create).
+**Fix** : `.btn-create` seul.
+
+#### Session 16 — Admin UI tests : flow change-password
+**Ajout** : helper `loginAsAdmin()` qui gère le flow obligatoire :
+login → /change-password → remplit formulaire → /admin.
+**Problème résiduel** : 4 tests Admin UI après le 1er échouent encore.
+
+#### Session 17 — Tentative 1 : clearCookies()
+**Hypothèse** : cookie de session actif → $effect() redirige /login → #username disabled.
+**Résultat** : ❌ — `localStorage` survit à clearCookies(). AuthStore lit `nook_user` + `nook_session_id`
+synchroniquement dans son constructeur → `isAuthenticated=true` persistant.
+
+#### Session 17 — Bug git push rejeté
+**Cause** : `git push` sans `git pull --rebase` → fast-forward impossible (branche avancée par commit précédent).
+**Fix** : `test-nook.yml` — ajout de `git pull --rebase origin $ref` avant push.
+
+#### Session 18 — Tentative 2 : about:blank + localStorage.clear()
+**Hypothèse** : naviguer vers about:blank puis `page.evaluate(() => localStorage.clear())`.
+**Résultat** : ❌ — `about:blank` a une **origine différente** de `localhost:6300`.
+Le localStorage de l'app n'est pas accessible depuis about:blank (isolation d'origine).
+
+#### Session 18 — Tentative 3 (FINALE) : addInitScript()
+**Cause racine définitive** : `AuthStore` constructor lit localStorage **synchroniquement**
+lors du parsing du module JS — avant que tout hook post-navigation puisse intervenir.
+Il n'existe aucune fenêtre d'intervention *après* la navigation et *avant* le constructeur.
+
+**Fix** : `page.addInitScript()` — Playwright injecte le script dans le contexte V8
+**avant l'exécution de tout JS de la page**, y compris les modules ES6.
+```typescript
+await page.context().clearCookies();
+await page.addInitScript(() => {
+  localStorage.removeItem('nook_user');
+  localStorage.removeItem('nook_session_id');
+  localStorage.removeItem('nook_token');
+});
+await page.goto('/login');
+// → AuthStore() trouve localStorage vide → isAuthenticated=false → pas de redirect
+```
+
+### Fichiers modifiés sessions 15-18
+- `frontend/tests/e2e.spec.ts` — évolutions majeures (sessions 15→18)
+- `backend/src/main.rs` — conversation_participants au boot (session 15)
+- `backend/src/admin.rs` — approve_user ajoute à default_global (session 15)
+- `.github/workflows/test-nook.yml` — git pull --rebase (session 17)
+
+### État CI attendu après session 18
+- **38 tests** (31 actifs + 7 suites-wrapper dans le JSON Playwright)
+- **34 ✅ passés** (sessions 15-17 corrigées)
+- **4 tests Admin UI** : ✅ attendus après fix addInitScript()
+- **TEST_REPORT.md** : mis à jour automatiquement à chaque run (git pull --rebase corrigé)
+
+### Ce qui reste à faire
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chat : liste des utilisateurs connectés
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
