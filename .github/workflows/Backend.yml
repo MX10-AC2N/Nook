@@ -7,6 +7,8 @@ jobs:
   backend:
     name: 🏗️ Backend (${{ matrix.target }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: ./backend
@@ -20,6 +22,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -40,16 +45,27 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: cargo check
+        id: check
         env:
           SQLX_OFFLINE: true
-        run: cargo check --all-targets --target ${{ matrix.target }}
+        run: |
+          set +e
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
 
       - name: cargo clippy
+        id: clippy
         env:
           SQLX_OFFLINE: true
-        run: cargo clippy --target ${{ matrix.target }} -- -D warnings
+        run: |
+          set +e
+          cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
 
       - name: cargo build --release
+        id: build
         env:
           SQLX_OFFLINE: true
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -58,9 +74,23 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
-          cargo build --release --locked --target ${{ matrix.target }}
-          echo "📏 Taille :"
-          ls -lh target/${{ matrix.target }}/release/nook-backend
+          set +e
+          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ $BUILD_EXIT -eq 0 ]; then
+            BINARY="target/${{ matrix.target }}/release/nook-backend"
+            BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
+            echo "build_status=OK" >> $GITHUB_OUTPUT
+            echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
+            echo "📏 Taille : $BIN_SIZE"
+            ls -lh $BINARY
+          else
+            echo "build_status=FAIL" >> $GITHUB_OUTPUT
+          fi
+
+          exit $BUILD_EXIT
 
       - name: Préparer le binaire (suffixe amd64/arm64)
         run: |
@@ -68,6 +98,139 @@ jobs:
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
           echo "✅ artifacts/nook-backend-${ARCH} prêt"
+
+      # ── Génération BACKEND-BUILD-REPORT.md ───────────────────────────
+      - name: Générer BACKEND-BUILD-REPORT.md
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TARGET="${{ matrix.target }}"
+          ARCH=$(echo "$TARGET" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+          RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
+          BUILD_STATUS="${{ steps.build.outputs.build_status }}"
+          BIN_SIZE="${{ steps.build.outputs.bin_size }}"
+          CHECK_EXIT="${{ steps.check.outputs.check_exit }}"
+          CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
+
+          [ "$BUILD_STATUS" = "OK" ]   && BUILD_ICON="✅" || BUILD_ICON="❌"
+          [ "$CHECK_EXIT"  = "0" ]     && CHECK_ICON="✅" || CHECK_ICON="❌"
+          [ "$CLIPPY_EXIT" = "0" ]     && CLIPPY_ICON="✅" || CLIPPY_ICON="❌"
+
+          # ── Erreurs cargo check ───────────────────────────────────────
+          CHECK_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-check.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -30 || echo "(aucune)")
+
+          # ── Warnings clippy ───────────────────────────────────────────
+          CLIPPY_WARNS=$(grep -E "^warning\[|^warning:" /tmp/cargo-clippy.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -40 || echo "(aucun)")
+
+          # ── Erreurs build release ─────────────────────────────────────
+          BUILD_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -30 || echo "(aucune)")
+
+          # ── Dépendances compilées (Compiling ...) ─────────────────────
+          CRATES=$(grep "^   Compiling" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | tail -20 || echo "(non disponible)")
+
+          # ── Ligne Finished ────────────────────────────────────────────
+          FINISHED=$(grep "Finished\|error\[E" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | tail -5 || echo "")
+
+          REPORT="$GITHUB_WORKSPACE/.claude/BACKEND-BUILD-REPORT.md"
+
+          # Créer ou mettre à jour — on écrit toujours la section de l'arch courante
+          # et on préserve l'autre si elle existe déjà (grep + sed pour partial update)
+          # Approche simple : un seul fichier avec sections par architecture
+
+          # Lire le contenu existant si disponible (pour l'autre arch)
+          if [ -f "$REPORT" ]; then
+            OTHER_ARCH=$([ "$ARCH" = "amd64" ] && echo "arm64" || echo "amd64")
+            OTHER_SECTION=$(awk "/^## Architecture : ${OTHER_ARCH}/,/^## Architecture :/" "$REPORT" | head -n -1)
+          else
+            OTHER_SECTION=""
+          fi
+
+          cat > "$REPORT" << ENDOFMD
+# 🏗️ Backend Build Report — Nook
+
+> Généré automatiquement par \`Backend.yml\`
+> **${RUN_DATE}**
+
+---
+
+## Résumé
+
+| Champ | Valeur |
+|-------|--------|
+| **Branche** | \`${BRANCH}\` |
+| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+| **Rust** | \`${RUSTC_VER}\` |
+| **Run** | [Voir le run](${RUN_URL}) |
+
+---
+
+## Architecture : ${ARCH}
+
+| Étape | Statut | Détail |
+|-------|--------|--------|
+| **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT} |
+| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} (-D warnings) |
+| **cargo build --release** | ${BUILD_ICON} | ${BIN_SIZE:-N/A} stripped |
+
+### Erreurs cargo check
+
+\`\`\`
+${CHECK_ERRORS}
+\`\`\`
+
+### Warnings clippy (-D warnings → build fail si présents)
+
+\`\`\`
+${CLIPPY_WARNS}
+\`\`\`
+
+### Erreurs build release
+
+\`\`\`
+${BUILD_ERRORS}
+\`\`\`
+
+### Crates compilées (dernières 20)
+
+\`\`\`
+${CRATES}
+${FINISHED}
+\`\`\`
+
+${OTHER_SECTION}
+
+---
+
+*Rapport généré par \`.github/workflows/Backend.yml\`*
+ENDOFMD
+
+          echo "✅ BACKEND-BUILD-REPORT.md généré (${ARCH})"
+
+      - name: Commit BACKEND-BUILD-REPORT.md
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude/BACKEND-BUILD-REPORT.md
+          if git diff --staged --quiet; then
+            echo "Aucune modification — pas de commit"
+          else
+            git pull --rebase origin ${{ github.ref_name }}
+            git commit -m "ci: BACKEND-BUILD-REPORT.md [${{ matrix.target }}] [run ${{ github.run_id }}]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Rapport commité"
+          fi
 
       # Nom fixe par architecture → Docker.yml peut les télécharger simplement
       - uses: actions/upload-artifact@v4
