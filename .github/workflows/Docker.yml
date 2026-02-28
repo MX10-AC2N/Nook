@@ -133,7 +133,7 @@ jobs:
 
           REPORT=".claude/DOCKER-BUILD-REPORT.md"
           cat > "$REPORT" << ENDOFMD
-# 🐳 Docker Build Report — Nook
+          # 🐳 Docker Build Report — Nook
 
 > Généré automatiquement par \`Docker.yml\`
 > **${RUN_DATE}**
