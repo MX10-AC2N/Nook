@@ -245,3 +245,53 @@ Le frontend chess `onmessage` reçoit les events mais ne recharge pas le plateau
 ### ⚠️ Upload FK constraint (DÉPEND SESSION 11)
 Nécessite que la conversation `default_global` existe.
 Fix dans `main.rs::check_initial_admin()` fait en session 11 — vérifier déployé.
+
+---
+
+## ✅ BUGS RÉSOLUS (sessions 15-18 — 2026-02-28)
+
+### [R15] e2e_ci absent de conversation_participants → GET /api/conversations retourne []
+**Session** : 15
+**Cause** : La table `conversation_participants` n'était jamais alimentée automatiquement.
+La query conversations utilise INNER JOIN → si pas de ligne participant → résultat vide.
+**Fix** :
+- `main.rs::check_initial_admin()` : INSERT OR IGNORE tous les users approuvés dans default_global au boot
+- `admin.rs::approve_user()` : INSERT OR IGNORE dans default_global lors de chaque approbation
+**Idempotent** : INSERT OR IGNORE → sûr pour redémarrages et re-runs CI.
+
+### [R16] Logout button introuvable en E2E (strict mode violation)
+**Session** : 15
+**Cause** : sélecteur `getByRole('button', { name: /déconnect/i })` ne matchait pas le bouton header
+qui n'a que l'icône 🔌 (pas de texte visible).
+**Fix** : `button[aria-label="Déconnexion"]` — cible l'attribut aria explicite.
+
+### [R17] Chess page — strict mode violation sur h1
+**Session** : 15
+**Cause** : `locator('.btn-create, h1')` résolvait 3 éléments : h1 layout "🌱 Nook" + h1 chess "Échecs" + button.btn-create
+→ Playwright strict mode refuse toBeVisible() sur multi-match.
+**Fix** : `locator('.btn-create')` seul.
+
+### [R18] Admin UI inaccessible : #username disabled (localStorage persistant entre tests)
+**Sessions** : 16-18 (3 tentatives)
+**Cause racine** : `AuthStore` classe Svelte 5 — son constructeur lit `localStorage` **synchroniquement**
+lors du chargement du module ES6. En contexte Playwright (workers:1, même browser context),
+le `localStorage` de `localhost:6300` persiste entre les tests → `isAuthenticated=true`
+→ `$effect()` du layout redirige /login avant que les inputs soient interactifs.
+**Tentatives échouées** :
+1. `clearCookies()` seul → localStorage intact, cookie ≠ localStorage
+2. `goto('about:blank') + page.evaluate(localStorage.clear)` → about:blank a une origine différente, localStorage isolé
+**Fix final** : `page.addInitScript()` — seul hook Playwright qui s'exécute avant les modules ES6 :
+```typescript
+await page.context().clearCookies();
+await page.addInitScript(() => {
+  localStorage.removeItem('nook_user');
+  localStorage.removeItem('nook_session_id');
+  localStorage.removeItem('nook_token');
+});
+await page.goto('/login');
+```
+
+### [R19] git push TEST_REPORT.md rejeté (non-fast-forward)
+**Session** : 17
+**Cause** : le workflow CI commitait le rapport sans synchroniser avec la branche distante → fast-forward impossible si la branche avait avancé entre le checkout et le push.
+**Fix** : `test-nook.yml` — `git pull --rebase origin $ref` avant `git push`.
