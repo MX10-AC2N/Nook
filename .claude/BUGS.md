@@ -295,3 +295,40 @@ await page.goto('/login');
 **Session** : 17
 **Cause** : le workflow CI commitait le rapport sans synchroniser avec la branche distante → fast-forward impossible si la branche avait avancé entre le checkout et le push.
 **Fix** : `test-nook.yml` — `git pull --rebase origin $ref` avant `git push`.
+
+---
+
+## ✅ BUGS RÉSOLUS (session 19 — 2026-02-28)
+
+### [R20] Admin UI E2E — tests 2-5 toujours en échec malgré addInitScript()
+
+**Sessions** : 19 (fix définitif après 4 tentatives échouées sessions 16-18)
+
+**Cause racine finale** : `addInitScript()` sur un objet `Page` Playwright s'exécute
+dans le contexte de la page à sa création — soit `about:blank`. L'origine `about:blank`
+est différente de `localhost:6300` → le localStorage de l'app n'est jamais atteint.
+
+**Historique complet des tentatives :**
+1. `clearCookies()` seul → localStorage intact → `isAuthenticated=true`
+2. `goto('about:blank') + localStorage.clear()` → about:blank = origine isolée
+3. `addInitScript()` → s'exécute sur about:blank, pas sur localhost:6300
+
+**Fix définitif** : `page.request.post('/api/auth/login')` — bypass total du browser.
+`page.request` partage le cookie store du browser context → le cookie `auth_token`
+est posé sans jamais charger `/login` → `page.goto('/admin')` directement.
+Le localStorage et le `$effect()` de redirection ne sont plus jamais impliqués.
+
+---
+
+## 🔧 Notes architecture CI (session 20)
+
+### Race condition matrix Backend.yml
+**Problème détecté** : la matrix amd64/arm64 génère deux jobs parallèles qui commitent
+simultanément sur le même fichier → conflit git → un rapport est systématiquement perdu.
+**Solution** : fichiers séparés `BACKEND-BUILD-REPORT-amd64.md` et `BACKEND-BUILD-REPORT-arm64.md`.
+
+### Heredoc indenté dans les workflows GitHub Actions
+**Problème** : `cat > file << ENDOFMD` avec indentation YAML produit des lignes avec
+des espaces en début → Markdown invalide (listes cassées, code blocks mal détectés).
+**Solution** : heredoc toujours au niveau colonne 0, même si le shell run est indenté
+dans le YAML (GitHub Actions ignore l'indentation du heredoc lui-même).
