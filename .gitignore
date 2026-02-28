@@ -4,3 +4,7 @@
 /logs
 build/
 .svelte-kit/
+
+# Configuration locale (jamais committer)
+.env
+.env.local
