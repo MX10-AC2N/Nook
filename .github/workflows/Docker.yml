@@ -135,63 +135,63 @@ jobs:
           cat > "$REPORT" << ENDOFMD
           # 🐳 Docker Build Report — Nook
 
-> Généré automatiquement par \`Docker.yml\`
-> **${RUN_DATE}**
+          > Généré automatiquement par \`Docker.yml\`
+          > **${RUN_DATE}**
 
----
+          ---
 
-## Statut
+          ## Statut
 
-| Champ | Valeur |
-|-------|--------|
-| **Push GHCR** | ${PUSH_STATUS} |
-| **Version** | \`${VERSION}\` |
-| **Image** | \`${IMAGE}\` |
-| **Digest** | \`${PUSH_DIGEST:-N/A}\` |
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Run** | [Voir le run](${RUN_URL}) |
+          | Champ | Valeur |
+          |-------|--------|
+          | **Push GHCR** | ${PUSH_STATUS} |
+          | **Version** | \`${VERSION}\` |
+          | **Image** | \`${IMAGE}\` |
+          | **Digest** | \`${PUSH_DIGEST:-N/A}\` |
+          | **Branche** | \`${BRANCH}\` |
+          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+          | **Run** | [Voir le run](${RUN_URL}) |
 
----
+          ---
 
-## Artifacts intégrés
+          ## Artifacts intégrés
 
-| Composant | Taille | Statut |
-|-----------|--------|--------|
-| **Backend amd64** | ${AMD64_SIZE} | ✅ |
-| **Backend arm64** | ${ARM64_SIZE} | ✅ |
-| **Frontend** | ${FRONT_FILES} fichiers | ✅ |
+          | Composant | Taille | Statut |
+          |-----------|--------|--------|
+          | **Backend amd64** | ${AMD64_SIZE} | ✅ |
+          | **Backend arm64** | ${ARM64_SIZE} | ✅ |
+          | **Frontend** | ${FRONT_FILES} fichiers | ✅ |
 
----
+          ---
 
-## Tags publiés
+          ## Tags publiés
 
-\`\`\`
-${{ steps.meta.outputs.tags }}
-\`\`\`
+          \`\`\`
+          ${{ steps.meta.outputs.tags }}
+          \`\`\`
 
----
+          ---
 
-## Plateformes
+          ## Plateformes
 
-- \`linux/amd64\` → Zimaboard x86 + CI GitHub
-- \`linux/arm64\` → Raspberry Pi, Apple M1/M2
+          - \`linux/amd64\` → Zimaboard x86 + CI GitHub
+          - \`linux/arm64\` → Raspberry Pi, Apple M1/M2
 
----
+          ---
 
-## Utilisation homeserver
+          ## Utilisation homeserver
 
-\`\`\`bash
-# Mettre à jour le homeserver Zimaboard
-docker pull ${IMAGE}:${VERSION}
-# ou
-docker pull ${IMAGE}:latest
-\`\`\`
+          \`\`\`bash
+          # Mettre à jour le homeserver Zimaboard
+          docker pull ${IMAGE}:${VERSION}
+          # ou
+          docker pull ${IMAGE}:latest
+          \`\`\`
 
----
+          ---
 
-*Rapport généré par \`.github/workflows/Docker.yml\`*
-ENDOFMD
+          *Rapport généré par \`.github/workflows/Docker.yml\`*
+          ENDOFMD
 
           echo "✅ DOCKER-BUILD-REPORT.md généré"
           cat "$REPORT"
