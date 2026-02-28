@@ -310,7 +310,7 @@ jobs:
             # Rebase sur l'état distant avant de pousser pour éviter le rejet
             # si la branche a avancé pendant l'exécution du workflow (fast-forward required)
             git pull --rebase origin ${{ github.ref_name }}
-            git push origin HEAD:${{ github.ref_name }}
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité et poussé"
           fi
 
