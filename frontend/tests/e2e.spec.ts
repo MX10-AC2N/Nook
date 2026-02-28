@@ -1,10 +1,10 @@
 // frontend/tests/e2e.spec.ts
 // Suite E2E complète — Session 18
 // Corrections :
-//   - loginAsAdmin() : goto('about:blank') + localStorage.clear() + clearCookies()
-//     → triple reset pour éviter que authStore (Svelte 5 $derived) ne lise nook_user
-//     depuis localStorage et redirige /login avant que #username soit interactif
-//   - Chess page : locator('.btn-create, h1') → strict mode violation → locator('.btn-create')
+//   - loginAsAdmin() : addInitScript() pour vider localStorage Nook AVANT le constructeur
+//     AuthStore — seule approche fiable car le constructeur lit localStorage synchroniquement
+//     avant que tout script post-navigation puisse intervenir
+//   - Chess : locator('.btn-create') seul (strict mode violation sur h1 dupliqué)
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -34,7 +34,7 @@ async function loginAs(page: Page, username: string, password: string) {
  * est actif → page.goto('/login') déclenche le $effect() de redirection avant que
  * les inputs soient interactifs → #username est disabled/détaché → timeout.
  *
- * Fix : clearCookies() avant chaque appel pour repartir d'un état propre,
+ * Fix : page.addInitScript() — injecte le clear avant que AuthStore() lise localStorage.
  * puis goto('/login') pour avoir les inputs disponibles sans redirection parasite.
  *
  * Flow idempotent :
@@ -45,29 +45,37 @@ async function loginAs(page: Page, username: string, password: string) {
  *   5. Vérification finale sur /admin
  */
 async function loginAsAdmin(page: Page) {
-  // DOUBLE RESET de session — session 17 :
-  //   clearCookies() seul ne suffit pas : authStore lit localStorage au démarrage
-  //   (nook_user + nook_session_id) → isAuthenticated reste true → $effect() de la
-  //   page /login redirige immédiatement → #username reste disabled pendant la nav.
+  // SOLUTION DÉFINITIVE — Session 18 :
   //
-  // Fix en 3 temps :
-  //   1. Aller sur about:blank (page neutre sans SvelteKit) pour pouvoir écrire
-  //      dans localStorage sans déclencher de réaction du store
-  //   2. Effacer localStorage ET cookies
-  //   3. Naviguer vers /login → store repart à zéro → inputs disponibles
+  // Historique des tentatives :
+  //   • clearCookies() seul  → localStorage intact → isAuthenticated=true → #username disabled
+  //   • goto('about:blank') + localStorage.clear() → about:blank a une ORIGINE DIFFÉRENTE
+  //     de localhost:6300 → le localStorage de l'app n'est pas effacé
+  //
+  // Cause racine : le constructeur de AuthStore lit localStorage SYNCHRONIQUEMENT
+  // avant même que le DOM soit prêt. Aucune navigation post-chargement ne peut
+  // effacer ce state assez tôt — le $effect() de redirection se déclenche en premier.
+  //
+  // Fix : page.addInitScript() — Playwright injecte un script qui s'exécute
+  // AVANT tout JS de la page (avant le constructeur AuthStore).
+  // Ce script vide les clés Nook du localStorage au niveau navigateur,
+  // rendant isAuthenticated=false dès la construction du store.
 
-  // Étape 1 : page neutre pour accéder à localStorage sans effets de bord SvelteKit
-  await page.goto('about:blank');
-
-  // Étape 2 : vider localStorage (nook_user, nook_session_id, nook_token)
-  await page.evaluate(() => {
-    try { localStorage.clear(); } catch (_) {}
-  });
-
-  // Étape 3 : vider les cookies (cookie HttpOnly de session backend)
+  // Étape 1 : vider le cookie de session backend (HttpOnly)
   await page.context().clearCookies();
 
-  // Maintenant la page /login s'affiche sans redirection (isAuthenticated = false)
+  // Étape 2 : injecter un script qui vide le localStorage Nook AVANT AuthStore()
+  // addInitScript s'exécute à chaque navigation de cette page jusqu'à sa fin
+  await page.addInitScript(() => {
+    try {
+      localStorage.removeItem('nook_user');
+      localStorage.removeItem('nook_session_id');
+      localStorage.removeItem('nook_token');
+    } catch (_) {}
+  });
+
+  // Étape 3 : naviguer vers /login — AuthStore() trouve localStorage vide
+  // → isAuthenticated=false → pas de redirection → #username activé immédiatement
   await page.goto('/login');
   await expect(page.locator('#username')).toBeEnabled({ timeout: 10_000 });
 
@@ -77,7 +85,7 @@ async function loginAsAdmin(page: Page) {
   await page.getByRole('button', { name: 'Se connecter' }).click();
   await page.waitForURL(/\/(chat|admin|change-password|login)/, { timeout: 12_000 });
 
-  // Si retour sur /login → ADMIN_NEW_PASSWORD pas encore actif → mdp initial
+  // Si /login → ADMIN_NEW_PASSWORD pas encore actif → mdp initial
   if (page.url().includes('/login')) {
     await expect(page.locator('#username')).toBeEnabled({ timeout: 8_000 });
     await page.fill('#username', 'admin');
@@ -86,14 +94,13 @@ async function loginAsAdmin(page: Page) {
     await page.waitForURL(/\/(change-password|admin|chat)/, { timeout: 12_000 });
   }
 
-  // Si /change-password → effectuer le changement de mot de passe obligatoire
+  // Si /change-password → effectuer le changement obligatoire
   if (page.url().includes('/change-password')) {
     await page.fill('#new-password', ADMIN_NEW_PASSWORD);
     await page.fill('#confirm-password', ADMIN_NEW_PASSWORD);
     await page.getByRole('button', { name: /D.finir le mot de passe|Changer le mot de passe/i }).click();
     await expect(page.locator('.alert.success')).toBeVisible({ timeout: 8_000 });
     console.log('🔐 Changement de mot de passe admin effectué');
-    // La page fait setTimeout(2000) puis goto('/admin')
     await page.waitForURL(/\/admin/, { timeout: 10_000 });
   }
 
