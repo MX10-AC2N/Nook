@@ -27,6 +27,7 @@ use tower_http::{
 mod admin;
 mod auth;
 mod chess;
+mod chess_engine;
 mod config;
 mod db;
 mod invites;
