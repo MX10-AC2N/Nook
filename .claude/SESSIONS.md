@@ -428,3 +428,93 @@ await page.goto('/login');
 - [ ] Polls : backend API (actuellement localStorage only)
 - [ ] Chat : liste des utilisateurs connectés
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
+
+## Session 19 — 2026-02-28 — Fix Admin E2E : approche API-first
+
+### Contexte
+Après 4 tentatives échouées (sessions 16-18) pour résoudre les 4 tests Admin UI,
+la session 19 identifie la vraie cause racine et applique le fix définitif.
+
+### Cause racine définitive (session 19)
+
+`addInitScript()` échoue car la page Playwright naît à `about:blank`.
+Le script est attaché à la page et s'exécute lors des navigations futures —
+mais dans le contexte de `about:blank` (origine différente de `localhost:6300`).
+Le `localStorage` de l'app reste intact.
+
+**Seule solution valide :** ne jamais naviguer vers `/login` côté browser.
+`page.request.post()` partage le cookie store du browser context → pose le
+cookie `auth_token` comme un vrai login backend → `page.goto('/admin')` fonctionne
+directement sans jamais impliquer le localStorage ni le `$effect()` de redirection.
+
+### Fix — `loginAsAdmin()` réécrit (approche API-first)
+
+```typescript
+// POST /api/auth/login via page.request → pose le cookie dans le browser context
+let loginRes = await page.request.post(`${BASE}/auth/login`, {
+  data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
+});
+// Si needs_password_change → POST /api/auth/change-password → re-login
+// Puis navigation directe :
+await page.goto('/admin');  // cookie actif, localStorage jamais consulté
+```
+
+### Fichiers modifiés session 19
+- `frontend/tests/e2e.spec.ts` — `loginAsAdmin()` réécrit en API-first
+
+---
+
+## Session 20 — 2026-02-28 — Rapports CI par workflow + migration branche main
+
+### Contexte
+Migration de la branche `MX10-AC2N-patch-svelte5-runes` vers `main`.
+Mise en place des rapports CI dans `.claude/` pour chaque workflow.
+
+### Changements majeurs
+
+#### Branche active → `main`
+Tout le travail se fait désormais sur `main`.
+CLAUDE.md mis à jour en conséquence.
+
+#### Backend.yml — deux fichiers distincts
+**Problème :** la matrix amd64/arm64 exécute deux jobs en parallèle.
+Un seul fichier `BACKEND-BUILD-REPORT.md` partagé → race condition garantie :
+les deux jobs commitent simultanément → un seul gagne, l'autre est rejeté ou écrasé.
+
+**Solution :** deux fichiers indépendants :
+- `.claude/BACKEND-BUILD-REPORT-amd64.md` → job `x86_64-unknown-linux-gnu`
+- `.claude/BACKEND-BUILD-REPORT-arm64.md` → job `aarch64-unknown-linux-gnu`
+
+Chaque fichier est auto-suffisant. Zéro coordination nécessaire entre jobs.
+
+**Contenu de chaque rapport :**
+- Statut global (✅/❌) des 3 étapes : check, clippy, build
+- Erreurs cargo check avec codes d'erreur
+- Warnings clippy avec **contexte fichier:ligne** (grep `^warning|^ -->`)
+- Taille du binaire strippé
+- Ligne `Finished` avec timing
+
+#### Frontend.yml — correction heredoc + warnings améliorés
+- Heredoc non indenté → plus d'espaces parasites dans le Markdown
+- Capture des warnings svelte avec leur URL `https://svelte.dev/e/...` pour diagnostic rapide
+- Contexte fichier:ligne des warnings
+
+#### Docker.yml — correction heredoc
+- Heredoc non indenté → Markdown propre
+- Commande `docker compose pull && docker compose up -d` prête à copier
+
+### Fichiers modifiés/créés session 20
+- `.github/workflows/Backend.yml` — deux rapports par arch, heredoc fix
+- `.github/workflows/Frontend.yml` — heredoc fix, warnings context
+- `.github/workflows/Docker.yml` — heredoc fix
+- `.claude/CLAUDE.md` — branche main, table des rapports CI
+- `.claude/SESSIONS.md` — ce fichier
+- `.claude/BUGS.md` — mis à jour
+
+### Ce qui reste à faire
+- [ ] Déclencher Backend.yml → vérifier BACKEND-BUILD-REPORT-amd64.md et arm64.md
+- [ ] Déclencher Frontend.yml → vérifier FRONTEND-BUILD-REPORT.md
+- [ ] Déclencher test-nook.yml → confirmer 38/38 tests ✅ (fix session 19 en attente)
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
