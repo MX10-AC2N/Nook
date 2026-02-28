@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-02-28 09:04 UTC**
+> **2026-02-28 10:14 UTC**
 
 ---
 
@@ -10,10 +10,10 @@
 | Champ | Valeur |
 |-------|--------|
 | **Build** | ✅ OK |
-| **Branche** | `MX10-AC2N-patch-svelte5-runes` |
-| **Commit** | [`2b83f27`](https://github.com/MX10-AC2N/Nook/commit/2b83f27678c758dad407d6f63c9c26f4591d3a5b) |
+| **Branche** | `main` |
+| **Commit** | [`b227343`](https://github.com/MX10-AC2N/Nook/commit/b227343614e2328fb4bae47b09c8c0b724d5448d) |
 | **Node.js** | `v20.20.0` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/22517689263) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/22518743254) |
 
  ---
 
@@ -43,7 +43,7 @@ rendering chunks...
 vite v7.3.1 building client environment for production...
 ✓ 221 modules transformed.
 rendering chunks...
-✓ built in 4.45s
+✓ built in 4.88s
 vite v7.3.1 building client environment for production...
 ✓ 1 modules transformed.
 rendering chunks...
