@@ -1,6 +1,6 @@
-# Nook — La messagerie qui protège ta famille 🏠
+# Nook 🏠
 
-> ⚠️ **WORK IN PROGRESS** — v0.2.0-beta.1 en développement actif
+> **v0.2.0-beta.1 — Work in progress**
 
 <div align="center">
 
@@ -11,258 +11,216 @@
 
 [![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=&ignore=sha-*,latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size&tag=latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-[![Last Commit](https://img.shields.io/github/last-commit/MX10-AC2N/Nook/main?label=last%20build&color=informational)](https://github.com/MX10-AC2N/Nook/commits/main)
+[![Last Commit](https://img.shields.io/github/last-commit/MX10-AC2N/Nook/main?label=dernier%20commit&color=informational)](https://github.com/MX10-AC2N/Nook/commits/main)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
 [![Rust](https://img.shields.io/badge/Backend-Rust%201.88%20%2B%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
-[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%202.49%20%2B%20Svelte%205-FF3E00?logo=svelte)](https://kit.svelte.dev/)
+[![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%202.49%20%2B%20Svelte%205%20Runes-FF3E00?logo=svelte)](https://kit.svelte.dev/)
 [![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite)](https://sqlite.org/)
-[![Docker](https://img.shields.io/badge/Runtime-Distroless%20Docker-2496ED?logo=docker)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
+[![Docker](https://img.shields.io/badge/Runtime-Distroless-2496ED?logo=docker)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 </div>
 
 ---
 
-## Pourquoi Nook ?
-
-Tu en as marre que les grandes firmes lisent tes messages et vendent tes données ? Nous aussi. 😤
-
-Nook, c'est simple :
-- **Toi** qui héberges — sur ton serveur, ton NAS, ou un Raspberry Pi
-- **Tes données** qui restent chez toi — elles ne vont nulle part ailleurs
-- **Chiffré** de bout en bout — même l'hébergeur ne peut pas lire tes messages
+Messagerie familiale **self-hosted** — hébergée chez toi, sur ton matériel, sous ton contrôle. Tes données ne quittent jamais ton serveur.
 
 ---
 
-## Ce que Nook sait faire
+## Ce que Nook sait faire aujourd'hui
 
-### 💬 Chat familial
-Messages instantanés et chiffrés, partage de fichiers, photos, GIFs — tout reste entre vous.
+### ✅ Fonctionnel
 
-### 📞 Appels audio & vidéo
-WebRTC pour des connexions directes entre appareils. Le serveur établit la connexion mais ne transit jamais le flux — zéro donnée exposée.
+**💬 Chat familial**
+Messages en temps réel dans un groupe global, partage de fichiers et photos (max 50 Mo, TTL 48h), chiffrement XChaCha20-Poly1305 pour les fichiers transférés.
 
-### 📅 Calendrier partagé
-Gérez les événements de la famille sans passer par Google ou Apple.
+**👨‍👩‍👧 Contrôle total**
+Invitations par lien avec expiration, approbation admin obligatoire, gestion complète des comptes. Tu décides qui rejoint ton espace.
 
-### 📊 Sondages familiaux
-Décidez ensemble où partir en vacances, quoi manger ce soir — directement dans l'app.
+**📅 Calendrier partagé**
+Création et consultation des événements de la famille, sans passer par Google ou Apple.
 
-### 🎨 Thèmes personnalisables
-Trois ambiances au choix : **🌿 Jardin Secret** (doux, aquarelle), **🚀 Space Hub** (futuriste, néon), **🏠 Maison Chaleureuse** (feutre, bois).
+**♟️ Échecs en ligne**
+Parties entre membres via WebSocket — coups en temps réel, plateau synchronisé depuis le serveur.
 
-### 🔐 Chiffrement de bout en bout
-XChaCha20-Poly1305 pour les fichiers. Tes clés sont générées chez toi, stockées chez toi. Comme un coffre-fort dont seul toi as la clé.
+**📊 Sondages**
+Création et vote directement dans l'app.
+> ⚠️ Stockage local uniquement pour l'instant (localStorage) — les sondages ne sont pas partagés entre appareils. API backend à venir.
 
-### 👨‍👩‍👧 Contrôle total
-Invitations par lien, approbation admin, gestion des comptes. Tu décides qui rejoint ton espace.
+**📞 Appels audio & vidéo**
+Interface opérationnelle, signaling WebSocket en place. WebRTC établit une connexion directe entre appareils — le serveur ne voit jamais le flux.
+> ⚠️ Stable sur réseau LAN. Pas de serveur TURN configuré — les appels WAN (internet) peuvent échouer selon la topologie réseau.
+
+**🎨 Thèmes personnalisables**
+Trois ambiances dans les Paramètres : **🌿 Jardin Secret**, **🚀 Space Hub**, **🏠 Maison Chaleureuse**.
+
+### 🚧 En cours de développement
+
+| Fonctionnalité | État actuel | Ce qui manque |
+|---|---|---|
+| **Chiffrement E2E des messages** | Infrastructure en place (XChaCha20-Poly1305) | Distribution des clés par utilisateur — messages texte en clair pour l'instant |
+| **Sondages partagés** | Fonctionne en localStorage | API backend + synchronisation entre membres |
+| **Notifications** | Service Worker présent | Intégration push backend |
 
 ---
 
-## Démarrer en 3 étapes
+## Démarrage rapide
 
-### 1. Récupérer le projet
-
-```bash
-git clone https://github.com/MX10-AC2N/Nook.git
-cd Nook
-```
-
-Attention a bien mettre a jour le fichier .env avec votre config perso.
-
-### 2. Lancer avec Docker
+**Prérequis** : Docker + Docker Compose — c'est tout.
+Architectures supportées : `linux/amd64` · `linux/arm64` (Raspberry Pi 4+, NAS ARM, Zimaboard).
 
 ```bash
+# 1. Cloner
+git clone https://github.com/MX10-AC2N/Nook.git && cd Nook
+
+# 2. Configurer
+cp .env.example .env
+# Éditer .env : adapter PUBLIC_SITE_URL à l'IP/domaine de ton serveur
+
+# 3. Lancer
 docker compose up -d
 ```
 
-Ou depuis l'image GHCR directement (sans compiler) :
+Ouvre `http://ton-serveur:6300` — c'est parti. 🎉
+
+> **Premier lancement** : compte `admin` créé automatiquement avec le mot de passe `changeme2026`.
+> Tu seras forcé à le changer à la première connexion.
+
+### Mise à jour
 
 ```bash
-docker run -d \
-  --name nook \
-  --restart unless-stopped \
-  -p 6300:3000 \
-  -v nook-data:/app/data \
-  -v nook-logs:/app/logs \
-  -e PUBLIC_SITE_URL=http://ton-serveur:6300 \
-  ghcr.io/mx10-ac2n/nook:latest
+docker compose pull && docker compose up -d
 ```
-
-> **Bind mounts sur un chemin personnalisé ?** L'image tourne en `nonroot` (uid 65532).  
-> Si tu montes un dossier existant (`-v /mon/chemin:/app/data`), il faut d'abord corriger les permissions :
-> ```bash
-> sudo chown -R 65532:65532 /mon/chemin/nook-data /mon/chemin/nook-logs
-> ```
-
-### 3. Ouvrir ton navigateur
-
-Va sur `http://localhost:6300` — c'est parti ! 🎉
-
-> **Premier lancement** : un compte `admin` est créé automatiquement avec le mot de passe `changeme2026`.  
-> **Change-le immédiatement** lors de la première connexion.
-
----
-
-## Mise à jour
-
-```bash
-# Récupérer la nouvelle image
-docker compose pull
-
-# Redémarrer le service (zéro downtime data : les volumes sont persistés)
-docker compose up -d
-
-# Vérifier que tout tourne
-docker compose logs -f nook
-```
-
-Pour les instances GHCR :
-```bash
-docker pull ghcr.io/mx10-ac2n/nook:latest
-docker stop nook && docker rm nook
-# puis relancer le docker run de la section précédente
-```
-
----
-
-## Accès depuis l'extérieur (reverse proxy)
-
-Pour un accès HTTPS depuis internet, place Nook derrière un reverse proxy.  
-Exemples compatibles : **Nginx Proxy Manager**, **Caddy**, **Traefik**.
-
-```
-https://nook.ta-famille.fr  →  http://localhost:6300
-```
-
-Pense à mettre à jour `PUBLIC_SITE_URL` avec ton domaine public dans `docker-compose.yml`.
 
 ---
 
 ## Configuration
 
-Variables d'environnement dans `docker-compose.yml` :
+Toute la configuration passe par le fichier `.env` à la racine du projet.
+Le fichier `.env.example` contient toutes les variables disponibles avec leurs valeurs par défaut et leur documentation.
 
 | Variable | Défaut | Description |
 |----------|--------|-------------|
-| `PUBLIC_SITE_URL` | `http://localhost:6300` | URL publique de l'instance |
-| `DATABASE_URL` | `sqlite:/app/data/nook.db` | Chemin de la base SQLite |
-| `UPLOADS_DIR` | `/app/data/uploads` | Dossier de stockage des fichiers |
-| `RUST_LOG` | `info` | Niveau de logs (`debug`, `info`, `warn`) |
+| `PUBLIC_SITE_URL` | `http://localhost:6300` | URL principale — automatiquement autorisée en CORS |
+| `ALLOWED_ORIGINS` | *(vide)* | Origines CORS supplémentaires, séparées par des virgules |
+| `HOST_PORT` | `6300` | Port exposé sur l'hôte |
+| `DATA_DIR` | `./data` | Chemin vers le dossier de données persistantes (base SQLite, uploads) |
+| `LOGS_DIR` | `./logs` | Chemin vers le dossier de logs |
 | `TZ` | `Europe/Paris` | Fuseau horaire |
+| `RUST_LOG` | `info` | Niveau de logs (`debug`, `info`, `warn`, `error`) |
 
-Les données sont persistées dans des volumes Docker nommés (`nook-data`, `nook-logs`).
-
----
-
-## Ce qu'il faut
-
-- **Docker** et **Docker Compose** — c'est tout
-- Un navigateur récent (Chrome, Firefox, Safari, Edge)
-- **Architectures** : `linux/amd64` (PC/serveur) · `linux/arm64` (Raspberry Pi 4+, NAS ARM)
-- **Ressources minimales** : 0.5 CPU · 256 MB RAM (max alloué : 1.5 CPU · 1 GB)
+> **Homeserver avec chemins absolus** (Zimaboard, NAS, etc.) : définir `DATA_DIR` et `LOGS_DIR` avec les chemins complets vers tes volumes persistants.
+> Le fichier `.env` doit rester sur ton serveur uniquement — ne jamais le committer.
 
 ---
 
-## Architecture technique
+## Accès depuis l'extérieur (reverse proxy)
+
+Pour un accès HTTPS depuis internet, place Nook derrière un reverse proxy.
+Compatible avec **Nginx Proxy Manager**, **Caddy**, **Traefik**.
+
+```
+https://nook.ta-famille.fr  →  http://localhost:6300
+```
+
+Ajouter ton domaine dans `PUBLIC_SITE_URL` (et dans `ALLOWED_ORIGINS` si différent).
+
+---
+
+## Architecture
 
 ```
 Nook/
-├── backend/               # 🦀 Rust 1.88 + Axum 0.8 — API REST + WebSocket
-├── frontend/              # 🎨 SvelteKit 2.49 + Svelte 5 Runes — TypeScript strict
-├── Dockerfile             # 🔧 Build depuis sources (dev + CI tests)
-├── Dockerfile.release     # 🚀 Binaires pré-compilés → image distroless (prod)
-└── docker-compose.yml     # 📦 Stack complète avec named volumes + init container
+├── backend/            # 🦀 Rust 1.88 + Axum 0.8 — API REST + WebSocket
+│   ├── src/
+│   │   ├── main.rs     # Router, middleware, initialisation DB
+│   │   ├── auth.rs     # Inscription / Connexion / Déconnexion / Changement mdp
+│   │   ├── db.rs       # Conversations, messages, événements calendrier
+│   │   ├── admin.rs    # Gestion des membres, approbation
+│   │   ├── webrtc.rs   # Signaling WebSocket (chess + appels)
+│   │   ├── upload.rs   # Upload fichiers (50 Mo max, TTL 48h, chiffré)
+│   │   ├── prune.rs    # Nettoyage automatique DB (toutes les 24h)
+│   │   └── config.rs   # Configuration depuis variables d'environnement
+│   └── migrations/     # SQLite via SQLx (mode offline pour CI/Docker)
+│
+├── frontend/           # 🎨 SvelteKit 2.49 + Svelte 5 Runes + TypeScript strict
+│   ├── src/routes/     # login, chat, admin, calendar, chess, polls, call, settings…
+│   ├── src/lib/        # Stores Svelte 5 Runes (auth, chat, chess, webrtc…)
+│   └── tests/          # Suite Playwright E2E (38 tests)
+│
+├── Dockerfile          # Build depuis les sources (CI test-nook.yml)
+├── Dockerfile.release  # Binaires pré-compilés → image distroless (prod)
+├── docker-compose.yml  # Stack production
+└── .env.example        # Template de configuration
 ```
 
-### Stack
+### Stack technique
 
 | Composant | Technologie |
-|-----------|------------|
+|-----------|-------------|
 | Backend | Rust 1.88 · Axum 0.8 · SQLx 0.8.6 · SQLite |
-| Auth | Argon2id · Cookie HttpOnly · XChaCha20-Poly1305 |
-| Frontend | SvelteKit 2.49 · Svelte 5.46 Runes · TypeScript |
-| Runtime | `gcr.io/distroless/cc-debian12:nonroot` (~10 MB, pas de shell) |
-| Tests | Playwright E2E · cargo test · cargo clippy |
+| Auth | Argon2id · Cookie HttpOnly · token révocable en base |
+| Chiffrement | XChaCha20-Poly1305 (fichiers) |
+| Frontend | SvelteKit 2.49 · Svelte 5.46 Runes · TypeScript strict |
+| Temps réel | WebSocket (signaling chess + appels WebRTC) |
+| Image runtime | `gcr.io/distroless/cc-debian12` — binaire Rust + libs système uniquement |
+| Tests E2E | Playwright · 38 tests · cargo clippy `-D warnings` |
 
-### Pourquoi Distroless ?
-
-L'image finale ne contient **que le strict nécessaire** : le binaire Rust + les libs système. Pas de shell, pas d'outils, pas de surface d'attaque. Résultat : ~10 MB et une sécurité maximale.
+L'image finale ne contient ni shell ni outils système — surface d'attaque minimale, ~10 MB.
 
 ---
 
 ## Pipeline CI/CD
 
-Deux façons de produire l'image Docker :
-
-### 🔁 Automatique — `ci-new2.yml`
-Se déclenche sur chaque push vers `develop` ou `main`. Pipeline complet en un seul workflow.
+Tous les workflows se déclenchent manuellement depuis GitHub Actions.
 
 ```
-push → fmt → backend (amd64 + arm64) ──┐
-           → frontend               ──┴──▶ Docker multi-arch → GHCR
+1. Backend.yml  ──┐
+                  ├──▶  2. test-nook.yml  ──▶  3. Docker.yml  ──▶  GHCR
+   Frontend.yml ──┘        (stack + E2E)          (multi-arch)
 ```
 
-### 🎯 Manuel — flow en 4 étapes
-Pour les releases officielles avec un tag de version propre.
-
-```
-Backend.yml  ──┐
-               ├──▶ test-nook.yml ──▶ Docker.yml ──▶ GHCR
-Frontend.yml ──┘   (Docker + E2E)
-```
-
-| Workflow | Déclenchement | Rôle |
-|----------|--------------|------|
-| `ci-new2.yml` | Auto (push `develop`/`main`) + Manuel | Pipeline complet : fmt → build → docker |
-| `Backend.yml` | Manuel | Compile Rust `amd64` + `arm64` → artifacts (7j) |
-| `Frontend.yml` | Manuel | Build SvelteKit → artifact (7j) |
-| `test-nook.yml` | Manuel | Stack Docker complète + tests API + Playwright E2E |
-| `Docker.yml` | Manuel | Assemble artifacts → image `vX.Y.Z` → GHCR |
-| `Release.yml` | Manuel | Bump version dans `VERSION`, `Cargo.toml`, `package.json` + tag git |
-
-**Tags produits par `ci-new2.yml`** : SHA du commit, nom de branche, `latest` (sur `main`)  
-**Tags produits par `Docker.yml`** : `vX.Y.Z` (depuis fichier `VERSION`), `latest` (sur `main`)
+| Workflow | Rôle |
+|----------|------|
+| `Backend.yml` | Compile Rust `amd64` + `arm64` — check, clippy, build release → artifacts 7j |
+| `Frontend.yml` | Build SvelteKit → artifact 7j |
+| `test-nook.yml` | Stack Docker complète + 38 tests Playwright E2E |
+| `Docker.yml` | Assemble les artifacts → image multi-arch → GHCR |
+| `Release.yml` | Bump version (`VERSION`, `Cargo.toml`, `package.json`) + tag git |
 
 ---
 
 ## FAQ
 
-**"C'est compliqué à installer ?"**  
-Pas du tout. Docker s'occupe de tout. Une commande, c'est lancé.
+**Mes données sont où ?**
+Dans le dossier défini par `DATA_DIR` dans ton `.env`, sur ta machine. Rien ne quitte ton serveur.
 
-**"Mes données sont où ?"**  
-Dans des volumes Docker sur ta machine (`nook-data`, `nook-logs`). Rien ne part sur un serveur tiers.
+**Je peux l'utiliser sur mon NAS ou Raspberry Pi ?**
+Oui. L'image supporte nativement `linux/arm64` — Raspberry Pi 4+, NAS Synology/QNAP/TrueNAS, Zimaboard.
 
-**"Je peux l'utiliser sur mon NAS ?"**  
-Oui ! NAS ARM (Synology, QNAP, TrueNAS) et Raspberry Pi 4+ supportés nativement.
+**Comment ajouter un membre de la famille ?**
+Depuis `/admin`, générer un lien d'invitation. La personne s'inscrit, l'admin approuve le compte.
 
-**"Les appels vidéo passent par ton serveur ?"**  
-Non. WebRTC établit une connexion directe entre les appareils. Le serveur ne voit jamais le flux audio/vidéo.
+**Les appels passent par ton serveur ?**
+Non. WebRTC connecte les appareils directement entre eux (P2P). Le serveur assure uniquement le handshake initial.
 
-**"Comment ajouter des membres à la famille ?"**  
-L'admin génère un lien d'invitation depuis le panneau d'administration. La personne crée son compte, l'admin l'approuve.
-
-**"Je peux changer l'apparence ?"**  
-Oui ! Trois thèmes disponibles dans les Paramètres : Jardin Secret, Space Hub, Maison Chaleureuse.
+**Le chiffrement est activé ?**
+Les fichiers partagés sont chiffrés (XChaCha20-Poly1305). Le chiffrement des messages texte est en développement — l'infrastructure cryptographique est en place, la gestion des clés par utilisateur reste à finaliser.
 
 ---
 
 ## Besoin d'aide ?
 
-Tu bloques ? [Ouvre une issue](https://github.com/MX10-AC2N/Nook/issues) sur GitHub !
+[Ouvre une issue](https://github.com/MX10-AC2N/Nook/issues) sur GitHub.
 
 ---
 
 <div align="center">
 
-Nook, c'est un projet construit avec l'envie de proposer une alternative aux géants du web.  
-Pas de pub, pas de tracking, pas de revente de données.  
-Juste un outil pour que ta famille communique en toute sérénité.
+Pas de pub. Pas de tracking. Pas de revente de données.
+Juste ta famille, chez toi.
 
-**Amuse-toi bien ! 🎈**
-
-🤜🤛
+**🤜🤛**
 
 </div>
