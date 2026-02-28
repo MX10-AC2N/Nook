@@ -19,8 +19,8 @@ impl Config {
     pub fn load() -> Self {
         dotenv::dotenv().ok();
 
-        let public_site_url = env::var("PUBLIC_SITE_URL")
-            .unwrap_or_else(|_| "http://localhost:6300".to_string());
+        let public_site_url =
+            env::var("PUBLIC_SITE_URL").unwrap_or_else(|_| "http://localhost:6300".to_string());
 
         // Origines CORS : toujours inclure PUBLIC_SITE_URL + les valeurs de ALLOWED_ORIGINS
         let mut origins: Vec<String> = vec![
@@ -51,8 +51,7 @@ impl Config {
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "sqlite:/app/data/nook.db".to_string()),
 
-            static_dir: env::var("STATIC_FILES_DIR")
-                .unwrap_or_else(|_| "/app/static".to_string()),
+            static_dir: env::var("STATIC_FILES_DIR").unwrap_or_else(|_| "/app/static".to_string()),
 
             uploads_dir: env::var("UPLOADS_DIR")
                 .unwrap_or_else(|_| "/app/data/uploads".to_string()),

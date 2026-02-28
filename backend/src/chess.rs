@@ -18,6 +18,10 @@
 //   POST  /api/chess/invitations/{id}/accept
 //   POST  /api/chess/invitations/{id}/decline
 
+use crate::chess_engine::{
+    AiEngine, ChessError, Color, Difficulty, Game, GameStatus, MinimaxAi, Move as ChessMove,
+    PieceType, Square,
+};
 use crate::{auth::CurrentUser, SharedState};
 use axum::{
     extract::{Path, Query, State as AxumState},
@@ -25,10 +29,6 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
     Extension, Json, Router,
-};
-use crate::chess_engine::{
-    AiEngine, ChessError, Color, Difficulty, Game, GameStatus, MinimaxAi,
-    Move as ChessMove, PieceType, Square,
 };
 use chrono::Utc;
 use serde::Deserialize;
@@ -42,8 +42,8 @@ use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct CreateGameRequest {
-    pub opponent: Option<String>,  // "human"|"easy"|"medium"|"hard"|"expert"|"godlike"
-    pub color: Option<String>,     // "white"|"black"
+    pub opponent: Option<String>, // "human"|"easy"|"medium"|"hard"|"expert"|"godlike"
+    pub color: Option<String>,    // "white"|"black"
 }
 
 #[derive(Deserialize)]
@@ -74,26 +74,22 @@ pub struct InvitePlayerRequest {
 
 fn parse_difficulty(s: &str) -> Difficulty {
     match s.to_lowercase().as_str() {
-        "easy"    => Difficulty::Easy,
-        "medium"  => Difficulty::Medium,
-        "hard"    => Difficulty::Hard,
-        "expert"  => Difficulty::Expert,
+        "easy" => Difficulty::Easy,
+        "medium" => Difficulty::Medium,
+        "hard" => Difficulty::Hard,
+        "expert" => Difficulty::Expert,
         "godlike" => Difficulty::Godlike,
-        _         => Difficulty::Medium,
+        _ => Difficulty::Medium,
     }
 }
 
-fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>)
-    -> Result<ChessMove, String>
-{
-    let from_sq = Square::from_algebraic(from)
-        .ok_or_else(|| format!("Case invalide : {from}"))?;
-    let to_sq   = Square::from_algebraic(to)
-        .ok_or_else(|| format!("Case invalide : {to}"))?;
+fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>) -> Result<ChessMove, String> {
+    let from_sq = Square::from_algebraic(from).ok_or_else(|| format!("Case invalide : {from}"))?;
+    let to_sq = Square::from_algebraic(to).ok_or_else(|| format!("Case invalide : {to}"))?;
 
     let promotion = match promo {
-        Some("q") | Some("queen")  => Some(PieceType::Queen),
-        Some("r") | Some("rook")   => Some(PieceType::Rook),
+        Some("q") | Some("queen") => Some(PieceType::Queen),
+        Some("r") | Some("rook") => Some(PieceType::Rook),
         Some("b") | Some("bishop") => Some(PieceType::Bishop),
         Some("n") | Some("knight") => Some(PieceType::Knight),
         None => None,
@@ -101,7 +97,8 @@ fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>)
     };
 
     let legal = game.legal_moves_from(from_sq);
-    legal.iter()
+    legal
+        .iter()
         .find(|mv| mv.from == from_sq && mv.to == to_sq && mv.promotion == promotion)
         .copied()
         .ok_or_else(|| format!("Coup illégal : {from}{to}"))
@@ -109,16 +106,23 @@ fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>)
 
 fn game_json(game: &Game) -> Value {
     let board = game.board_array();
-    let legal: Vec<String> = game.legal_moves().iter().map(|mv| {
-        let promo = mv.promotion.map(|p| match p {
-            PieceType::Queen  => "=q",
-            PieceType::Rook   => "=r",
-            PieceType::Bishop => "=b",
-            PieceType::Knight => "=n",
-            _                 => "",
-        }).unwrap_or("");
-        format!("{}{}{}", mv.from, mv.to, promo)
-    }).collect();
+    let legal: Vec<String> = game
+        .legal_moves()
+        .iter()
+        .map(|mv| {
+            let promo = mv
+                .promotion
+                .map(|p| match p {
+                    PieceType::Queen => "=q",
+                    PieceType::Rook => "=r",
+                    PieceType::Bishop => "=b",
+                    PieceType::Knight => "=n",
+                    _ => "",
+                })
+                .unwrap_or("");
+            format!("{}{}{}", mv.from, mv.to, promo)
+        })
+        .collect();
 
     json!({
         "fen": game.to_fen(),
@@ -149,7 +153,7 @@ pub async fn create_game(
     Json(req): Json<CreateGameRequest>,
 ) -> impl IntoResponse {
     let game_id = Uuid::new_v4().to_string();
-    let now     = Utc::now().timestamp();
+    let now = Utc::now().timestamp();
 
     let creator_color = req.color.as_deref().unwrap_or("white");
     let (p1_color, p2_color) = if creator_color == "black" {
@@ -159,16 +163,19 @@ pub async fn create_game(
     };
 
     let opponent = req.opponent.as_deref().unwrap_or("human");
-    let is_ai    = opponent != "human";
+    let is_ai = opponent != "human";
 
     // Si IA joue blanc, elle joue immédiatement le premier coup
     let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let (initial_fen, initial_history) = if is_ai && creator_color == "black" {
-        let mut game   = Game::new();
+        let mut game = Game::new();
         let difficulty = parse_difficulty(opponent);
         match play_ai(&mut game, difficulty) {
-            Ok(san) => (game.to_fen(), json!([{"san": san, "by": "ai", "color": "white"}]).to_string()),
-            Err(_)  => (starting_fen.to_string(), "[]".to_string()),
+            Ok(san) => (
+                game.to_fen(),
+                json!([{"san": san, "by": "ai", "color": "white"}]).to_string(),
+            ),
+            Err(_) => (starting_fen.to_string(), "[]".to_string()),
         }
     } else {
         (starting_fen.to_string(), "[]".to_string())
@@ -177,44 +184,54 @@ pub async fn create_game(
     let initial_status = if is_ai { "playing" } else { "waiting" };
     let ai_diff: Option<&str> = if is_ai { Some(opponent) } else { None };
 
-    let result = sqlx::query(r#"
+    let result = sqlx::query(
+        r#"
         INSERT INTO chess_games (
             id, created_by, player_count,
             player1_id, player1_color, player2_color,
             status, board_state, move_history, eliminated,
             current_turn, ai_difficulty, created_at, updated_at
-        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?)"#)
-        .bind(&game_id)
-        .bind(&user.id)
-        .bind(&user.id)
-        .bind(p1_color)
-        .bind(p2_color)
-        .bind(initial_status)
-        .bind(&initial_fen)
-        .bind(&initial_history)
-        .bind(ai_diff)
-        .bind(now)
-        .bind(now)
-        .execute(&state.db)
-        .await;
+        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?)"#,
+    )
+    .bind(&game_id)
+    .bind(&user.id)
+    .bind(&user.id)
+    .bind(p1_color)
+    .bind(p2_color)
+    .bind(initial_status)
+    .bind(&initial_fen)
+    .bind(&initial_history)
+    .bind(ai_diff)
+    .bind(now)
+    .bind(now)
+    .execute(&state.db)
+    .await;
 
     match result {
         Ok(_) => {
             tracing::info!(game_id = %game_id, opponent = opponent, "Partie d'échecs créée");
-            (StatusCode::CREATED, Json(json!({
-                "success": true,
-                "game_id": game_id,
-                "player_color": creator_color,
-                "opponent": opponent,
-                "status": initial_status,
-                "fen": initial_fen,
-            }))).into_response()
+            (
+                StatusCode::CREATED,
+                Json(json!({
+                    "success": true,
+                    "game_id": game_id,
+                    "player_color": creator_color,
+                    "opponent": opponent,
+                    "status": initial_status,
+                    "fen": initial_fen,
+                })),
+            )
+                .into_response()
         }
         Err(e) => {
             tracing::error!(error = %e, "Erreur création partie");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-                "success": false, "message": "Erreur serveur"
-            }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "success": false, "message": "Erreur serveur"
+                })),
+            )
+                .into_response()
         }
     }
 }
@@ -224,18 +241,25 @@ pub async fn list_games(
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     type Row = (String, String, String, Option<String>, i64);
-    let rows: Vec<Row> = sqlx::query_as(r#"
+    let rows: Vec<Row> = sqlx::query_as(
+        r#"
         SELECT g.id, g.status, g.player1_color, u.username, g.updated_at
         FROM chess_games g
         LEFT JOIN users u ON u.id = g.created_by
         WHERE g.status IN ('waiting','playing')
-        ORDER BY g.updated_at DESC LIMIT 50"#)
-        .fetch_all(&state.db).await.unwrap_or_default();
+        ORDER BY g.updated_at DESC LIMIT 50"#,
+    )
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
 
-    let games: Vec<Value> = rows.into_iter().map(|(id, status, color, creator, updated_at)| {
-        json!({ "id": id, "status": status, "creator_color": color,
+    let games: Vec<Value> = rows
+        .into_iter()
+        .map(|(id, status, color, creator, updated_at)| {
+            json!({ "id": id, "status": status, "creator_color": color,
                 "creator_name": creator, "updated_at": updated_at })
-    }).collect();
+        })
+        .collect();
 
     Json(json!({ "success": true, "games": games })).into_response()
 }
@@ -246,16 +270,20 @@ pub async fn get_game(
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await;
+        .bind(&game_id)
+        .fetch_optional(&state.db)
+        .await;
 
     match row {
         Ok(Some(row)) => {
             use sqlx::Row;
-            let fen: String         = row.get("board_state");
+            let fen: String = row.get("board_state");
             let history_raw: String = row.get("move_history");
-            let history: Value      = serde_json::from_str(&history_raw).unwrap_or(json!([]));
+            let history: Value = serde_json::from_str(&history_raw).unwrap_or(json!([]));
 
-            let engine = Game::from_fen(&fen).map(|g| game_json(&g)).unwrap_or(json!(null));
+            let engine = Game::from_fen(&fen)
+                .map(|g| game_json(&g))
+                .unwrap_or(json!(null));
 
             Json(json!({ "success": true, "game": {
                 "id":            row.get::<String, _>("id"),
@@ -272,14 +300,21 @@ pub async fn get_game(
                 "engine":        engine,
                 "created_at":    row.get::<i64, _>("created_at"),
                 "updated_at":    row.get::<i64, _>("updated_at"),
-            }})).into_response()
+            }}))
+            .into_response()
         }
-        Ok(None) => (StatusCode::NOT_FOUND,
-            Json(json!({ "success": false, "message": "Partie introuvable" }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "message": "Partie introuvable" })),
+        )
+            .into_response(),
         Err(e) => {
             tracing::error!(error = %e, game_id = %game_id, "get_game");
-            (StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "success": false }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false })),
+            )
+                .into_response()
         }
     }
 }
@@ -295,35 +330,72 @@ pub async fn join_game(
 
     let row = match row {
         Ok(Some(r)) => r,
-        Ok(None)    => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Partie introuvable" }))).into_response(),
-        Err(_)      => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "message": "Partie introuvable" })),
+            )
+                .into_response()
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false })),
+            )
+                .into_response()
+        }
     };
 
     use sqlx::Row;
     if row.get::<String, _>("status") != "waiting" {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "La partie n'est plus en attente" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "La partie n'est plus en attente" })),
+        )
+            .into_response();
     }
     let ai_diff: Option<String> = row.get("ai_difficulty");
     if ai_diff.is_some() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Partie contre IA" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Partie contre IA" })),
+        )
+            .into_response();
     }
     let p1: Option<String> = row.get("player1_id");
     let p2: Option<String> = row.get("player2_id");
     if p2.is_some() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Partie complète" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Partie complète" })),
+        )
+            .into_response();
     }
     if p1.as_deref() == Some(&user.id) {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Déjà participant" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Déjà participant" })),
+        )
+            .into_response();
     }
 
     let p2_color: String = row.get("player2_color");
     let now = Utc::now().timestamp();
-    sqlx::query("UPDATE chess_games SET player2_id = ?, status = 'playing', updated_at = ? WHERE id = ?")
-        .bind(&user.id).bind(now).bind(&game_id).execute(&state.db).await.ok();
+    sqlx::query(
+        "UPDATE chess_games SET player2_id = ?, status = 'playing', updated_at = ? WHERE id = ?",
+    )
+    .bind(&user.id)
+    .bind(now)
+    .bind(&game_id)
+    .execute(&state.db)
+    .await
+    .ok();
 
     let ws = json!({ "type": "chess_player_joined", "game_id": game_id, "player2_id": user.id });
     let guard = state.webrtc_state.broadcasts.lock().await;
-    for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+    for (_, tx) in guard.iter() {
+        let _ = tx.send(ws.to_string());
+    }
     drop(guard);
 
     tracing::info!(game_id = %game_id, user_id = %user.id, "Joueur 2 rejoint");
@@ -337,60 +409,119 @@ pub async fn make_move(
     Json(req): Json<MakeMoveRequest>,
 ) -> impl IntoResponse {
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await;
+        .bind(&game_id)
+        .fetch_optional(&state.db)
+        .await;
 
     let row = match row {
         Ok(Some(r)) => r,
-        Ok(None)    => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Partie introuvable" }))).into_response(),
-        Err(_)      => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "message": "Partie introuvable" })),
+            )
+                .into_response()
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false })),
+            )
+                .into_response()
+        }
     };
 
     use sqlx::Row;
     if row.get::<String, _>("status") != "playing" {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Partie non en cours" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Partie non en cours" })),
+        )
+            .into_response();
     }
 
-    let p1_id:     Option<String> = row.get("player1_id");
-    let p2_id:     Option<String> = row.get("player2_id");
-    let p1_color:  String         = row.get("player1_color");
-    let ai_diff:   Option<String> = row.get("ai_difficulty");
+    let p1_id: Option<String> = row.get("player1_id");
+    let p2_id: Option<String> = row.get("player2_id");
+    let p1_color: String = row.get("player1_color");
+    let ai_diff: Option<String> = row.get("ai_difficulty");
 
     // Déterminer la couleur du joueur
     let player_color = if p1_id.as_deref() == Some(&user.id) {
-        if p1_color == "white" { Color::White } else { Color::Black }
+        if p1_color == "white" {
+            Color::White
+        } else {
+            Color::Black
+        }
     } else if p2_id.as_deref() == Some(&user.id) {
-        if p1_color == "white" { Color::Black } else { Color::White }
+        if p1_color == "white" {
+            Color::Black
+        } else {
+            Color::White
+        }
     } else if ai_diff.is_some() && p1_id.as_deref() == Some(&user.id) {
-        if p1_color == "white" { Color::White } else { Color::Black }
+        if p1_color == "white" {
+            Color::White
+        } else {
+            Color::Black
+        }
     } else {
-        return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Non participant" }))).into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "success": false, "message": "Non participant" })),
+        )
+            .into_response();
     };
 
     let fen: String = row.get("board_state");
     let mut game = match Game::from_fen(&fen) {
-        Ok(g)  => g,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "message": "FEN invalide" }))).into_response(),
+        Ok(g) => g,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "FEN invalide" })),
+            )
+                .into_response()
+        }
     };
 
     if game.side_to_move() != player_color {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Pas votre tour" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Pas votre tour" })),
+        )
+            .into_response();
     }
 
     let mv = match parse_move(&game, &req.from, &req.to, req.promotion.as_deref()) {
-        Ok(m)  => m,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": e }))).into_response(),
+        Ok(m) => m,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": e })),
+            )
+                .into_response()
+        }
     };
 
     let san = match game.make_move(mv) {
-        Ok(s)  => s,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": e.to_string() }))).into_response(),
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": e.to_string() })),
+            )
+                .into_response()
+        }
     };
 
-    let new_fen    = game.to_fen();
+    let new_fen = game.to_fen();
     let game_status = game.status().clone();
-    let now        = Utc::now().timestamp();
+    let now = Utc::now().timestamp();
 
-    let color_str = match player_color { Color::White => "white", Color::Black => "black" };
+    let color_str = match player_color {
+        Color::White => "white",
+        Color::Black => "black",
+    };
 
     let (winner_id, db_status): (Option<String>, &str) = match &game_status {
         GameStatus::Checkmate => {
@@ -408,19 +539,36 @@ pub async fn make_move(
         let raw: String = row.get("move_history");
         serde_json::from_str(&raw).unwrap_or_default()
     };
-    history.push(json!({ "san": san, "from": req.from, "to": req.to, "by": user.id, "color": color_str }));
+    history.push(
+        json!({ "san": san, "from": req.from, "to": req.to, "by": user.id, "color": color_str }),
+    );
     let new_history = serde_json::to_string(&history).unwrap();
 
-    let next_turn = if game_status.is_game_over() { 0 }
-                    else { match game.side_to_move() { Color::White => 1, Color::Black => 2 } };
+    let next_turn = if game_status.is_game_over() {
+        0
+    } else {
+        match game.side_to_move() {
+            Color::White => 1,
+            Color::Black => 2,
+        }
+    };
 
-    sqlx::query(r#"UPDATE chess_games
+    sqlx::query(
+        r#"UPDATE chess_games
         SET board_state = ?, move_history = ?, current_turn = ?,
             status = ?, winner_id = ?, updated_at = ?
-        WHERE id = ?"#)
-        .bind(&new_fen).bind(&new_history).bind(next_turn)
-        .bind(db_status).bind(&winner_id).bind(now).bind(&game_id)
-        .execute(&state.db).await.ok();
+        WHERE id = ?"#,
+    )
+    .bind(&new_fen)
+    .bind(&new_history)
+    .bind(next_turn)
+    .bind(db_status)
+    .bind(&winner_id)
+    .bind(now)
+    .bind(&game_id)
+    .execute(&state.db)
+    .await
+    .ok();
 
     let engine = game_json(&game);
     let ws = json!({
@@ -431,13 +579,16 @@ pub async fn make_move(
     });
     {
         let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(ws.to_string());
+        }
     }
 
     Json(json!({
         "success": true, "san": san, "fen": new_fen,
         "status": game_status.as_str(), "winner_id": winner_id, "engine": engine,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 pub async fn ai_move(
@@ -447,46 +598,85 @@ pub async fn ai_move(
     Json(req): Json<AiMoveRequest>,
 ) -> impl IntoResponse {
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await;
+        .bind(&game_id)
+        .fetch_optional(&state.db)
+        .await;
 
     let row = match row {
         Ok(Some(r)) => r,
-        Ok(None)    => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Partie introuvable" }))).into_response(),
-        Err(_)      => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "message": "Partie introuvable" })),
+            )
+                .into_response()
+        }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false })),
+            )
+                .into_response()
+        }
     };
 
     use sqlx::Row;
     if row.get::<String, _>("status") != "playing" {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Partie non en cours" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Partie non en cours" })),
+        )
+            .into_response();
     }
 
     let p1_id: Option<String> = row.get("player1_id");
     if p1_id.as_deref() != Some(&user.id) {
-        return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Non participant" }))).into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "success": false, "message": "Non participant" })),
+        )
+            .into_response();
     }
 
     let ai_diff_str: Option<String> = row.get("ai_difficulty");
-    let difficulty = req.difficulty.as_deref()
+    let difficulty = req
+        .difficulty
+        .as_deref()
         .or(ai_diff_str.as_deref())
         .map(parse_difficulty)
         .unwrap_or(Difficulty::Medium);
 
     let fen: String = row.get("board_state");
     let mut game = match Game::from_fen(&fen) {
-        Ok(g)  => g,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false, "message": "FEN invalide" }))).into_response(),
+        Ok(g) => g,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "FEN invalide" })),
+            )
+                .into_response()
+        }
     };
 
     let ai_color = game.side_to_move(); // l'IA joue le côté à jouer maintenant
     let san = match play_ai(&mut game, difficulty) {
-        Ok(s)  => s,
-        Err(e) => return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": e.to_string() }))).into_response(),
+        Ok(s) => s,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": e.to_string() })),
+            )
+                .into_response()
+        }
     };
 
-    let new_fen    = game.to_fen();
+    let new_fen = game.to_fen();
     let game_status = game.status().clone();
-    let now        = Utc::now().timestamp();
-    let ai_color_str = match ai_color { Color::White => "white", Color::Black => "black" };
+    let now = Utc::now().timestamp();
+    let ai_color_str = match ai_color {
+        Color::White => "white",
+        Color::Black => "black",
+    };
 
     let (winner_id, db_status): (Option<String>, &str) = match &game_status {
         GameStatus::Checkmate => (Some("ai".to_string()), "finished"),
@@ -500,15 +690,24 @@ pub async fn ai_move(
     };
     history.push(json!({ "san": san, "by": "ai", "color": ai_color_str }));
     let new_history = serde_json::to_string(&history).unwrap();
-    let next_turn   = if game_status.is_game_over() { 0 } else { 1 };
+    let next_turn = if game_status.is_game_over() { 0 } else { 1 };
 
-    sqlx::query(r#"UPDATE chess_games
+    sqlx::query(
+        r#"UPDATE chess_games
         SET board_state = ?, move_history = ?, current_turn = ?,
             status = ?, winner_id = ?, updated_at = ?
-        WHERE id = ?"#)
-        .bind(&new_fen).bind(&new_history).bind(next_turn)
-        .bind(db_status).bind(&winner_id).bind(now).bind(&game_id)
-        .execute(&state.db).await.ok();
+        WHERE id = ?"#,
+    )
+    .bind(&new_fen)
+    .bind(&new_history)
+    .bind(next_turn)
+    .bind(db_status)
+    .bind(&winner_id)
+    .bind(now)
+    .bind(&game_id)
+    .execute(&state.db)
+    .await
+    .ok();
 
     let engine = game_json(&game);
     let ws = json!({
@@ -519,13 +718,16 @@ pub async fn ai_move(
     });
     {
         let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(ws.to_string());
+        }
     }
 
     Json(json!({
         "success": true, "san": san, "fen": new_fen,
         "status": game_status.as_str(), "winner_id": winner_id, "engine": engine,
-    })).into_response()
+    }))
+    .into_response()
 }
 
 pub async fn resign_game(
@@ -534,8 +736,11 @@ pub async fn resign_game(
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
     let row = sqlx::query(
-        "SELECT player1_id, player2_id, status, ai_difficulty FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await;
+        "SELECT player1_id, player2_id, status, ai_difficulty FROM chess_games WHERE id = ?",
+    )
+    .bind(&game_id)
+    .fetch_optional(&state.db)
+    .await;
 
     let row = match row {
         Ok(Some(r)) => r,
@@ -544,24 +749,41 @@ pub async fn resign_game(
 
     use sqlx::Row;
     if row.get::<String, _>("status") == "finished" {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Partie déjà terminée" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Partie déjà terminée" })),
+        )
+            .into_response();
     }
 
-    let p1_id:  Option<String> = row.get("player1_id");
-    let p2_id:  Option<String> = row.get("player2_id");
+    let p1_id: Option<String> = row.get("player1_id");
+    let p2_id: Option<String> = row.get("player2_id");
     let ai_diff: Option<String> = row.get("ai_difficulty");
 
     let winner_id: Option<String> = if p1_id.as_deref() == Some(&user.id) {
-        p2_id.clone().or_else(|| ai_diff.as_ref().map(|_| "ai".to_string()))
+        p2_id
+            .clone()
+            .or_else(|| ai_diff.as_ref().map(|_| "ai".to_string()))
     } else if p2_id.as_deref() == Some(&user.id) {
         p1_id.clone()
     } else {
-        return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Non participant" }))).into_response();
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "success": false, "message": "Non participant" })),
+        )
+            .into_response();
     };
 
     let now = Utc::now().timestamp();
-    sqlx::query("UPDATE chess_games SET status = 'finished', winner_id = ?, updated_at = ? WHERE id = ?")
-        .bind(&winner_id).bind(now).bind(&game_id).execute(&state.db).await.ok();
+    sqlx::query(
+        "UPDATE chess_games SET status = 'finished', winner_id = ?, updated_at = ? WHERE id = ?",
+    )
+    .bind(&winner_id)
+    .bind(now)
+    .bind(&game_id)
+    .execute(&state.db)
+    .await
+    .ok();
 
     tracing::info!(game_id = %game_id, user_id = %user.id, "Abandon");
     Json(json!({ "success": true, "status": "finished", "winner_id": winner_id })).into_response()
@@ -573,39 +795,66 @@ pub async fn legal_moves(
     Path(game_id): Path<String>,
     Query(params): Query<LegalMovesQuery>,
 ) -> impl IntoResponse {
-    let fen: Option<(String,)> = sqlx::query_as(
-        "SELECT board_state FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await.ok().flatten();
+    let fen: Option<(String,)> = sqlx::query_as("SELECT board_state FROM chess_games WHERE id = ?")
+        .bind(&game_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
 
     let (fen,) = match fen {
         Some(f) => f,
-        None    => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Partie introuvable" }))).into_response(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "message": "Partie introuvable" })),
+            )
+                .into_response()
+        }
     };
 
     let game = match Game::from_fen(&fen) {
-        Ok(g)  => g,
-        Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+        Ok(g) => g,
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false })),
+            )
+                .into_response()
+        }
     };
 
     let moves = if let Some(from_str) = &params.from {
         match Square::from_algebraic(from_str) {
             Some(sq) => game.legal_moves_from(sq),
-            None     => return (StatusCode::BAD_REQUEST, Json(json!({ "success": false, "message": "Case invalide" }))).into_response(),
+            None => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "success": false, "message": "Case invalide" })),
+                )
+                    .into_response()
+            }
         }
     } else {
         game.legal_moves()
     };
 
-    let moves_json: Vec<String> = moves.iter().map(|mv| {
-        let promo = mv.promotion.map(|p| match p {
-            PieceType::Queen  => "=q",
-            PieceType::Rook   => "=r",
-            PieceType::Bishop => "=b",
-            PieceType::Knight => "=n",
-            _                 => "",
-        }).unwrap_or("");
-        format!("{}{}{}", mv.from, mv.to, promo)
-    }).collect();
+    let moves_json: Vec<String> = moves
+        .iter()
+        .map(|mv| {
+            let promo = mv
+                .promotion
+                .map(|p| match p {
+                    PieceType::Queen => "=q",
+                    PieceType::Rook => "=r",
+                    PieceType::Bishop => "=b",
+                    PieceType::Knight => "=n",
+                    _ => "",
+                })
+                .unwrap_or("");
+            format!("{}{}{}", mv.from, mv.to, promo)
+        })
+        .collect();
 
     Json(json!({ "success": true, "moves": moves_json })).into_response()
 }
@@ -620,18 +869,28 @@ pub async fn invite_player(
     Path(game_id): Path<String>,
     Json(req): Json<InvitePlayerRequest>,
 ) -> impl IntoResponse {
-    let created_by: Option<(String,)> = sqlx::query_as(
-        "SELECT created_by FROM chess_games WHERE id = ?")
-        .bind(&game_id).fetch_optional(&state.db).await.ok().flatten();
+    let created_by: Option<(String,)> =
+        sqlx::query_as("SELECT created_by FROM chess_games WHERE id = ?")
+            .bind(&game_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     match created_by {
         Some((creator,)) if creator == user.id => {}
-        Some(_) => return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Seul le créateur peut inviter" }))).into_response(),
-        None    => return (StatusCode::NOT_FOUND,  Json(json!({ "success": false }))).into_response(),
+        Some(_) => {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({ "success": false, "message": "Seul le créateur peut inviter" })),
+            )
+                .into_response()
+        }
+        None => return (StatusCode::NOT_FOUND, Json(json!({ "success": false }))).into_response(),
     }
 
     let inv_id = Uuid::new_v4().to_string();
-    let now    = Utc::now().timestamp();
+    let now = Utc::now().timestamp();
     sqlx::query(
         "INSERT INTO chess_invitations (id, game_id, invited_user_id, slot, status, created_at) VALUES (?, ?, ?, 2, 'pending', ?)")
         .bind(&inv_id).bind(&game_id).bind(&req.user_id).bind(now)
@@ -666,14 +925,30 @@ pub async fn accept_invitation(
 
     let (game_id, _slot) = match row {
         Some(r) => r,
-        None    => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Invitation introuvable" }))).into_response(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "success": false, "message": "Invitation introuvable" })),
+            )
+                .into_response()
+        }
     };
 
     let now = Utc::now().timestamp();
-    sqlx::query("UPDATE chess_games SET player2_id = ?, status = 'playing', updated_at = ? WHERE id = ?")
-        .bind(&user.id).bind(now).bind(&game_id).execute(&state.db).await.ok();
+    sqlx::query(
+        "UPDATE chess_games SET player2_id = ?, status = 'playing', updated_at = ? WHERE id = ?",
+    )
+    .bind(&user.id)
+    .bind(now)
+    .bind(&game_id)
+    .execute(&state.db)
+    .await
+    .ok();
     sqlx::query("UPDATE chess_invitations SET status = 'accepted' WHERE id = ?")
-        .bind(&inv_id).execute(&state.db).await.ok();
+        .bind(&inv_id)
+        .execute(&state.db)
+        .await
+        .ok();
 
     Json(json!({ "success": true, "game_id": game_id })).into_response()
 }
@@ -683,8 +958,14 @@ pub async fn decline_invitation(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(inv_id): Path<String>,
 ) -> impl IntoResponse {
-    sqlx::query("UPDATE chess_invitations SET status = 'declined' WHERE id = ? AND invited_user_id = ?")
-        .bind(&inv_id).bind(&user.id).execute(&state.db).await.ok();
+    sqlx::query(
+        "UPDATE chess_invitations SET status = 'declined' WHERE id = ? AND invited_user_id = ?",
+    )
+    .bind(&inv_id)
+    .bind(&user.id)
+    .execute(&state.db)
+    .await
+    .ok();
     Json(json!({ "success": true })).into_response()
 }
 
@@ -694,16 +975,16 @@ pub async fn decline_invitation(
 
 pub fn chess_routes() -> Router<Arc<SharedState>> {
     Router::new()
-        .route("/chess/create",                   post(create_game))
-        .route("/chess/list",                     get(list_games))
-        .route("/chess/invitations",              get(my_invitations))
-        .route("/chess/invitations/{id}/accept",  post(accept_invitation))
+        .route("/chess/create", post(create_game))
+        .route("/chess/list", get(list_games))
+        .route("/chess/invitations", get(my_invitations))
+        .route("/chess/invitations/{id}/accept", post(accept_invitation))
         .route("/chess/invitations/{id}/decline", post(decline_invitation))
-        .route("/chess/{id}",                     get(get_game))
-        .route("/chess/{id}/join",                post(join_game))
-        .route("/chess/{id}/move",                post(make_move))
-        .route("/chess/{id}/ai-move",             post(ai_move))
-        .route("/chess/{id}/resign",              post(resign_game))
-        .route("/chess/{id}/moves",               get(legal_moves))
-        .route("/chess/{id}/invite",              post(invite_player))
+        .route("/chess/{id}", get(get_game))
+        .route("/chess/{id}/join", post(join_game))
+        .route("/chess/{id}/move", post(make_move))
+        .route("/chess/{id}/ai-move", post(ai_move))
+        .route("/chess/{id}/resign", post(resign_game))
+        .route("/chess/{id}/moves", get(legal_moves))
+        .route("/chess/{id}/invite", post(invite_player))
 }

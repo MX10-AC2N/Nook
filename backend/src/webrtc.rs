@@ -59,7 +59,9 @@ fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
 
     let cipher = XChaCha20Poly1305::new_from_slice(key).expect("Clé invalide");
     let nonce_array = GenericArray::from_slice(nonce);
-    let encrypted = cipher.encrypt(nonce_array, message).expect("Échec chiffrement");
+    let encrypted = cipher
+        .encrypt(nonce_array, message)
+        .expect("Échec chiffrement");
     result.extend_from_slice(&encrypted);
     result
 }
@@ -73,7 +75,9 @@ fn crypto_secretbox_open_easy(ciphertext: &[u8], key: &[u8]) -> Result<Vec<u8>, 
     let encrypted = &ciphertext[CRYPTO_SECRETBOX_NONCEBYTES..];
     let cipher = XChaCha20Poly1305::new_from_slice(key).map_err(|_| "Clé invalide")?;
     let nonce_array = GenericArray::from_slice(nonce);
-    cipher.decrypt(nonce_array, encrypted).map_err(|_| "Échec déchiffrement")
+    cipher
+        .decrypt(nonce_array, encrypted)
+        .map_err(|_| "Échec déchiffrement")
 }
 
 #[allow(dead_code)]
@@ -241,15 +245,14 @@ async fn verify_ws_auth(
     }
 
     // Vérification en DB
-    let result: Option<(String,)> = sqlx::query_as(
-        "SELECT id FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1",
-    )
-    .bind(user_id)
-    .bind(token)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    let result: Option<(String,)> =
+        sqlx::query_as("SELECT id FROM users WHERE id = ? AND token = ? AND approved = 1 LIMIT 1")
+            .bind(user_id)
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     result.map(|(id,)| id)
 }
@@ -358,7 +361,9 @@ pub async fn ws_handler(
             // on refuse l'upgrade en renvoyant 401 sans appeler ws.on_upgrade
             axum::http::Response::builder()
                 .status(StatusCode::UNAUTHORIZED)
-                .body(axum::body::Body::from("WebSocket : authentification requise"))
+                .body(axum::body::Body::from(
+                    "WebSocket : authentification requise",
+                ))
                 .unwrap()
                 .into_response()
         }
@@ -416,7 +421,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     let _ = broadcast_tx_for_receive.send(text_str);
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
-                    tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
+                    tracing::debug!(
+                        bytes = data.len(),
+                        "WebSocket : binaire ignoré (P2P direct)"
+                    );
                 }
                 Ok(axum::extract::ws::Message::Close(_)) => {
                     tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
@@ -450,7 +458,7 @@ pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
         .route("/api/webrtc/offer", post(handle_offer))
         .route("/api/webrtc/answer", post(handle_answer))
         .route("/ws", get(ws_handler))
-        // Note : /ws est authentifié via cookie dans ws_handler lui-même.
-        // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
-        // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
+    // Note : /ws est authentifié via cookie dans ws_handler lui-même.
+    // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
+    // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
 }

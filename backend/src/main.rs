@@ -91,12 +91,10 @@ async fn base_inject_middleware(
             tracing::debug!(content_type = %ct.to_str().unwrap_or("unknown"), "Injection du base href dans le HTML");
 
             let (parts, body) = resp.into_parts();
-            let bytes = to_bytes(body, 10_000_000)
-                .await
-                .map_err(|e| {
-                    tracing::error!(error = %e, "Erreur lors de la lecture du corps de la réponse");
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            let bytes = to_bytes(body, 10_000_000).await.map_err(|e| {
+                tracing::error!(error = %e, "Erreur lors de la lecture du corps de la réponse");
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR
+            })?;
             let mut body_str = String::from_utf8_lossy(&bytes).into_owned();
             if body_str.contains("<base-placeholder/>") {
                 body_str = body_str.replace("<base-placeholder/>", &replacement);
@@ -158,7 +156,10 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         .fetch_one(pool)
         .await?;
 
-    tracing::info!(user_count = count.0, "Nombre d'utilisateurs dans la base de données");
+    tracing::info!(
+        user_count = count.0,
+        "Nombre d'utilisateurs dans la base de données"
+    );
 
     let admin_id = "admin-initial-id-0000-0000-000000000001".to_string();
 
@@ -287,7 +288,9 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .bind(now)
             .execute(pool)
             .await?;
-            tracing::debug!("Utilisateur E2E déjà existant — participation default_global vérifiée");
+            tracing::debug!(
+                "Utilisateur E2E déjà existant — participation default_global vérifiée"
+            );
         }
     }
 
@@ -315,12 +318,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hostname = %hostname,
         "╔════════════════════════════════════════════════════════════╗"
     );
-    tracing::info!(
-        "║              🚀 NOOK - Serveur démarré                      ║"
-    );
-    tracing::info!(
-        "╚════════════════════════════════════════════════════════════╝"
-    );
+    tracing::info!("║              🚀 NOOK - Serveur démarré                      ║");
+    tracing::info!("╚════════════════════════════════════════════════════════════╝");
 
     tracing::info!("Chargement de la configuration depuis les variables d'environnement...");
     let config = Config::load();
@@ -368,7 +367,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let result = prune_old_data(&pool_clone).await;
             match result {
                 Ok(_) => tracing::debug!("Nettoyage des anciennes données terminé"),
-                Err(e) => tracing::error!(error = %e, "Erreur lors du nettoyage des anciennes données"),
+                Err(e) => {
+                    tracing::error!(error = %e, "Erreur lors du nettoyage des anciennes données")
+                }
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(24 * 3600)).await;
         }
@@ -426,10 +427,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/conversations/{id}/messages",
             get(db::get_conversation_messages),
         )
-        .route(
-            "/conversations/{id}/messages",
-            post(db::send_message),
-        )
+        .route("/conversations/{id}/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
         .route("/user/update", post(db::update_user_profile))
