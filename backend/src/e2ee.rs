@@ -40,8 +40,8 @@ pub struct RegisterPublicKeyRequest {
 
 #[derive(Debug, Serialize)]
 pub struct MemberPublicKey {
-    pub user_id:    String,
-    pub username:   String,
+    pub user_id: String,
+    pub username: String,
     /// Clé publique X25519 en base64
     pub public_key: String,
 }
@@ -55,7 +55,7 @@ pub struct PublicKeysQuery {
 pub struct EncryptedKeyResponse {
     /// base64(asymNonce[24] || crypto_box_easy_ciphertext)
     pub encrypted_key: String,
-    pub message_id:    String,
+    pub message_id: String,
 }
 
 /// Payload pour stocker les clés chiffrées d'un message E2EE.
@@ -77,8 +77,7 @@ pub async fn register_public_key(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Valider : base64 décodable + exactement 32 bytes (X25519 public key)
     use base64ct::{Base64, Encoding};
-    let decoded = Base64::decode_vec(&body.public_key)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let decoded = Base64::decode_vec(&body.public_key).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     if decoded.len() != 32 {
         tracing::warn!(user_id = %user.id, len = decoded.len(), "e2ee: clé publique invalide (taille ≠ 32)");
