@@ -7,6 +7,7 @@ use axum::{
     Extension,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -66,6 +67,8 @@ pub struct MessageWithSender {
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
+    /// Nonce XSalsa20 en base64 — présent si encrypted = true
+    pub nonce: Option<String>,
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
@@ -99,6 +102,11 @@ pub struct CreateConversationRequest {
 pub struct SendMessageRequest {
     pub content: String,
     pub encrypted: bool,
+    /// Nonce XSalsa20 en base64 (24 bytes) — None si message en clair
+    pub nonce: Option<String>,
+    /// Clé de session chiffrée par destinataire : user_id → base64(asymNonce || boxCiphertext)
+    /// None si message en clair, fourni si encrypted = true
+    pub encrypted_keys: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -235,14 +243,15 @@ pub async fn send_message(
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
     .bind(&user.id)
     .bind(&req.content)
     .bind(req.encrypted)
+    .bind(&req.nonce)
     .bind(now)
     .bind(now)
     .bind("text")
@@ -252,6 +261,16 @@ pub async fn send_message(
         eprintln!("[send_message] Erreur DB: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Si message E2EE, stocker les clés chiffrées par destinataire
+    if req.encrypted {
+        if let Some(ref keys) = req.encrypted_keys {
+            if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, keys).await {
+                tracing::error!(error = %e, msg_id = %id, "e2ee: échec stockage message_keys");
+                // Non fatal : le message est déjà inséré, on continue
+            }
+        }
+    }
 
     sqlx::query("UPDATE conversations SET updated_at = ? WHERE id = ?")
         .bind(now)
@@ -280,6 +299,7 @@ pub async fn send_message(
         "message_type": "text",
         "file_id": null,
         "encrypted": req.encrypted,
+        "nonce": req.nonce,
         "timestamp": now,
         "created_at": now,
         "edited_at": null
@@ -301,7 +321,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ? AND m.created_at < ?
@@ -319,7 +339,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
