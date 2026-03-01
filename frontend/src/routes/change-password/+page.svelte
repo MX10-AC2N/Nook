@@ -67,7 +67,7 @@
       success = payload.message ?? 'Mot de passe mis à jour avec succès !';
 
       // ── Finalisation E2EE : migrer les clés pending → IndexedDB chiffré ──
-      const userId = authStore.user?.id;
+      // userId est déjà déclaré plus haut dans ce bloc try
       if (userId) {
         const username = authStore.user?.username ?? '';
         const pending = getPendingKeys(username) ?? getPendingKeys(userId);
