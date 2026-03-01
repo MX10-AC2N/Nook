@@ -1,92 +1,229 @@
+// backend/src/e2ee.rs
+//
+// Chiffrement de bout en bout — architecture "clé de session par message"
+//
+// Routes exposées (à merger dans protected_routes de main.rs) :
+//   POST /api/auth/public-key
+//       Enregistre/met à jour la clé publique X25519 de l'utilisateur.
+//
+//   GET  /api/auth/public-keys?conversation_id=xxx
+//       Retourne les clés publiques de tous les membres d'une conversation.
+//       L'expéditeur en a besoin pour chiffrer sa clé de session pour chacun.
+//
+//   POST /api/conversations/{id}/messages  (étendu dans db.rs, pas ici)
+//       Le payload inclut désormais encrypted_keys: HashMap<userId, base64key>
+//       et nonce: base64. Ce handler est dans db.rs::send_message.
+//
+//   GET  /api/conversations/{conv_id}/my-encrypted-key/{msg_id}
+//       Retourne la clé de session chiffrée pour l'utilisateur courant.
+
+use axum::{
+    extract::{Path, Query, State as AxumState},
+    http::StatusCode,
+    response::Json,
+    Extension,
+};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, sync::Arc};
+
+use crate::{auth::CurrentUser, SharedState};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types publics
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RegisterPublicKeyRequest {
+    /// Clé publique X25519 encodée en base64 standard (32 bytes → 44 chars avec padding)
+    pub public_key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MemberPublicKey {
+    pub user_id:    String,
+    pub username:   String,
+    /// Clé publique X25519 en base64
+    pub public_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublicKeysQuery {
+    pub conversation_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EncryptedKeyResponse {
+    /// base64(asymNonce[24] || crypto_box_easy_ciphertext)
+    pub encrypted_key: String,
+    pub message_id:    String,
+}
+
+/// Payload pour stocker les clés chiffrées d'un message E2EE.
+/// Appelé depuis db.rs::send_message après insertion du message.
+#[derive(Debug, Deserialize)]
+pub struct MessageKeysPayload {
+    /// user_id → base64(asymNonce || boxCiphertext)
+    pub encrypted_keys: HashMap<String, String>,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/auth/public-key
+// ─────────────────────────────────────────────────────────────────────────────
 pub async fn register_public_key(
-    user: UserExtractor,
-    body: axum::extract::RawBody, // ou Bytes
-) -> Result<Json<()>, AppError> {
-    let bytes = axum::body::to_bytes(body, usize::MAX).await?;
-    if bytes.len() != 32 { return Err(AppError::BadRequest); }
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Json(body): Json<RegisterPublicKeyRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Valider : base64 décodable + exactement 32 bytes (X25519 public key)
+    use base64ct::{Base64, Encoding};
+    let decoded = Base64::decode_vec(&body.public_key)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
 
-    sqlx::query!(
-        "INSERT OR REPLACE INTO users (id, public_key) VALUES (?, ?)",
-        user.id, bytes.as_ref()
-    )
-    .execute(&pool)
-    .await?;
-    Ok(Json(()))
-}
-
-// POST /api/conversations/{id}/keys
-pub async fn set_conversation_keys(
-    user: UserExtractor,
-    Path(convo_id): Path<String>,
-    Json(payload): Json<DistributionPayload>,
-) -> Result<Json<()>, AppError> {
-    // Vérif que user est membre + admin/creator si tu veux
-    for (uid, sealed_b64) in payload.distributions {
-        let sealed = base64::decode(sealed_b64)?;
-        sqlx::query!(
-            "INSERT OR REPLACE INTO conversation_keys 
-             (conversation_id, user_id, key_version, encrypted_group_key) 
-             VALUES (?, ?, ?, ?)",
-            convo_id, uid, payload.key_version, sealed
-        )
-        .execute(&pool)
-        .await?;
+    if decoded.len() != 32 {
+        tracing::warn!(user_id = %user.id, len = decoded.len(), "e2ee: clé publique invalide (taille ≠ 32)");
+        return Err(StatusCode::BAD_REQUEST);
     }
-    Ok(Json(()))
+
+    sqlx::query("UPDATE users SET public_key = ? WHERE id = ?")
+        .bind(&body.public_key)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, user_id = %user.id, "e2ee: échec mise à jour public_key");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    tracing::info!(user_id = %user.id, "e2ee: clé publique enregistrée");
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
-// GET /api/conversations/{id}/my-key
-pub async fn get_my_key(
-    user: UserExtractor,
-    Path(convo_id): Path<String>,
-) -> Result<Json<MyKeyResponse>, AppError> {
-    let row = sqlx::query!(
-        "SELECT encrypted_group_key, key_version 
-         FROM conversation_keys 
-         WHERE conversation_id = ? AND user_id = ? 
-         ORDER BY key_version DESC LIMIT 1",
-        convo_id, user.id
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/public-keys?conversation_id=xxx
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn get_member_public_keys(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Query(params): Query<PublicKeysQuery>,
+) -> Result<Json<Vec<MemberPublicKey>>, StatusCode> {
+    // L'appelant doit être membre de la conversation
+    let is_member: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversation_participants
+         WHERE conversation_id = ? AND user_id = ?",
     )
-    .fetch_optional(&pool)
-    .await?;
+    .bind(&params.conversation_id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let row = row.ok_or(AppError::NotFound)?;
-    Ok(Json(MyKeyResponse {
-        encrypted_key: base64::encode(row.encrypted_group_key),
-        key_version: row.key_version,
+    if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let rows: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT u.id, u.username, u.public_key
+         FROM conversation_participants cp
+         JOIN users u ON u.id = cp.user_id
+         WHERE cp.conversation_id = ?
+           AND u.public_key IS NOT NULL
+           AND u.approved = 1",
+    )
+    .bind(&params.conversation_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, conv = %params.conversation_id, "e2ee: échec get public keys");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|(user_id, username, public_key)| MemberPublicKey {
+                user_id,
+                username,
+                public_key,
+            })
+            .collect(),
+    ))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/conversations/{conv_id}/my-encrypted-key/{msg_id}
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn get_my_encrypted_key(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path((conv_id, msg_id)): Path<(String, String)>,
+) -> Result<Json<EncryptedKeyResponse>, StatusCode> {
+    // Vérifier appartenance
+    let is_member: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversation_participants
+         WHERE conversation_id = ? AND user_id = ?",
+    )
+    .bind(&conv_id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT encrypted_key FROM message_keys
+         WHERE message_id = ? AND recipient_id = ?",
+    )
+    .bind(&msg_id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, msg = %msg_id, user = %user.id, "e2ee: échec get encrypted_key");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let (encrypted_key,) = row.ok_or(StatusCode::NOT_FOUND)?;
+    Ok(Json(EncryptedKeyResponse {
+        encrypted_key,
+        message_id: msg_id,
     }))
 }
 
-#[derive(Deserialize)]
-struct DistributionPayload {
-    distributions: HashMap<String, String>,
-    key_version: i32,
+// ─────────────────────────────────────────────────────────────────────────────
+// Fonction utilitaire appelée depuis db.rs::send_message
+// Insère les clés chiffrées dans message_keys après insertion du message.
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn store_message_keys(
+    pool: &sqlx::SqlitePool,
+    message_id: &str,
+    encrypted_keys: &HashMap<String, String>,
+) -> Result<(), sqlx::Error> {
+    for (recipient_id, encrypted_key) in encrypted_keys {
+        sqlx::query(
+            "INSERT OR REPLACE INTO message_keys (message_id, recipient_id, encrypted_key)
+             VALUES (?, ?, ?)",
+        )
+        .bind(message_id)
+        .bind(recipient_id)
+        .bind(encrypted_key)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
 }
 
-#[derive(Serialize)]
-struct MyKeyResponse {
-    encrypted_key: String,
-    key_version: i32,
-}
-// POST /api/conversations/{id}/add-member-key
-pub async fn add_member_key(
-    admin: AdminOrCreatorExtractor, // tu as déjà ce guard
-    Path(convo_id): Path<String>,
-    Json(payload): Json<AddMemberKeyPayload>,
-) -> Result<Json<()>, AppError> {
-    sqlx::query!(
-        "INSERT INTO conversation_keys 
-         (conversation_id, user_id, key_version, encrypted_group_key)
-         VALUES (?, ?, ?, ?)",
-        convo_id, payload.user_id, payload.key_version, base64::decode(&payload.encrypted_key)?
-    ).execute(&pool).await?;
-    Ok(Json(()))
-}
-
-#[derive(Deserialize)]
-struct AddMemberKeyPayload {
-    user_id: String,
-    encrypted_key: String,
-    key_version: i32,
+// ─────────────────────────────────────────────────────────────────────────────
+// Routeur — à merger dans protected_routes de main.rs
+// ─────────────────────────────────────────────────────────────────────────────
+pub fn e2ee_routes() -> axum::Router<Arc<SharedState>> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/auth/public-key", post(register_public_key))
+        .route("/auth/public-keys", get(get_member_public_keys))
+        .route(
+            "/conversations/{conv_id}/my-encrypted-key/{msg_id}",
+            get(get_my_encrypted_key),
+        )
 }
