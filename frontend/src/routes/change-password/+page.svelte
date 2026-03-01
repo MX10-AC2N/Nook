@@ -2,6 +2,13 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
+  import {
+    getPendingKeys,
+    clearPendingKeys,
+    encryptPrivateKey,
+    storeKeysInIndexedDB,
+    registerPublicKeyOnServer,
+  } from '$lib/crypto';
 
   let newPassword     = $state('');
   let confirmPassword = $state('');
@@ -58,6 +65,26 @@
       }
 
       success = payload.message ?? 'Mot de passe mis à jour avec succès !';
+
+      // ── Finalisation E2EE : migrer les clés pending → IndexedDB chiffré ──
+      const userId = authStore.user?.id;
+      if (userId) {
+        const username = authStore.user?.username ?? '';
+        const pending = getPendingKeys(username) ?? getPendingKeys(userId);
+        if (pending) {
+          try {
+            const encPrivKey = await encryptPrivateKey(pending.privateKey, newPassword);
+            await storeKeysInIndexedDB(userId, pending.publicKey, encPrivKey);
+            await registerPublicKeyOnServer(pending.publicKey);
+            clearPendingKeys(username);
+            clearPendingKeys(userId);
+            console.log('[E2EE] Clés migrées vers IndexedDB ✓');
+          } catch (e) {
+            console.error('[E2EE] Erreur migration clés:', e);
+          }
+        }
+      }
+      // ──────────────────────────────────────────────────────────
 
       // Met à jour le store sans re-login
       authStore.updateUser({ needs_password_change: false });
