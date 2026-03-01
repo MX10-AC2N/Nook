@@ -30,6 +30,7 @@ mod chess;
 mod chess_engine;
 mod config;
 mod db;
+mod e2ee;
 mod invites;
 mod prune;
 mod upload;
@@ -436,6 +437,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/events", post(db::create_event))
         .route("/events/{id}", delete(db::delete_event))
         .merge(chess::chess_routes())
+        .merge(e2ee::e2ee_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
