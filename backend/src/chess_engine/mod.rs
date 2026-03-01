@@ -9,7 +9,7 @@
 //!
 //! Changements vs source originale :
 //! - `thiserror` supprimé → Display + Error implémentés manuellement
-//! - `rand::seq::IndexedRandom` (rand 0.10) → `SliceRandom` (rand 0.9)
+//! - `rand::Rng::random_range` (rand 0.9) au lieu de `SliceRandom::choose`
 //! - let-chains edition 2024 → edition 2021 compatible
 //! - Chemins de modules adaptés (crate::chess_engine::*)
 
@@ -24,11 +24,7 @@ pub mod san;
 pub mod types;
 pub mod zobrist;
 
-// Re-exports principaux pour usage dans chess.rs
-pub use ai_engine::{default_engine, AiEngine, MinimaxAi, RandomAi};
-pub use board::Position;
+// Re-exports utilisés dans chess.rs
+pub use ai_engine::{AiEngine, MinimaxAi};
 pub use game::Game;
-pub use movegen::{legal_moves, legal_moves_from};
-pub use types::{
-    ChessError, Color, Difficulty, DrawReason, GameStatus, Move, MoveFlags, PieceType, Square,
-};
+pub use types::{ChessError, Color, Difficulty, GameStatus, Move, PieceType, Square};
