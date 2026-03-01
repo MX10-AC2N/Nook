@@ -2,7 +2,7 @@
 name: 🔄 Mise à jour des dépendances npm
 
 on:
-  schedule:
+  # schedule:
     # Tous les lundis à 03:00 UTC
     # - cron: "0 3 * * 1"
   workflow_dispatch:   # Permet de lancer manuellement depuis l’UI
