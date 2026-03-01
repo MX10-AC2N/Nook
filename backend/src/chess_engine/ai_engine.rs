@@ -9,7 +9,7 @@
 
 use std::time::{Duration, Instant};
 
-use rand::seq::SliceRandom;
+use rand::Rng;
 
 use crate::chess_engine::board::Position;
 use crate::chess_engine::game::Game;
@@ -45,7 +45,7 @@ impl AiEngine for RandomAi {
             return Err(ChessError::GameOver("no legal moves".to_string()));
         }
         let mut rng = rand::rng();
-        Ok(*moves.choose(&mut rng).unwrap())
+        Ok(moves[rng.random_range(0..moves.len())])
     }
 
     fn name(&self) -> &str {
@@ -107,11 +107,11 @@ impl TranspositionTable {
     pub fn probe(&mut self, key: u64) -> Option<&TTEntry> {
         self.probes += 1;
         let idx = (key as usize) % self.size;
-        if let Some(entry) = &self.entries[idx]
-            && entry.key == key
-        {
-            self.hits += 1;
-            return Some(entry);
+        if let Some(entry) = &self.entries[idx] {
+            if entry.key == key {
+                self.hits += 1;
+                return Some(entry);
+            }
         }
         None
     }
@@ -255,12 +255,10 @@ fn move_order_score(
     ply: usize,
 ) -> i32 {
     // TT move gets highest priority.
-    if let Some(ttm) = tt_move
-        && mv.from == ttm.from
-        && mv.to == ttm.to
-        && mv.promotion == ttm.promotion
-    {
-        return 1_000_000;
+    if let Some(ttm) = tt_move {
+        if mv.from == ttm.from && mv.to == ttm.to && mv.promotion == ttm.promotion {
+            return 1_000_000;
+        }
     }
 
     let mut score = 0i32;
