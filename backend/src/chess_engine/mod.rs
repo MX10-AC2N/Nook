@@ -13,22 +13,22 @@
 //! - let-chains edition 2024 → edition 2021 compatible
 //! - Chemins de modules adaptés (crate::chess_engine::*)
 
+pub mod ai_engine;
 pub mod attacks;
 pub mod board;
+pub mod evaluation;
 pub mod game;
 pub mod movegen;
 pub mod pgn;
 pub mod san;
 pub mod types;
 pub mod zobrist;
-pub mod ai_engine;
-pub mod evaluation;
 
 // Re-exports principaux pour usage dans chess.rs
+pub use ai_engine::{default_engine, AiEngine, MinimaxAi, RandomAi};
 pub use board::Position;
 pub use game::Game;
 pub use movegen::{legal_moves, legal_moves_from};
 pub use types::{
     ChessError, Color, Difficulty, DrawReason, GameStatus, Move, MoveFlags, PieceType, Square,
 };
-pub use ai_engine::{AiEngine, MinimaxAi, RandomAi, default_engine};

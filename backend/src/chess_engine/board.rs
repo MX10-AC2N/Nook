@@ -5,7 +5,9 @@
 //! move counters, and an incremental Zobrist hash.
 
 use crate::chess_engine::attacks;
-use crate::chess_engine::types::{Bitboard, CastlingRights, ChessError, Color, Move, PieceType, Square};
+use crate::chess_engine::types::{
+    Bitboard, CastlingRights, ChessError, Color, Move, PieceType, Square,
+};
 use crate::chess_engine::zobrist;
 
 // ---------------------------------------------------------------------------

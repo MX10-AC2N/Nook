@@ -133,7 +133,10 @@ fn piece_letter(pt: PieceType) -> char {
 ///
 /// Accepts standard SAN: `e4`, `Nf3`, `Bxe5`, `O-O`, `O-O-O`, `e8=Q`, etc.
 /// Check/checkmate suffixes (`+`, `#`) are ignored.
-pub fn parse_san(pos: &Position, san: &str) -> Result<Move, crate::chess_engine::types::ChessError> {
+pub fn parse_san(
+    pos: &Position,
+    san: &str,
+) -> Result<Move, crate::chess_engine::types::ChessError> {
     let legal = movegen::legal_moves(pos);
     let san = san.trim_end_matches(['+', '#', '!', '?']);
 

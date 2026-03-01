@@ -16,7 +16,7 @@ use crate::chess_engine::game::Game;
 use crate::chess_engine::movegen::{legal_captures, legal_moves};
 use crate::chess_engine::types::{ChessError, Color, Difficulty, Move, PieceType};
 
-use crate::chess_engine::evaluation::{INF, MATE, evaluate_relative};
+use crate::chess_engine::evaluation::{evaluate_relative, INF, MATE};
 
 // =========================================================================
 // AiEngine trait

@@ -676,8 +676,9 @@ pub enum ChessError {
 impl fmt::Display for ChessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ChessError::InvalidMove { from, to, reason } =>
-                write!(f, "invalid move: {from} -> {to}: {reason}"),
+            ChessError::InvalidMove { from, to, reason } => {
+                write!(f, "invalid move: {from} -> {to}: {reason}")
+            }
             ChessError::InvalidFen(s) => write!(f, "invalid FEN string: {s}"),
             ChessError::InvalidSquare(s) => write!(f, "invalid square notation: {s}"),
             ChessError::GameOver(s) => write!(f, "game is already over: {s}"),
