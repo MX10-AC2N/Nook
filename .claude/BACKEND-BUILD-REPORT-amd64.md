@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `x86_64-unknown-linux-gnu`
-> **2026-02-28 18:57 UTC**
+> **2026-03-01 06:01 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `amd64` (`x86_64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`4c2971c`](https://github.com/MX10-AC2N/Nook/commit/4c2971c27ff56c00f106b23f75e8e450b1e1f31b) |
+| **Commit** | [`53d835a`](https://github.com/MX10-AC2N/Nook/commit/53d835adc5a12fd28b363a8f8d654e77ef052ca8) |
 | **Rust** | `rustc 1.93.1 (01f6ddf75 2026-02-11)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22526917804) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22537202323) |
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Étape | Statut | Détail |
 |-------|--------|--------|
-| **cargo check** | ❌ | exit 101 |
+| **cargo check** | ✅ | exit 0 |
 | **cargo clippy** | ❌ | exit 101 (-D warnings) |
-| **cargo build --release** | ❌ | binaire N/A stripped |
+| **cargo build --release** | ✅ | binaire 6.7M stripped |
 
 ---
 
@@ -60,7 +60,7 @@
 ## Résumé compilation
 
 ```
-error[E0599]: no method named `choose` found for struct `Vec<Move>` in the current scope
+    Finished `release` profile [optimized] target(s) in 2m 11s
 ```
 
 ---
