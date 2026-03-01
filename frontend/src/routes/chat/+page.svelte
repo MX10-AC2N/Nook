@@ -33,7 +33,7 @@
     sending = true;
     const content = newMessage;
     newMessage = '';
-    await sendMessage(content, conversationId, [], new Uint8Array());
+    await sendMessage(content, conversationId);
     sending = false;
   }
 
@@ -52,7 +52,7 @@
   }
 
   function handleSelectGif(url: string) {
-    sendGif(url, conversationId, [], new Uint8Array());
+    sendGif(url, conversationId);
     toggleGifs();
   }
 
@@ -71,7 +71,7 @@
       const content = file.type.startsWith('image/')
         ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
         : `<span class="file-attachment">📎 <a href="${data.url}" download="${data.file_name}">${data.file_name}</a></span>`;
-      await sendMessage(content, conversationId, [], new Uint8Array());
+      await sendMessage(content, conversationId);
       input.value = '';
     } catch (err) {
       console.error('[Upload]', err);
