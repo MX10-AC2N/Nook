@@ -2,7 +2,7 @@
 name: 🔎 Audit de sécurité npm
 
 on:
-  schedule:
+  # schedule:
     # Tous les jours à 02:30 UTC
     # - cron: "30 2 * * *"
   workflow_dispatch:   # lancement manuel possible
