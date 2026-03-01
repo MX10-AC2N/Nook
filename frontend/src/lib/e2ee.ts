@@ -103,6 +103,30 @@ export class E2EE {
     return new TextDecoder().decode(decrypted);
   }
 }
+// Dans la classe E2EE
+async addMemberToConversation(convoId: string, newMemberPubkeyB64: string, newMemberUserId: string) {
+  await initSodium();
+  const groupKey = this.groupKeys.get(convoId) || await this.loadGroupKey(convoId);
+
+  const sealed = sodium.crypto_box_seal(groupKey, sodium.from_base64(newMemberPubkeyB64));
+  const payload = {
+    userId: newMemberUserId,
+    encryptedKey: sodium.to_base64(sealed),
+    keyVersion: this.currentVersion(convoId) // à stocker aussi
+  };
+
+  await fetch(`/api/conversations/${convoId}/add-member-key`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+async rotateGroupKey(convoId: string, remainingMembers: Record<string, string>) {
+  const newGroupKey = sodium.randombytes_buf(32);
+  // même logique de distribution que avant, mais avec newGroupKey
+  // + mise à jour de la version
+  this.groupKeys.set(convoId, newGroupKey);
+}
 
 // Utilisation dans ton store chat :
 const e2ee = new E2EE();
