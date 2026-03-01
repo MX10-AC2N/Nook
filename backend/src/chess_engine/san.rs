@@ -233,10 +233,10 @@ pub fn parse_san(
             } else {
                 return false;
             }
-            if disambig_file.map_or(false, |f| m.from.file() != f) {
+            if disambig_file.is_some_and(|f| m.from.file() != f) {
                 return false;
             }
-            if disambig_rank.map_or(false, |r| m.from.rank() != r) {
+            if disambig_rank.is_some_and(|r| m.from.rank() != r) {
                 return false;
             }
             if let Some(promo) = promotion {
