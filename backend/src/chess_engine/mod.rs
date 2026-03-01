@@ -13,6 +13,10 @@
 //! - let-chains edition 2024 → edition 2021 compatible
 //! - Chemins de modules adaptés (crate::chess_engine::*)
 
+// Bibliothèque intégrée : toutes les APIs ne sont pas encore utilisées
+#![allow(dead_code)]
+#![allow(clippy::unnecessary_map_or)]
+
 pub mod ai_engine;
 pub mod attacks;
 pub mod board;
