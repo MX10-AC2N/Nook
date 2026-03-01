@@ -69,3 +69,24 @@ struct MyKeyResponse {
     encrypted_key: String,
     key_version: i32,
 }
+// POST /api/conversations/{id}/add-member-key
+pub async fn add_member_key(
+    admin: AdminOrCreatorExtractor, // tu as déjà ce guard
+    Path(convo_id): Path<String>,
+    Json(payload): Json<AddMemberKeyPayload>,
+) -> Result<Json<()>, AppError> {
+    sqlx::query!(
+        "INSERT INTO conversation_keys 
+         (conversation_id, user_id, key_version, encrypted_group_key)
+         VALUES (?, ?, ?, ?)",
+        convo_id, payload.user_id, payload.key_version, base64::decode(&payload.encrypted_key)?
+    ).execute(&pool).await?;
+    Ok(Json(()))
+}
+
+#[derive(Deserialize)]
+struct AddMemberKeyPayload {
+    user_id: String,
+    encrypted_key: String,
+    key_version: i32,
+}
