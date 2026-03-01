@@ -1,6 +1,22 @@
-// frontend/src/lib/chessStore.svelte.ts
-// Store Svelte 5 (runes) pour le jeu d'échecs multi-joueurs
-// Gestion : état de la partie, coups, WebSocket temps réel
+// src/lib/chessStore.svelte.ts
+// Store Svelte 5 Runes — moteur d'échecs FIDE (backend Rust)
+//
+// Contrat API backend :
+//   GET  /api/chess/list                 → { games: GameListItem[] }
+//   POST /api/chess/create               → { success, game_id }
+//     body: { opponent: "human"|"easy"|"medium"|"hard"|"expert"|"godlike", color: "white"|"black" }
+//   GET  /api/chess/{id}                 → { success, game: GameState }
+//   POST /api/chess/{id}/join            → { success }
+//   POST /api/chess/{id}/move            → { success, game: GameState }
+//     body: { from: "e2", to: "e4", promotion?: "q"|"r"|"b"|"n" }
+//   POST /api/chess/{id}/ai-move         → { success, game: GameState }
+//   GET  /api/chess/{id}/moves?from=e2   → { success, moves: ["e4","e3",...] }
+//   POST /api/chess/{id}/resign          → { success }
+//
+// Format plateau : board[row][col] — row 0 = rang 8 (côté noir), row 7 = rang 1 (côté blanc)
+//   ""   = case vide
+//   "wP" = pion blanc, "bK" = roi noir, etc.
+//   Lettres pièces : K Q R B N P
 
 import { browser } from '$app/environment';
 import { authStore } from './authStore.svelte.js';
@@ -9,198 +25,134 @@ import { authStore } from './authStore.svelte.js';
 // TYPES
 // ════════════════════════════════════════════════════════════════
 
-export type PieceType = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
-export type PieceColor = 'white' | 'black' | 'red' | 'green';
-export type GameStatus = 'waiting' | 'playing' | 'finished' | 'abandoned';
+export type PieceColor = 'w' | 'b';
+export type PieceType  = 'K' | 'Q' | 'R' | 'B' | 'N' | 'P';
+export type SideToMove = 'white' | 'black';
+export type GameStatus =
+  | 'waiting' | 'playing' | 'finished'
+  | 'checkmate' | 'stalemate' | 'draw'
+  | 'insufficient_material' | 'repetition' | 'fifty_moves';
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert' | 'godlike';
 
-export interface ChessPiece {
-  id: string;
-  piece_type: PieceType;
-  color: PieceColor;
-  row: number;
-  col: number;
-  alive: boolean;
-  moved: boolean;
+export interface Cell {
+  row:    number;  // 0–7, rang 8–1
+  col:    number;  // 0–7, colonne a–h
+  piece:  string;  // "" | "wP" | "bK" | …
 }
 
-export interface ChessMove {
-  player_slot: number;
-  piece_id: string;
-  from_row: number;
-  from_col: number;
-  to_row: number;
-  to_col: number;
-  captured_piece_id: string | null;
-  timestamp: number;
-}
-
-export interface ChessGame {
-  id: string;
-  created_by: string;
-  player_count: number;
-  player1_id: string | null;
-  player2_id: string | null;
-  player3_id: string | null;
-  player4_id: string | null;
-  player1_color: PieceColor;
-  player2_color: PieceColor;
-  player3_color: PieceColor;
-  player4_color: PieceColor;
-  current_turn: number;
-  status: GameStatus;
-  board_state: ChessPiece[];
-  move_history: ChessMove[];
-  eliminated: number[];
-  winner_id: string | null;
+/** État d'une partie retourné par l'API */
+export interface GameState {
+  id:           string;
+  created_by:   string;
+  player1_id:   string | null;
+  player2_id:   string | null;
+  player1_color: string;  // "white" | "black"
+  player2_color: string;
+  status:        string;  // GameStatus élargi
+  winner_id:     string | null;
+  ai_difficulty: string | null;
+  fen:           string;
+  move_history:  MoveRecord[];
+  engine: {
+    board:        string[][];   // 8×8
+    side_to_move: SideToMove;
+    status:       string;
+    legal_moves:  string[];     // ["e2e4","d7d8=q",…]
+    move_count:   number;
+  } | null;
   created_at: number;
   updated_at: number;
 }
 
+export interface MoveRecord {
+  san:   string;
+  by:    string;  // "white" | "black" | "ai"
+  color: string;
+}
+
 export interface GameListItem {
-  id: string;
-  created_by: string;
-  creator_name: string;
-  player_count: number;
-  status: GameStatus;
-  current_turn: number;
-  updated_at: number;
+  id:           string;
+  status:       string;
+  creator_color: string;
+  creator_name: string | null;
+  updated_at:   number;
 }
 
-export type ValidMove = { row: number; col: number; capture: boolean };
+/** Case sélectionnée sur le plateau */
+export interface SelectedSquare {
+  row: number;
+  col: number;
+  algebraic: string;  // "e2"
+}
 
 // ════════════════════════════════════════════════════════════════
-// LOGIQUE DE VALIDATION CÔTÉ CLIENT
+// HELPERS
 // ════════════════════════════════════════════════════════════════
 
-// Zones hors-jeu sur le plateau 14×14 (coins 4×4 retirés)
-function isOutOfBounds(row: number, col: number, playerCount: number): boolean {
-  if (playerCount === 2) return row < 0 || row > 7 || col < 0 || col > 7;
-  const size = 14;
-  if (row < 0 || row >= size || col < 0 || col >= size) return true;
-  // Coins retirés
-  if (row < 4 && col < 4) return true;
-  if (row < 4 && col > 9) return true;
-  if (row > 9 && col < 4) return true;
-  if (row > 9 && col > 9) return true;
-  return false;
+/** Convertit row/col en notation algébrique (0,0) → "a8", (7,4) → "e1" */
+export function toAlgebraic(row: number, col: number): string {
+  return String.fromCharCode(97 + col) + String(8 - row);
 }
 
-function pathClear(
-  fromRow: number, fromCol: number,
-  toRow: number, toCol: number,
-  pieces: ChessPiece[]
-): boolean {
-  const dr = Math.sign(toRow - fromRow);
-  const dc = Math.sign(toCol - fromCol);
-  let r = fromRow + dr;
-  let c = fromCol + dc;
-  while (r !== toRow || c !== toCol) {
-    if (pieces.some(p => p.row === r && p.col === c && p.alive)) return false;
-    r += dr;
-    c += dc;
-  }
-  return true;
+/** Convertit notation algébrique en row/col. "e2" → {row:6,col:4} */
+export function fromAlgebraic(sq: string): { row: number; col: number } {
+  const col = sq.charCodeAt(0) - 97;
+  const row = 8 - parseInt(sq[1]);
+  return { row, col };
 }
 
-/// Calcule les cases accessibles par une pièce pour le highlighting du plateau
-export function getValidMoves(
-  piece: ChessPiece,
-  pieces: ChessPiece[],
-  playerCount: number
-): ValidMove[] {
-  const moves: ValidMove[] = [];
-  const boardSize = playerCount === 2 ? 8 : 14;
+/** Décode une pièce "wP" → { color: 'w', type: 'P' } */
+export function decodePiece(cell: string): { color: PieceColor; type: PieceType } | null {
+  if (!cell || cell.length !== 2) return null;
+  return { color: cell[0] as PieceColor, type: cell[1] as PieceType };
+}
 
-  const tryAdd = (row: number, col: number) => {
-    if (isOutOfBounds(row, col, playerCount)) return;
-    const target = pieces.find(p => p.row === row && p.col === col && p.alive);
-    if (target) {
-      if (target.color !== piece.color) moves.push({ row, col, capture: true });
-      // propre pièce = bloquant, on ne continue pas
-    } else {
-      moves.push({ row, col, capture: false });
-    }
+// Noms complets des pièces
+export const PIECE_NAMES: Record<PieceType, string> = {
+  K: 'Roi', Q: 'Dame', R: 'Tour', B: 'Fou', N: 'Cavalier', P: 'Pion',
+};
+
+// Symboles Unicode (white = contours, black = remplis)
+export const PIECE_UNICODE: Record<string, string> = {
+  wK: '♔', wQ: '♕', wR: '♖', wB: '♗', wN: '♘', wP: '♙',
+  bK: '♚', bQ: '♛', bR: '♜', bB: '♝', bN: '♞', bP: '♟',
+};
+
+// Label du statut pour l'affichage
+export function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    waiting:               '🟡 En attente',
+    playing:               '🟢 En cours',
+    finished:              '🏁 Terminée',
+    checkmate:             '♚ Échec et mat',
+    stalemate:             '🤝 Pat',
+    draw:                  '🤝 Nulle',
+    insufficient_material: '🤝 Matériel insuffisant',
+    repetition:            '🤝 Répétition',
+    fifty_moves:           '🤝 Règle des 50 coups',
   };
+  return labels[status] ?? status;
+}
 
-  const trySlide = (dr: number, dc: number) => {
-    let r = piece.row + dr;
-    let c = piece.col + dc;
-    while (!isOutOfBounds(r, c, playerCount)) {
-      const target = pieces.find(p => p.row === r && p.col === c && p.alive);
-      if (target) {
-        if (target.color !== piece.color) moves.push({ row: r, col: c, capture: true });
-        break; // bloqué
-      }
-      moves.push({ row: r, col: c, capture: false });
-      r += dr;
-      c += dc;
-    }
-  };
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy:    '🐣 Facile',
+  medium:  '🧩 Moyen',
+  hard:    '💪 Difficile',
+  expert:  '🎓 Expert',
+  godlike: '😈 Divin',
+};
 
-  switch (piece.piece_type) {
-    case 'king':
-      for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++)
-          if (dr !== 0 || dc !== 0) tryAdd(piece.row + dr, piece.col + dc);
-      break;
+// Extraire les cases destination depuis legal_moves pour une case source donnée
+export function getLegalTargets(legalMoves: string[], fromAlg: string): string[] {
+  return legalMoves
+    .filter(m => m.startsWith(fromAlg))
+    .map(m => m.slice(2, 4));
+}
 
-    case 'queen':
-      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]])
-        trySlide(dr, dc);
-      break;
-
-    case 'rook':
-      for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]])
-        trySlide(dr, dc);
-      break;
-
-    case 'bishop':
-      for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1]])
-        trySlide(dr, dc);
-      break;
-
-    case 'knight':
-      for (const [dr, dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]])
-        tryAdd(piece.row + dr, piece.col + dc);
-      break;
-
-    case 'pawn': {
-      // Direction selon couleur
-      const isLateral = piece.color === 'red' || piece.color === 'green';
-      const forward = piece.color === 'white' || piece.color === 'green' ? -1 : 1;
-
-      const advRow = isLateral ? 0 : forward;
-      const advCol = isLateral ? forward : 0;
-      const sideAx = isLateral ? 'row' : 'col';
-
-      // Avance simple
-      const r1 = piece.row + advRow;
-      const c1 = piece.col + advCol;
-      if (!isOutOfBounds(r1, c1, playerCount) && !pieces.find(p => p.row === r1 && p.col === c1 && p.alive)) {
-        moves.push({ row: r1, col: c1, capture: false });
-        // Double avance si premier coup
-        if (!piece.moved) {
-          const r2 = piece.row + advRow * 2;
-          const c2 = piece.col + advCol * 2;
-          if (!isOutOfBounds(r2, c2, playerCount) && !pieces.find(p => p.row === r2 && p.col === c2 && p.alive)) {
-            moves.push({ row: r2, col: c2, capture: false });
-          }
-        }
-      }
-      // Captures diagonales
-      for (const side of [-1, 1]) {
-        const cr = piece.row + advRow + (isLateral ? side : 0);
-        const cc = piece.col + advCol + (isLateral ? 0 : side);
-        const target = pieces.find(p => p.row === cr && p.col === cc && p.alive);
-        if (target && target.color !== piece.color) {
-          moves.push({ row: cr, col: cc, capture: true });
-        }
-      }
-      break;
-    }
-  }
-
-  return moves;
+// Extraire la promotion depuis un coup "e7e8=q" → "q"
+export function extractPromotion(move: string): string | undefined {
+  const eq = move.indexOf('=');
+  return eq !== -1 ? move.slice(eq + 1) : undefined;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -209,45 +161,54 @@ export function getValidMoves(
 
 class ChessStore {
   // ── État réactif ──────────────────────────────────────────────
-  gameList     = $state<GameListItem[]>([]);
-  currentGame  = $state<ChessGame | null>(null);
-  mySlot       = $state<number | null>(null);   // slot du joueur courant (1-4)
-  myColor      = $state<PieceColor | null>(null);
+  gameList    = $state<GameListItem[]>([]);
+  currentGame = $state<GameState | null>(null);
+  loading     = $state(false);
+  error       = $state<string | null>(null);
+  aiThinking  = $state(false);
 
-  selectedPiece = $state<ChessPiece | null>(null);
-  validMoves    = $state<ValidMove[]>([]);
-
-  loading      = $state(false);
-  error        = $state<string | null>(null);
-  lastMoveHighlight = $state<{ from: [number,number]; to: [number,number] } | null>(null);
+  /** Case source sélectionnée par le joueur */
+  selected     = $state<SelectedSquare | null>(null);
+  /** Cases cibles légales pour la sélection courante */
+  legalTargets = $state<string[]>([]);  // ["e4","e3",…]
+  /** Dernier coup joué (pour highlight) */
+  lastMove     = $state<{ from: string; to: string } | null>(null);
+  /** Modal promotion en attente */
+  pendingPromotion = $state<{ from: string; to: string } | null>(null);
 
   // ── Dérivés ───────────────────────────────────────────────────
-  isMyTurn = $derived(
-    this.currentGame !== null &&
-    this.mySlot !== null &&
-    this.currentGame.current_turn === this.mySlot &&
-    this.currentGame.status === 'playing'
-  );
-
-  isPlaying = $derived(this.currentGame?.status === 'playing');
-  isWaiting = $derived(this.currentGame?.status === 'waiting');
-  isFinished = $derived(this.currentGame?.status === 'finished');
-
-  boardSize = $derived(
-    this.currentGame?.player_count === 2 ? 8 : 14
-  );
-
-  // Pièces vivantes par couleur pour affichage des prises
-  capturedBy = $derived(() => {
-    if (!this.currentGame) return {};
-    const captured: Record<PieceColor, ChessPiece[]> = { white: [], black: [], red: [], green: [] };
-    for (const p of this.currentGame.board_state) {
-      if (!p.alive) captured[p.color].push(p);
-    }
-    return captured;
+  myColor = $derived((): SideToMove | null => {
+    const g = this.currentGame;
+    const uid = authStore.user?.id;
+    if (!g || !uid) return null;
+    if (g.player1_id === uid) return g.player1_color === 'white' ? 'white' : 'black';
+    if (g.player2_id === uid) return g.player2_color === 'white' ? 'white' : 'black';
+    return null;
   });
 
-  // ── WebSocket ─────────────────────────────────────────────────
+  isMyTurn = $derived(
+    this.currentGame?.engine?.side_to_move === this.myColor() &&
+    this.currentGame?.status === 'playing' &&
+    this.myColor() !== null
+  );
+
+  isVsAI = $derived(this.currentGame?.ai_difficulty !== null);
+
+  isGameOver = $derived(
+    this.currentGame !== null &&
+    !['waiting', 'playing'].includes(this.currentGame.status)
+  );
+
+  // Plateau courant sous forme de tableau 8×8 (ou tableau vide)
+  board = $derived((): string[][] => {
+    return this.currentGame?.engine?.board ?? Array.from({ length: 8 }, () => Array(8).fill(''));
+  });
+
+  // Indicateur d'échec : side_to_move est en échec si statut = "checkmate" ou on peut le déduire
+  // Pour l'instant on expose juste le statut engine
+  engineStatus = $derived(this.currentGame?.engine?.status ?? '');
+
+  // WebSocket
   private ws: WebSocket | null = null;
   private wsGameId: string | null = null;
 
@@ -270,15 +231,18 @@ class ChessStore {
     }
   }
 
-  async createGame(playerCount: number, name?: string): Promise<string | null> {
+  async createGame(params: {
+    opponent: string;   // "human" | Difficulty
+    color: 'white' | 'black';
+  }): Promise<string | null> {
     this.loading = true;
     this.error = null;
     try {
       const res = await fetch('/api/chess/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ player_count: playerCount, name }),
+        body:        JSON.stringify({ opponent: params.opponent, color: params.color }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -291,7 +255,6 @@ class ChessStore {
     }
   }
 
-  // Charge la partie ET (re)connecte le WebSocket — appel initial uniquement
   async loadGame(gameId: string): Promise<void> {
     this.loading = true;
     this.error = null;
@@ -299,10 +262,11 @@ class ChessStore {
       const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!data.success) throw new Error(data.message);
+      if (!data.success) throw new Error(data.message ?? 'Erreur serveur');
       this.currentGame = data.game;
-      this.determineMySlot();
-      this.connectWebSocket(gameId); // connecte le WS (guard interne évite les doublons)
+      this.selected    = null;
+      this.legalTargets = [];
+      this.connectWebSocket(gameId);
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
     } finally {
@@ -310,31 +274,25 @@ class ChessStore {
     }
   }
 
-  // Rafraîchit uniquement le board depuis le serveur — appelé depuis le WS onmessage
-  // Ne rappelle PAS connectWebSocket pour éviter toute boucle infinie
-  private async refreshBoard(gameId: string): Promise<void> {
+  private async refreshGame(gameId: string): Promise<void> {
     try {
       const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
       if (!res.ok) return;
       const data = await res.json();
       if (!data.success) return;
-      this.currentGame = data.game;
-      this.determineMySlot();
-      // Annuler la sélection en cours (le coup adverse a peut-être pris notre pièce)
-      this.selectedPiece = null;
-      this.validMoves = [];
+      this.currentGame  = data.game;
+      this.selected     = null;
+      this.legalTargets = [];
     } catch {
-      // Silencieux — le refresh échoue gracieusement
+      // Silencieux
     }
   }
 
   async joinGame(gameId: string): Promise<boolean> {
-    this.loading = true;
     this.error = null;
     try {
       const res = await fetch(`/api/chess/${gameId}/join`, {
-        method: 'POST',
-        credentials: 'include',
+        method: 'POST', credentials: 'include',
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -343,61 +301,79 @@ class ChessStore {
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de rejoindre';
       return false;
-    } finally {
-      this.loading = false;
     }
   }
 
-  // ── Sélection d'une pièce + calcul des coups valides ──────────
-  selectPiece(piece: ChessPiece | null): void {
-    if (!piece || !this.currentGame) {
-      this.selectedPiece = null;
-      this.validMoves = [];
+  // ── Sélection d'une case et calcul des cibles légales ─────────
+  async selectSquare(row: number, col: number): Promise<void> {
+    if (!this.isMyTurn || !this.currentGame?.engine) return;
+
+    const alg   = toAlgebraic(row, col);
+    const piece  = this.currentGame.engine.board[row]?.[col] ?? '';
+    const color  = piece ? piece[0] : '';
+    const myColorChar = this.myColor() === 'white' ? 'w' : 'b';
+
+    // Clic sur une cible légale → jouer le coup
+    if (this.selected && this.legalTargets.includes(alg)) {
+      await this.playMove(this.selected.algebraic, alg);
       return;
     }
-    // On ne peut sélectionner que ses propres pièces pendant son tour
-    if (!this.isMyTurn || piece.color !== this.myColor) {
-      this.selectedPiece = null;
-      this.validMoves = [];
-      return;
+
+    // Clic sur sa propre pièce → sélectionner
+    if (piece && color === myColorChar) {
+      this.selected     = { row, col, algebraic: alg };
+      this.legalTargets = getLegalTargets(
+        this.currentGame.engine.legal_moves,
+        alg
+      );
+    } else {
+      // Clic dans le vide ou pièce adverse sans sélection → désélectionner
+      this.selected     = null;
+      this.legalTargets = [];
     }
-    this.selectedPiece = piece;
-    this.validMoves = getValidMoves(piece, this.currentGame.board_state, this.currentGame.player_count);
   }
 
-  // ── Jouer un coup ─────────────────────────────────────────────
-  async playMove(toRow: number, toCol: number, promotion?: string): Promise<boolean> {
-    if (!this.currentGame || !this.selectedPiece || !this.isMyTurn) return false;
-
+  // ── Jouer un coup (from/to en algébrique) ─────────────────────
+  async playMove(from: string, to: string, promotion?: string): Promise<boolean> {
+    if (!this.currentGame) return false;
     const gameId = this.currentGame.id;
-    this.error = null;
 
+    // Détecter si promotion nécessaire (pion atteignant la dernière rangée)
+    if (!promotion) {
+      const fromCoords = fromAlgebraic(from);
+      const piece  = this.currentGame.engine?.board[fromCoords.row]?.[fromCoords.col] ?? '';
+      const isPawn  = piece.endsWith('P');
+      const toCoords = fromAlgebraic(to);
+      const isPromoRank = (piece.startsWith('w') && toCoords.row === 0) ||
+                          (piece.startsWith('b') && toCoords.row === 7);
+      if (isPawn && isPromoRank) {
+        this.pendingPromotion = { from, to };
+        return false; // Attendre le choix dans le modal
+      }
+    }
+
+    this.error = null;
     try {
       const res = await fetch(`/api/chess/${gameId}/move`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          piece_id: this.selectedPiece.id,
-          to_row: toRow,
-          to_col: toCol,
-          promotion,
-        }),
+        body:        JSON.stringify({ from, to, promotion: promotion ?? null }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.message);
+      if (!data.success) throw new Error(data.message ?? 'Coup invalide');
 
-      // Highlight du coup
-      this.lastMoveHighlight = {
-        from: [this.selectedPiece.row, this.selectedPiece.col],
-        to: [toRow, toCol],
-      };
+      this.lastMove    = { from, to };
+      this.currentGame = data.game;
+      this.selected    = null;
+      this.legalTargets = [];
+      this.pendingPromotion = null;
 
-      this.selectedPiece = null;
-      this.validMoves = [];
+      // Si partie vs IA et ce n'est plus mon tour → déclencher l'IA
+      if (this.isVsAI && !this.isGameOver && !this.isMyTurn) {
+        await this.triggerAiMove();
+      }
 
-      // Recharger l'état de la partie (le WS le fera aussi)
-      await this.loadGame(gameId);
       return true;
     } catch (e: any) {
       this.error = e?.message ?? 'Coup invalide';
@@ -405,132 +381,94 @@ class ChessStore {
     }
   }
 
+  async confirmPromotion(piece: string): Promise<void> {
+    if (!this.pendingPromotion) return;
+    const { from, to } = this.pendingPromotion;
+    this.pendingPromotion = null;
+    await this.playMove(from, to, piece);
+  }
+
+  async cancelPromotion(): Promise<void> {
+    this.pendingPromotion = null;
+    this.selected     = null;
+    this.legalTargets = [];
+  }
+
+  // ── IA ────────────────────────────────────────────────────────
+  private async triggerAiMove(): Promise<void> {
+    if (!this.currentGame || this.isGameOver) return;
+    this.aiThinking = true;
+    try {
+      const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body:        JSON.stringify({ difficulty: this.currentGame.ai_difficulty }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.currentGame = data.game;
+      }
+    } catch {
+      // Silencieux — le joueur peut retenter
+    } finally {
+      this.aiThinking = false;
+    }
+  }
+
+  // ── Abandon ───────────────────────────────────────────────────
   async resign(): Promise<void> {
     if (!this.currentGame) return;
     try {
-      await fetch(`/api/chess/${this.currentGame.id}/resign`, {
-        method: 'POST',
-        credentials: 'include',
+      const res = await fetch(`/api/chess/${this.currentGame.id}/resign`, {
+        method: 'POST', credentials: 'include',
       });
-      await this.loadGame(this.currentGame.id);
+      const data = await res.json();
+      if (data.success && data.game) this.currentGame = data.game;
+      else await this.refreshGame(this.currentGame.id);
     } catch (e: any) {
       this.error = e?.message ?? 'Erreur abandon';
     }
   }
 
-  // ── Détermination du slot du joueur courant ───────────────────
-  private determineMySlot(): void {
-    const g = this.currentGame;
-    const uid = authStore.user?.id;
-    if (!g || !uid) { this.mySlot = null; this.myColor = null; return; }
-
-    if (g.player1_id === uid) { this.mySlot = 1; this.myColor = g.player1_color; }
-    else if (g.player2_id === uid) { this.mySlot = 2; this.myColor = g.player2_color; }
-    else if (g.player3_id === uid) { this.mySlot = 3; this.myColor = g.player3_color; }
-    else if (g.player4_id === uid) { this.mySlot = 4; this.myColor = g.player4_color; }
-    else { this.mySlot = null; this.myColor = null; }
-  }
-
-  // ── WebSocket : mises à jour temps réel ──────────────────────
+  // ── WebSocket ─────────────────────────────────────────────────
   connectWebSocket(gameId: string): void {
     if (!browser) return;
     if (this.wsGameId === gameId && this.ws?.readyState === WebSocket.OPEN) return;
-
     this.disconnectWebSocket();
     this.wsGameId = gameId;
 
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`;
-    this.ws = new WebSocket(wsUrl);
+    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    this.ws = new WebSocket(`${proto}://${window.location.host}/ws`);
 
-    this.ws.onopen = () => {
-      console.log('[ChessStore] WebSocket connecté');
-    };
-
-    this.ws.onmessage = (event) => {
+    this.ws.onmessage = (ev) => {
       try {
-        const msg = JSON.parse(event.data);
+        const msg = JSON.parse(ev.data);
         if (msg.type === 'chess_move' && msg.game_id === gameId) {
-          // Recharger la partie depuis le serveur pour obtenir le board_state à jour.
-          // On évite d'appliquer le coup localement pour rester en sync avec la source de vérité.
-          this.refreshBoard(gameId).catch(console.error);
+          this.refreshGame(gameId).catch(console.error);
         }
-      } catch {
-        // message non-JSON (normal pour d'autres types de messages WebSocket)
-      }
+      } catch { /* non-JSON ok */ }
     };
-
-    this.ws.onclose = () => {
-      console.log('[ChessStore] WebSocket déconnecté');
-    };
-
-    this.ws.onerror = (e) => {
-      console.error('[ChessStore] Erreur WebSocket', e);
-    };
+    this.ws.onerror = (e) => console.error('[ChessStore] WS error', e);
+    this.ws.onclose = () => console.log('[ChessStore] WS fermé');
   }
 
   disconnectWebSocket(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-      this.wsGameId = null;
-    }
+    this.ws?.close();
+    this.ws = null;
+    this.wsGameId = null;
   }
 
   reset(): void {
     this.disconnectWebSocket();
-    this.currentGame = null;
-    this.mySlot = null;
-    this.myColor = null;
-    this.selectedPiece = null;
-    this.validMoves = [];
-    this.error = null;
-    this.lastMoveHighlight = null;
+    this.currentGame     = null;
+    this.selected        = null;
+    this.legalTargets    = [];
+    this.lastMove        = null;
+    this.error           = null;
+    this.aiThinking      = false;
+    this.pendingPromotion = null;
   }
 }
 
-// Singleton
 export const chessStore = new ChessStore();
-
-// ════════════════════════════════════════════════════════════════
-// UTILITAIRES D'AFFICHAGE
-// ════════════════════════════════════════════════════════════════
-
-export const PIECE_SYMBOLS: Record<PieceType, string> = {
-  king:   '♔',
-  queen:  '♕',
-  rook:   '♖',
-  bishop: '♗',
-  knight: '♘',
-  pawn:   '♙',
-};
-
-// Symboles noirs (remplis) pour les pièces sombres
-export const PIECE_SYMBOLS_FILLED: Record<PieceType, string> = {
-  king:   '♚',
-  queen:  '♛',
-  rook:   '♜',
-  bishop: '♝',
-  knight: '♞',
-  pawn:   '♟',
-};
-
-export const COLOR_CLASSES: Record<PieceColor, string> = {
-  white: 'piece-white',
-  black: 'piece-black',
-  red:   'piece-red',
-  green: 'piece-green',
-};
-
-export const PLAYER_LABELS: Record<number, string> = {
-  1: 'Blancs',
-  2: 'Noirs',
-  3: 'Rouges',
-  4: 'Verts',
-};
-
-export const PLAYER_COLORS_HEX: Record<PieceColor, string> = {
-  white: '#f0f0f0',
-  black: '#2d2d2d',
-  red:   '#c0392b',
-  green: '#27ae60',
-};
