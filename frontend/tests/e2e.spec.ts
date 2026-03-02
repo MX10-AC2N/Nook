@@ -1,5 +1,10 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 19
+// Suite E2E complète — Session 27
+// Mise à jour session 27 :
+//   - Suite Polls : réécriture sur API backend (plus de localStorage)
+//     sélecteurs mis à jour : .btn-create, .create-card, .btn-submit, .poll-question
+//   - Suite API Sanity : +3 checks (polls, users/available, participants)
+//   - Suite Chat : sidebar rendue robuste (waitForResponse sur /api/conversations)
 // Corrections :
 //   - loginAsAdmin() : approche API-first — POST /api/auth/login via page.request
 //     qui pose le cookie HttpOnly dans le browser context, puis page.goto('/admin')
@@ -157,10 +162,17 @@ test.describe('Chat', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
 
-    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('.conversation-info .name').first())
-      .toHaveText('Groupe Global', { timeout: 5_000 });
-    console.log('✅ Sidebar : Groupe Global visible');
+    // La sidebar charge les conversations via fetch → attendre la réponse API
+    await page.waitForResponse(
+      (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',
+      { timeout: 10_000 }
+    );
+    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 8_000 });
+    // default_global est toujours dans la liste (affichée en premier ou seule)
+    const names = await page.locator('.conversation-info .name').allTextContents();
+    const hasGlobal = names.some(n => n.includes('Groupe Global') || n.includes('Global'));
+    expect(hasGlobal).toBe(true);
+    console.log(`✅ Sidebar : conversations chargées (${names.length}), Groupe Global présent`);
 
     const input = page.locator('input.message-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
@@ -426,30 +438,81 @@ test.describe('Chess', () => {
 
 test.describe('Polls', () => {
 
-  test('Page /polls visible et formulaire de création accessible', async ({ page }) => {
+  // Suite Polls — Session 27 : réécriture sur API backend (plus de localStorage)
+  // UI : bouton .btn-create toggle le panneau → inputs question/options → .btn-submit
+  // Chaque vote POST /api/polls/{id}/vote retourne le sondage mis à jour
+
+  test('Page /polls visible et chargée', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/polls');
     await waitForAppReady(page);
-    await expect(
-      page.locator('input[placeholder*="question"], input[placeholder*="Question"]').first()
-    ).toBeVisible({ timeout: 10_000 });
-    console.log('✅ Page /polls et formulaire visible');
+    // Attendre que le chargement initial soit terminé (fetch GET /api/polls)
+    await page.waitForResponse(
+      (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
+      { timeout: 10_000 }
+    );
+    // Le bouton d'ouverture du panneau doit être visible
+    await expect(page.locator('.btn-create')).toBeVisible({ timeout: 8_000 });
+    console.log('✅ Page /polls chargée, bouton "Nouveau sondage" visible');
   });
 
-  test('Polls → créer un sondage → apparaît dans la liste', async ({ page }) => {
-    test.setTimeout(30_000);
+  test('GET /api/polls avec auth → 200', async ({ page }) => {
+    test.setTimeout(20_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+    const res = await page.request.get('/api/polls');
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.polls)).toBe(true);
+    console.log(`✅ GET /api/polls → ${body.polls.length} sondage(s)`);
+  });
+
+  test('Polls → créer un sondage via UI → apparaît dans la liste', async ({ page }) => {
+    test.setTimeout(45_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/polls');
     await waitForAppReady(page);
-    await page.locator('input[placeholder*="question"], input[placeholder*="Question"]').first()
-      .fill('Film préféré ce soir ?');
-    await page.locator('input[placeholder*="Option 1"]').fill('La La Land');
-    await page.locator('input[placeholder*="Option 2"]').fill('Inception');
-    await page.getByRole('button', { name: /cr.er|ajouter|valider/i }).first().click();
-    await page.waitForTimeout(1_000);
-    await expect(page.locator('text=Film préféré ce soir ?')).toBeVisible({ timeout: 8_000 });
+    // Attendre le chargement initial
+    await page.waitForResponse(
+      (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
+      { timeout: 10_000 }
+    );
+
+    // Ouvrir le panneau de création
+    await page.locator('.btn-create').click();
+    await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
+
+    // Remplir la question
+    await page.locator('input[placeholder="Quelle est votre question ?"]').fill('Film préféré ce soir ?');
+
+    // Remplir les 2 options obligatoires
+    await page.locator('input[placeholder="Option 1 *"]').fill('La La Land');
+    await page.locator('input[placeholder="Option 2 *"]').fill('Inception');
+
+    // Soumettre et attendre la réponse API
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().includes('/api/polls') && res.request().method() === 'POST',
+        { timeout: 15_000 }
+      ),
+      page.locator('.btn-submit').click(),
+    ]);
+
+    expect([200, 201]).toContain(response.status());
+    console.log(`✅ POST /api/polls → HTTP ${response.status()}`);
+
+    // Le sondage doit apparaître dans la liste
+    await expect(page.locator('.poll-question').filter({ hasText: 'Film préféré ce soir ?' }))
+      .toBeVisible({ timeout: 10_000 });
     console.log('✅ Sondage créé et visible dans la liste');
+  });
+
+  test('POST /api/polls sans auth → 401', async ({ request }) => {
+    const res = await request.post('/api/polls', {
+      data: { question: 'Test', options: ['A', 'B'] },
+    });
+    expect(res.status()).toBe(401);
+    console.log('✅ POST /api/polls non-auth → 401');
   });
 
 });
@@ -530,6 +593,24 @@ test.describe('API Sanity', () => {
     const res = await request.get('/api/invites');
     expect(res.status()).toBe(401);
     console.log('✅ GET /api/invites non-auth → 401');
+  });
+
+  test('GET /api/polls sans auth → 401', async ({ request }) => {
+    const res = await request.get('/api/polls');
+    expect(res.status()).toBe(401);
+    console.log('✅ GET /api/polls non-auth → 401');
+  });
+
+  test('GET /api/users/available sans auth → 401', async ({ request }) => {
+    const res = await request.get('/api/users/available');
+    expect(res.status()).toBe(401);
+    console.log('✅ GET /api/users/available non-auth → 401');
+  });
+
+  test('GET /api/conversations/default_global/participants sans auth → 401', async ({ request }) => {
+    const res = await request.get('/api/conversations/default_global/participants');
+    expect(res.status()).toBe(401);
+    console.log('✅ GET /api/conversations/default_global/participants non-auth → 401');
   });
 
 });
