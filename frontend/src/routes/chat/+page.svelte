@@ -12,28 +12,178 @@
     formatTimestamp,
   } from '$lib/chatStore.svelte.ts';
 
-  // -----------------------------------------------------------------
-  // États locaux
-  // -----------------------------------------------------------------
-  let newMessage     = $state('');
-  let conversationId = $state('default_global');
-  let chatContainer  = $state<HTMLElement | undefined>(undefined);
-  let gifSearchQuery = $state('');
-  let fileInput      = $state<HTMLInputElement | undefined>(undefined);
-  let sending        = $state(false);
+  // ─────────────────────────────────────────────────────────────────
+  // Types locaux
+  // ─────────────────────────────────────────────────────────────────
+  interface Conv {
+    id: string;
+    name: string | null;
+    is_group: boolean;
+    updated_at: number;
+  }
+  interface AvailUser {
+    id: string;
+    username: string;
+    name: string | null;
+  }
+  interface Participant {
+    id: string;
+    username: string;
+    name: string | null;
+    role: string;
+  }
 
-  // Polling 5s — en attendant le WS chat
+  // ─────────────────────────────────────────────────────────────────
+  // États
+  // ─────────────────────────────────────────────────────────────────
+  let conversations   = $state<Conv[]>([]);
+  let activeConvId    = $state('default_global');
+  let activeConvName  = $state('👨‍👩‍👧‍👦 Groupe Global');
+  let participants    = $state<Participant[]>([]);
+  let availableUsers  = $state<AvailUser[]>([]);
+
+  let newMessage      = $state('');
+  let chatContainer   = $state<HTMLElement | undefined>(undefined);
+  let gifSearchQuery  = $state('');
+  let fileInput       = $state<HTMLInputElement | undefined>(undefined);
+  let sending         = $state(false);
+  let loadingConvs    = $state(false);
+
+  // Modal nouvelle conversation
+  let showNewConv     = $state(false);
+  let newConvName     = $state('');
+  let newConvIsGroup  = $state(false);
+  let selectedUsers   = $state<string[]>([]);
+  let creatingConv    = $state(false);
+
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  // -----------------------------------------------------------------
-  // Handlers
-  // -----------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────────────
+  // Sidebar — chargement conversations
+  // ─────────────────────────────────────────────────────────────────
+  async function loadConversations() {
+    loadingConvs = true;
+    try {
+      const res = await fetch('/api/conversations', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      conversations = data.conversations ?? data ?? [];
+      // Trier par updated_at DESC
+      conversations.sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0));
+    } catch (err) {
+      console.error('[Chat] loadConversations:', err);
+    } finally {
+      loadingConvs = false;
+    }
+  }
+
+  async function loadParticipants(convId: string) {
+    try {
+      const res = await fetch(`/api/conversations/${convId}/participants`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      participants = data.participants ?? [];
+    } catch { /* silencieux */ }
+  }
+
+  async function loadAvailableUsers() {
+    try {
+      const res = await fetch('/api/users/available', { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      availableUsers = data.users ?? [];
+    } catch { /* silencieux */ }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Changer de conversation active
+  // ─────────────────────────────────────────────────────────────────
+  async function selectConversation(conv: Conv) {
+    activeConvId = conv.id;
+    if (conv.is_group) {
+      activeConvName = conv.name ?? 'Groupe sans nom';
+    } else {
+      // DM : afficher le nom de l'autre participant
+      await loadParticipants(conv.id);
+      const other = participants.find(p => p.id !== authStore.user?.id);
+      activeConvName = other ? (other.name ?? other.username) : (conv.name ?? 'DM');
+    }
+    await loadMessages(conv.id);
+  }
+
+  function convDisplayName(conv: Conv): string {
+    if (conv.id === 'default_global') return '👨‍👩‍👧‍👦 Groupe Global';
+    return conv.name ?? (conv.is_group ? 'Groupe' : 'Message direct');
+  }
+
+  function convAvatar(conv: Conv): string {
+    if (conv.id === 'default_global') return '👨‍👩‍👧‍👦';
+    return conv.is_group ? '👥' : '💬';
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Nouvelle conversation
+  // ─────────────────────────────────────────────────────────────────
+  function openNewConv() {
+    showNewConv = true;
+    newConvName = '';
+    newConvIsGroup = false;
+    selectedUsers = [];
+    loadAvailableUsers();
+  }
+
+  function toggleUserSelect(userId: string) {
+    if (selectedUsers.includes(userId)) {
+      selectedUsers = selectedUsers.filter(id => id !== userId);
+    } else {
+      selectedUsers = [...selectedUsers, userId];
+    }
+    // DM automatique si 1 seul utilisateur sélectionné
+    if (selectedUsers.length === 1 && !newConvIsGroup) {
+      newConvIsGroup = false;
+    } else if (selectedUsers.length > 1) {
+      newConvIsGroup = true;
+    }
+  }
+
+  async function createConversation() {
+    if (selectedUsers.length === 0) return;
+    creatingConv = true;
+    try {
+      const isGroup = selectedUsers.length > 1 || newConvIsGroup;
+      const name = isGroup ? (newConvName.trim() || null) : null;
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          is_group: isGroup,
+          participant_ids: selectedUsers,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const newConv: Conv = data.conversation ?? data;
+      showNewConv = false;
+      await loadConversations();
+      await selectConversation(newConv);
+    } catch (err) {
+      console.error('[Chat] createConversation:', err);
+    } finally {
+      creatingConv = false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // Envoi messages
+  // ─────────────────────────────────────────────────────────────────
   async function handleSendMessage() {
     if (!newMessage.trim() || sending) return;
     sending = true;
     const content = newMessage;
     newMessage = '';
-    await sendMessage(content, conversationId);
+    await sendMessage(content, activeConvId, [], new Uint8Array());
     sending = false;
   }
 
@@ -52,7 +202,7 @@
   }
 
   function handleSelectGif(url: string) {
-    sendGif(url, conversationId);
+    sendGif(url, activeConvId, [], new Uint8Array());
     toggleGifs();
   }
 
@@ -62,7 +212,7 @@
     const file = input.files[0];
     const fd = new FormData();
     fd.append('file', file);
-    fd.append('conversation_id', conversationId);
+    fd.append('conversation_id', activeConvId);
     fd.append('from_user_id', authStore.user?.id || '');
     try {
       const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
@@ -71,7 +221,7 @@
       const content = file.type.startsWith('image/')
         ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
         : `<span class="file-attachment">📎 <a href="${data.url}" download="${data.file_name}">${data.file_name}</a></span>`;
-      await sendMessage(content, conversationId);
+      await sendMessage(content, activeConvId, [], new Uint8Array());
       input.value = '';
     } catch (err) {
       console.error('[Upload]', err);
@@ -81,20 +231,20 @@
 
   function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
 
-  // -----------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────────────
   // Cycle de vie
-  // -----------------------------------------------------------------
+  // ─────────────────────────────────────────────────────────────────
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
-    await loadMessages(conversationId);
-    pollTimer = setInterval(() => loadMessages(conversationId), 5000);
+    await loadConversations();
+    await loadMessages(activeConvId);
+    pollTimer = setInterval(() => loadMessages(activeConvId), 5000);
   });
 
   onDestroy(() => { if (pollTimer) clearInterval(pollTimer); });
 
-  // Auto-scroll quand de nouveaux messages arrivent
   $effect(() => {
-    const _ = chatStore.messages.length; // dépendance réactive
+    const _ = chatStore.messages.length;
     if (chatContainer) {
       Promise.resolve().then(() => {
         if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -109,15 +259,42 @@
 
   <!-- ─── SIDEBAR ─── -->
   <aside class="conversations-sidebar">
-    <h2>Conversations</h2>
+    <div class="sidebar-header">
+      <h2>Conversations</h2>
+      <button class="btn-new-conv" onclick={openNewConv} title="Nouvelle conversation">＋</button>
+    </div>
+
     <div class="conversation-list">
-      <button class="conversation-item active">
-        <span class="avatar">👨‍👩‍👧‍👦</span>
-        <div class="conversation-info">
-          <span class="name">Groupe Global</span>
-          <span class="preview">Canal familial</span>
-        </div>
-      </button>
+      {#if loadingConvs}
+        <div class="sidebar-loading">…</div>
+      {:else if conversations.length === 0}
+        <!-- Toujours afficher au moins le groupe global -->
+        <button
+          class="conversation-item"
+          class:active={activeConvId === 'default_global'}
+          onclick={() => selectConversation({ id: 'default_global', name: 'Groupe Global', is_group: true, updated_at: 0 })}
+        >
+          <span class="avatar">👨‍👩‍👧‍👦</span>
+          <div class="conversation-info">
+            <span class="name">Groupe Global</span>
+            <span class="preview">Canal familial</span>
+          </div>
+        </button>
+      {:else}
+        {#each conversations as conv (conv.id)}
+          <button
+            class="conversation-item"
+            class:active={conv.id === activeConvId}
+            onclick={() => selectConversation(conv)}
+          >
+            <span class="avatar">{convAvatar(conv)}</span>
+            <div class="conversation-info">
+              <span class="name">{convDisplayName(conv)}</span>
+              <span class="preview">{conv.is_group ? 'Groupe' : 'Message direct'}</span>
+            </div>
+          </button>
+        {/each}
+      {/if}
     </div>
   </aside>
 
@@ -125,13 +302,12 @@
   <main class="chat-area">
 
     <header class="chat-header">
-      <h2>👨‍👩‍👧‍👦 Groupe Global</h2>
+      <h2>{activeConvName}</h2>
       {#if chatStore.connectionError}
         <span class="conn-error">⚠️ {chatStore.connectionError}</span>
       {/if}
     </header>
 
-    <!-- Messages — lit chatStore.messages directement ($state réactif) -->
     <div class="messages-container" bind:this={chatContainer}>
       {#if chatStore.messages.length === 0}
         <div class="empty-state">Aucun message — soyez le premier à écrire 👋</div>
@@ -148,7 +324,6 @@
       {/if}
     </div>
 
-    <!-- GIF panel -->
     {#if chatStore.showGifs}
       <div class="gif-panel">
         <div class="gif-search">
@@ -174,13 +349,10 @@
       </div>
     {/if}
 
-    <!-- Zone saisie -->
     <form class="input-area" onsubmit={handleSubmit}>
-      <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre un fichier">📎</button>
+      <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
-
       <button type="button" class="icon-btn" onclick={toggleGifs} title="GIF">🎬</button>
-
       <input
         type="text"
         class="message-input"
@@ -189,7 +361,6 @@
         onkeydown={handleMessageKeydown}
         disabled={sending}
       />
-
       <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
         {sending ? '…' : 'Envoyer'}
       </button>
@@ -197,6 +368,60 @@
 
   </main>
 </div>
+
+<!-- ─── MODAL NOUVELLE CONVERSATION ─── -->
+{#if showNewConv}
+  <!-- eslint-disable-next-line svelte/a11y-click-events-have-key-events -->
+  <!-- eslint-disable-next-line svelte/a11y-no-noninteractive-element-interactions -->
+  <div class="modal-overlay" role="dialog" onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}>
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Nouvelle conversation</h3>
+        <button class="modal-close" onclick={() => showNewConv = false}>✕</button>
+      </div>
+
+      <div class="modal-body">
+        {#if selectedUsers.length > 1 || newConvIsGroup}
+          <label class="form-label">
+            Nom du groupe (optionnel)
+            <input type="text" class="form-input" bind:value={newConvName}
+              placeholder="Famille, Projet…" />
+          </label>
+        {/if}
+
+        <p class="form-label">Membres à ajouter :</p>
+        <div class="user-list">
+          {#if availableUsers.length === 0}
+            <div class="user-list-empty">Aucun autre membre disponible</div>
+          {:else}
+            {#each availableUsers as u (u.id)}
+              <button
+                class="user-item"
+                class:selected={selectedUsers.includes(u.id)}
+                onclick={() => toggleUserSelect(u.id)}
+              >
+                <span class="user-avatar">👤</span>
+                <span class="user-name">{u.name ?? u.username}</span>
+                {#if selectedUsers.includes(u.id)}<span class="check">✓</span>{/if}
+              </button>
+            {/each}
+          {/if}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick={() => showNewConv = false}>Annuler</button>
+        <button
+          class="btn-create"
+          disabled={selectedUsers.length === 0 || creatingConv}
+          onclick={createConversation}
+        >
+          {creatingConv ? 'Création…' : selectedUsers.length === 1 ? '💬 Message direct' : '👥 Créer le groupe'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .chat-page {
@@ -211,36 +436,60 @@
     flex-shrink: 0;
     background: var(--bg-secondary, #f1f5f9);
     border-right: 1px solid var(--border, #e2e8f0);
-    padding: 1rem;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
-  .conversations-sidebar h2 {
+  .sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .85rem 1rem .5rem;
+    flex-shrink: 0;
+  }
+  .sidebar-header h2 {
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--text-secondary, #64748b);
-    margin-bottom: .75rem;
+    margin: 0;
   }
-  .conversation-list { display: flex; flex-direction: column; gap: .25rem; }
+  .btn-new-conv {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent, #4ade80); color: #fff;
+    border: none; border-radius: 50%;
+    font-size: 1.1rem; line-height: 1;
+    cursor: pointer; transition: background .15s;
+  }
+  .btn-new-conv:hover { background: var(--button-hover, #22c55e); }
+
+  .conversation-list {
+    flex: 1; overflow-y: auto;
+    padding: .25rem .5rem .5rem;
+    display: flex; flex-direction: column; gap: .2rem;
+  }
+  .sidebar-loading {
+    padding: 1rem; text-align: center;
+    color: var(--text-secondary, #94a3b8); font-size: .88rem;
+  }
   .conversation-item {
-    display: flex; align-items: center; gap: .75rem;
-    padding: .6rem .75rem;
+    display: flex; align-items: center; gap: .65rem;
+    padding: .55rem .65rem;
     background: none; border: none; border-radius: .5rem;
     cursor: pointer; text-align: left; width: 100%;
     transition: background .15s;
   }
-  .conversation-item:hover, .conversation-item.active {
-    background: var(--bg-tertiary, #e2e8f0);
-  }
-  .avatar { font-size: 1.4rem; flex-shrink: 0; }
+  .conversation-item:hover  { background: var(--bg-tertiary, #e2e8f0); }
+  .conversation-item.active { background: var(--bg-tertiary, #e2e8f0); }
+  .avatar { font-size: 1.3rem; flex-shrink: 0; }
   .conversation-info { flex: 1; min-width: 0; }
   .conversation-info .name {
-    display: block; font-weight: 600; font-size: .9rem;
+    display: block; font-weight: 600; font-size: .88rem;
     color: var(--text-primary, #1e293b);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .conversation-info .preview {
-    display: block; font-size: .78rem; color: var(--text-secondary, #64748b);
+    display: block; font-size: .76rem; color: var(--text-secondary, #64748b);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
 
@@ -296,7 +545,7 @@
   }
   @keyframes pop { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:none; } }
 
-  /* ── GIF panel ── */
+  /* ── GIF ── */
   .gif-panel {
     flex-shrink: 0; border-top: 1px solid var(--border, #e2e8f0);
     padding: .75rem 1rem; background: var(--bg-secondary, #f8fafc);
@@ -325,7 +574,7 @@
   .gif-item:hover { transform: scale(1.05); }
   .gif-item img { width: 100%; height: 100%; object-fit: cover; }
 
-  /* ── Zone saisie ── */
+  /* ── Saisie ── */
   .input-area {
     flex-shrink: 0;
     display: flex; align-items: center; gap: .4rem;
@@ -354,19 +603,98 @@
     background: var(--accent, #4ade80); color: #fff;
     border: none; border-radius: 9999px;
     font-weight: 700; font-size: .88rem; cursor: pointer;
-    transition: all .15s; white-space: nowrap;
+    transition: all .15s;
   }
   .send-btn:hover:not(:disabled) { background: var(--button-hover, #22c55e); transform: translateY(-1px); }
   .send-btn:disabled { opacity: .45; cursor: not-allowed; }
 
-  /* ── Responsive mobile ── */
+  /* ── Modal nouvelle conversation ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal {
+    background: var(--bg-primary, #fff);
+    border-radius: 1rem;
+    width: 100%; max-width: 420px;
+    max-height: 80vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.25);
+    overflow: hidden;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+  .modal-header h3 { margin: 0; font-size: 1rem; color: var(--text-primary, #1e293b); }
+  .modal-close {
+    background: none; border: none; font-size: 1.1rem;
+    cursor: pointer; color: var(--text-secondary, #64748b);
+  }
+  .modal-body { flex: 1; overflow-y: auto; padding: 1rem 1.25rem; }
+  .form-label {
+    display: block; font-size: .82rem; font-weight: 600;
+    color: var(--text-secondary, #64748b);
+    margin-bottom: .35rem;
+  }
+  .form-input {
+    width: 100%; padding: .55rem .8rem;
+    border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: .5rem; font-size: .9rem; outline: none;
+    margin-bottom: .9rem;
+    box-sizing: border-box;
+  }
+  .form-input:focus { border-color: var(--accent, #4ade80); }
+  .user-list { display: flex; flex-direction: column; gap: .3rem; }
+  .user-list-empty {
+    padding: 1rem; text-align: center;
+    color: var(--text-secondary, #94a3b8); font-size: .88rem;
+  }
+  .user-item {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .55rem .75rem;
+    border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: .5rem; background: none; cursor: pointer;
+    transition: all .15s; text-align: left;
+  }
+  .user-item:hover  { border-color: var(--accent, #4ade80); background: var(--bg-secondary, #f1f5f9); }
+  .user-item.selected { border-color: var(--accent, #4ade80); background: #f0fdf4; }
+  .user-avatar { font-size: 1.2rem; }
+  .user-name { flex: 1; font-size: .9rem; color: var(--text-primary, #1e293b); font-weight: 500; }
+  .check { color: var(--accent, #4ade80); font-weight: 700; }
+  .modal-footer {
+    display: flex; gap: .6rem; justify-content: flex-end;
+    padding: .75rem 1.25rem;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+  .btn-cancel {
+    padding: .55rem 1rem;
+    background: var(--bg-secondary, #f1f5f9);
+    border: none; border-radius: .5rem;
+    font-size: .88rem; cursor: pointer;
+    color: var(--text-secondary, #64748b);
+  }
+  .btn-create {
+    padding: .55rem 1.2rem;
+    background: var(--accent, #4ade80); color: #fff;
+    border: none; border-radius: .5rem;
+    font-size: .88rem; font-weight: 700; cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-create:hover:not(:disabled) { background: var(--button-hover, #22c55e); }
+  .btn-create:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ── Mobile ── */
   @media (max-width: 640px) {
     .chat-page { flex-direction: column; }
     .conversations-sidebar {
-      width: 100%; max-height: 90px; padding: .4rem;
+      width: 100%; max-height: 90px;
       border-right: none; border-bottom: 1px solid var(--border, #e2e8f0);
     }
-    .conversation-list { flex-direction: row; overflow-x: auto; }
+    .conversation-list { flex-direction: row; overflow-x: auto; padding: .25rem .5rem; }
     .conversation-item { flex-shrink: 0; padding: .35rem .5rem; }
     .conversation-info .preview { display: none; }
     .message { max-width: 88%; }
