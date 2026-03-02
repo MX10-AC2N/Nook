@@ -3,11 +3,10 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    response::Json,
+    response::{IntoResponse, Json},
     Extension,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -62,13 +61,11 @@ pub struct MessageWithSender {
     pub id: String,
     pub conversation_id: String,
     pub sender_id: String,
-    pub sender_name: String, // COALESCE(users.name, users.username)
+    pub sender_name: String,        // COALESCE(users.name, users.username)
     pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
-    /// Nonce XSalsa20 en base64 — présent si encrypted = true
-    pub nonce: Option<String>,
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
@@ -96,17 +93,14 @@ pub struct Upload {
 pub struct CreateConversationRequest {
     pub name: Option<String>,
     pub is_group: bool,
+    #[serde(default)]
+    pub participant_ids: Vec<String>,  // membres ajoutés à la création
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
     pub content: String,
     pub encrypted: bool,
-    /// Nonce XSalsa20 en base64 (24 bytes) — None si message en clair
-    pub nonce: Option<String>,
-    /// Clé de session chiffrée par destinataire : user_id → base64(asymNonce || boxCiphertext)
-    /// None si message en clair, fourni si encrypted = true
-    pub encrypted_keys: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,7 +116,7 @@ pub async fn create_conversation(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(req): Json<CreateConversationRequest>,
 ) -> Result<Json<Conversation>, StatusCode> {
-    let id = Uuid::new_v4().to_string();
+    let id  = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
     sqlx::query(
@@ -139,8 +133,9 @@ pub async fn create_conversation(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Créateur toujours ajouté
     sqlx::query(
-        "INSERT INTO conversation_participants (conversation_id, user_id, joined_at)
+        "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
          VALUES (?, ?, ?)",
     )
     .bind(&id)
@@ -149,6 +144,21 @@ pub async fn create_conversation(
     .execute(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // Autres participants fournis à la création
+    for pid in &req.participant_ids {
+        if pid == &user.id { continue; }
+        sqlx::query(
+            "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+             VALUES (?, ?, ?)",
+        )
+        .bind(&id)
+        .bind(pid)
+        .bind(now)
+        .execute(&state.db)
+        .await
+        .ok();
+    }
 
     Ok(Json(Conversation {
         id,
@@ -222,36 +232,34 @@ pub async fn send_message(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let id = Uuid::new_v4().to_string();
+    let id  = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
     // Vérifier que la conversation existe
-    let exists: Option<(i64,)> = sqlx::query_as("SELECT COUNT(*) FROM conversations WHERE id = ?")
-        .bind(&conversation_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+    let exists: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversations WHERE id = ?"
+    )
+    .bind(&conversation_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
     if exists.map(|(c,)| c).unwrap_or(0) == 0 {
-        eprintln!(
-            "[send_message] Conversation '{}' introuvable",
-            conversation_id
-        );
+        eprintln!("[send_message] Conversation '{}' introuvable", conversation_id);
         return Err(StatusCode::NOT_FOUND);
     }
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
     .bind(&user.id)
     .bind(&req.content)
     .bind(req.encrypted)
-    .bind(&req.nonce)
     .bind(now)
     .bind(now)
     .bind("text")
@@ -262,16 +270,6 @@ pub async fn send_message(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // Si message E2EE, stocker les clés chiffrées par destinataire
-    if req.encrypted {
-        if let Some(ref keys) = req.encrypted_keys {
-            if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, keys).await {
-                tracing::error!(error = %e, msg_id = %id, "e2ee: échec stockage message_keys");
-                // Non fatal : le message est déjà inséré, on continue
-            }
-        }
-    }
-
     sqlx::query("UPDATE conversations SET updated_at = ? WHERE id = ?")
         .bind(now)
         .bind(&conversation_id)
@@ -280,15 +278,16 @@ pub async fn send_message(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Retourner le message enrichi (avec sender_name) pour cohérence frontend
-    let sender_name: String =
-        sqlx::query_as::<_, (String,)>("SELECT COALESCE(name, username) FROM users WHERE id = ?")
-            .bind(&user.id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten()
-            .map(|(n,)| n)
-            .unwrap_or_else(|| user.username.clone());
+    let sender_name: String = sqlx::query_as::<_, (String,)>(
+        "SELECT COALESCE(name, username) FROM users WHERE id = ?"
+    )
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .map(|(n,)| n)
+    .unwrap_or_else(|| user.username.clone());
 
     Ok(Json(serde_json::json!({
         "id": id,
@@ -299,7 +298,6 @@ pub async fn send_message(
         "message_type": "text",
         "file_id": null,
         "encrypted": req.encrypted,
-        "nonce": req.nonce,
         "timestamp": now,
         "created_at": now,
         "edited_at": null
@@ -321,7 +319,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ? AND m.created_at < ?
@@ -339,7 +337,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
@@ -376,44 +374,29 @@ pub async fn update_user_profile(
 
     if let Some(ref name) = req.name {
         if name.trim().is_empty() {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(json!({ "success": false, "message": "Le nom ne peut pas être vide" })),
-            );
+            return (StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": "Le nom ne peut pas être vide" })));
         }
         if sqlx::query("UPDATE users SET name = ? WHERE id = ?")
-            .bind(name.trim())
-            .bind(&user.id)
-            .execute(&state.db)
-            .await
-            .is_err()
+            .bind(name.trim()).bind(&user.id)
+            .execute(&state.db).await.is_err()
         {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "success": false, "message": "Erreur de mise à jour" })),
-            );
+            return (StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour" })));
         }
     }
 
     if let Some(ref email) = req.email {
         if sqlx::query("UPDATE users SET email = ? WHERE id = ?")
-            .bind(email.trim())
-            .bind(&user.id)
-            .execute(&state.db)
-            .await
-            .is_err()
+            .bind(email.trim()).bind(&user.id)
+            .execute(&state.db).await.is_err()
         {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "success": false, "message": "Erreur de mise à jour de l'email" })),
-            );
+            return (StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour de l'email" })));
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(json!({ "success": true, "message": "Profil mis à jour" })),
-    )
+    (StatusCode::OK, Json(json!({ "success": true, "message": "Profil mis à jour" })))
 }
 
 // === ÉVÉNEMENTS (CALENDRIER) ===
@@ -441,13 +424,12 @@ pub async fn get_events(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(_)): Extension<CurrentUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let events = sqlx::query_as::<_, Event>("SELECT * FROM events ORDER BY date ASC, time ASC")
-        .fetch_all(&state.db)
-        .await
-        .map_err(|e| {
-            eprintln!("[events] GET error: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let events = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events ORDER BY date ASC, time ASC"
+    )
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| { eprintln!("[events] GET error: {}", e); StatusCode::INTERNAL_SERVER_ERROR })?;
 
     Ok(Json(serde_json::json!({ "events": events })))
 }
@@ -460,36 +442,26 @@ pub async fn create_event(
     use serde_json::json;
 
     if req.title.trim().is_empty() || req.date.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "success": false, "message": "Titre et date requis" })),
-        );
+        return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Titre et date requis" })));
     }
 
-    let id = Uuid::new_v4().to_string();
+    let id  = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
     match sqlx::query(
         "INSERT INTO events (id, title, date, time, description, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)",
+         VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    .bind(&id)
-    .bind(req.title.trim())
-    .bind(req.date.trim())
-    .bind(&req.time)
-    .bind(&req.description)
-    .bind(&user.id)
-    .bind(now)
-    .execute(&state.db)
-    .await
+    .bind(&id).bind(req.title.trim()).bind(req.date.trim())
+    .bind(&req.time).bind(&req.description).bind(&user.id).bind(now)
+    .execute(&state.db).await
     {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "id": id }))),
+        Ok(_)  => (StatusCode::OK, Json(json!({ "success": true, "id": id }))),
         Err(e) => {
             eprintln!("[events] INSERT error: {}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "success": false, "message": "Erreur création" })),
-            )
+            (StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur création" })))
         }
     }
 }
@@ -502,37 +474,156 @@ pub async fn delete_event(
     use serde_json::json;
 
     let row: Option<(String,)> = sqlx::query_as("SELECT created_by FROM events WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+        .bind(&id).fetch_optional(&state.db).await.ok().flatten();
 
     match row {
-        None => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(json!({ "success": false, "message": "Événement introuvable" })),
-            )
-        }
-        Some((created_by,)) if created_by != user.id && user.role != "admin" => {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(json!({ "success": false, "message": "Accès refusé" })),
-            )
-        }
+        None => return (StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "message": "Événement introuvable" }))),
+        Some((created_by,)) if created_by != user.id && user.role != "admin" =>
+            return (StatusCode::FORBIDDEN,
+                Json(json!({ "success": false, "message": "Accès refusé" }))),
         _ => {}
     }
 
-    match sqlx::query("DELETE FROM events WHERE id = ?")
-        .bind(&id)
-        .execute(&state.db)
-        .await
-    {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true }))),
-        Err(_) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "success": false, "message": "Erreur suppression" })),
-        ),
+    match sqlx::query("DELETE FROM events WHERE id = ?").bind(&id).execute(&state.db).await {
+        Ok(_)  => (StatusCode::OK, Json(json!({ "success": true }))),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "message": "Erreur suppression" }))),
     }
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+// GET /conversations/{id}/participants
+// ═════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ParticipantInfo {
+    pub id: String,
+    pub username: String,
+    pub name: Option<String>,
+    pub role: String,
+}
+
+pub async fn get_conversation_participants(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(_user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+) -> impl IntoResponse {
+    let participants = sqlx::query_as::<_, ParticipantInfo>(
+        r#"SELECT u.id, u.username, u.name, u.role
+           FROM users u
+           INNER JOIN conversation_participants cp ON cp.user_id = u.id
+           WHERE cp.conversation_id = ?
+           ORDER BY COALESCE(u.name, u.username) ASC"#,
+    )
+    .bind(&conv_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    Json(serde_json::json!({ "participants": participants }))
+}
+
+// ═════════════════════════════════════════════════════════════════
+// POST /conversations/{id}/participants  — ajouter un membre
+// ═════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct AddParticipantRequest {
+    pub user_id: String,
+}
+
+pub async fn add_conversation_participant(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+    Json(req): Json<AddParticipantRequest>,
+) -> impl IntoResponse {
+    // Le demandeur doit être membre
+    let is_member: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversation_participants WHERE conversation_id = ? AND user_id = ?",
+    )
+    .bind(&conv_id)
+    .bind(&user.id)
+    .fetch_one(&state.db)
+    .await
+    .unwrap_or((0,));
+
+    if is_member.0 == 0 {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({ "message": "Non membre de cette conversation" })),
+        )
+            .into_response();
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query(
+        "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+         VALUES (?, ?, ?)",
+    )
+    .bind(&conv_id)
+    .bind(&req.user_id)
+    .bind(now)
+    .execute(&state.db)
+    .await
+    .ok();
+
+    Json(serde_json::json!({ "success": true })).into_response()
+}
+
+// ═════════════════════════════════════════════════════════════════
+// POST /conversations/{id}/leave
+// ═════════════════════════════════════════════════════════════════
+
+pub async fn leave_conversation(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+) -> impl IntoResponse {
+    if conv_id == "default_global" {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "message": "Impossible de quitter le groupe global" })),
+        )
+            .into_response();
+    }
+    sqlx::query(
+        "DELETE FROM conversation_participants WHERE conversation_id = ? AND user_id = ?",
+    )
+    .bind(&conv_id)
+    .bind(&user.id)
+    .execute(&state.db)
+    .await
+    .ok();
+    Json(serde_json::json!({ "success": true })).into_response()
+}
+
+// ═════════════════════════════════════════════════════════════════
+// GET /users/available — membres approuvés pour créer des convs
+// ═════════════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AvailableUser {
+    pub id: String,
+    pub username: String,
+    pub name: Option<String>,
+}
+
+pub async fn get_available_users(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> impl IntoResponse {
+    let users = sqlx::query_as::<_, AvailableUser>(
+        r#"SELECT id, username, name FROM users
+           WHERE approved = 1 AND id != ?
+           ORDER BY COALESCE(name, username) ASC"#,
+    )
+    .bind(&user.id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    Json(serde_json::json!({ "users": users }))
 }
