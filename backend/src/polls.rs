@@ -128,15 +128,14 @@ async fn load_poll(
     .unwrap_or_default();
 
     // 5. Mon vote
-    let my_vote: Option<(String,)> = sqlx::query_as(
-        "SELECT option_id FROM poll_votes WHERE poll_id = ? AND user_id = ?",
-    )
-    .bind(poll_id)
-    .bind(current_user_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten();
+    let my_vote: Option<(String,)> =
+        sqlx::query_as("SELECT option_id FROM poll_votes WHERE poll_id = ? AND user_id = ?")
+            .bind(poll_id)
+            .bind(current_user_id)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten();
 
     // 6. Assemblage
     let mut total_votes: i64 = 0;
@@ -154,7 +153,13 @@ async fn load_poll(
                 .filter(|(oid, _)| oid == &opt_id)
                 .map(|(_, name)| name.clone())
                 .collect();
-            PollOption { id: opt_id, text, position, votes, voters }
+            PollOption {
+                id: opt_id,
+                text,
+                position,
+                votes,
+                voters,
+            }
         })
         .collect();
 
@@ -206,7 +211,11 @@ pub async fn get_poll(
 ) -> impl IntoResponse {
     match load_poll(&state.db, &poll_id, &user.id).await {
         Some(p) => Json(json!({ "poll": p })).into_response(),
-        None => (StatusCode::NOT_FOUND, Json(json!({ "message": "Sondage introuvable" }))).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "message": "Sondage introuvable" })),
+        )
+            .into_response(),
     }
 }
 
@@ -221,30 +230,51 @@ pub async fn create_poll(
 ) -> impl IntoResponse {
     let question = req.question.trim().to_string();
     if question.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Question requise" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": "Question requise" })),
+        )
+            .into_response();
     }
-    let options: Vec<String> = req.options.iter()
+    let options: Vec<String> = req
+        .options
+        .iter()
         .map(|o| o.trim().to_string())
         .filter(|o| !o.is_empty())
         .collect();
     if options.len() < 2 {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Au moins 2 options requises" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": "Au moins 2 options requises" })),
+        )
+            .into_response();
     }
     if options.len() > 10 {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Maximum 10 options" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": "Maximum 10 options" })),
+        )
+            .into_response();
     }
 
     let poll_id = Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO polls (id, question, created_by, created_at) VALUES (?, ?, ?, ?)",
-    )
-    .bind(&poll_id).bind(&question).bind(&user.id).bind(now)
-    .execute(&state.db).await
+    if let Err(e) =
+        sqlx::query("INSERT INTO polls (id, question, created_by, created_at) VALUES (?, ?, ?, ?)")
+            .bind(&poll_id)
+            .bind(&question)
+            .bind(&user.id)
+            .bind(now)
+            .execute(&state.db)
+            .await
     {
         tracing::error!(error = %e, "create_poll INSERT polls");
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur création sondage" }))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "message": "Erreur création sondage" })),
+        )
+            .into_response();
     }
 
     for (i, text) in options.iter().enumerate() {
@@ -252,11 +282,19 @@ pub async fn create_poll(
         if let Err(e) = sqlx::query(
             "INSERT INTO poll_options (id, poll_id, text, position) VALUES (?, ?, ?, ?)",
         )
-        .bind(&opt_id).bind(&poll_id).bind(text).bind(i as i64)
-        .execute(&state.db).await
+        .bind(&opt_id)
+        .bind(&poll_id)
+        .bind(text)
+        .bind(i as i64)
+        .execute(&state.db)
+        .await
         {
             tracing::error!(error = %e, "create_poll INSERT poll_options");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur création options" }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "message": "Erreur création options" })),
+            )
+                .into_response();
         }
     }
 
@@ -277,28 +315,47 @@ pub async fn vote_poll(
     Json(req): Json<VoteRequest>,
 ) -> impl IntoResponse {
     // Vérifier existence + statut ouvert
-    let row: Option<(Option<i64>,)> =
-        sqlx::query_as("SELECT closed_at FROM polls WHERE id = ?")
-            .bind(&poll_id)
-            .fetch_optional(&state.db)
-            .await
-            .ok()
-            .flatten();
+    let row: Option<(Option<i64>,)> = sqlx::query_as("SELECT closed_at FROM polls WHERE id = ?")
+        .bind(&poll_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
 
     match row {
-        None => return (StatusCode::NOT_FOUND, Json(json!({ "message": "Sondage introuvable" }))).into_response(),
-        Some((Some(_),)) => return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Sondage fermé" }))).into_response(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "message": "Sondage introuvable" })),
+            )
+                .into_response()
+        }
+        Some((Some(_),)) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "message": "Sondage fermé" })),
+            )
+                .into_response()
+        }
         _ => {}
     }
 
     // Option valide pour ce sondage ?
     let opt_ok: Option<(String,)> =
         sqlx::query_as("SELECT id FROM poll_options WHERE id = ? AND poll_id = ?")
-            .bind(&req.option_id).bind(&poll_id)
-            .fetch_optional(&state.db).await.ok().flatten();
+            .bind(&req.option_id)
+            .bind(&poll_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     if opt_ok.is_none() {
-        return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Option invalide" }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "message": "Option invalide" })),
+        )
+            .into_response();
     }
 
     let now = Utc::now().timestamp();
@@ -311,11 +368,19 @@ pub async fn vote_poll(
                option_id = excluded.option_id,
                voted_at  = excluded.voted_at"#,
     )
-    .bind(&poll_id).bind(&user.id).bind(&req.option_id).bind(now)
-    .execute(&state.db).await
+    .bind(&poll_id)
+    .bind(&user.id)
+    .bind(&req.option_id)
+    .bind(now)
+    .execute(&state.db)
+    .await
     {
         tracing::error!(error = %e, "vote_poll UPSERT");
-        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur vote" }))).into_response();
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "message": "Erreur vote" })),
+        )
+            .into_response();
     }
 
     match load_poll(&state.db, &poll_id, &user.id).await {
@@ -336,21 +401,43 @@ pub async fn close_poll(
     let row: Option<(String, Option<i64>)> =
         sqlx::query_as("SELECT created_by, closed_at FROM polls WHERE id = ?")
             .bind(&poll_id)
-            .fetch_optional(&state.db).await.ok().flatten();
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     match row {
-        None => return (StatusCode::NOT_FOUND, Json(json!({ "message": "Sondage introuvable" }))).into_response(),
-        Some((_, Some(_))) => return (StatusCode::BAD_REQUEST, Json(json!({ "message": "Déjà fermé" }))).into_response(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "message": "Sondage introuvable" })),
+            )
+                .into_response()
+        }
+        Some((_, Some(_))) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "message": "Déjà fermé" })),
+            )
+                .into_response()
+        }
         Some((creator, None)) if creator != user.id && user.role != "admin" => {
-            return (StatusCode::FORBIDDEN, Json(json!({ "message": "Accès refusé" }))).into_response();
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({ "message": "Accès refusé" })),
+            )
+                .into_response();
         }
         _ => {}
     }
 
     let now = Utc::now().timestamp();
     sqlx::query("UPDATE polls SET closed_at = ? WHERE id = ?")
-        .bind(now).bind(&poll_id)
-        .execute(&state.db).await.ok();
+        .bind(now)
+        .bind(&poll_id)
+        .execute(&state.db)
+        .await
+        .ok();
 
     match load_poll(&state.db, &poll_id, &user.id).await {
         Some(p) => Json(json!({ "poll": p })).into_response(),
@@ -367,22 +454,36 @@ pub async fn delete_poll(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(poll_id): Path<String>,
 ) -> impl IntoResponse {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT created_by FROM polls WHERE id = ?")
-            .bind(&poll_id)
-            .fetch_optional(&state.db).await.ok().flatten();
+    let row: Option<(String,)> = sqlx::query_as("SELECT created_by FROM polls WHERE id = ?")
+        .bind(&poll_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
 
     match row {
-        None => return (StatusCode::NOT_FOUND, Json(json!({ "message": "Sondage introuvable" }))).into_response(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "message": "Sondage introuvable" })),
+            )
+                .into_response()
+        }
         Some((creator,)) if creator != user.id && user.role != "admin" => {
-            return (StatusCode::FORBIDDEN, Json(json!({ "message": "Accès refusé" }))).into_response();
+            return (
+                StatusCode::FORBIDDEN,
+                Json(json!({ "message": "Accès refusé" })),
+            )
+                .into_response();
         }
         _ => {}
     }
 
     sqlx::query("DELETE FROM polls WHERE id = ?")
         .bind(&poll_id)
-        .execute(&state.db).await.ok();
+        .execute(&state.db)
+        .await
+        .ok();
 
     Json(json!({ "success": true })).into_response()
 }
@@ -393,8 +494,8 @@ pub async fn delete_poll(
 
 pub fn polls_routes() -> Router<Arc<SharedState>> {
     Router::new()
-        .route("/polls",              get(list_polls).post(create_poll))
-        .route("/polls/{id}",         get(get_poll).delete(delete_poll))
-        .route("/polls/{id}/vote",    post(vote_poll))
-        .route("/polls/{id}/close",   post(close_poll))
+        .route("/polls", get(list_polls).post(create_poll))
+        .route("/polls/{id}", get(get_poll).delete(delete_poll))
+        .route("/polls/{id}/vote", post(vote_poll))
+        .route("/polls/{id}/close", post(close_poll))
 }
