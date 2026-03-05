@@ -12,7 +12,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{delete, get, post},
+    routing::{get, post},
     Extension, Router,
 };
 use chrono::Utc;
@@ -124,6 +124,7 @@ struct ClosedAtRow {
 /// Option valide (pour vote_poll)
 #[derive(sqlx::FromRow)]
 struct OptionIdRow {
+    #[allow(dead_code)]
     id: String,
 }
 
