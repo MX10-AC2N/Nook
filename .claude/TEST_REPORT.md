@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-05 13:45 UTC**
+> **Dernière mise à jour : 2026-03-05 18:14 UTC**
 
 ---
 
@@ -14,8 +14,8 @@
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `develop` |
-| **Commit** | [`3f0a41d`](https://github.com/MX10-AC2N/Nook/commit/3f0a41d121c4accd545243c9ccbc6aaec7757b0a) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22718931272) |
+| **Commit** | [`91f4779`](https://github.com/MX10-AC2N/Nook/commit/91f4779da0b57f057cd2c4ef7a18166274c33e90) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22728050971) |
 
 ---
 
@@ -46,42 +46,42 @@
 ## Erreurs détectées
 
 ```
-                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  122 |     test.setTimeout(30_000);\n  123 |     await page.goto('/login');\n> 124 |     await page.fill('#username', 'e2e_ci');\n      |                ^\n  125 |     await page.fill('#password', 'E2eTest123!');\n  126 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  127 |     await expect(page).toHaveURL(/\\/chat/, { timeout: 15_000 });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:124:16"
+                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  62 |   await clearSession(page);\n  63 |   await page.goto('/login');\n> 64 |   await page.fill('#username', username);\n     |              ^\n  65 |   await page.fill('#password', password);\n  66 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n  67 |   await expect(page).toHaveURL(/\\/(chat|admin|change-password)/, { timeout: 15_000 });\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:64:14)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:144:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
 --
-                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  122 |     test.setTimeout(30_000);\n  123 |     await page.goto('/login');\n> 124 |     await page.fill('#username', 'e2e_ci');\n      |                ^\n  125 |     await page.fill('#password', 'E2eTest123!');\n  126 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  127 |     await expect(page).toHaveURL(/\\/chat/, { timeout: 15_000 });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:124:16"
+                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  62 |   await clearSession(page);\n  63 |   await page.goto('/login');\n> 64 |   await page.fill('#username', username);\n     |              ^\n  65 |   await page.fill('#password', password);\n  66 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n  67 |   await expect(page).toHaveURL(/\\/(chat|admin|change-password)/, { timeout: 15_000 });\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:64:14)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:144:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
 --
-                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  122 |     test.setTimeout(30_000);\n  123 |     await page.goto('/login');\n> 124 |     await page.fill('#username', 'e2e_ci');\n      |                ^\n  125 |     await page.fill('#password', 'E2eTest123!');\n  126 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  127 |     await expect(page).toHaveURL(/\\/chat/, { timeout: 15_000 });\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:124:16"
+                          "message": "Error: page.fill: Test timeout of 30000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  62 |   await clearSession(page);\n  63 |   await page.goto('/login');\n> 64 |   await page.fill('#username', username);\n     |              ^\n  65 |   await page.fill('#password', password);\n  66 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n  67 |   await expect(page).toHaveURL(/\\/(chat|admin|change-password)/, { timeout: 15_000 });\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:64:14)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:144:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 2,
 --
-                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  132 |     test.setTimeout(20_000);\n  133 |     await page.goto('/login');\n> 134 |     await page.fill('#username', 'nope');\n      |                ^\n  135 |     await page.fill('#password', 'wrong');\n  136 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  137 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:134:16"
+                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  151 |     await clearSession(page);\n  152 |     await page.goto('/login');\n> 153 |     await page.fill('#username', 'nope');\n      |                ^\n  154 |     await page.fill('#password', 'wrong');\n  155 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  156 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:153:16"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
 --
-                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  132 |     test.setTimeout(20_000);\n  133 |     await page.goto('/login');\n> 134 |     await page.fill('#username', 'nope');\n      |                ^\n  135 |     await page.fill('#password', 'wrong');\n  136 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  137 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:134:16"
+                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  151 |     await clearSession(page);\n  152 |     await page.goto('/login');\n> 153 |     await page.fill('#username', 'nope');\n      |                ^\n  154 |     await page.fill('#password', 'wrong');\n  155 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  156 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:153:16"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
 --
-                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  132 |     test.setTimeout(20_000);\n  133 |     await page.goto('/login');\n> 134 |     await page.fill('#username', 'nope');\n      |                ^\n  135 |     await page.fill('#password', 'wrong');\n  136 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  137 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:134:16"
+                          "message": "Error: page.fill: Test timeout of 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username')\u001b[22m\n\n\n  151 |     await clearSession(page);\n  152 |     await page.goto('/login');\n> 153 |     await page.fill('#username', 'nope');\n      |                ^\n  154 |     await page.fill('#password', 'wrong');\n  155 |     await page.getByRole('button', { name: 'Se connecter' }).click();\n  156 |     await page.waitForTimeout(3_000);\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:153:16"
                         }
                       ],
                       "stdout": [],
@@ -93,7 +93,7 @@
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-05T13:00:19.597573Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+nook  | [2m2026-03-05T17:29:06.637414Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
 ```
 
 ---
