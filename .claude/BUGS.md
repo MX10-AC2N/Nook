@@ -182,3 +182,45 @@ WAN (HTTPS) :
   Cookie : auth_token=...; SameSite=None; Secure
   CORS   : https://nook.mondomaine.com dans ALLOWED_ORIGINS
 ```
+
+---
+
+## ✅ BUGS RÉSOLUS (session 22 — 2026-03-05)
+
+### [R22] clearSession() goto('/') déclenche authStore.init() avec cookie valide
+
+**Session** : 22  
+**Fichier** : `frontend/tests/e2e.spec.ts`
+
+**Symptôme** : 31/43 tests en timeout sur `waiting for locator('#username')` — identique à session 21 malgré les corrections apportées.
+
+**Cause racine** : `clearSession()` implémentée en session 21 faisait `goto('/')` en PREMIER.
+- `goto('/')` monte le layout → `onMount` → `waitForSodium()` + `initCryptoSystem()` + `authStore.init()`
+- `authStore.init()` fait `fetch('/api/auth/me')` avec le cookie encore présent (clearCookies() pas encore appelé)
+- `/api/auth/me` → 200 (token encore valide en DB) → `isAuthenticated=true`
+- `$effect()` redirige vers `/chat`
+- `clearCookies()` appelé APRÈS ne sert plus à rien
+- `goto('/login')` suivant → `isAuthenticated=true` déjà → redirect → `#username` inaccessible
+
+**Fix définitif** : `clearSession()` sans navigation browser préalable :
+```typescript
+async function clearSession(page: Page) {
+  // 1. Révoquer le token côté serveur (page.request = API sans browser)
+  try { await page.request.post(`${BASE}/auth/logout`); } catch {}
+  // 2. Vider les cookies du browser context
+  await page.context().clearCookies();
+}
+```
+Ensuite `loginAs` fait `goto('/login')` → layout monte → `authStore.init()` → `/api/auth/me` → 401 (token NULL en DB + cookie absent) → `authStore.logout()` → `isAuthenticated=false` + localStorage vidé → `$effect()` ne redirige PAS → `#username` interactif ✅
+
+**Pourquoi ça marche sans localStorage.clear() explicite** : `authStore.logout()` est appelé automatiquement quand `/api/auth/me` retourne 401, et cette méthode fait `localStorage.removeItem(...)` elle-même.
+
+**Chronologie des tentatives** :
+| Session | Approche | Résultat |
+|---------|----------|---------|
+| 17 | `clearCookies()` seul | ❌ localStorage intact → isAuthenticated=true |
+| 18 | `goto('about:blank') + localStorage.clear()` | ❌ about:blank ≠ localhost:6300, localStorage isolé |
+| 18 | `addInitScript()` (sur Page) | ❌ s'exécute sur about:blank, pas sur localhost:6300 |
+| 19 | `loginAsAdmin` API-first | ✅ (admin seulement) |
+| 21 | `goto('/') + evaluate(localStorage) + clearCookies` | ❌ goto('/') déclenche init() avec cookie valide |
+| **22** | **`page.request.post('/api/auth/logout') + clearCookies()`** | **✅ token révoqué avant toute navigation** |
