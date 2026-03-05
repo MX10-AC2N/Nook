@@ -3,7 +3,7 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import { login } from '$lib/auth.js';
   import Icon from '$lib/components/Icon.svelte';
-  import { getPendingKeys } from '$lib/crypto';
+  import { unlockCrypto, cryptoStore } from '$lib/cryptoStore.svelte.ts';
 
   let username = $state('');
   let password = $state('');
@@ -22,25 +22,31 @@
     try {
       const user = await login(username, password);
 
-      // authStore.login ne prend plus que l'objet user.
-      // Le cookie HttpOnly est déjà posé par le backend dans la réponse HTTP.
+      // Cookie HttpOnly posé par le backend dans la réponse HTTP
       authStore.login(user);
 
       if (user.needs_password_change) {
-        const pending = await getPendingKeys(username);
-        if (!pending) {
-          error = "Clés cryptographiques manquantes. Veuillez recommencer le processus d'invitation.";
-          loading = false;
-          return;
-        }
-        localStorage.setItem('nook_temp_pending_keys', JSON.stringify({
-          publicKey:  Array.from(pending.publicKey),
-          privateKey: Array.from(pending.privateKey),
-        }));
+        // Premier login admin ou utilisateur avec changement forcé :
+        // pas de clés pending à transporter — change-password génèrera les clés
+        // via unlockCrypto (génération initiale dans cryptoStore).
         goto('/change-password');
-      } else {
-        goto('/chat');
+        return;
       }
+
+      // ── Activation E2EE transparente ─────────────────────────────────────
+      // unlockCrypto cherche les clés dans IndexedDB.
+      // Si absentes → génération initiale automatique (nouveau compte approuvé).
+      // Si présentes → déchiffrement avec le mot de passe.
+      // En cas d'échec réseau ou de clés corrompues → on laisse passer vers /chat
+      // (le store restera !ready, les messages seront envoyés en clair).
+      const e2eeOk = await unlockCrypto(user.id, password);
+      if (!e2eeOk) {
+        // Non bloquant : l'utilisateur peut quand même utiliser le chat
+        console.warn('[login] E2EE non activé :', cryptoStore.error);
+      }
+
+      goto('/chat');
+
     } catch (err: any) {
       console.error('Erreur de connexion :', err);
       error = err?.message ?? 'Erreur de connexion au serveur.';
@@ -59,6 +65,7 @@
       }
     }
   });
+
 </script>
 
 <svelte:head>
