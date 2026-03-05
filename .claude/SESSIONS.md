@@ -585,3 +585,67 @@ until curl -sf http://localhost:6300/api/health | grep -q "OK"; do sleep 3; done
 - [ ] Polls : backend API (actuellement localStorage only)
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
 - [ ] Chunk libsodium 938 kB → découper avec dynamic import()
+
+## Session 22 — 2026-03-05 — Fix E2E clearSession API-first (Bug #22)
+
+### Contexte
+Logs CI du 2026-03-05 (2ème run). Les fixes de session 21 sont bien committés
+(fullyParallel:false, clearSession avec goto('/')), mais 31/43 tests échouent encore
+avec les mêmes timeouts `waiting for locator('#username')`.
+
+### Cause racine
+
+`clearSession()` session 21 faisait `goto('/')` en premier pour être sur l'origine
+de l'app avant de manipuler le localStorage. Mais :
+
+1. `goto('/')` → layout monte → `onMount` → `authStore.init()`
+2. `authStore.init()` → `fetch('/api/auth/me')` avec le cookie encore présent
+3. Cookie valide → 200 → `isAuthenticated=true`
+4. `$effect()` → redirect `/chat`
+5. `clearCookies()` appelé APRÈS → trop tard
+6. `goto('/login')` → `isAuthenticated=true` → redirect → timeout `#username`
+
+### Fix définitif — approche API-first pour clearSession
+
+```typescript
+async function clearSession(page: Page) {
+  try {
+    await page.request.post(`${BASE}/auth/logout`);
+    // 200 = révoqué, 401 = pas de session → les deux sont OK
+  } catch {}
+  await page.context().clearCookies();
+}
+```
+
+`page.request` envoie la requête sans déclencher le browser/layout.
+Le token est révoqué en DB **AVANT** toute navigation.
+Ensuite `goto('/login')` → `authStore.init()` → `/api/auth/me` → 401 → `authStore.logout()` → `isAuthenticated=false` ✅
+
+Pas besoin de `localStorage.clear()` explicite : `authStore.logout()` le fait automatiquement sur 401.
+
+### Chronologie complète clearSession (sessions 17-22)
+
+| Session | Approche | Cause d'échec |
+|---------|----------|--------------|
+| 17 | `clearCookies()` seul | localStorage intact → `isAuthenticated=true` |
+| 18 | `about:blank + localStorage.clear()` | Origine ≠ → localStorage isolé |
+| 18 | `addInitScript(Page)` | S'exécute sur about:blank |
+| 19 | `loginAsAdmin` API-first | ✅ admin uniquement |
+| 21 | `goto('/') + evaluate + clearCookies` | goto('/') déclenche init() avec cookie valide |
+| **22** | **`request.post(logout) + clearCookies`** | **✅ token révoqué avant navigation** |
+
+### Fichiers modifiés session 22
+- `frontend/tests/e2e.spec.ts` — `clearSession()` réécrit en API-first
+- `.claude/BUGS.md` — Bug #22 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+- **43/43 tests ✅** si les sélecteurs UI sont corrects
+- `playwright.config.ts` : `fullyParallel: false` (inchangé depuis session 21)
+
+### Ce qui reste à faire
+- [ ] Déclencher test-nook.yml → confirmer 43/43 ✅
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → dynamic import()
