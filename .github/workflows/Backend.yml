@@ -240,11 +240,7 @@ jobs:
             echo "Aucune modification — pas de commit"
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
-            # autostash : stash auto des unstaged changes (fichiers cargo target/ générés
-            # pendant le build) avant le rebase, restauration après.
-            # Résout la race condition "cannot pull with rebase: You have unstaged changes"
-            # causée par les deux jobs matrix (amd64 + arm64) qui commitent en parallèle.
-            git pull --rebase -C autostash origin ${{ github.ref_name }}
+            git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité"
           fi
