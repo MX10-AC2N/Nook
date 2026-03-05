@@ -123,7 +123,7 @@ pub async fn create_conversation(
     // Évite les doublons quand Alice recrée une conv avec Bob.
     if !req.is_group && req.participant_ids.len() == 1 {
         let other_id = &req.participant_ids[0];
-        let existing: Option<(String,)> = sqlx::query_as(
+        let existing: Option<(String,)> = sqlx::query_as::<_, (String,)>(
             r#"SELECT c.id FROM conversations c
                INNER JOIN conversation_participants cp1
                  ON cp1.conversation_id = c.id AND cp1.user_id = ?
@@ -274,7 +274,7 @@ pub async fn send_message(
     let now = chrono::Utc::now().timestamp();
 
     // Vérifier que la conversation existe
-    let exists: Option<(i64,)> = sqlx::query_as("SELECT COUNT(*) FROM conversations WHERE id = ?")
+    let exists: Option<(i64,)> = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
         .bind(&conversation_id)
         .fetch_optional(&state.db)
         .await
@@ -537,7 +537,7 @@ pub async fn delete_event(
 ) -> impl axum::response::IntoResponse {
     use serde_json::json;
 
-    let row: Option<(String,)> = sqlx::query_as("SELECT created_by FROM events WHERE id = ?")
+    let row: Option<(String,)> = sqlx::query_as::<_, (String,)>("SELECT created_by FROM events WHERE id = ?")
         .bind(&id)
         .fetch_optional(&state.db)
         .await
@@ -621,7 +621,7 @@ pub async fn add_conversation_participant(
     Json(req): Json<AddParticipantRequest>,
 ) -> impl IntoResponse {
     // Le demandeur doit être membre
-    let is_member: (i64,) = sqlx::query_as(
+    let is_member: (i64,) = sqlx::query_as::<_, (i64,)>(
         "SELECT COUNT(*) FROM conversation_participants WHERE conversation_id = ? AND user_id = ?",
     )
     .bind(&conv_id)
