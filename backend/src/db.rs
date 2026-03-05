@@ -274,12 +274,13 @@ pub async fn send_message(
     let now = chrono::Utc::now().timestamp();
 
     // Vérifier que la conversation existe
-    let exists: Option<(i64,)> = sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
-        .bind(&conversation_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+    let exists: Option<(i64,)> =
+        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+            .bind(&conversation_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     if exists.map(|(c,)| c).unwrap_or(0) == 0 {
         eprintln!(
@@ -537,12 +538,13 @@ pub async fn delete_event(
 ) -> impl axum::response::IntoResponse {
     use serde_json::json;
 
-    let row: Option<(String,)> = sqlx::query_as::<_, (String,)>("SELECT created_by FROM events WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+    let row: Option<(String,)> =
+        sqlx::query_as::<_, (String,)>("SELECT created_by FROM events WHERE id = ?")
+            .bind(&id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     match row {
         None => {
