@@ -1,60 +1,67 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — mise à jour session 21
+// Suite E2E complète — session 22
 //
-// CORRECTIONS vs session 32 :
+// CORRECTION vs session 21 :
 //
-//   Bug #21 — localStorage cross-test :
-//     Cause : fullyParallel:true + workers:1 → même browser context entre tests
-//     → AuthStore constructeur lit localStorage → isAuthenticated=true
-//     → $effect() login/+page.svelte redirige avant que #username soit fillable
-//     → tous les loginAs() échouent (waiting for locator('#username') timeout)
+//   Bug #22 — clearSession() goto('/') déclenche authStore.init() avec cookie valide
 //
-//   Fix 1 — playwright.config.ts : fullyParallel:false
-//   Fix 2 — clearSession() appelé en début de chaque test utilisant loginAs()
-//     Approche : page.evaluate() APRÈS navigation vers localhost:6300
-//     Raison : localStorage est isolé par origine. On doit être sur l'origine
-//     cible AVANT de pouvoir accéder à son localStorage.
-//     Étape 1 : goto('/') → on est sur localhost:6300
-//     Étape 2 : evaluate(localStorage.clear()) → nettoie le bon localStorage
-//     Étape 3 : clearCookies() → révoque le cookie auth_token côté browser
-//     Étape 4 : goto('/login') → AuthStore constructeur trouve localStorage vide
+//   Session 21 avait implémenté clearSession() avec goto('/') en premier.
+//   Problème : goto('/') monte le layout → onMount → authStore.init()
+//   → fetch('/api/auth/me') AVEC le cookie encore présent dans le browser
+//   → 200 → isAuthenticated=true → $effect redirige vers /chat
+//   → clearCookies() ensuite est trop tard
+//   → loginAs goto('/login') → isAuthenticated=true → redirect immédiat → #username inaccessible
 //
-//   NB : loginAsAdmin() est inchangé (API-first, jamais /login dans le browser,
-//   jamais impliqué par le localStorage).
+//   Fix définitif — clearSession() SANS navigation browser :
+//     1. page.request.post('/api/auth/logout') → révoque le token en DB côté serveur
+//        (page.request partage le cookie store → envoie le cookie sans charger le browser)
+//        Ignore 401 (pas de session active → déjà déconnecté, c'est OK)
+//     2. page.context().clearCookies() → supprime le cookie du browser context
+//     3. goto('/login') → layout monte → authStore.init()
+//        → /api/auth/me → 401 (token révoqué + cookie absent)
+//        → authStore.logout() → localStorage vidé + isAuthenticated=false
+//        → $effect n'active PAS de redirect → #username accessible ✅
+//
+//   Aucun goto('/') préalable nécessaire. Aucun evaluate(localStorage) nécessaire.
+//   authStore.logout() (appelé sur 401) gère lui-même le localStorage.
 
 import { test, expect, type Page } from '@playwright/test';
 
 // Mot de passe que le test définit pour l'admin (≥ 8 chars)
 const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
+const BASE = 'http://localhost:6300/api';
 
 // ─────────────────────────────────────────────
 // Helpers partagés
 // ─────────────────────────────────────────────
 
 /**
- * Nettoie la session locale (localStorage + cookies) avant chaque test
- * qui navigue vers /login via le browser.
+ * Nettoie la session avant chaque test qui navigue via le browser vers /login.
  *
- * ORDRE IMPÉRATIF :
- *   1. goto('/') → établit l'origine localhost:6300
- *   2. evaluate(localStorage.clear) → vide le localStorage de cette origine
- *   3. clearCookies() → révoque auth_token côté browser context
+ * ORDRE IMPÉRATIF — sans navigation browser préalable :
+ *   1. page.request.post('/api/auth/logout')
+ *      → révoque le token en DB côté serveur (ignore 401 si pas de session)
+ *      → page.request partage le cookie store → envoie le cookie sans déclencher le layout
+ *   2. page.context().clearCookies()
+ *      → supprime le cookie auth_token du browser context
+ *   → Résultat : goto('/login') → authStore.init() → /api/auth/me → 401
+ *     → authStore.logout() → isAuthenticated=false + localStorage vidé
+ *     → $effect ne redirige PAS → #username interactif ✅
  *
- * Sans l'étape 1, le localStorage de localhost:6300 n'est pas accessible
- * depuis about:blank (origine différente → isolation de storage).
+ * POURQUOI PAS goto('/') d'abord (session 21 — mauvaise approche) :
+ *   goto('/') monte le layout → onMount → authStore.init() → fetch('/api/auth/me')
+ *   avec le cookie encore valide → 200 → isAuthenticated=true → redirect /chat
+ *   clearCookies() ensuite ne sert plus à rien.
  */
 async function clearSession(page: Page) {
-  // On a besoin d'être sur l'origine de l'app pour manipuler son localStorage
+  // Étape 1 : révoquer le token côté serveur via API (sans charger le browser)
   try {
-    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
+    await page.request.post(`${BASE}/auth/logout`);
+    // 200 = token révoqué, 401 = pas de session active → les deux cas sont OK
   } catch {
-    // Si la page redirige (ex: vers /login), c'est OK — on est bien sur l'origine
+    // Erreur réseau → on continue quand même
   }
-  await page.evaluate(() => {
-    localStorage.removeItem('nook_user');
-    localStorage.removeItem('nook_session_id');
-    localStorage.removeItem('nook_token'); // migration
-  });
+  // Étape 2 : vider les cookies du browser context
   await page.context().clearCookies();
 }
 
@@ -75,15 +82,8 @@ async function loginAs(page: Page, username: string, password: string) {
  *   → cookie auth_token posé sans jamais charger /login dans le browser
  *   → localStorage et $effect() de redirection jamais impliqués
  *   → page.goto('/admin') fonctionne directement avec le cookie valide
- *
- *   Le changement de mot de passe obligatoire est géré via l'API
- *   (pas via le formulaire browser). Le flux E2EE (cryptoStore.unlockCrypto)
- *   n'est intentionnellement pas déclenché ici — les tests admin testent
- *   les fonctions d'administration, pas le chiffrement de bout en bout.
  */
 async function loginAsAdmin(page: Page) {
-  const BASE = 'http://localhost:6300/api';
-
   // Essai 1 : mdp déjà changé (tests 2+, ou retries CI)
   let loginRes = await page.request.post(`${BASE}/auth/login`, {
     data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
@@ -125,7 +125,7 @@ async function loginAsAdmin(page: Page) {
 
 /**
  * Attend que l'écran de chargement initial disparaisse.
- * Le layout utilise data-testid="loading-screen" (pas uniquement .loading-screen).
+ * Le layout utilise data-testid="loading-screen".
  */
 async function waitForAppReady(page: Page) {
   await expect(
@@ -168,7 +168,6 @@ test.describe('Auth', () => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
-    // Bouton header aria-label="Déconnexion" (icône 🔌 sans texte visible)
     const logoutBtn = page.locator('button[aria-label="Déconnexion"]').first();
     await expect(logoutBtn).toBeVisible({ timeout: 8_000 });
     await logoutBtn.click();
@@ -189,20 +188,17 @@ test.describe('Chat', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
 
-    // Attendre que la sidebar charge les conversations via fetch
     await page.waitForResponse(
       (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',
       { timeout: 10_000 }
     );
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 8_000 });
 
-    // default_global est toujours présente
     const names = await page.locator('.conversation-info .name').allTextContents();
     const hasGlobal = names.some(n => n.includes('Groupe Global') || n.includes('Global'));
     expect(hasGlobal).toBe(true);
     console.log(`✅ Sidebar : ${names.length} conversation(s), Groupe Global présent`);
 
-    // S'assurer que default_global est sélectionnée
     const globalItem = page.locator('.conversation-item').filter({ hasText: 'Groupe Global' });
     if (await globalItem.count() > 0) {
       await globalItem.first().click();
@@ -214,8 +210,6 @@ test.describe('Chat', () => {
     const msgText = `E2E test message ${Date.now()}`;
     await input.fill(msgText);
 
-    // Utiliser locator('.send-btn') — le texte du bouton devient '…' pendant sending,
-    // donc getByRole({ name: 'Envoyer' }) serait flaky
     const sendBtn = page.locator('button.send-btn');
     await expect(sendBtn).toBeEnabled({ timeout: 5_000 });
 
@@ -282,7 +276,6 @@ test.describe('Admin', () => {
     test.setTimeout(30_000);
     await loginAsAdmin(page);
     await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
-    // 3 onglets : En attente (0) / Membres (1) / Invitations (2)
     await expect(page.locator('.admin-tabs .tab').nth(0)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(1)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(2)).toBeVisible();
@@ -293,7 +286,6 @@ test.describe('Admin', () => {
     test.setTimeout(30_000);
     await loginAsAdmin(page);
     await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
-    // nth(1) = onglet "Membres"
     await page.locator('.admin-tabs .tab').nth(1).click();
     await expect(page.locator('.user-card').first()).toBeVisible({ timeout: 8_000 });
     const usernames = await page.locator('.user-username').allTextContents();
@@ -348,7 +340,6 @@ test.describe('Settings', () => {
     await waitForAppReady(page);
     await expect(page.locator('#userName')).toBeVisible({ timeout: 8_000 });
     console.log('✅ Onglet Profil visible');
-    // Textes exacts des tabs (settings/+page.svelte lignes 187/191/195)
     await page.locator('[role="tab"]').filter({ hasText: 'Sécurité' }).click();
     await expect(page.locator('#currentPassword')).toBeVisible({ timeout: 5_000 });
     console.log('✅ Onglet Sécurité visible');
@@ -404,7 +395,6 @@ test.describe('Calendar', () => {
     });
     expect([200, 201]).toContain(res.status());
     const body = await res.json();
-    // db.rs::create_event retourne { success: true, id: uuid }
     expect(body.success).toBe(true);
     expect(body.id).toBeTruthy();
     console.log(`✅ POST /api/events → ${res.status()}, id=${body.id}`);
@@ -422,7 +412,7 @@ test.describe('Calendar', () => {
 });
 
 // ─────────────────────────────────────────────
-// 6. ÉCHECS
+// 6. ÉCHECS (Chess)
 // ─────────────────────────────────────────────
 
 test.describe('Chess', () => {
@@ -432,8 +422,6 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chess');
     await waitForAppReady(page);
-    // CORRECTION : chess/+page.svelte ligne 62 → <button class="btn-new">
-    // (pas .btn-create — c'est la classe de polls)
     await expect(page.locator('.btn-new')).toBeVisible({ timeout: 10_000 });
     console.log('✅ Page /chess chargée');
   });
@@ -449,17 +437,11 @@ test.describe('Chess', () => {
   test('POST /api/chess/create → crée une partie et retourne game_id', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
-    // CORRECTION : payload exact selon chess.rs struct CreateGameRequest
-    //   opponent : "human" | "easy" | "medium" | "hard" | "expert" | "godlike"
-    //   color    : "white" | "black"
-    // (pas player_count ni name — ces champs n'existent pas)
     const res = await page.request.post('/api/chess/create', {
       data: { opponent: 'human', color: 'white' },
     });
-    // CORRECTION : chess.rs retourne StatusCode::CREATED (201), pas 200
     expect(res.status()).toBe(201);
     const body = await res.json();
-    // CORRECTION : la réponse contient game_id (pas id ni game.id)
     expect(body.game_id).toBeTruthy();
     expect(body.success).toBe(true);
     console.log(`✅ POST /api/chess/create → 201, game_id=${body.game_id}`);
@@ -470,13 +452,8 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chess');
     await waitForAppReady(page);
-    // CORRECTION : .btn-new est le toggle (pas .btn-create)
     await page.locator('.btn-new').click();
-    // Formulaire révélé dans .create-card
     await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
-    // CORRECTION : le form chess n'a pas #game-name ni .count-btn
-    // Il contient des radios .radio-opt (adversaire) et .color-opt (couleur)
-    // et un bouton .btn-confirm pour soumettre
     await expect(page.locator('.radio-opt').first()).toBeVisible({ timeout: 3_000 });
     await expect(page.locator('.color-opt').first()).toBeVisible({ timeout: 3_000 });
     await expect(page.locator('.btn-confirm')).toBeVisible({ timeout: 3_000 });
@@ -528,9 +505,6 @@ test.describe('Polls', () => {
     await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
 
     await page.locator('input[placeholder="Quelle est votre question ?"]').fill('Film préféré ce soir ?');
-
-    // Placeholders générés par Svelte : `Option {i+1}{i<2 ? ' *' : ''}`
-    // → "Option 1 *", "Option 2 *", "Option 3", "Option 4"
     await page.locator('input[placeholder="Option 1 *"]').fill('La La Land');
     await page.locator('input[placeholder="Option 2 *"]').fill('Inception');
 
