@@ -3,15 +3,32 @@
 // Store Svelte 5 Runes — conserve les clés en mémoire après déchiffrement.
 // N'expose JAMAIS la clé privée en dehors de ce module.
 //
-// Usage :
+// Flux E2EE :
+//   Premier login (aucune clé en IndexedDB)
+//     → unlockCrypto génère la paire, chiffre la privée, stocke dans IndexedDB,
+//       envoie la publique au serveur → cryptoStore.ready = true
+//
+//   Login suivant (clés déjà en IndexedDB)
+//     → unlockCrypto déchiffre avec le mot de passe → cryptoStore.ready = true
+//
+//   Mot de passe incorrect
+//     → libsodium lève une exception → cryptoStore.error = message explicite
+//
+// API publique :
 //   cryptoStore.ready          → boolean réactif
 //   cryptoStore.error          → string | null
-//   await cryptoStore.unlock(userId, password)
-//   await cryptoStore.encryptAndSend(text, convId)
-//   await cryptoStore.decryptMessage(msg)
-//   cryptoStore.lock()         → efface les clés de la mémoire
+//   cryptoStore.userId         → string | null
+//   await unlockCrypto(userId, password) → boolean
+//   lockCrypto()               → efface les clés de la mémoire
+//   await encryptMessage(text, convId)
+//   await decryptMessage(params)
+//   getPublicKey()             → Uint8Array | null
 
 import {
+  generateKeyPair,
+  encryptPrivateKey,
+  storeKeysInIndexedDB,
+  registerPublicKeyOnServer,
   loadKeysFromIndexedDB,
   encryptForRecipients,
   decryptSessionKey,
@@ -22,7 +39,7 @@ import {
 } from '$lib/crypto';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// State
+// State réactif (Svelte 5 Runes)
 // ─────────────────────────────────────────────────────────────────────────────
 interface CryptoStoreState {
   ready:    boolean;
@@ -40,7 +57,14 @@ export const cryptoStore = $state<CryptoStoreState>({
 let _keyPair: KeyPair | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// unlock — appeler après login avec le mot de passe
+// unlockCrypto — appeler après login avec le mot de passe en clair
+//
+// Comportement :
+//   1. Cherche les clés dans IndexedDB (via loadKeysFromIndexedDB)
+//   2. Si trouvées → déchiffre avec le mot de passe, active le store
+//   3. Si absentes → génération initiale : crée la paire, chiffre la privée,
+//      stocke dans IndexedDB, envoie la publique au serveur, active le store
+//   4. Si déchiffrement échoue (mauvais mot de passe) → exception catch → error
 // ─────────────────────────────────────────────────────────────────────────────
 export async function unlockCrypto(userId: string, password: string): Promise<boolean> {
   cryptoStore.error  = null;
@@ -49,26 +73,58 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
   _keyPair           = null;
 
   try {
-    const kp = await loadKeysFromIndexedDB(userId, password);
+    let kp = await loadKeysFromIndexedDB(userId, password);
+
     if (!kp) {
-      // Pas de clés stockées — utilisateur sans E2EE (ou premier login)
-      cryptoStore.error = 'Aucune clé trouvée pour cet utilisateur.';
-      return false;
+      // ── Premier setup E2EE pour cet utilisateur ──────────────────────────
+      // Aucune clé trouvée dans IndexedDB : génération initiale transparente.
+      // Cela couvre :
+      //   • Tout utilisateur approuvé se connectant pour la première fois
+      //   • L'administrateur initial (qui ne passe plus par join/+page.svelte)
+      //   • Un utilisateur dont les clés ont été effacées (clearStoredKeys)
+      console.info('[cryptoStore] Aucune clé en IndexedDB → génération initiale E2EE');
+
+      // 1. Générer la paire de clés Curve25519
+      const newKeyPair = await generateKeyPair();
+
+      // 2. Chiffrer la clé privée avec le mot de passe (XSalsa20+Argon2)
+      const encryptedPrivKey = await encryptPrivateKey(newKeyPair.privateKey, password);
+
+      // 3. Stocker dans IndexedDB (clé publique en clair, privée chiffrée)
+      await storeKeysInIndexedDB(userId, newKeyPair.publicKey, encryptedPrivKey);
+
+      // 4. Envoyer la clé publique au serveur (endpoint /api/e2ee/register-key)
+      //    → les autres membres peuvent maintenant chiffrer des messages pour nous
+      await registerPublicKeyOnServer(newKeyPair.publicKey);
+
+      kp = newKeyPair;
+      console.info('[cryptoStore] Clé E2EE générée, chiffrée, stockée et enregistrée ✓');
     }
+
+    // kp est garanti non-null ici (chargé ou généré)
     _keyPair           = kp;
     cryptoStore.userId = userId;
     cryptoStore.ready  = true;
     return true;
+
   } catch (e: any) {
-    // Mot de passe incorrect → crypto_secretbox_open_easy lève une exception
-    cryptoStore.error = 'Mot de passe incorrect ou clés corrompues.';
+    // Causes possibles :
+    //   • Mot de passe incorrect → libsodium lève une exception au déchiffrement
+    //   • Échec réseau lors de registerPublicKeyOnServer
+    //   • IndexedDB inaccessible (mode privé sur certains navigateurs)
+    const msg = e?.message ?? String(e);
+    if (msg.includes('register') || msg.includes('HTTP')) {
+      cryptoStore.error = 'Erreur réseau lors de l\'enregistrement des clés. Réessayez.';
+    } else {
+      cryptoStore.error = 'Mot de passe incorrect ou clés corrompues.';
+    }
     console.error('[cryptoStore] unlock:', e);
     return false;
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// lock — efface les clés de la mémoire (appelé au logout)
+// lockCrypto — efface les clés de la mémoire (logout)
 // ─────────────────────────────────────────────────────────────────────────────
 export function lockCrypto(): void {
   _keyPair           = null;
@@ -85,7 +141,6 @@ export async function encryptMessage(
   conversationId: string
 ): Promise<EncryptedMessage> {
   if (!_keyPair) throw new Error('[cryptoStore] Clés non chargées — appelez unlockCrypto() d\'abord.');
-
   const pubkeys = await fetchMemberPubkeys(conversationId);
   return encryptForRecipients(plaintext, pubkeys, _keyPair);
 }
@@ -94,16 +149,15 @@ export async function encryptMessage(
 // decryptMessage — déchiffre un message reçu
 // ─────────────────────────────────────────────────────────────────────────────
 export async function decryptMessage(params: {
-  messageId:      string;
-  conversationId: string;
-  ciphertext:     string;
-  nonce:          string;
+  messageId:       string;
+  conversationId:  string;
+  ciphertext:      string;
+  nonce:           string;
   senderPubkeyB64: string;
 }): Promise<string> {
-  if (!_keyPair) throw new Error('[cryptoStore] Clés non chargées.');
+  if (!_keyPair)           throw new Error('[cryptoStore] Clés non chargées.');
   if (!cryptoStore.userId) throw new Error('[cryptoStore] userId absent.');
 
-  // Récupérer la clé de session chiffrée pour moi
   const res = await fetch(
     `/api/conversations/${params.conversationId}/my-encrypted-key/${params.messageId}`,
     { credentials: 'include' }
