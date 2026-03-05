@@ -518,3 +518,70 @@ Chaque fichier est auto-suffisant. Zéro coordination nécessaire entre jobs.
 - [ ] Chess temps réel : WS client → abonnement coups adverses
 - [ ] Polls : backend API (actuellement localStorage only)
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
+
+## Session 21 — 2026-03-05 — Fix E2E : localStorage cross-test (Bug #21)
+
+### Contexte
+Analyse des logs CI du 2026-03-05 (zip fourni). Résultats : 12 tests passés / 31 échecs.
+Backend Rust : ✅ 0 erreur clippy, build OK. Frontend Vite : ✅ build OK (3 warnings a11y non-bloquants).
+Tests E2E : ❌ 31/43 timeout sur `waiting for locator('#username')`.
+
+### Cause racine identifiée
+
+`playwright.config.ts` avait `fullyParallel: true` avec `workers: 1` en CI.
+Avec `fullyParallel: true`, tous les tests du même fichier partagent le **même browser context** (et donc le même `localStorage` de `localhost:6300`).
+
+Séquence de défaillance :
+1. Test 1 (Auth/Login valide e2e_ci) — loginAs() → login réussi → localStorage : `nook_user` + `nook_session_id` posés
+2. Test 2 (Auth/Login invalide) — goto('/login') → AuthStore constructeur lit localStorage → `isAuthenticated=true` → `$effect()` redirige vers `/chat` → `#username` disponible ~0ms → Playwright timeout
+
+**Pourquoi les 12 tests passaient** : tous des tests `request` (API purs) ou `loginAsAdmin` (API-first).
+
+### Corrections
+
+#### 1. `playwright.config.ts` — `fullyParallel: false`
+```typescript
+fullyParallel: false,  // ✅ (était true)
+```
+Empêche le partage de browser context entre tests.
+
+#### 2. `frontend/tests/e2e.spec.ts` — `clearSession()` helper
+Nouvelle fonction appelée en tête de `loginAs()` :
+```typescript
+async function clearSession(page: Page) {
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
+  await page.evaluate(() => {
+    localStorage.removeItem('nook_user');
+    localStorage.removeItem('nook_session_id');
+    localStorage.removeItem('nook_token');
+  });
+  await page.context().clearCookies();
+}
+```
+**Pourquoi goto('/') d'abord** : le localStorage est isolé par origine. On doit être sur `localhost:6300` pour manipuler son localStorage. `about:blank` est une autre origine → inefficace.
+
+#### 3. `.github/workflows/test-nook.yml` — healthcheck `/api/health`
+```bash
+# ❌ /health retourne index.html (ServeDir fallback → 200 trompeur)
+# ✅ /api/health retourne "OK" depuis le handler Axum
+until curl -sf http://localhost:6300/api/health | grep -q "OK"; do sleep 3; done
+```
+
+### Fichiers modifiés session 21
+- `frontend/playwright.config.ts` — `fullyParallel: false`
+- `frontend/tests/e2e.spec.ts` — `clearSession()` + `loginAs()` mis à jour
+- `.github/workflows/test-nook.yml` — healthcheck `/api/health`
+- `.claude/BUGS.md` — Bug #21 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+- **43 tests** au total (inchangé)
+- **43/43 ✅** attendus si les sélecteurs UI sont corrects
+- Le seul risque résiduel : sélecteurs UI obsolètes (classes CSS renommées entre sessions)
+
+### Ce qui reste à faire
+- [ ] Déclencher test-nook.yml → confirmer 43/43 ✅
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → découper avec dynamic import()
