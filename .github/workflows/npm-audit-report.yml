@@ -5,13 +5,11 @@ on:
   # schedule:
     # Tous les jours à 02:30 UTC
     # - cron: "30 2 * * *"
-  workflow_dispatch:   # lancement manuel possible
+  workflow_dispatch:
 
 permissions:
   contents: read
   issues: write
-  pull-requests: write
-  security-events: write   # pour uploader le SARIF (optionnel)
 
 jobs:
   audit:
@@ -21,91 +19,124 @@ jobs:
         working-directory: ./frontend
 
     steps:
-      # -------------------------------------------------
-      # 1️⃣ Checkout du code
-      # -------------------------------------------------
+      # ─── 1. Checkout ────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # -------------------------------------------------
-      # 2️⃣ Installer Node (v20) + dépendances
-      # -------------------------------------------------
+      # ─── 2. Node 20 + cache npm ─────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+          # cache-dependency-path obligatoire quand working-directory != racine
+          cache-dependency-path: frontend/package-lock.json
 
+      # ─── 3. Installer les dépendances ───────────────────────────────
       - name: Install dependencies
         run: npm ci
 
-      # -------------------------------------------------
-      # 3️⃣ Exécuter npm audit (JSON + SARIF)
-      # -------------------------------------------------
+      # ─── 4. npm audit → JSON ────────────────────────────────────────
+      # npm audit retourne exit 1 si des vulnérabilités sont trouvées
+      # on ignore le code de retour ici pour toujours générer le rapport
       - name: Run npm audit (JSON)
-        id: audit-json
+        id: audit
         run: |
-          npm audit --json > audit-report.json || true   # npm audit renvoie 1 si vulnérabilités, on ignore le code d’erreur
-          # Convertir en SARIF (format exploitable par CodeQL / GitHub Security)
-          npx @microsoft/sarif-multitool convert -i audit-report.json -f sarif -o audit-report.sarif || true
+          npm audit --json > audit-report.json || true
+          echo "Audit terminé"
+          # Afficher le résumé humain dans les logs
+          npm audit --audit-level=none || true
 
-      # -------------------------------------------------
-      # 4️⃣ Publier le rapport comme artefact
-      # -------------------------------------------------
+      # ─── 5. Parser la sévérité ──────────────────────────────────────
+      - name: Parse audit results
+        id: parse
+        run: |
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-report.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-report.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-report.json)
+          LOW=$(jq '.metadata.vulnerabilities.low // 0' audit-report.json)
+          TOTAL=$(jq '.metadata.vulnerabilities.total // 0' audit-report.json)
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH"         >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "low=$LOW"           >> $GITHUB_OUTPUT
+          echo "total=$TOTAL"       >> $GITHUB_OUTPUT
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "severity=critical" >> $GITHUB_OUTPUT
+          elif [ "$HIGH" -gt 0 ]; then
+            echo "severity=high"     >> $GITHUB_OUTPUT
+          elif [ "$MODERATE" -gt 0 ]; then
+            echo "severity=moderate" >> $GITHUB_OUTPUT
+          elif [ "$LOW" -gt 0 ]; then
+            echo "severity=low"      >> $GITHUB_OUTPUT
+          else
+            echo "severity=none"     >> $GITHUB_OUTPUT
+          fi
+
+          echo "📊 Résumé : critical=$CRITICAL high=$HIGH moderate=$MODERATE low=$LOW total=$TOTAL"
+
+      # ─── 6. Générer un rapport Markdown lisible ──────────────────────
+      - name: Generate Markdown report
+        run: |
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          cat > audit-report.md << ENDOFMD
+          # 🔎 Rapport npm audit — $DATE
+
+          | Sévérité | Nombre |
+          |----------|--------|
+          | 🔴 Critical | ${{ steps.parse.outputs.critical }} |
+          | 🟠 High     | ${{ steps.parse.outputs.high }} |
+          | 🟡 Moderate | ${{ steps.parse.outputs.moderate }} |
+          | 🟢 Low      | ${{ steps.parse.outputs.low }} |
+          | **Total**   | **${{ steps.parse.outputs.total }}** |
+
+          Statut global : **${{ steps.parse.outputs.severity }}**
+
+          Rapport JSON complet disponible en artefact.
+          ENDOFMD
+
+      # ─── 7. Upload artefacts ────────────────────────────────────────
+      # IMPORTANT : upload-artifact path est TOUJOURS relatif à la racine du repo,
+      # pas au working-directory → préfixer avec frontend/
       - name: Upload audit report (JSON)
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-audit-report-json
-          path: audit-report.json
-          retention-days: 30
-
-      - name: Upload audit report (SARIF)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: npm-audit-report-sarif
-          path: audit-report.sarif
+          name: npm-audit-report-json
+          path: frontend/audit-report.json
           retention-days: 30
 
-      # -------------------------------------------------
-      # 5️⃣ Analyser le niveau de sévérité et notifier
-      # -------------------------------------------------
-      - name: Parse audit JSON & set outputs
-        id: parse
-        run: |
-          SEVERITY=$(jq -r '
-            .metadata.vulnerabilities |
-            if .critical > 0 then "critical"
-            elif .high > 0 then "high"
-            elif .moderate > 0 then "moderate"
-            elif .low > 0 then "low"
-            else "none"
-            end' audit-report.json)
-          echo "severity=$SEVERITY" >> $GITHUB_OUTPUT
-          echo "critical=$(jq .metadata.vulnerabilities.critical audit-report.json)" >> $GITHUB_OUTPUT
+      - name: Upload audit report (Markdown)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report-md
+          path: frontend/audit-report.md
+          retention-days: 30
 
-      # -------------------------------------------------
-      # 6️⃣ Créer / commenter une Issue si critique
-      # -------------------------------------------------
+      # ─── 8. Créer une Issue si vulnérabilités détectées ─────────────
       - name: Create/Update security issue
         if: steps.parse.outputs.severity != 'none'
-        uses: peter-evans/create-issue-from-file@v4
+        uses: peter-evans/create-issue-from-file@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: "[SECURITY] npm audit – ${{ steps.parse.outputs.severity }} vulnerabilities"
-          content-filepath: ./audit-report.json
+          title: "[SECURITY] npm audit – ${{ steps.parse.outputs.severity }} vulnerabilities (${{ steps.parse.outputs.total }} total)"
+          # content-filepath est relatif à la RACINE du repo (pas au working-directory)
+          content-filepath: frontend/audit-report.md
           labels: |
             security
             audit
           assignees: ${{ github.actor }}
 
-      # -------------------------------------------------
-      # 7️⃣ (Optionnel) Ajouter le SARIF au tableau Security
-      # -------------------------------------------------
-      - name: Upload SARIF to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: audit-report.sarif
+      # ─── 9. Fail explicitement si critical ou high ──────────────────
+      - name: Fail on critical/high
+        if: steps.parse.outputs.critical != '0' || steps.parse.outputs.high != '0'
+        run: |
+          echo "❌ Vulnérabilités critiques ou hautes détectées !"
+          echo "   critical: ${{ steps.parse.outputs.critical }}"
+          echo "   high:     ${{ steps.parse.outputs.high }}"
+          exit 1
