@@ -1,30 +1,43 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — Session 27
-// Mise à jour session 27 :
-//   - Suite Polls : réécriture sur API backend (plus de localStorage)
-//     sélecteurs mis à jour : .btn-create, .create-card, .btn-submit, .poll-question
-//   - Suite API Sanity : +3 checks (polls, users/available, participants)
-//   - Suite Chat : sidebar rendue robuste (waitForResponse sur /api/conversations)
-// Corrections :
-//   - loginAsAdmin() : approche API-first — POST /api/auth/login via page.request
-//     qui pose le cookie HttpOnly dans le browser context, puis page.goto('/admin')
-//     directement → jamais de passage par /login → #username jamais en jeu
-//   - beforeAll dans Admin : change le mdp admin une seule fois via l'API
-//     avant tous les tests Admin, stocke le cookie pour réutilisation
-//   - Chess : locator('.btn-create') seul (strict mode violation sur h1 dupliqué)
+// Suite E2E complète — mise à jour session 32
+//
+// CORRECTIONS vs session 27 :
+//
+//   waitForAppReady :
+//     .loading-screen → [data-testid="loading-screen"]
+//     (le layout utilise data-testid="loading-screen" — pas de sélecteur CSS seul)
+//
+//   Chess — page :
+//     .btn-create → .btn-new  (classe réelle du bouton toggle)
+//     Reason: chess/+page.svelte ligne 62 → <button class="btn-new" ...>
+//
+//   Chess — form UI :
+//     #game-name   → n'existe pas dans le DOM chess → remplacé par .create-card visible
+//     .count-btn   → n'existe pas → remplacé par .radio-opt (radios adversaire/couleur)
+//     .btn-confirm → bouton de soumission réel
+//
+//   Chess — POST /api/chess/create :
+//     payload {player_count, name} → {opponent: 'human', color: 'white'}
+//     HTTP 200 attendu → 201 (StatusCode::CREATED dans chess.rs)
+//     body.id / body.game_id → body.game_id exclusivement
+//
+//   Chat — envoi message :
+//     getByRole('button', { name: 'Envoyer' }) → locator('button.send-btn')
+//     Reason: texte devient '…' pendant sending → getByRole flaky
+//
+//   Settings — onglets :
+//     filtre /s.curit/i → texte exact 'Sécurité'
+//     filtre /apparence/i → texte exact 'Apparence'
 
 import { test, expect, type Page } from '@playwright/test';
 
-// Mot de passe que le test définit pour l'admin (doit être ≥8 chars)
+// Mot de passe que le test définit pour l'admin (≥ 8 chars)
 const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 
 // ─────────────────────────────────────────────
 // Helpers partagés
 // ─────────────────────────────────────────────
 
-/**
- * Login utilisateur standard → attend /chat
- */
 async function loginAs(page: Page, username: string, password: string) {
   await page.goto('/login');
   await page.fill('#username', username);
@@ -36,33 +49,26 @@ async function loginAs(page: Page, username: string, password: string) {
 /**
  * Login admin via l'API backend (page.request) — bypass total de la page /login.
  *
- * APPROCHE SESSION 19 — après 4 sessions d'échecs sur l'approche browser :
+ * APPROCHE API-FIRST (session 19, inchangée) :
+ *   page.request partage le cookie store du browser context.
+ *   → cookie auth_token posé sans jamais charger /login dans le browser
+ *   → localStorage et $effect() de redirection jamais impliqués
+ *   → page.goto('/admin') fonctionne directement avec le cookie valide
  *
- *   Problème fondamental : les tests Admin partagent le même BrowserContext (workers:1).
- *   Le localStorage de localhost:6300 (nook_user, nook_session_id) persiste entre les tests.
- *   AuthStore lit ces valeurs synchroniquement dans son constructeur ES6 → isAuthenticated=true
- *   avant toute navigation → $effect() du layout redirige /login → #username disabled.
- *
- *   Tentatives échouées (sessions 16-18) :
- *     • clearCookies()                    → ne touche pas localStorage
- *     • goto('about:blank') + clear       → about:blank = origine différente, localStorage isolé
- *     • addInitScript() sur la page       → s'exécute sur about:blank (état initial de la page),
- *                                           pas sur localhost:6300 → localStorage de l'app intact
- *
- *   Fix : page.request.post('/api/auth/login') pose le cookie auth_token directement
- *   dans le browser context sans jamais charger la page /login dans le browser.
- *   Puis page.goto('/admin') → cookie valide → /admin se charge correctement.
- *   Le localStorage n'est jamais un obstacle car on ne passe plus par /login.
+ *   Le changement de mot de passe obligatoire est géré via l'API
+ *   (pas via le formulaire browser). Le flux E2EE (cryptoStore.unlockCrypto)
+ *   n'est intentionnellement pas déclenché ici — les tests admin testent
+ *   les fonctions d'administration, pas le chiffrement de bout en bout.
  */
 async function loginAsAdmin(page: Page) {
   const BASE = 'http://localhost:6300/api';
 
-  // Essai 1 : mdp déjà changé (tests 2+ de la suite, ou retries)
+  // Essai 1 : mdp déjà changé (tests 2+, ou retries CI)
   let loginRes = await page.request.post(`${BASE}/auth/login`, {
     data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
   });
 
-  // Essai 2 : mdp initial (premier appel de la suite CI)
+  // Essai 2 : mdp initial (premier appel de la suite, fresh DB)
   if (!loginRes.ok()) {
     loginRes = await page.request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'changeme2026' },
@@ -74,7 +80,6 @@ async function loginAsAdmin(page: Page) {
 
   const loginBody = await loginRes.json();
 
-  // Si needs_password_change → changer le mdp via l'API (pas via le formulaire browser)
   if (loginBody.user?.needs_password_change) {
     const changeRes = await page.request.post(`${BASE}/auth/change-password`, {
       data: { new_password: ADMIN_NEW_PASSWORD, user_id: loginBody.user.id },
@@ -82,7 +87,7 @@ async function loginAsAdmin(page: Page) {
     if (!changeRes.ok()) {
       throw new Error(`Changement mdp admin échoué : HTTP ${changeRes.status()}`);
     }
-    // Re-login avec le nouveau mdp pour avoir un cookie valide avec needs_password_change=false
+    // Re-login avec le nouveau mdp → cookie valide, needs_password_change=false
     loginRes = await page.request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
     });
@@ -92,15 +97,19 @@ async function loginAsAdmin(page: Page) {
     console.log('🔐 Mot de passe admin changé via API');
   }
 
-  // Le cookie auth_token est maintenant dans le browser context via page.request
-  // Naviguer directement vers /admin — pas de /login → pas de problème de localStorage
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin/, { timeout: 10_000 });
   console.log('✅ Admin connecté sur /admin (API login)');
 }
 
+/**
+ * Attend que l'écran de chargement initial disparaisse.
+ * Le layout utilise data-testid="loading-screen" (pas uniquement .loading-screen).
+ */
 async function waitForAppReady(page: Page) {
-  await expect(page.locator('.loading-screen')).not.toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.locator('[data-testid="loading-screen"]')
+  ).not.toBeVisible({ timeout: 15_000 });
 }
 
 // ─────────────────────────────────────────────
@@ -140,8 +149,7 @@ test.describe('Auth', () => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
-    // Le bouton logout est dans le header avec aria-label="Déconnexion" (icône 🔌 uniquement)
-    // Il ne faut PAS ouvrir le menu — le bouton header est toujours visible
+    // Bouton header aria-label="Déconnexion" (icône 🔌 sans texte visible)
     const logoutBtn = page.locator('button[aria-label="Déconnexion"]').first();
     await expect(logoutBtn).toBeVisible({ timeout: 8_000 });
     await logoutBtn.click();
@@ -162,23 +170,35 @@ test.describe('Chat', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
 
-    // La sidebar charge les conversations via fetch → attendre la réponse API
+    // Attendre que la sidebar charge les conversations via fetch
     await page.waitForResponse(
       (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',
       { timeout: 10_000 }
     );
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 8_000 });
-    // default_global est toujours dans la liste (affichée en premier ou seule)
+
+    // default_global est toujours présente
     const names = await page.locator('.conversation-info .name').allTextContents();
     const hasGlobal = names.some(n => n.includes('Groupe Global') || n.includes('Global'));
     expect(hasGlobal).toBe(true);
-    console.log(`✅ Sidebar : conversations chargées (${names.length}), Groupe Global présent`);
+    console.log(`✅ Sidebar : ${names.length} conversation(s), Groupe Global présent`);
+
+    // S'assurer que default_global est sélectionnée
+    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Groupe Global' });
+    if (await globalItem.count() > 0) {
+      await globalItem.first().click();
+    }
 
     const input = page.locator('input.message-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
 
     const msgText = `E2E test message ${Date.now()}`;
     await input.fill(msgText);
+
+    // Utiliser locator('.send-btn') — le texte du bouton devient '…' pendant sending,
+    // donc getByRole({ name: 'Envoyer' }) serait flaky
+    const sendBtn = page.locator('button.send-btn');
+    await expect(sendBtn).toBeEnabled({ timeout: 5_000 });
 
     const [response] = await Promise.all([
       page.waitForResponse(
@@ -188,7 +208,7 @@ test.describe('Chat', () => {
           res.request().method() === 'POST',
         { timeout: 10_000 }
       ),
-      page.getByRole('button', { name: 'Envoyer' }).click(),
+      sendBtn.click(),
     ]);
 
     expect(response.status()).toBe(200);
@@ -221,7 +241,7 @@ test.describe('Chat', () => {
     const body = await res.json();
     const msgs = Array.isArray(body) ? body : (body.messages ?? []);
     expect(msgs.length).toBeGreaterThanOrEqual(0);
-    console.log(`✅ GET /api/conversations/default_global/messages → ${msgs.length} message(s)`);
+    console.log(`✅ GET messages default_global → ${msgs.length} message(s)`);
   });
 
 });
@@ -233,12 +253,8 @@ test.describe('Chat', () => {
 test.describe('Admin', () => {
 
   test('Admin login → changement de mot de passe obligatoire → /admin', async ({ page }) => {
-    // Ce test valide le flow complet needs_password_change :
-    // login → /change-password → formulaire → /admin
-    // Il DOIT passer avant tous les autres tests Admin (ordre d'exécution Playwright)
     test.setTimeout(40_000);
     await loginAsAdmin(page);
-    // À ce stade on est sur /admin avec .admin-header visible
     await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
     console.log('✅ Flow complet : login admin → change-password → /admin');
   });
@@ -247,21 +263,23 @@ test.describe('Admin', () => {
     test.setTimeout(30_000);
     await loginAsAdmin(page);
     await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
+    // 3 onglets : En attente (0) / Membres (1) / Invitations (2)
     await expect(page.locator('.admin-tabs .tab').nth(0)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(1)).toBeVisible();
     await expect(page.locator('.admin-tabs .tab').nth(2)).toBeVisible();
     console.log('✅ Page /admin chargée, 3 onglets visibles');
   });
 
-  test('Admin → onglet "Tous les utilisateurs" liste admin et e2e_ci', async ({ page }) => {
+  test('Admin → onglet "Membres" liste admin et e2e_ci', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAsAdmin(page);
     await expect(page.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
+    // nth(1) = onglet "Membres"
     await page.locator('.admin-tabs .tab').nth(1).click();
     await expect(page.locator('.user-card').first()).toBeVisible({ timeout: 8_000 });
     const usernames = await page.locator('.user-username').allTextContents();
     expect(usernames.some((u) => u.includes('e2e_ci') || u.includes('admin'))).toBe(true);
-    console.log(`✅ Onglet "Tous les users" → ${usernames.length} utilisateur(s)`);
+    console.log(`✅ Onglet "Membres" → ${usernames.length} utilisateur(s)`);
   });
 
   test('Admin → génération lien d\'invitation', async ({ page }) => {
@@ -311,10 +329,11 @@ test.describe('Settings', () => {
     await waitForAppReady(page);
     await expect(page.locator('#userName')).toBeVisible({ timeout: 8_000 });
     console.log('✅ Onglet Profil visible');
-    await page.locator('[role="tab"]').filter({ hasText: /s.curit/i }).click();
+    // Textes exacts des tabs (settings/+page.svelte lignes 187/191/195)
+    await page.locator('[role="tab"]').filter({ hasText: 'Sécurité' }).click();
     await expect(page.locator('#currentPassword')).toBeVisible({ timeout: 5_000 });
     console.log('✅ Onglet Sécurité visible');
-    await page.locator('[role="tab"]').filter({ hasText: /apparence/i }).click();
+    await page.locator('[role="tab"]').filter({ hasText: 'Apparence' }).click();
     await expect(page.locator('.themes-grid')).toBeVisible({ timeout: 5_000 });
     console.log('✅ Onglet Apparence visible');
   });
@@ -324,7 +343,7 @@ test.describe('Settings', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/settings');
     await waitForAppReady(page);
-    await page.locator('[role="tab"]').filter({ hasText: /apparence/i }).click();
+    await page.locator('[role="tab"]').filter({ hasText: 'Apparence' }).click();
     await expect(page.locator('.themes-grid')).toBeVisible({ timeout: 5_000 });
     const themeCards = page.locator('.theme-card');
     expect(await themeCards.count()).toBeGreaterThan(1);
@@ -336,7 +355,7 @@ test.describe('Settings', () => {
 });
 
 // ─────────────────────────────────────────────
-// 5. CALENDRIER (API backend)
+// 5. CALENDRIER
 // ─────────────────────────────────────────────
 
 test.describe('Calendar', () => {
@@ -346,7 +365,7 @@ test.describe('Calendar', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/calendar');
     await waitForAppReady(page);
-    await expect(page.locator('.calendar-grid, .calendar-days, table')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.calendar-grid')).toBeVisible({ timeout: 10_000 });
     console.log('✅ Page /calendar chargée');
   });
 
@@ -366,8 +385,10 @@ test.describe('Calendar', () => {
     });
     expect([200, 201]).toContain(res.status());
     const body = await res.json();
-    expect(body.success ?? body.id ?? body.title).toBeTruthy();
-    console.log(`✅ POST /api/events → ${res.status()}`);
+    // db.rs::create_event retourne { success: true, id: uuid }
+    expect(body.success).toBe(true);
+    expect(body.id).toBeTruthy();
+    console.log(`✅ POST /api/events → ${res.status()}, id=${body.id}`);
   });
 
   test('Calendrier UI → bouton "Ajouter un événement" visible', async ({ page }) => {
@@ -382,7 +403,7 @@ test.describe('Calendar', () => {
 });
 
 // ─────────────────────────────────────────────
-// 6. ÉCHECS (API backend)
+// 6. ÉCHECS
 // ─────────────────────────────────────────────
 
 test.describe('Chess', () => {
@@ -392,9 +413,9 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chess');
     await waitForAppReady(page);
-    // '.btn-create, h1' provoque une strict mode violation : le layout a un h1 "🌱 Nook"
-    // + la page chess a un h1 "Échecs" → 3 éléments résolus, Playwright refuse
-    await expect(page.locator('.btn-create')).toBeVisible({ timeout: 10_000 });
+    // CORRECTION : chess/+page.svelte ligne 62 → <button class="btn-new">
+    // (pas .btn-create — c'est la classe de polls)
+    await expect(page.locator('.btn-new')).toBeVisible({ timeout: 10_000 });
     console.log('✅ Page /chess chargée');
   });
 
@@ -403,20 +424,26 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     const res = await page.request.get('/api/chess/list');
     expect(res.status()).toBe(200);
-    expect(Array.isArray(await res.json()) || true).toBe(true);
     console.log('✅ GET /api/chess/list → 200');
   });
 
-  test('POST /api/chess/create → crée une partie et retourne un id', async ({ page }) => {
+  test('POST /api/chess/create → crée une partie et retourne game_id', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
+    // CORRECTION : payload exact selon chess.rs struct CreateGameRequest
+    //   opponent : "human" | "easy" | "medium" | "hard" | "expert" | "godlike"
+    //   color    : "white" | "black"
+    // (pas player_count ni name — ces champs n'existent pas)
     const res = await page.request.post('/api/chess/create', {
-      data: { player_count: 2, name: 'Partie E2E CI' },
+      data: { opponent: 'human', color: 'white' },
     });
-    expect([200, 201]).toContain(res.status());
+    // CORRECTION : chess.rs retourne StatusCode::CREATED (201), pas 200
+    expect(res.status()).toBe(201);
     const body = await res.json();
-    expect(body.id ?? body.game_id ?? body.game?.id).toBeTruthy();
-    console.log(`✅ POST /api/chess/create → ${res.status()}`);
+    // CORRECTION : la réponse contient game_id (pas id ni game.id)
+    expect(body.game_id).toBeTruthy();
+    expect(body.success).toBe(true);
+    console.log(`✅ POST /api/chess/create → 201, game_id=${body.game_id}`);
   });
 
   test('Chess UI → formulaire de création accessible', async ({ page }) => {
@@ -424,35 +451,36 @@ test.describe('Chess', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chess');
     await waitForAppReady(page);
-    await page.locator('.btn-create').click();
-    await expect(page.locator('#game-name')).toBeVisible({ timeout: 5_000 });
-    await expect(page.locator('.count-btn').first()).toBeVisible();
-    console.log('✅ Formulaire création partie visible');
+    // CORRECTION : .btn-new est le toggle (pas .btn-create)
+    await page.locator('.btn-new').click();
+    // Formulaire révélé dans .create-card
+    await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
+    // CORRECTION : le form chess n'a pas #game-name ni .count-btn
+    // Il contient des radios .radio-opt (adversaire) et .color-opt (couleur)
+    // et un bouton .btn-confirm pour soumettre
+    await expect(page.locator('.radio-opt').first()).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('.color-opt').first()).toBeVisible({ timeout: 3_000 });
+    await expect(page.locator('.btn-confirm')).toBeVisible({ timeout: 3_000 });
+    console.log('✅ Formulaire création partie visible (.create-card, .radio-opt, .color-opt, .btn-confirm)');
   });
 
 });
 
 // ─────────────────────────────────────────────
-// 7. SONDAGES (localStorage)
+// 7. SONDAGES
 // ─────────────────────────────────────────────
 
 test.describe('Polls', () => {
-
-  // Suite Polls — Session 27 : réécriture sur API backend (plus de localStorage)
-  // UI : bouton .btn-create toggle le panneau → inputs question/options → .btn-submit
-  // Chaque vote POST /api/polls/{id}/vote retourne le sondage mis à jour
 
   test('Page /polls visible et chargée', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/polls');
     await waitForAppReady(page);
-    // Attendre que le chargement initial soit terminé (fetch GET /api/polls)
     await page.waitForResponse(
       (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
       { timeout: 10_000 }
     );
-    // Le bouton d'ouverture du panneau doit être visible
     await expect(page.locator('.btn-create')).toBeVisible({ timeout: 8_000 });
     console.log('✅ Page /polls chargée, bouton "Nouveau sondage" visible');
   });
@@ -472,24 +500,21 @@ test.describe('Polls', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/polls');
     await waitForAppReady(page);
-    // Attendre le chargement initial
     await page.waitForResponse(
       (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
       { timeout: 10_000 }
     );
 
-    // Ouvrir le panneau de création
     await page.locator('.btn-create').click();
     await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
 
-    // Remplir la question
     await page.locator('input[placeholder="Quelle est votre question ?"]').fill('Film préféré ce soir ?');
 
-    // Remplir les 2 options obligatoires
+    // Placeholders générés par Svelte : `Option {i+1}{i<2 ? ' *' : ''}`
+    // → "Option 1 *", "Option 2 *", "Option 3", "Option 4"
     await page.locator('input[placeholder="Option 1 *"]').fill('La La Land');
     await page.locator('input[placeholder="Option 2 *"]').fill('Inception');
 
-    // Soumettre et attendre la réponse API
     const [response] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().includes('/api/polls') && res.request().method() === 'POST',
@@ -501,9 +526,9 @@ test.describe('Polls', () => {
     expect([200, 201]).toContain(response.status());
     console.log(`✅ POST /api/polls → HTTP ${response.status()}`);
 
-    // Le sondage doit apparaître dans la liste
-    await expect(page.locator('.poll-question').filter({ hasText: 'Film préféré ce soir ?' }))
-      .toBeVisible({ timeout: 10_000 });
+    await expect(
+      page.locator('.poll-question').filter({ hasText: 'Film préféré ce soir ?' })
+    ).toBeVisible({ timeout: 10_000 });
     console.log('✅ Sondage créé et visible dans la liste');
   });
 
