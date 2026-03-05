@@ -1,33 +1,26 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — mise à jour session 32
+// Suite E2E complète — mise à jour session 21
 //
-// CORRECTIONS vs session 27 :
+// CORRECTIONS vs session 32 :
 //
-//   waitForAppReady :
-//     .loading-screen → [data-testid="loading-screen"]
-//     (le layout utilise data-testid="loading-screen" — pas de sélecteur CSS seul)
+//   Bug #21 — localStorage cross-test :
+//     Cause : fullyParallel:true + workers:1 → même browser context entre tests
+//     → AuthStore constructeur lit localStorage → isAuthenticated=true
+//     → $effect() login/+page.svelte redirige avant que #username soit fillable
+//     → tous les loginAs() échouent (waiting for locator('#username') timeout)
 //
-//   Chess — page :
-//     .btn-create → .btn-new  (classe réelle du bouton toggle)
-//     Reason: chess/+page.svelte ligne 62 → <button class="btn-new" ...>
+//   Fix 1 — playwright.config.ts : fullyParallel:false
+//   Fix 2 — clearSession() appelé en début de chaque test utilisant loginAs()
+//     Approche : page.evaluate() APRÈS navigation vers localhost:6300
+//     Raison : localStorage est isolé par origine. On doit être sur l'origine
+//     cible AVANT de pouvoir accéder à son localStorage.
+//     Étape 1 : goto('/') → on est sur localhost:6300
+//     Étape 2 : evaluate(localStorage.clear()) → nettoie le bon localStorage
+//     Étape 3 : clearCookies() → révoque le cookie auth_token côté browser
+//     Étape 4 : goto('/login') → AuthStore constructeur trouve localStorage vide
 //
-//   Chess — form UI :
-//     #game-name   → n'existe pas dans le DOM chess → remplacé par .create-card visible
-//     .count-btn   → n'existe pas → remplacé par .radio-opt (radios adversaire/couleur)
-//     .btn-confirm → bouton de soumission réel
-//
-//   Chess — POST /api/chess/create :
-//     payload {player_count, name} → {opponent: 'human', color: 'white'}
-//     HTTP 200 attendu → 201 (StatusCode::CREATED dans chess.rs)
-//     body.id / body.game_id → body.game_id exclusivement
-//
-//   Chat — envoi message :
-//     getByRole('button', { name: 'Envoyer' }) → locator('button.send-btn')
-//     Reason: texte devient '…' pendant sending → getByRole flaky
-//
-//   Settings — onglets :
-//     filtre /s.curit/i → texte exact 'Sécurité'
-//     filtre /apparence/i → texte exact 'Apparence'
+//   NB : loginAsAdmin() est inchangé (API-first, jamais /login dans le browser,
+//   jamais impliqué par le localStorage).
 
 import { test, expect, type Page } from '@playwright/test';
 
@@ -38,7 +31,35 @@ const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 // Helpers partagés
 // ─────────────────────────────────────────────
 
+/**
+ * Nettoie la session locale (localStorage + cookies) avant chaque test
+ * qui navigue vers /login via le browser.
+ *
+ * ORDRE IMPÉRATIF :
+ *   1. goto('/') → établit l'origine localhost:6300
+ *   2. evaluate(localStorage.clear) → vide le localStorage de cette origine
+ *   3. clearCookies() → révoque auth_token côté browser context
+ *
+ * Sans l'étape 1, le localStorage de localhost:6300 n'est pas accessible
+ * depuis about:blank (origine différente → isolation de storage).
+ */
+async function clearSession(page: Page) {
+  // On a besoin d'être sur l'origine de l'app pour manipuler son localStorage
+  try {
+    await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
+  } catch {
+    // Si la page redirige (ex: vers /login), c'est OK — on est bien sur l'origine
+  }
+  await page.evaluate(() => {
+    localStorage.removeItem('nook_user');
+    localStorage.removeItem('nook_session_id');
+    localStorage.removeItem('nook_token'); // migration
+  });
+  await page.context().clearCookies();
+}
+
 async function loginAs(page: Page, username: string, password: string) {
+  await clearSession(page);
   await page.goto('/login');
   await page.fill('#username', username);
   await page.fill('#password', password);
@@ -120,16 +141,14 @@ test.describe('Auth', () => {
 
   test('Login valide e2e_ci → redirige vers /chat', async ({ page }) => {
     test.setTimeout(30_000);
-    await page.goto('/login');
-    await page.fill('#username', 'e2e_ci');
-    await page.fill('#password', 'E2eTest123!');
-    await page.getByRole('button', { name: 'Se connecter' }).click();
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await expect(page).toHaveURL(/\/chat/, { timeout: 15_000 });
     console.log('✅ Login e2e_ci → /chat');
   });
 
   test('Login invalide → reste sur /login sans crash', async ({ page }) => {
     test.setTimeout(20_000);
+    await clearSession(page);
     await page.goto('/login');
     await page.fill('#username', 'nope');
     await page.fill('#password', 'wrong');
