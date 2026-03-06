@@ -1,0 +1,153 @@
+name: 📦 Bundle Analysis — Tailles des chunks frontend
+
+# Surveille l'évolution de la taille du bundle SvelteKit
+# Alerte si libsodium dépasse 950kB (DT-01 — ticket dette technique)
+# Agent concerné : 🎨 SVELTE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/**.ts'
+      - 'frontend/src/**.svelte'
+      - 'frontend/package.json'
+      - 'frontend/vite.config.*'
+
+permissions:
+  contents: write
+
+jobs:
+  bundle-analysis:
+    name: 📦 Analyse du bundle frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # ── 1. Build avec stats de taille ────────────────────────────
+      - name: Build frontend
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+          echo "✅ Build terminé"
+
+      # ── 2. Analyser les chunks produits ───────────────────────────
+      - name: Analyser les chunks
+        id: analysis
+        run: |
+          echo "=== Chunks par taille ==="
+          find build -name "*.js" -o -name "*.wasm" | while read f; do
+            size=$(wc -c < "$f")
+            echo "$size $f"
+          done | sort -rn | head -20
+
+          # Taille totale JS
+          TOTAL_JS=$(find build -name "*.js" -exec cat {} \; | wc -c)
+          TOTAL_JS_KB=$((TOTAL_JS / 1024))
+          echo "total_js_kb=$TOTAL_JS_KB" >> $GITHUB_OUTPUT
+
+          # Détecter le chunk libsodium spécifiquement
+          SODIUM_CHUNK=$(find build -name "*sodium*" -o -name "*libsodium*" 2>/dev/null | head -1)
+          if [ -n "$SODIUM_CHUNK" ]; then
+            SODIUM_SIZE=$(wc -c < "$SODIUM_CHUNK")
+            SODIUM_KB=$((SODIUM_SIZE / 1024))
+            echo "sodium_kb=$SODIUM_KB" >> $GITHUB_OUTPUT
+            echo "sodium_file=$(basename $SODIUM_CHUNK)" >> $GITHUB_OUTPUT
+            echo "has_sodium=true" >> $GITHUB_OUTPUT
+          else
+            # libsodium peut être intégré dans un chunk générique
+            BIGGEST_CHUNK=$(find build -name "*.js" -exec ls -la {} \; | sort -k5 -rn | head -1 | awk '{print $9}')
+            BIGGEST_KB=$(wc -c < "$BIGGEST_CHUNK" | awk '{print int($1/1024)}')
+            echo "sodium_kb=$BIGGEST_KB" >> $GITHUB_OUTPUT
+            echo "sodium_file=$(basename $BIGGEST_CHUNK) (plus gros chunk)" >> $GITHUB_OUTPUT
+            echo "has_sodium=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Alerte si > 950kB
+          if [ "$SODIUM_KB" -gt 950 ]; then
+            echo "sodium_alert=true" >> $GITHUB_OUTPUT
+          else
+            echo "sodium_alert=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 3. Générer le rapport Markdown ───────────────────────────
+      - name: Générer BUNDLE-ANALYSIS-REPORT.md
+        run: |
+          cd $GITHUB_WORKSPACE
+          DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
+          COMMIT=$(git rev-parse --short HEAD)
+
+          cat > .claude/BUNDLE-ANALYSIS-REPORT.md << REPORT
+          # 📦 Bundle Analysis — Nook Frontend
+
+          > Généré le : **$DATE** | Commit : \`$COMMIT\`
+
+          ## Résumé
+
+          | Métrique | Valeur |
+          |----------|--------|
+          | JS total | **${{ steps.analysis.outputs.total_js_kb }} kB** |
+          | Chunk libsodium | **${{ steps.analysis.outputs.sodium_kb }} kB** (${{ steps.analysis.outputs.sodium_file }}) |
+          | Alerte DT-01 | ${{ steps.analysis.outputs.sodium_alert == 'true' && '🔴 > 950 kB — action requise' || '🟢 OK' }} |
+
+          ## Top 10 chunks par taille
+
+          \`\`\`
+          $(find build -name "*.js" -o -name "*.wasm" | while read f; do
+            size=$(wc -c < "$f")
+            echo "$size $f"
+          done | sort -rn | head -10 | awk '{printf "%s kB  %s\n", int($1/1024), $2}')
+          \`\`\`
+
+          ## DT-01 — Suivi libsodium
+
+          > **Objectif** : passer libsodium de ~938 kB à < 200 kB via dynamic import.
+          > Voir \`.claude/roles/architect.md\` § Dette technique.
+
+          ${{ steps.analysis.outputs.sodium_alert == 'true' && '⚠️ **ACTION REQUISE** : le chunk libsodium dépasse 950 kB. Implémenter dynamic import() (DT-01).' || 'ℹ️ Taille dans les limites attendues.' }}
+          REPORT
+
+          echo "✅ Rapport généré"
+
+      # ── 4. Commit rapport ─────────────────────────────────────────
+      - name: Commit rapport
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude/BUNDLE-ANALYSIS-REPORT.md
+          if git diff --staged --quiet; then
+            echo "ℹ️ Aucun changement"
+          else
+            git commit -m "docs(bundle): rapport analyse bundle frontend [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ Rapport commité dans .claude/"
+          fi
+
+      # ── 5. Résumé GitHub ─────────────────────────────────────────
+      - name: Résumé
+        run: |
+          echo "## 📦 Bundle Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Métrique | Valeur |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| JS total | ${{ steps.analysis.outputs.total_js_kb }} kB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Chunk libsodium | ${{ steps.analysis.outputs.sodium_kb }} kB |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.analysis.outputs.sodium_alert }}" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ ALERTE DT-01" >> $GITHUB_STEP_SUMMARY
+            echo "Le chunk libsodium dépasse 950 kB. Implémenter dynamic import() en priorité." >> $GITHUB_STEP_SUMMARY
+          fi

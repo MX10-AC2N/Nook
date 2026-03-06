@@ -1,0 +1,89 @@
+name: 🗄️ SQLx — Régénérer queries.json
+
+# Déclenché après toute migration SQL ou changement de macro sqlx!
+# Commit automatique du nouveau .sqlx/queries.json dans le repo
+# Agent concerné : 🦀 RUST
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/migrations/**.sql'
+      - 'backend/src/**.rs'
+
+permissions:
+  contents: write
+
+jobs:
+  sqlx-prepare:
+    name: 🗄️ cargo sqlx prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      # ── 1. Installer sqlx-cli ─────────────────────────────────────
+      - name: Installer sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features sqlite
+
+      # ── 2. DB temporaire + migrations ────────────────────────────
+      - name: Créer DB temporaire + appliquer migrations
+        run: |
+          mkdir -p /tmp/nook-sqlx
+          echo "DATABASE_URL=sqlite:///tmp/nook-sqlx/nook.db" >> $GITHUB_ENV
+          sqlx database create --database-url sqlite:///tmp/nook-sqlx/nook.db
+          sqlx migrate run   --database-url sqlite:///tmp/nook-sqlx/nook.db
+          echo "✅ DB temporaire prête"
+
+      # ── 3. Régénérer queries.json ─────────────────────────────────
+      - name: cargo sqlx prepare
+        env:
+          DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
+        run: |
+          cargo sqlx prepare -- --lib
+          echo "✅ queries.json régénéré"
+          QUERY_COUNT=$(cat .sqlx/queries.json | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+          echo "Queries indexées : $QUERY_COUNT"
+          echo "query_count=$QUERY_COUNT" >> $GITHUB_ENV
+
+      # ── 4. Commit si changement ───────────────────────────────────
+      - name: Commit queries.json si modifié
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/.sqlx/queries.json
+          if git diff --staged --quiet; then
+            echo "ℹ️ Aucun changement dans queries.json"
+            echo "changed=false" >> $GITHUB_ENV
+          else
+            git commit -m "chore(sqlx): régénérer queries.json [${{ env.query_count }} queries] [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ queries.json commité"
+            echo "changed=true" >> $GITHUB_ENV
+          fi
+
+      # ── 5. Résumé ─────────────────────────────────────────────────
+      - name: Résumé
+        run: |
+          echo "## 🗄️ SQLx Prepare" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Queries indexées** | ${{ env.query_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Modifié** | ${{ env.changed }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Lance maintenant **Backend.yml** pour valider la compilation offline." >> $GITHUB_STEP_SUMMARY
