@@ -649,3 +649,54 @@ Pas besoin de `localStorage.clear()` explicite : `authStore.logout()` le fait au
 - [ ] Polls : backend API (actuellement localStorage only)
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
 - [ ] Chunk libsodium 938 kB → dynamic import()
+
+---
+
+## Session 23 — 2026-03-06 — Fix E2E loginAs waitFor #username (Bug #23)
+
+### Contexte
+Logs CI run 11 (2026-03-05 ~18h37). Fix session 22 bien commité et présent dans le repo.
+Résultats inchangés : 12/43 ✅, 31/43 ❌. Même symptôme : timeout `#username`.
+
+### Cause racine définitive
+
+La cause n'était **pas** le localStorage, **pas** les cookies, **pas** le fullyParallel.
+C'était le **timing de rendu du layout Svelte**.
+
+Le layout `+layout.svelte` :
+1. Démarre avec `loading = $state(true)`
+2. `onMount` → `waitForSodium()` + `initCryptoSystem()` + `authStore.init()` (async, ~1-3s)
+3. Seulement après : `loading = false`
+4. `{#if loading}` masque `{@render children()}` tant que `loading=true`
+
+`page.goto('/login')` se resolve à l'événement `load` du browser (HTML+JS reçus) — avant
+que `onMount` ait terminé. À ce moment, `#username` n'est pas dans le DOM.
+`page.fill('#username')` attend un élément inexistant → timeout 30s.
+
+### Fix — une ligne dans loginAs()
+
+```typescript
+async function loginAs(page: Page, username: string, password: string) {
+  await clearSession(page);
+  await page.goto('/login');
+  // NOUVEAU : attendre que le layout finisse de charger
+  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.fill('#username', username);
+  ...
+}
+```
+
+### Fichiers modifiés session 23
+- `frontend/tests/e2e.spec.ts` — `loginAs()` : ajout `waitFor('#username', visible)`
+- `.claude/BUGS.md` — Bug #23 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+**43/43 tests ✅** (sous réserve que les sélecteurs UI soient corrects)
+
+### Ce qui reste à faire
+- [ ] Confirmer 43/43 ✅ au prochain run CI
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → dynamic import()
