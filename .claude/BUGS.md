@@ -224,3 +224,56 @@ Ensuite `loginAs` fait `goto('/login')` → layout monte → `authStore.init()` 
 | 19 | `loginAsAdmin` API-first | ✅ (admin seulement) |
 | 21 | `goto('/') + evaluate(localStorage) + clearCookies` | ❌ goto('/') déclenche init() avec cookie valide |
 | **22** | **`page.request.post('/api/auth/logout') + clearCookies()`** | **✅ token révoqué avant toute navigation** |
+
+---
+
+## ✅ Bug #23 — loginAs() fill('#username') avant que le layout finisse de charger
+
+**Session** : 23
+**Fichier** : `frontend/tests/e2e.spec.ts` — fonction `loginAs()`
+**Impact** : 31/43 tests en échec depuis la session 1 (tous les tests utilisant `loginAs`)
+
+**Symptôme** : `page.fill: Test timeout of 30000ms exceeded. waiting for locator('#username')`
+Persistait malgré les corrections des sessions 21 et 22 (fullyParallel, clearSession).
+
+**Cause racine** :
+Le layout Svelte (`+layout.svelte`) démarre avec `loading = $state(true)` et ne passe
+à `loading=false` qu'à la fin de `onMount` :
+```
+onMount → waitForSodium() → initCryptoSystem() → authStore.init() → loading = false
+```
+Tant que `loading=true`, le bloc `{#if loading}` affiche l'écran de chargement et
+`{@render children()}` **n'est pas dans le DOM** — la page `/login` et son `#username`
+sont donc absents.
+
+`page.goto('/login')` se resolve à l'événement `load` (HTML + scripts reçus par le
+browser), qui arrive AVANT que `onMount` ait terminé ses opérations async.
+→ `page.fill('#username')` cherche un élément inexistant → timeout.
+
+**Pourquoi les 12 tests passaient** : tous des tests `request` (API purs, pas de browser).
+Les tests `loginAsAdmin` échouaient aussi mais pour la même raison — ils réussissaient
+leur `goto('/admin')` car le contenu attendu (`admin-header`) était vérifié avec
+`toBeVisible({timeout:8000})` qui attend implicitement.
+
+**Fix** :
+```typescript
+async function loginAs(page: Page, username: string, password: string) {
+  await clearSession(page);
+  await page.goto('/login');
+  // Attendre que le layout finisse de charger (loading=false → slot rendu → #username visible)
+  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.fill('#username', username);
+  // ...
+}
+```
+
+**Tableau chronologique des corrections E2E (sessions 17-23)** :
+
+| Session | Problème | Fix |
+|---------|----------|-----|
+| 17 | Cookie persistant entre tests | `clearCookies()` — insuffisant |
+| 18 | localStorage persistant | `goto(about:blank)` — origine isolée |
+| 19 | Admin needs_password_change | `loginAsAdmin()` API-first ✅ |
+| 21 | `fullyParallel:true` + shared context | `fullyParallel:false` ✅ |
+| 22 | `clearSession goto('/')` → authStore.init() avec cookie | `request.post(logout)` ✅ |
+| **23** | **`fill()` avant que layout finisse onMount** | **`waitFor('#username', visible)`** ✅ |
