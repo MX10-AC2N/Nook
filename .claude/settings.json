@@ -1,0 +1,44 @@
+{
+  "projectName": "Nook",
+  "description": "Messagerie privée familiale self-hosted — Rust/Axum + SvelteKit 5 Runes",
+  "version": "0.3.0-beta.2",
+
+  "contextFiles": [
+    ".claude/CLAUDE.md",
+    ".claude/BUGS.md",
+    ".claude/rules/architecture.md",
+    ".claude/rules/coding-style.md",
+    ".claude/rules/workflows.md",
+    ".claude/rules/memory-decisions.md",
+    ".claude/rules/memory-preferences.md",
+    ".claude/rules/memory-sessions.md"
+  ],
+
+  "git": {
+    "coAuthoredBy": false,
+    "commitMessagePrefix": ""
+  },
+
+  "delivery": {
+    "svelteFiles": "txt",
+    "tsFiles": "txt",
+    "rustFiles": "inline",
+    "sqlFiles": "inline",
+    "alwaysIncludePath": true,
+    "mobileOptimized": true
+  },
+
+  "rules": {
+    "alwaysFetchSourceBeforeEdit": true,
+    "neverPartialDiff": true,
+    "updateClaudeDocsAfterSession": true,
+    "readBugsBeforeIntervention": true
+  },
+
+  "environment": {
+    "homeserver": "Zimaboard 832",
+    "prodPort": 6300,
+    "devPort": 5173,
+    "dockerRegistry": "ghcr.io/mx10-ac2n/nook"
+  }
+}
