@@ -1,30 +1,27 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — session 22
+// Suite E2E complète — session 23
 //
-// CORRECTION vs session 21 :
+// HISTORIQUE DES CORRECTIONS clearSession / loginAs :
 //
-//   Bug #22 — clearSession() goto('/') déclenche authStore.init() avec cookie valide
+//   Bug #21 (session 21) — fullyParallel:true + workers:1 → même browser context entre tests
+//     Fix : playwright.config.ts fullyParallel:false
 //
-//   Session 21 avait implémenté clearSession() avec goto('/') en premier.
-//   Problème : goto('/') monte le layout → onMount → authStore.init()
-//   → fetch('/api/auth/me') AVEC le cookie encore présent dans le browser
-//   → 200 → isAuthenticated=true → $effect redirige vers /chat
-//   → clearCookies() ensuite est trop tard
-//   → loginAs goto('/login') → isAuthenticated=true → redirect immédiat → #username inaccessible
+//   Bug #22 (session 22) — clearSession() goto('/') déclenchait authStore.init() avec cookie
+//     Fix : clearSession() SANS navigation browser :
+//       1. page.request.post('/api/auth/logout') → révoque token en DB
+//       2. page.context().clearCookies()
 //
-//   Fix définitif — clearSession() SANS navigation browser :
-//     1. page.request.post('/api/auth/logout') → révoque le token en DB côté serveur
-//        (page.request partage le cookie store → envoie le cookie sans charger le browser)
-//        Ignore 401 (pas de session active → déjà déconnecté, c'est OK)
-//     2. page.context().clearCookies() → supprime le cookie du browser context
-//     3. goto('/login') → layout monte → authStore.init()
-//        → /api/auth/me → 401 (token révoqué + cookie absent)
-//        → authStore.logout() → localStorage vidé + isAuthenticated=false
-//        → $effect n'active PAS de redirect → #username accessible ✅
+//   Bug #23 (session 23) — loginAs() fill('#username') AVANT que le layout finisse de charger
 //
-//   Aucun goto('/') préalable nécessaire. Aucun evaluate(localStorage) nécessaire.
-//   authStore.logout() (appelé sur 401) gère lui-même le localStorage.
-
+//     CAUSE RACINE : le layout a loading=true pendant onMount (waitForSodium + initCryptoSystem
+//     + authStore.init). Pendant ce temps {#if loading} masque {@render children()} →
+//     #username N'EST PAS dans le DOM.
+//     goto('/login') se resolve au 'load' event AVANT que onMount finisse.
+//     → page.fill('#username') cherche un élément inexistant → timeout 30s.
+//     31/43 tests affectés. Les 12 passants = tests 'request' sans browser.
+//
+//     Fix : après goto('/login'), attendre que #username soit visible :
+//       await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
 import { test, expect, type Page } from '@playwright/test';
 
 // Mot de passe que le test définit pour l'admin (≥ 8 chars)
@@ -68,6 +65,12 @@ async function clearSession(page: Page) {
 async function loginAs(page: Page, username: string, password: string) {
   await clearSession(page);
   await page.goto('/login');
+  // CRITICAL : le layout Svelte a loading=true jusqu'à la fin de onMount
+  // (waitForSodium + initCryptoSystem + authStore.init).
+  // Pendant ce temps {#if loading} masque {@render children()} → #username absent du DOM.
+  // goto('/login') se resolve au 'load' event (HTML+JS chargés) AVANT que onMount finisse.
+  // → Il faut attendre explicitement que #username soit visible avant de fill.
+  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
   await page.fill('#username', username);
   await page.fill('#password', password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
