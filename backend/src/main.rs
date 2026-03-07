@@ -477,6 +477,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/messages", post(db::send_message))
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
+        .route("/download/{file_id}", get(upload::download_file))
         .route("/user/update", post(db::update_user_profile))
         .route("/events", get(db::get_events))
         .route("/events", post(db::create_event))
