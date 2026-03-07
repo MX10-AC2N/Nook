@@ -16,6 +16,13 @@ use axum::{
 };
 use bytes::Bytes;
 use chrono::Utc;
+use governor::{
+    clock::DefaultClock,
+    middleware::NoOpMiddleware,
+    state::{InMemoryState, NotKeyed},
+    Quota, RateLimiter,
+};
+use std::num::NonZeroU32;
 use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
@@ -30,6 +37,7 @@ mod chess;
 mod chess_engine;
 mod config;
 mod db;
+mod e2ee;
 mod invites;
 mod polls;
 mod prune;
@@ -41,14 +49,25 @@ use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// SharedState
+// Type alias pour le rate limiter global (gouverneur)
+// Utilisé sur les routes publiques sensibles : /auth/login, /auth/register, /join
+// Quota : 10 requêtes / 60 secondes par processus (shared global, pas par IP)
+// Suffisant pour un usage familial — protège les attaques par force brute.
 // ---------------------------------------------------------------------
+type AuthRateLimiter = RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>;
 #[derive(Clone)]
 pub struct SharedState {
     pub db: SqlitePool,
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
 }
+
+// ---------------------------------------------------------------------
+// Middleware rate limiting — pour les routes d'auth publiques
+// Retourne 429 si la limite est dépassée (non-bloquant : jette la requête)
+// ---------------------------------------------------------------------
+// Le rate limiter est capturé par closure dans make_rate_limit_layer()
+// plutôt que passé par State — évite le conflit de type avec Arc<SharedState>.
 
 // ---------------------------------------------------------------------
 // Middleware base inject — injecte <base href> dynamiquement
@@ -387,12 +406,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ============================================================
     // 🛣️ Routes publiques (aucune authentification)
     // ============================================================
+
+    // Rate limiter : 10 req / 60s global — protège login/register/join
+    // contre le brute-force. Usage familial → quota largement suffisant.
+    let auth_limiter: Arc<AuthRateLimiter> = Arc::new(
+        RateLimiter::direct(
+            Quota::per_minute(NonZeroU32::new(10).unwrap())
+        )
+    );
+
+    let limiter_clone = auth_limiter.clone();
     let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
-        .route("/health", get(|| async { "OK" }));
+        .route("/health", get(|| async { "OK" }))
+        .route_layer(middleware::from_fn(move |req: Request<Body>, next: Next| {
+            let lim = limiter_clone.clone();
+            async move {
+                match lim.check() {
+                    Ok(_) => next.run(req).await,
+                    Err(_) => {
+                        tracing::warn!(
+                            path = %req.uri().path(),
+                            "Rate limit dépassé sur route d'authentification (429)"
+                        );
+                        axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
+                    }
+                }
+            }
+        }));
 
     tracing::info!("Routes publiques configurées:");
     tracing::info!("  • POST   /auth/register");
@@ -448,6 +492,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/users/available", get(db::get_available_users))
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
+        .merge(e2ee::e2ee_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
