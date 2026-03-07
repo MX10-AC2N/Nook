@@ -1,24 +1,16 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 25)
+> Mis à jour : **2026-03-07** (session 26)
 
 ---
 
 ## 🔴 BUGS ACTIFS
 
-### Bug #1 — `state_invalid_export` dans conversationStore
-**Fichier** : `frontend/src/lib/conversationStore.svelte.ts`
-**Erreur** : `[vite-plugin-svelte] Cannot export state from a module if it is reassigned.`
-**Fix** : encapsuler dans `export const conversationStore = $state<ConversationState>({...})`, muter via propriété.
-**Status** : 🟡 Non bloquant CI
-
-### Bug #3 — `connectionError.set()` cassé
-**Fichier** : frontend lib
-**Status** : 🟡 Non bloquant E2E
+*Aucun bug actif bloquant.*
 
 ---
 
-## 📋 Règles Svelte 5 (éviter régressions #1-4)
+## 📋 Règles Svelte 5 (éviter régressions)
 
 ```typescript
 // ✅ export $state → objet encapsulant, mutation via propriété
@@ -37,10 +29,11 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
-| R24 | 25 | Layout bloque sur `!cryptoInitialized` → `#username` jamais visible | Retirer `!cryptoInitialized` de la guard template, crypto failure = mode dégradé non-bloquant |
-| R22 | 22 | clearSession goto('/') → authStore.init avec cookie | `page.request.post(logout)` avant tout goto |
-| R23 | 23 | fill('#username') avant layout onMount | `waitFor('#username', visible, 20s)` |
-| R21 | 21 | fullyParallel:true partage browser context | `fullyParallel: false` |
+| R25 | 26 | Polls E2E race condition `waitForResponse` après `goto()` | `Promise.all([waitForResponse, goto()])` — listener enregistré AVANT navigation |
+| R24 | 25 | Layout bloque sur `!cryptoInitialized` → `#username` jamais visible | Crypto failure = mode dégradé non-bloquant, guard template sur `loading` seul |
+| R23 | 23 | `fill('#username')` avant layout onMount | `waitFor('#username', visible, 20s)` |
+| R22 | 22 | `clearSession` goto('/') → authStore.init avec cookie | `page.request.post(logout)` avant tout goto |
+| R21 | 21 | `fullyParallel:true` partage browser context | `fullyParallel: false` |
 | R20 | 20 | Race condition matrix amd64/arm64 | Deux fichiers rapport séparés |
 | R19 | 19 | git push TEST_REPORT non-fast-forward | Fetch avant push dans workflow |
 | R18 | 18 | Admin UI : #username disabled localStorage | `loginAsAdmin` API-first |
@@ -56,6 +49,8 @@ store.prop = newValue;  // ✅
 | R03 | 3 | proc-macro async-trait crash | Retirer tower_governor |
 | R02 | 2 | rand_core diamond dep | `rand_core = "0.6"` explicite |
 | R01 | 2 | axum 0.8 breaking changes | Routes {param}, Message::Text .into() |
+| R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé dans le code (objet $state encapsulé) |
+| R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` dans chatStore |
 
 ---
 
