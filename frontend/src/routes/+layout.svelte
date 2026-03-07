@@ -43,9 +43,11 @@
     goto('/login');
   }
 
-  // Redirection réactive basée sur l'état du store
+  // Guard sur `loading` UNIQUEMENT — ne pas bloquer sur cryptoInitialized.
+  // Si la crypto échoue (IndexedDB absent en CI / Chromium headless),
+  // l'app reste accessible en mode dégradé. Bloquer ici casserait tous les E2E.
   $effect(() => {
-    if (loading || !cryptoInitialized) return;
+    if (loading) return;
 
     const pathname = $page.url.pathname;
 
@@ -72,17 +74,17 @@
 
       cryptoInitialized = await initCryptoSystem();
       if (!cryptoInitialized) {
-        cryptoError = "Erreur d'initialisation du système cryptographique";
-        throw new Error('Crypto initialization failed');
+        // NON BLOQUANT : mode dégradé, on continue sans E2EE
+        cryptoError = "Système de chiffrement indisponible — mode dégradé activé";
+        console.warn('[layout] Crypto init failed — running in degraded mode (E2EE off)');
+        // Ne PAS throw ici → authStore.init() continue quand même
       }
 
       await authStore.init();
 
     } catch (err) {
       console.error("Erreur d'initialisation globale :", err);
-      if (cryptoError) {
-        appError = "Impossible d'initialiser la sécurité. Veuillez réessayer.";
-      } else if (sodiumState.error) {
+      if (sodiumState.error) {
         appError = 'Erreur de chargement des bibliothèques de sécurité.';
       } else {
         appError = 'Impossible de vérifier votre session. Réessayez.';
@@ -93,25 +95,21 @@
   });
 </script>
 
-{#if loading || !cryptoInitialized}
+{#if loading}
   <div class="loading-screen" data-testid="loading-screen">
     <div class="loading-spinner"></div>
-    {#if !cryptoInitialized}
-      <p>Initialisation de la sécurité...</p>
-    {:else}
-      <p>Chargement de Nook...</p>
-    {/if}
+    <p>Chargement de Nook...</p>
     {#if sodiumState.error}
       <p class="crypto-error">⚠️ {sodiumState.error}</p>
     {/if}
   </div>
 
-{:else if appError || cryptoError}
+{:else if appError}
   <div class="error-screen">
     <div class="error-content">
       <h1>❌ Erreur système</h1>
       <p class="error-title">================</p>
-      <p class="error-message">{appError || cryptoError}</p>
+      <p class="error-message">{appError}</p>
       <div class="error-details">
         {#if sodiumState.error}
           <p class="detail-item">• Libsodium : {sodiumState.error}</p>
@@ -127,6 +125,12 @@
   </div>
 
 {:else}
+  {#if cryptoError}
+    <div class="crypto-warning-banner" role="alert">
+      ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
+    </div>
+  {/if}
+
   <header class="app-header">
     <button onclick={toggleMenu} class="menu-toggle" aria-label="Ouvrir le menu de navigation">
       ☰
@@ -136,7 +140,12 @@
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
-      <button onclick={handleLogout} class="logout-btn" aria-label="Déconnexion">🔌</button>
+      <button
+        onclick={handleLogout}
+        class="logout-btn"
+        data-testid="logout-button"
+        aria-label="Déconnexion"
+      >🔌</button>
     {/if}
   </header>
 
@@ -256,6 +265,12 @@
   }
 
   .retry-button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+  .crypto-warning-banner {
+    background: #fef3c7; color: #92400e; font-size: 0.85rem;
+    padding: 0.5rem 1.5rem; text-align: center;
+    border-bottom: 1px solid #fde68a;
+  }
 
   .app-header {
     display: flex; align-items: center; gap: 0.75rem;
