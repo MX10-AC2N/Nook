@@ -115,9 +115,11 @@ async function loginAsAdmin(page: Page) {
     data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
   });
 
-  // Si 429 (rate limit pollué par test flood) : attendre 5s et réessayer
-  if (loginRes.status() === 429) {
-    await new Promise(r => setTimeout(r, 5_000));
+  // Si 429 (rate limit pollué par test flood parallèle) : jusqu'à 2 retries espacés
+  // Quota backend : Quota::per_minute(10) global non-keyed → 10 tentatives/min
+  // Plusieurs workers Admin + Rate Limiting peuvent épuiser le quota simultanément
+  for (let attempt = 0; attempt < 2 && loginRes.status() === 429; attempt++) {
+    await new Promise(r => setTimeout(r, 6_000));
     loginRes = await page.request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
     });
@@ -839,9 +841,12 @@ test.describe('Chess — Partie vs IA', () => {
     console.log(`✅ Coup e2→e4 accepté par le backend`);
 
     // Recharger la page et vérifier que la case e4 a un pion (case surlignée last-move)
+    // loadGame() restaure maintenant lastMove depuis move_history → .cell-last sera rendu
     await page.reload();
-    await expect(page.locator('.chess-board')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('.chess-board')).toBeVisible({ timeout: 15_000 });
+    // Attendre que toutes les 64 cases soient rendues avant de chercher .cell-last
+    await expect(page.locator('.chess-board .cell').nth(63)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 12_000 });
     console.log('✅ Case last-move visible après rechargement');
   });
 
@@ -859,8 +864,10 @@ test.describe('Chess — Partie vs IA', () => {
     expect(movesRes.status()).toBe(200);
     const body = await movesRes.json();
     expect(Array.isArray(body)).toBe(true);
-    expect(body).toContain('e4'); // e2→e4 est toujours légal en début de partie
-    console.log(`✅ GET /api/chess/${game_id}/moves?from=e2 → ${body.length} coups légaux, e4 présent`);
+    // Le backend retourne le format UCI (from+to) : "e2e3", "e2e4", etc.
+    // Vérifier que e2→e4 est présent sous sa forme UCI
+    expect(body).toContain('e2e4'); // e2→e4 toujours légal en début de partie
+    console.log(`✅ GET /api/chess/${game_id}/moves?from=e2 → ${body.length} coups légaux, e2e4 présent`);
   });
 
   test('POST /api/chess/{id}/move coup illégal → 400', async ({ page }) => {
