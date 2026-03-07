@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 29)
+> Mis à jour : **2026-03-07** (session 31)
 
 ---
 
@@ -25,44 +25,15 @@ store.prop = newValue;  // ✅
 
 ## ✅ BUGS RÉSOLUS — Index compact
 
-> Détails complets dans `SESSIONS.md`. Format : `[Session] Titre — Fix en une ligne`
-
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
-| R25 | 26 | Polls E2E race condition `waitForResponse` après `goto()` | `Promise.all([waitForResponse, goto()])` — listener enregistré AVANT navigation |
-| R24 | 25 | Layout bloque sur `!cryptoInitialized` → `#username` jamais visible | Crypto failure = mode dégradé non-bloquant, guard template sur `loading` seul |
+| DT-02 | 31 | Chess temps réel absent — adversaire voit coups au refresh | WS reconnect exponentiel + gestion chess_player_joined + chess_ai_move dans chessStore |
+| DT-05 | — | WebRTC WAN instable (TURN absent) | Non résolu — prévu |
+| R31a | 31 | `send_message` ne broadcastait pas via WS | Ajout broadcast `new_message` dans `db.rs::send_message()` |
+| R31b | 31 | `sendMessage()` appelé avec mauvaise signature (3 params) | Signature corrigée : `(content, convId)` |
+| R31c | 31 | Upload échoue silencieusement > 50 Mo | Vérification côté client + message d'erreur avec timeout |
+| R25 | 26 | Polls E2E race condition `waitForResponse` après `goto()` | `Promise.all([waitForResponse, goto()])` |
+| R24 | 25 | Layout bloque sur `!cryptoInitialized` | Crypto failure = mode dégradé non-bloquant |
 | R23 | 23 | `fill('#username')` avant layout onMount | `waitFor('#username', visible, 20s)` |
 | R22 | 22 | `clearSession` goto('/') → authStore.init avec cookie | `page.request.post(logout)` avant tout goto |
 | R21 | 21 | `fullyParallel:true` partage browser context | `fullyParallel: false` |
-| R20 | 20 | Race condition matrix amd64/arm64 | Deux fichiers rapport séparés |
-| R19 | 19 | git push TEST_REPORT non-fast-forward | Fetch avant push dans workflow |
-| R18 | 18 | Admin UI : #username disabled localStorage | `loginAsAdmin` API-first |
-| R17 | 17 | Chess page strict mode violation h1 | Un seul h1 par page |
-| R16 | 16 | Logout button introuvable E2E | Sélecteur data-testid ajouté |
-| R15 | 15 | e2e_ci absent conversation_participants | Ajout dans E2E_SETUP init |
-| R14 | 13 | Prune supprime default_global | Exclure conversations système |
-| R13 | 12 | Cookie SameSite=Lax bloque WAN | Détecter X-Forwarded-Proto → None;Secure |
-| R12 | 11 | CORS bloque LAN + WAN simultanément | Lister origines explicites |
-| R11 | 10 | crypto.randomUUID HTTP LAN | Fallback UUID v4 manuel |
-| R05 | 5 | SQLite SQLITE_CANTOPEN code 14 | `create_if_missing(true)` |
-| R04 | 4 | Linker crash Docker (.cargo/config.toml) | Ne pas COPY .cargo/ dans Docker |
-| R03 | 3 | proc-macro async-trait crash | Retirer tower_governor |
-| R02 | 2 | rand_core diamond dep | `rand_core = "0.6"` explicite |
-| R01 | 2 | axum 0.8 breaking changes | Routes {param}, Message::Text .into() |
-| R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé dans le code (objet $state encapsulé) |
-| R_DT06 | 29 | GET /api/analytics absent (404) + frontend mono-métrique | Handler get_analytics() dans admin.rs, 6 compteurs + messages_per_day 7j, frontend enrichi 2 charts |
-| R_DT01 | 28 | libsodium 938 kB chargé synchrone au démarrage (DT-01) | Dynamic import() dans sodium.svelte.js + crypto.ts + storage.ts + backup.ts + e2ee.ts ; optimizeDeps.exclude |
-| R_DT04 | 28 | Rate limiting absent sur routes auth publiques (DT-04) | governor 0.10 Quota::per_minute(10), closure middleware sur public_routes |
-| R_E2EE_ROUTES | 28 | mod e2ee absent de main.rs → routes E2EE non exposées | mod e2ee + .merge(e2ee::e2ee_routes()) dans protected_routes |
-| R_DT05 | 27 | E2EE complet désactivé (gaps db.rs + chatStore) | nonce+encrypted_keys dans SendMessageRequest, sender_public_key dans MessageWithSender, déchiffrement dans loadMessages |
-| R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` dans chatStore |
-
----
-
-## 🌐 Architecture LAN ↔ WAN (référence rapide)
-
-```
-LAN : HTTP 192.168.x.x:6300 → SameSite=Lax
-WAN : HTTPS via Nginx → X-Forwarded-Proto: https → SameSite=None; Secure
-CORS : ALLOWED_ORIGINS env, jamais Any avec credentials
-```
