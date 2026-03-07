@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-07 18:43 UTC**
+> **Dernière mise à jour : 2026-03-07 20:54 UTC**
 
 ---
 
@@ -14,8 +14,8 @@
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `develop` |
-| **Commit** | [`a486d39`](https://github.com/MX10-AC2N/Nook/commit/a486d392dd9146a30df7413e40c2c6ca1d0eee82) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22804772507) |
+| **Commit** | [`a752bf5`](https://github.com/MX10-AC2N/Nook/commit/a752bf5fc4280db8f3c519ab37044b27b1fedd75) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22806889316) |
 
 ---
 
@@ -46,45 +46,45 @@
 ## Erreurs détectées
 
 ```
-                        "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"",
-                        "stack": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16",
+                        "message": "Error: Login admin API échoué : HTTP 429",
+                        "stack": "Error: Login admin API échoué : HTTP 429\n    at loginAsAdmin (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:132:13)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:347:5",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 16,
-                          "line": 206
+                          "column": 13,
+                          "line": 132
                         },
 --
-                          "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n\n  204 |     await waitForAppReady(page);\n  205 |\n> 206 |     await page.waitForResponse(\n      |                ^\n  207 |       (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',\n  208 |       { timeout: 10_000 }\n  209 |     );\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16"
+                          "message": "Error: Login admin API échoué : HTTP 429\n\n  130 |     });\n  131 |     if (!loginRes.ok()) {\n> 132 |       throw new Error(`Login admin API échoué : HTTP ${loginRes.status()}`);\n      |             ^\n  133 |     }\n  134 |   }\n  135 |\n    at loginAsAdmin (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:132:13)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:347:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
 --
-                        "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"",
-                        "stack": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16",
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:844:54",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 16,
-                          "line": 206
+                          "column": 54,
+                          "line": 844
                         },
 --
-                          "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n\n  204 |     await waitForAppReady(page);\n  205 |\n> 206 |     await page.waitForResponse(\n      |                ^\n  207 |       (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',\n  208 |       { timeout: 10_000 }\n  209 |     );\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16"
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n\n\n  842 |     await page.reload();\n  843 |     await expect(page.locator('.chess-board')).toBeVisible({ timeout: 10_000 });\n> 844 |     await expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 8_000 });\n      |                                                      ^\n  845 |     console.log('✅ Case last-move visible après rechargement');\n  846 |   });\n  847 |\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:844:54"
                         }
                       ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
+                      "stdout": [
+                        {
+                          "text": "✅ Partie IA créée → game_id=6b5be2be-4d27-4a5a-8f07-119a5fa397ab\n"
 --
-                        "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"",
-                        "stack": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16",
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:844:54",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 16,
-                          "line": 206
+                          "column": 54,
+                          "line": 844
                         },
 --
-                          "message": "TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event \"response\"\n\n  204 |     await waitForAppReady(page);\n  205 |\n> 206 |     await page.waitForResponse(\n      |                ^\n  207 |       (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',\n  208 |       { timeout: 10_000 }\n  209 |     );\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:206:16"
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.cell-last').first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('.cell-last').first()\u001b[22m\n\n\n  842 |     await page.reload();\n  843 |     await expect(page.locator('.chess-board')).toBeVisible({ timeout: 10_000 });\n> 844 |     await expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 8_000 });\n      |                                                      ^\n  845 |     console.log('✅ Case last-move visible après rechargement');\n  846 |   });\n  847 |\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:844:54"
                         }
 ```
 
@@ -93,22 +93,23 @@
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-07T18:42:12.686265Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:42:30.985300Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:42:49.218506Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.667171Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.668931Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.670967Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.673116Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.674935Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.676577Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.678169Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.679656Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.681355Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.682930Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.685254Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.686818Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T18:43:08.688220Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:53:23.402899Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:53:39.785670Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:53:55.734843Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.232974Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.234334Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.235621Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.236899Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.238688Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.240126Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.241482Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.242789Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.244026Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.245324Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.246552Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.248214Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.249531Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-07T20:54:13.250941Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
 ```
 
 ---
