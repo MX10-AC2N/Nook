@@ -469,6 +469,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/{id}", get(db::get_conversation))
+        .route("/conversations/{id}/rename", axum::routing::patch(db::rename_conversation))
         .route("/conversations/{id}/join", post(db::join_conversation))
         .route(
             "/conversations/{id}/messages",
