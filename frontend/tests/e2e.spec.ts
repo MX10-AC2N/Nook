@@ -1,5 +1,5 @@
 // frontend/tests/e2e.spec.ts
-// Suite E2E complète — session 23
+// Suite E2E complète — session 26
 //
 // HISTORIQUE DES CORRECTIONS clearSession / loginAs :
 //
@@ -22,6 +22,18 @@
 //
 //     Fix : après goto('/login'), attendre que #username soit visible :
 //       await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
+//
+//   Bug #24 (session 25) — layout bloque sur !cryptoInitialized (IndexedDB absent en CI)
+//     Fix : +layout.svelte — cryptoError non-bloquant, guard template sur loading seul.
+//
+//   Bug #25 (session 26) — Polls tests : race condition waitForResponse(GET /api/polls)
+//
+//     CAUSE RACINE : waitForResponse() enregistré APRÈS goto('/polls').
+//     onMount() déclenche fetch('/api/polls') immédiatement → la réponse arrive
+//     AVANT que le listener soit en place → timeout 10s systématique.
+//
+//     Fix : utiliser Promise.all([waitForResponse, goto()]) pour enregistrer
+//     le listener AVANT la navigation — même pattern que le test POST.
 import { test, expect, type Page } from '@playwright/test';
 
 // Mot de passe que le test définit pour l'admin (≥ 8 chars)
@@ -474,12 +486,18 @@ test.describe('Polls', () => {
   test('Page /polls visible et chargée', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
-    await page.goto('/polls');
+    // CRITICAL — Bug #25 (session 26) : enregistrer waitForResponse AVANT goto().
+    // onMount() déclenche fetch('/api/polls') immédiatement après le chargement.
+    // Si on fait goto() puis waitForResponse(), la réponse est déjà arrivée → timeout.
+    // Solution : Promise.all pour enregistrer le listener avant la navigation.
+    const [_getRes] = await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
+        { timeout: 15_000 }
+      ),
+      page.goto('/polls'),
+    ]);
     await waitForAppReady(page);
-    await page.waitForResponse(
-      (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
-      { timeout: 10_000 }
-    );
     await expect(page.locator('.btn-create')).toBeVisible({ timeout: 8_000 });
     console.log('✅ Page /polls chargée, bouton "Nouveau sondage" visible');
   });
@@ -497,12 +515,15 @@ test.describe('Polls', () => {
   test('Polls → créer un sondage via UI → apparaît dans la liste', async ({ page }) => {
     test.setTimeout(45_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
-    await page.goto('/polls');
+    // Même fix race condition : enregistrer le listener GET avant la navigation
+    await Promise.all([
+      page.waitForResponse(
+        (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
+        { timeout: 15_000 }
+      ),
+      page.goto('/polls'),
+    ]);
     await waitForAppReady(page);
-    await page.waitForResponse(
-      (res) => res.url().includes('/api/polls') && res.request().method() === 'GET',
-      { timeout: 10_000 }
-    );
 
     await page.locator('.btn-create').click();
     await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
