@@ -2,9 +2,10 @@
 
 use crate::{auth::CurrentUser, webrtc::encrypt_file_for_storage, SharedState};
 use axum::{
-    extract::{Multipart, State as AxumState},
-    http::StatusCode,
-    response::IntoResponse,
+    body::Body,
+    extract::{Multipart, Path, State as AxumState},
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
     Extension, Json as AxumJson,
 };
 use chrono::Utc;
@@ -272,4 +273,62 @@ impl UploadFormData {
             data,
         })
     }
+}
+
+// ====================== DOWNLOAD ======================
+// GET /api/download/{file_id}
+// Lit le nom original en DB et sert le fichier avec Content-Disposition: attachment
+// Protégé par require_auth (le middleware est posé sur la route dans main.rs)
+
+pub async fn download_file(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(_user)): Extension<CurrentUser>,
+    Path(file_id): Path<String>,
+) -> Response {
+    // 1. Trouver le fichier en DB
+    #[derive(sqlx::FromRow)]
+    struct FileRow {
+        file_name: String,
+        file_path: String,
+        content_type: String,
+    }
+
+    let row = match sqlx::query_as::<_, FileRow>(
+        "SELECT file_name, file_path, content_type FROM uploads WHERE id = ?",
+    )
+    .bind(&file_id)
+    .fetch_optional(&state.db)
+    .await
+    {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return (StatusCode::NOT_FOUND, AxumJson(json!({"error": "Fichier introuvable"}))).into_response();
+        }
+        Err(e) => {
+            tracing::error!(file_id = %file_id, err = %e, "Erreur DB download");
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+        }
+    };
+
+    // 2. Lire le fichier sur disque
+    let bytes = match tokio::fs::read(&row.file_path).await {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::error!(path = %row.file_path, err = %e, "Fichier absent du disque");
+            return StatusCode::NOT_FOUND.into_response();
+        }
+    };
+
+    // 3. Construire la réponse avec Content-Disposition: attachment
+    // Encodage RFC 5987 du nom de fichier pour les caractères spéciaux
+    let safe_name = row.file_name.replace('"', "\\\"");
+    let disposition = format!("attachment; filename=\"{safe_name}\"");
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, &row.content_type)
+        .header(header::CONTENT_DISPOSITION, disposition)
+        .header(header::CONTENT_LENGTH, bytes.len())
+        .body(Body::from(bytes))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
