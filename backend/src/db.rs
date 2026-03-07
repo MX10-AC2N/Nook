@@ -62,10 +62,12 @@ pub struct MessageWithSender {
     pub conversation_id: String,
     pub sender_id: String,
     pub sender_name: String, // COALESCE(users.name, users.username)
+    pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
     pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
+    pub nonce: Option<String>, // Nonce XSalsa20 base64 si encrypted=true
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
@@ -101,6 +103,12 @@ pub struct CreateConversationRequest {
 pub struct SendMessageRequest {
     pub content: String,
     pub encrypted: bool,
+    /// Nonce XSalsa20 en base64 (24 bytes) — présent si encrypted=true
+    #[serde(default)]
+    pub nonce: Option<String>,
+    /// Clé de session chiffrée pour chaque destinataire : user_id → base64
+    #[serde(default)]
+    pub encrypted_keys: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -292,14 +300,15 @@ pub async fn send_message(
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
     .bind(&user.id)
     .bind(&req.content)
     .bind(req.encrypted)
+    .bind(&req.nonce)
     .bind(now)
     .bind(now)
     .bind("text")
@@ -317,6 +326,13 @@ pub async fn send_message(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
+    if req.encrypted && !req.encrypted_keys.is_empty() {
+        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys).await {
+            tracing::warn!(error = %e, msg_id = %id, "E2EE: échec store_message_keys (non bloquant)");
+        }
+    }
+
     // Retourner le message enrichi (avec sender_name) pour cohérence frontend
     let sender_name: String =
         sqlx::query_as::<_, (String,)>("SELECT COALESCE(name, username) FROM users WHERE id = ?")
@@ -333,10 +349,12 @@ pub async fn send_message(
         "conversation_id": conversation_id,
         "sender_id": user.id,
         "sender_name": sender_name,
+        "sender_public_key": null,
         "content": req.content,
         "message_type": "text",
         "file_id": null,
         "encrypted": req.encrypted,
+        "nonce": req.nonce,
         "timestamp": now,
         "created_at": now,
         "edited_at": null
@@ -357,8 +375,9 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ? AND m.created_at < ?
@@ -375,8 +394,9 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
