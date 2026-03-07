@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 26)
+> Mis à jour : **2026-03-07** (session 29)
 
 ---
 
@@ -50,6 +50,11 @@ store.prop = newValue;  // ✅
 | R02 | 2 | rand_core diamond dep | `rand_core = "0.6"` explicite |
 | R01 | 2 | axum 0.8 breaking changes | Routes {param}, Message::Text .into() |
 | R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé dans le code (objet $state encapsulé) |
+| R_DT06 | 29 | GET /api/analytics absent (404) + frontend mono-métrique | Handler get_analytics() dans admin.rs, 6 compteurs + messages_per_day 7j, frontend enrichi 2 charts |
+| R_DT01 | 28 | libsodium 938 kB chargé synchrone au démarrage (DT-01) | Dynamic import() dans sodium.svelte.js + crypto.ts + storage.ts + backup.ts + e2ee.ts ; optimizeDeps.exclude |
+| R_DT04 | 28 | Rate limiting absent sur routes auth publiques (DT-04) | governor 0.10 Quota::per_minute(10), closure middleware sur public_routes |
+| R_E2EE_ROUTES | 28 | mod e2ee absent de main.rs → routes E2EE non exposées | mod e2ee + .merge(e2ee::e2ee_routes()) dans protected_routes |
+| R_DT05 | 27 | E2EE complet désactivé (gaps db.rs + chatStore) | nonce+encrypted_keys dans SendMessageRequest, sender_public_key dans MessageWithSender, déchiffrement dans loadMessages |
 | R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` dans chatStore |
 
 ---
