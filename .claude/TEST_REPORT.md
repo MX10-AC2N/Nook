@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-07 10:27 UTC**
+> **Dernière mise à jour : 2026-03-07 12:26 UTC**
 
 ---
 
@@ -13,9 +13,9 @@
 | **Tests passés** | ? |
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
-| **Branche** | `develop` |
-| **Commit** | [`dbcc1aa`](https://github.com/MX10-AC2N/Nook/commit/dbcc1aa07310d3b435f6a7d92baa1e2b6da1eda1) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22797258936) |
+| **Branche** | `main` |
+| **Commit** | [`fe25c9d`](https://github.com/MX10-AC2N/Nook/commit/fe25c9d9f810056dfe9c0b33c15f6f2dc0f54612) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22798933086) |
 
 ---
 
@@ -54,7 +54,7 @@ Aucune erreur détectée
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-07T10:26:30.785982Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+nook  | [2m2026-03-07T12:25:47.928695Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
 ```
 
 ---
