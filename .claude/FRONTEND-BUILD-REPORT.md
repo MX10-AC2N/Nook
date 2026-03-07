@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-03-05 11:47 UTC**
+> **2026-03-07 08:31 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | `develop` |
-| **Commit** | [`2e02a13`](https://github.com/MX10-AC2N/Nook/commit/2e02a13c6a01d8b6463cd1c84062e0adc3b1ecf2) |
+| **Commit** | [`c31ba0a`](https://github.com/MX10-AC2N/Nook/commit/c31ba0a7c23aeb4716f685c34cea2e8ea7087393) |
 | **Node.js** | `v20.20.0` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/22716436945) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/22795642508) |
 
  ---
 
