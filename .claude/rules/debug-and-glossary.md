@@ -137,6 +137,11 @@ Fix     : exclure conversations système du nettoyage
 □ Cookie CORS : ALLOWED_ORIGINS listées, pas de wildcard
 □ $state Svelte 5 : mutation via propriété, pas réassignation
 □ BUGS.md consulté → ne pas réintroduire les bugs résolus
+□ CreateGameRequest.opponent (pas ai_difficulty) — "easy"|"medium"|"hard"|"human"
+□ GET /chess/{id}/moves → Vec<String> brut (pas {success, moves:[...]})
+□ POST /polls/{id}/vote → {success:true, poll:{...}} (les deux champs)
+□ waitForResponse() → placer AVANT goto() OU remplacer par expect(locator).toBeVisible()
+□ Tests flood/rate-limit → test.describe.serial() pour isoler des workers parallèles
 ```
 
 ---
