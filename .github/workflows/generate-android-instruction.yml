@@ -36,21 +36,17 @@ jobs:
           VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # Compter les agents disponibles
           AGENT_COUNT=$(ls .claude/roles/*.md | wc -l)
           echo "agent_count=$AGENT_COUNT" >> $GITHUB_OUTPUT
 
-          # Extraire la liste des agents depuis CLAUDE.md
           AGENTS=$(grep "^\| [🦀🎨🚀🧪🔐♟📊📐🤖]" .claude/CLAUDE.md | \
             sed 's/| \*\*\([^*]*\)\*\*.*/\1/' | \
             sed 's/^| //' | tr '\n' '/' | sed 's/\/$//')
           echo "agents=$AGENTS" >> $GITHUB_OUTPUT
 
-          # Compter les bugs actifs
           ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null || echo 0)
           echo "active_bugs=$ACTIVE_BUGS" >> $GITHUB_OUTPUT
 
-          # Extraire le numéro de session courante
           SESSION=$(grep "Session courante" .claude/CLAUDE.md | grep -oE "[0-9]+" | head -1)
           echo "session=$SESSION" >> $GITHUB_OUTPUT
 
@@ -64,41 +60,38 @@ jobs:
           DATE="${{ steps.info.outputs.date }}"
           ACTIVE_BUGS="${{ steps.info.outputs.active_bugs }}"
 
-          # Générer et mesurer l'instruction pour rester sous 1500 chars
-          python3 << PYEOF
-          version = "$VERSION"
-          session = "$SESSION"
-          date = "$DATE"
-          active_bugs = "$ACTIVE_BUGS"
+          python3 - "$VERSION" "$SESSION" "$DATE" "$ACTIVE_BUGS" << 'PYEOF'
+import sys
 
-          instruction = f"""Tu es l'assistant principal du projet Nook (v{version}, session {session}).
-          Messagerie familiale self-hosted — Rust/Axum 0.8 + SvelteKit 5 Runes + SQLite + Docker distroless.
-          Repo: https://github.com/MX10-AC2N/Nook | Branche: main
-          Raw: https://raw.githubusercontent.com/MX10-AC2N/Nook/main/
+version, session, date, active_bugs = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
-          AVANT CHAQUE INTERVENTION:
-          1. Fetcher .claude/BUGS.md ({active_bugs} bugs actifs)
-          2. Fetcher .claude/rules/memory-sessions.md
-          3. Fetcher les fichiers sources concernés (jamais travailler de mémoire)
+instruction = f"""Tu es l'assistant principal du projet Nook (v{version}, session {session}).
+Messagerie familiale self-hosted — Rust/Axum 0.8 + SvelteKit 5 Runes + SQLite + Docker distroless.
+Repo: https://github.com/MX10-AC2N/Nook | Branche: main
+Raw: https://raw.githubusercontent.com/MX10-AC2N/Nook/main/
 
-          AGENTS DISPONIBLES (fichiers dans .claude/roles/):
-          🦀RUST | 🎨SVELTE | 🚀DEVOPS | 🧪E2E | 🔐CRYPTO | ♟CHESS | 📊DATA | 📐ARCHITECT | 🤖DELEGATE
+AVANT CHAQUE INTERVENTION:
+1. Fetcher .claude/BUGS.md ({active_bugs} bugs actifs)
+2. Fetcher .claude/rules/memory-sessions.md
+3. Fetcher les fichiers sources concernés (jamais travailler de mémoire)
 
-          RÈGLES ABSOLUES:
-          • Fichier complet — jamais de diff partiel
-          • .svelte/.ts → livrer en .txt
-          • Chemin exact en tête de chaque bloc de code
-          • Signaler les effets de bord inter-agents
-          • Clôture: mettre à jour BUGS.md + SESSIONS.md
+AGENTS DISPONIBLES (fichiers dans .claude/roles/):
+🦀RUST | 🎨SVELTE | 🚀DEVOPS | 🧪E2E | 🔐CRYPTO | ♟CHESS | 📊DATA | 📐ARCHITECT | 🤖DELEGATE
 
-          Pièges critiques: rand::rng() (pas thread_rng) | routes {{param}} axum 0.8 | $state Svelte 5 via Object.assign | CORS + credentials → origins explicites | sqlx sans macros si queries.json vide"""
+RÈGLES ABSOLUES:
+• Fichier complet — jamais de diff partiel
+• .svelte/.ts → livrer en .txt
+• Chemin exact en tête de chaque bloc de code
+• Signaler les effets de bord inter-agents
+• Clôture: mettre à jour BUGS.md + SESSIONS.md
 
-          char_count = len(instruction)
-          status = "✅ OK" if char_count <= 1500 else f"⚠️ TROP LONG ({char_count} chars)"
+Pièges critiques: rand::rng() (pas thread_rng) | routes {{param}} axum 0.8 | $state Svelte 5 via Object.assign | CORS + credentials → origins explicites | sqlx sans macros si queries.json vide"""
 
-          # Écrire le fichier de documentation
-          with open(".claude/ANDROID-INSTRUCTION.md", "w") as f:
-              f.write(f"""# 📱 Instruction personnalisée Android — Nook
+char_count = len(instruction)
+status = "✅ OK" if char_count <= 1500 else f"⚠️ TROP LONG ({char_count} chars)"
+
+with open(".claude/ANDROID-INSTRUCTION.md", "w") as f:
+    f.write(f"""# 📱 Instruction personnalisée Android — Nook
 
 > Générée le : **{date}** | Version : **{version}** | Session : **{session}**
 > Taille : **{char_count} / 1500 chars** {status}
@@ -134,12 +127,12 @@ Pour forcer une régénération : lancer le workflow manuellement depuis GitHub 
 | Session | {session} |
 """)
 
-          print(f"Instruction générée: {char_count} chars")
-          print(status)
+print(f"Instruction générée: {char_count} chars")
+print(status)
 
-          if char_count > 1500:
-              exit(1)
-          PYEOF
+if char_count > 1500:
+    sys.exit(1)
+PYEOF
 
       # ── 3. Commit ─────────────────────────────────────────────────
       - name: Commit ANDROID-INSTRUCTION.md
@@ -158,12 +151,6 @@ Pour forcer une régénération : lancer le workflow manuellement depuis GitHub 
       # ── 4. Résumé ─────────────────────────────────────────────────
       - name: Résumé
         run: |
-          CHARS=$(wc -c < <(python3 -c "
-          content = open('.claude/ANDROID-INSTRUCTION.md').read()
-          import re
-          match = re.search(r'\x60\x60\x60\n(.*?)\n\x60\x60\x60', content, re.DOTALL)
-          print(match.group(1) if match else '')
-          "))
           echo "## 📱 Instruction Android générée" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
