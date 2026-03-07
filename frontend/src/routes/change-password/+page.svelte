@@ -2,12 +2,27 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
+  import { unlockCrypto, cryptoStore } from '$lib/cryptoStore.svelte.ts';
+
+  // Flux E2EE pour le changement de mot de passe obligatoire (admin ou invité) :
+  //   1. Changement de mot de passe validé côté serveur
+  //   2. unlockCrypto(userId, newPassword) :
+  //        → si aucune clé en IndexedDB → génération initiale (nouveau compte)
+  //        → si clés existantes → déchiffrement (cas re-chiffrement après reset)
+  //   3. La clé publique est enregistrée sur le serveur
+  //   4. La clé privée est chiffrée avec le NOUVEAU mot de passe et stockée en IndexedDB
+  //
+  // Pourquoi newPassword et non l'ancien ?
+  //   Le chiffrement de la clé privée utilise le mot de passe comme dérivation de clé (Argon2).
+  //   On chiffre TOUJOURS avec le mot de passe actif, jamais avec l'ancien mot de passe temporaire.
+  //   Ici c'est la première génération → aucune clé existante → newPassword est le seul mot de passe.
 
   let newPassword     = $state('');
   let confirmPassword = $state('');
   let error           = $state('');
   let success         = $state('');
   let isLoading       = $state(false);
+  let e2eeStatus      = $state<'idle' | 'generating' | 'done' | 'error'>('idle');
 
   onMount(() => {
     if (!authStore.isAuthenticated) {
@@ -38,6 +53,7 @@
       const userId = authStore.user?.id;
       if (!userId) throw new Error('Utilisateur non identifié');
 
+      // ── Étape 1 : Changer le mot de passe côté serveur ───────────────────
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -57,9 +73,28 @@
         return;
       }
 
-      success = payload.message ?? 'Mot de passe mis à jour avec succès !';
+      // ── Étape 2 : Générer et enregistrer les clés E2EE ───────────────────
+      // unlockCrypto avec le NOUVEAU mot de passe :
+      //   • Cherche les clés dans IndexedDB → absentes (premier login)
+      //   • Génère une paire Curve25519
+      //   • Chiffre la clé privée avec newPassword (Argon2 + XSalsa20)
+      //   • Stocke dans IndexedDB
+      //   • Envoie la clé publique à /api/e2ee/register-key
+      e2eeStatus = 'generating';
+      const e2eeOk = await unlockCrypto(userId, newPassword);
 
-      // Met à jour le store sans re-login
+      if (!e2eeOk) {
+        // Echec E2EE non bloquant : on laisse continuer mais on prévient
+        console.error('[change-password] E2EE init failed:', cryptoStore.error);
+        e2eeStatus = 'error';
+        // On ne bloque pas — le changement de mot de passe a réussi,
+        // l'E2EE sera réessayé au prochain login
+      } else {
+        e2eeStatus = 'done';
+      }
+
+      // ── Étape 3 : Finaliser ──────────────────────────────────────────────
+      success = payload.message ?? 'Mot de passe mis à jour avec succès !';
       authStore.updateUser({ needs_password_change: false });
 
       setTimeout(() => {
@@ -85,7 +120,7 @@
       <h1>{authStore.needsPasswordChange ? 'Première connexion' : 'Changer le mot de passe'}</h1>
       <p class="description">
         {authStore.needsPasswordChange
-          ? 'Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.'
+          ? 'Pour des raisons de sécurité, définissez un nouveau mot de passe. Vos clés de chiffrement seront générées automatiquement.'
           : 'Choisissez un mot de passe fort et unique pour protéger votre compte.'}
       </p>
     </div>
@@ -102,6 +137,17 @@
         <span class="alert-icon">✅</span>
         <span>{success}</span>
       </div>
+      {#if e2eeStatus === 'done'}
+        <div class="e2ee-badge">
+          <span>🔒</span>
+          <span>Chiffrement de bout en bout activé</span>
+        </div>
+      {:else if e2eeStatus === 'error'}
+        <div class="e2ee-badge warn">
+          <span>⚠️</span>
+          <span>Chiffrement activé au prochain login</span>
+        </div>
+      {/if}
       <p class="info-text">Redirection en cours…</p>
     {:else}
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
@@ -118,10 +164,24 @@
             placeholder="Répétez le mot de passe" required disabled={isLoading}
             autocomplete="new-password" />
         </div>
+
+        {#if isLoading}
+          <div class="progress-steps">
+            <div class="step" class:active={isLoading}>
+              <span class="spinner-sm"></span>
+              {#if e2eeStatus === 'generating'}
+                Génération des clés de chiffrement…
+              {:else}
+                Enregistrement du mot de passe…
+              {/if}
+            </div>
+          </div>
+        {/if}
+
         <button type="submit" class="btn-primary" disabled={isLoading}>
           {#if isLoading}
             <span class="spinner"></span>
-            Enregistrement…
+            En cours…
           {:else}
             {authStore.needsPasswordChange ? 'Définir le mot de passe' : 'Changer le mot de passe'}
           {/if}
@@ -143,11 +203,24 @@
   h1 { font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0 0 0.75rem 0; }
   .description { font-size: 0.95rem; color: #64748b; line-height: 1.5; margin: 0; }
 
-  .alert { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; text-align: left; font-size: 0.9rem; }
+  .alert { display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1rem; text-align: left; font-size: 0.9rem; }
   .alert.error   { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #dc2626; }
   .alert.success { background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); color: #22c55e; }
-  .alert-icon { font-size: 1.25rem; }
-  .info-text { text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 1rem; }
+  .alert-icon { font-size: 1.25rem; flex-shrink: 0; }
+
+  .e2ee-badge {
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    padding: 0.5rem 1rem; border-radius: 0.5rem; margin-bottom: 0.75rem;
+    font-size: 0.85rem; font-weight: 500;
+    background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3);
+    color: #16a34a;
+  }
+  .e2ee-badge.warn {
+    background: rgba(234, 179, 8, 0.1); border-color: rgba(234, 179, 8, 0.3);
+    color: #ca8a04;
+  }
+
+  .info-text { text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem; }
 
   .form { display: flex; flex-direction: column; gap: 1.5rem; }
   .input-group { text-align: left; }
@@ -157,9 +230,28 @@
   input:disabled { opacity: 0.6; cursor: not-allowed; }
   .help-text { font-size: 0.8rem; color: #64748b; margin: 0.5rem 0 0 0; }
 
+  .progress-steps {
+    padding: 0.75rem 1rem;
+    background: rgba(59, 130, 246, 0.05);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    color: #3b82f6;
+  }
+  .step { display: flex; align-items: center; gap: 0.5rem; }
+  .step.active { font-weight: 500; }
+
+  .spinner-sm {
+    width: 14px; height: 14px; flex-shrink: 0;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-top-color: #3b82f6;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+
   .btn-primary { width: 100%; padding: 1rem; background: #2d5a27; color: white; border: none; border-radius: 0.75rem; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 0.75rem; }
   .btn-primary:hover:not(:disabled) { background: #3d7a37; transform: translateY(-1px); }
   .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+
   .spinner { width: 20px; height: 20px; border: 2px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 

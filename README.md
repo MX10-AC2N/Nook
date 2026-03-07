@@ -1,6 +1,6 @@
 # Nook 🏠
 
-> **v0.2.0-beta.1 — Work in progress**
+> **v0.3.0-beta.2 — Work in progress**
 
 <div align="center">
 
@@ -42,11 +42,10 @@ Invitations par lien avec expiration, approbation admin obligatoire, gestion com
 Création et consultation des événements de la famille, sans passer par Google ou Apple.
 
 **♟️ Échecs en ligne**
-Parties entre membres via WebSocket — coups en temps réel, plateau synchronisé depuis le serveur.
+Parties entre membres ou contre l'IA (minimax easy/medium/hard) via WebSocket — plateau synchronisé depuis le serveur, coups validés côté backend.
 
 **📊 Sondages**
-Création et vote directement dans l'app.
-> ⚠️ Stockage local uniquement pour l'instant (localStorage) — les sondages ne sont pas partagés entre appareils. API backend à venir.
+Création, vote et fermeture directement dans l'app via l'API backend — 1 vote par utilisateur par sondage, modifiable jusqu'à fermeture.
 
 **📞 Appels audio & vidéo**
 Interface opérationnelle, signaling WebSocket en place. WebRTC établit une connexion directe entre appareils — le serveur ne voit jamais le flux.
@@ -55,13 +54,17 @@ Interface opérationnelle, signaling WebSocket en place. WebRTC établit une con
 **🎨 Thèmes personnalisables**
 Trois ambiances dans les Paramètres : **🌿 Jardin Secret**, **🚀 Space Hub**, **🏠 Maison Chaleureuse**.
 
+**🔐 Infrastructure E2EE en place**
+Génération de clés X25519 à l'inscription, stockage chiffré Argon2id en IndexedDB, distribution des clés publiques via l'API. Les messages texte sont envoyés en clair en attendant l'activation finale.
+
 ### 🚧 En cours de développement
 
 | Fonctionnalité | État actuel | Ce qui manque |
 |---|---|---|
-| **Chiffrement E2E des messages** | Infrastructure en place (XChaCha20-Poly1305) | Distribution des clés par utilisateur — messages texte en clair pour l'instant |
-| **Sondages partagés** | Fonctionne en localStorage | API backend + synchronisation entre membres |
-| **Notifications** | Service Worker présent | Intégration push backend |
+| **Chiffrement E2E des messages** | Infrastructure complète (clés, API, crypto) | Activation dans l'UI — connecter `e2ee.ts` aux composants chat |
+| **Chess temps réel adversaire** | Coups propres joueur validés | Abonnement WS aux coups adverses côté client (DT-02) |
+| **Notifications push** | Service Worker présent | Intégration push backend |
+| **libsodium perf** | Charge 938 kB WASM synchrone | Dynamic import() pour réduire le délai layout (DT-01) |
 
 ---
 
@@ -126,6 +129,8 @@ https://nook.ta-famille.fr  →  http://localhost:6300
 
 Ajouter ton domaine dans `PUBLIC_SITE_URL` (et dans `ALLOWED_ORIGINS` si différent).
 
+> **WebSocket obligatoire** : activer "Websockets Support" dans Nginx Proxy Manager (nécessaire pour `/ws` — chess + appels).
+
 ---
 
 ## Architecture
@@ -161,13 +166,14 @@ Nook/
 |-----------|-------------|
 | Backend | Rust 1.88 · Axum 0.8 · SQLx 0.8.6 · SQLite |
 | Auth | Argon2id · Cookie HttpOnly · token révocable en base |
-| Chiffrement | XChaCha20-Poly1305 (fichiers) |
+| Chiffrement fichiers | XChaCha20-Poly1305 |
+| Chiffrement messages | X25519 + XSalsa20 (infrastructure prête, activation en cours) |
 | Frontend | SvelteKit 2.49 · Svelte 5.46 Runes · TypeScript strict |
-| Temps réel | WebSocket (signaling chess + appels WebRTC) |
+| Temps réel | WebSocket (signaling chess + appels WebRTC + chat) |
 | Image runtime | `gcr.io/distroless/cc-debian12` — binaire Rust + libs système uniquement |
 | Tests E2E | Playwright · 38 tests · cargo clippy `-D warnings` |
 
-L'image finale ne contient ni shell ni outils système — surface d'attaque minimale, ~10 MB.
+L'image finale ne contient ni shell ni outils système — surface d'attaque minimale.
 
 ---
 
@@ -206,7 +212,7 @@ Depuis `/admin`, générer un lien d'invitation. La personne s'inscrit, l'admin 
 Non. WebRTC connecte les appareils directement entre eux (P2P). Le serveur assure uniquement le handshake initial.
 
 **Le chiffrement est activé ?**
-Les fichiers partagés sont chiffrés (XChaCha20-Poly1305). Le chiffrement des messages texte est en développement — l'infrastructure cryptographique est en place, la gestion des clés par utilisateur reste à finaliser.
+Les fichiers partagés sont chiffrés (XChaCha20-Poly1305). L'infrastructure de chiffrement E2E des messages texte est complète (clés X25519 générées à l'inscription, stockées chiffrées) — l'activation dans l'UI est la dernière étape.
 
 ---
 

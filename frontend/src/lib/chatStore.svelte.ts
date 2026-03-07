@@ -23,7 +23,8 @@ export interface ChatMessage {
   message_type: string;
   file_id: string | null;
   encrypted: boolean;
-  timestamp: number;     // secondes epoch
+  nonce: string | null;
+  timestamp: number;
   created_at: number;
   edited_at: number | null;
 }
@@ -110,28 +111,42 @@ export async function loadMessages(conversationId: string): Promise<void> {
 }
 
 // -----------------------------------------------------------------
-// 6️⃣ API — sendMessage
-//    recipientPublicKeys / senderPrivateKey : réservés pour E2E futur
+// 6️⃣ API — sendMessage (E2EE activé si cryptoStore.ready)
 // -----------------------------------------------------------------
 export async function sendMessage(
   content: string,
-  conversationId: string,
-  _recipientPublicKeys: Uint8Array[],
-  _senderPrivateKey: Uint8Array
+  conversationId: string
 ): Promise<void> {
   if (!content.trim()) return;
   try {
+    const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
+    let body: Record<string, unknown>;
+    if (cs.ready) {
+      try {
+        const enc = await encryptMessage(content.trim(), conversationId);
+        body = {
+          content:        enc.ciphertext,
+          encrypted:      true,
+          nonce:          enc.nonce,
+          encrypted_keys: enc.encryptedKeys,
+        };
+      } catch (e) {
+        console.warn('[Chat] Chiffrement échoué, envoi en clair:', e);
+        body = { content: content.trim(), encrypted: false };
+      }
+    } else {
+      body = { content: content.trim(), encrypted: false };
+    }
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ content: content.trim(), encrypted: false }),
+      body:        JSON.stringify(body),
     });
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       throw new Error(`HTTP ${res.status}: ${txt}`);
     }
-    // Rechargement complet pour avoir sender_name + ordre correct
     await loadMessages(conversationId);
     chatStore.connectionError = null;
   } catch (err) {
@@ -145,12 +160,10 @@ export async function sendMessage(
 // -----------------------------------------------------------------
 export async function sendGif(
   gifUrl: string,
-  conversationId: string,
-  _recipientPublicKeys: Uint8Array[],
-  _senderPrivateKey: Uint8Array
+  conversationId: string
 ): Promise<void> {
   const content = `<img src="${gifUrl}" alt="GIF" class="chat-gif" />`;
-  await sendMessage(content, conversationId, [], new Uint8Array());
+  await sendMessage(content, conversationId);
 }
 
 // -----------------------------------------------------------------

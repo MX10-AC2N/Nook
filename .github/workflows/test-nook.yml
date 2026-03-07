@@ -82,7 +82,10 @@ jobs:
             up -d
 
           echo "Attente du healthcheck..."
-          timeout 120s bash -c 'until curl -sf http://localhost:6300/health; do sleep 3; done'
+          # ⚠️ La route healthcheck est /api/health (nestée sous /api dans main.rs)
+          # /health sans préfixe retourne index.html (fallback ServeDir) → curl réussirait
+          # mais le backend ne serait pas réellement prêt à accepter les requêtes API.
+          timeout 120s bash -c 'until curl -sf http://localhost:6300/api/health | grep -q "OK"; do sleep 3; done'
           echo "Stack demarree"
 
       - name: "Test APIs"

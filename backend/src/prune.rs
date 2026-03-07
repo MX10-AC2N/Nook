@@ -20,7 +20,10 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         .await?
         .rows_affected();
 
-    tracing::info!(count = deleted_messages, "Prune : messages anciens supprimés");
+    tracing::info!(
+        count = deleted_messages,
+        "Prune : messages anciens supprimés"
+    );
 
     // ─── 2. Uploads orphelins (fichier physique + DB) ──────────────────────
     let orphaned_uploads: Vec<Upload> = sqlx::query_as(
@@ -86,7 +89,10 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     .await?
     .rows_affected();
 
-    tracing::info!(count = deleted_convos, "Prune : conversations directes vides supprimées");
+    tracing::info!(
+        count = deleted_convos,
+        "Prune : conversations directes vides supprimées"
+    );
 
     // ─── 4. Participants orphelins ────────────────────────────────────────
     // FIX session 9 : conversation_members → conversation_participants
@@ -103,19 +109,23 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     .await?
     .rows_affected();
 
-    tracing::info!(count = deleted_parts, "Prune : participants orphelins supprimés");
+    tracing::info!(
+        count = deleted_parts,
+        "Prune : participants orphelins supprimés"
+    );
 
     // ─── 5. Invitations expirées (nettoyage bonus) ────────────────────────
-    let expired_invites = sqlx::query(
-        "DELETE FROM invites WHERE expires_at < ? AND used = 0",
-    )
-    .bind(chrono::Utc::now().timestamp())
-    .execute(pool)
-    .await?
-    .rows_affected();
+    let expired_invites = sqlx::query("DELETE FROM invites WHERE expires_at < ? AND used = 0")
+        .bind(chrono::Utc::now().timestamp())
+        .execute(pool)
+        .await?
+        .rows_affected();
 
     if expired_invites > 0 {
-        tracing::info!(count = expired_invites, "Prune : invitations expirées supprimées");
+        tracing::info!(
+            count = expired_invites,
+            "Prune : invitations expirées supprimées"
+        );
     }
 
     Ok(())

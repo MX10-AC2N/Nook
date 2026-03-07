@@ -154,9 +154,7 @@ pub async fn login(
         .unwrap_or(None);
 
     match user {
-        Some(user)
-            if user.approved && verify_password(&payload.password, &user.password_hash) =>
-        {
+        Some(user) if user.approved && verify_password(&payload.password, &user.password_hash) => {
             let token = Uuid::new_v4().to_string();
             let _ = sqlx::query("UPDATE users SET token = ? WHERE id = ?")
                 .bind(&token)
@@ -210,9 +208,7 @@ pub async fn login(
 #[derive(Clone)]
 pub struct CurrentUser(pub User);
 
-pub async fn me(
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
-) -> impl IntoResponse {
+pub async fn me(Extension(CurrentUser(user)): Extension<CurrentUser>) -> impl IntoResponse {
     let user_info = UserInfo {
         id: user.id,
         username: user.username,
@@ -350,7 +346,7 @@ pub async fn require_auth(
         StatusCode::UNAUTHORIZED,
         Json(json!({"success": false, "message": "Non authentifié"})),
     )
-    .into_response()
+        .into_response()
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -371,7 +367,7 @@ pub async fn require_admin(
             StatusCode::FORBIDDEN,
             Json(json!({"success": false, "message": "Accès admin requis"})),
         )
-        .into_response();
+            .into_response();
     }
 
     next.run(req).await

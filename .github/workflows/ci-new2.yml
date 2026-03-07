@@ -2,13 +2,6 @@ name: 🚀 CI – Build & Push Docker Multi-Arch (Distroless)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [develop, main]
-    paths:
-      - 'backend/**'
-      - 'frontend/**'
-      - 'Dockerfile.release'
-      - '.github/workflows/ci-new2.yml'
 
 env:
   CARGO_TERM_COLOR: always

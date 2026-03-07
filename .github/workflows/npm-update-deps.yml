@@ -2,14 +2,14 @@
 name: 🔄 Mise à jour des dépendances npm
 
 on:
-  schedule:
+  # schedule:
     # Tous les lundis à 03:00 UTC
     # - cron: "0 3 * * 1"
-  workflow_dispatch:   # Permet de lancer manuellement depuis l’UI
+  workflow_dispatch:
 
 permissions:
-  contents: write      # pour créer/mettre à jour la branche et le PR
-  pull-requests: write # pour ouvrir le PR
+  contents: write
+  pull-requests: write
 
 jobs:
   update-deps:
@@ -19,78 +19,93 @@ jobs:
         working-directory: ./frontend
 
     steps:
-      # -------------------------------------------------
-      # 1️⃣ Checkout du dépôt
-      # -------------------------------------------------
+      # ─── 1. Checkout ────────────────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0   # besoin de l’historique complet pour le commit
+          fetch-depth: 0
 
-      # -------------------------------------------------
-      # 2️⃣ Configurer Node (version 20, comme dans ton workflow)
-      # -------------------------------------------------
+      # ─── 2. Node 20 + cache npm ─────────────────────────────────────
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
+          # cache-dependency-path obligatoire quand working-directory != racine
+          cache-dependency-path: frontend/package-lock.json
 
-      # -------------------------------------------------
-      # 3️⃣ Installer les dépendances actuelles (pour créer le lock‑file)
-      # -------------------------------------------------
+      # ─── 3. Installer les dépendances actuelles ─────────────────────
       - name: Install current deps
         run: npm ci
 
-      # -------------------------------------------------
-      # 4️⃣ Mettre à jour les dépendances compatibles
-      # -------------------------------------------------
+      # ─── 4. Mettre à jour les dépendances ───────────────────────────
       - name: Update dependencies
         run: |
           npm update
-          # Regénère le lock‑file proprement
           npm install --package-lock-only
 
-      # -------------------------------------------------
-      # 5️⃣ Vérifier s’il y a eu des changements
-      # -------------------------------------------------
+      # ─── 5. Détecter les changements ────────────────────────────────
       - name: Detect changes
         id: gitdiff
+        # working-directory ne s'applique pas à git diff (git opère depuis la racine)
+        # → utiliser le chemin complet depuis la racine du repo
+        working-directory: ${{ github.workspace }}
         run: |
-          git diff --exit-code || echo "changed=true" >> $GITHUB_OUTPUT
+          if git diff --quiet frontend/package-lock.json; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ Aucune mise à jour disponible"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Des mises à jour sont disponibles"
+            git diff --stat frontend/package-lock.json
+          fi
 
-      # -------------------------------------------------
-      # 6️⃣ Créer/mettre à jour une branche dédiée
-      # -------------------------------------------------
-      - name: Create branch
+      # ─── 6. Configurer git ──────────────────────────────────────────
+      - name: Configure git
         if: steps.gitdiff.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
         run: |
-          BRANCH="deps/update-$(date +%Y%m%d)"
-          git checkout -b "$BRANCH"
-          git add package-lock.json
-          git commit -m "chore: npm update – $(date +%Y-%m-%d)"
-          git push origin "$BRANCH" --force
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # -------------------------------------------------
-      # 7️⃣ Ouvrir (ou mettre à jour) la Pull Request
-      # -------------------------------------------------
+      # ─── 7. Créer la branche et commiter ────────────────────────────
+      # On utilise github.run_id comme suffixe pour unicité + cohérence avec la PR
+      - name: Create branch and commit
+        if: steps.gitdiff.outputs.changed == 'true'
+        id: branch
+        working-directory: ${{ github.workspace }}
+        run: |
+          DATE=$(date +%Y%m%d)
+          BRANCH="deps/update-${DATE}-${{ github.run_id }}"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+          git checkout -b "$BRANCH"
+          # git add doit utiliser le chemin depuis la RACINE du repo
+          git add frontend/package-lock.json
+          git commit -m "chore: npm update – ${DATE} [run ${{ github.run_id }}]"
+          git push origin "$BRANCH" --force
+          echo "✅ Branche $BRANCH poussée"
+
+      # ─── 8. Ouvrir la Pull Request ──────────────────────────────────
       - name: Open Pull Request
         if: steps.gitdiff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: "🤖 npm update – $(date +%Y-%m-%d)"
+          title: "🤖 npm update – ${{ steps.branch.outputs.branch }}"
           body: |
-            Cette PR regroupe les mises à jour automatiques des dépendances npm compatibles avec les contraintes `^` définies dans `package.json`.
+            Cette PR regroupe les mises à jour automatiques des dépendances npm
+            compatibles avec les contraintes `^` définies dans `package.json`.
 
-            - **CI** : les checks CI seront exécutés automatiquement.
-            - **Auto‑merge** : si tous les checks passent, la PR sera fusionnée (voir les paramètres de protection de branche).
-          branch: "deps/update-${{ github.run_id }}"
+            - **Fichier modifié** : `frontend/package-lock.json`
+            - **CI** : les checks seront exécutés automatiquement sur cette branche.
+            - **Run** : [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          # branch doit correspondre EXACTEMENT à la branche créée à l'étape précédente
+          branch: ${{ steps.branch.outputs.branch }}
           base: develop
           labels: |
             dependencies
             automated
-          assignees: |
-            ${{ github.actor }}
+          assignees: ${{ github.actor }}
           draft: false
