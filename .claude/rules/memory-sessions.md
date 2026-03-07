@@ -4,7 +4,7 @@
 
 ---
 
-## État du projet (après session 31) — COMPLET ✅
+## État du projet (après session 32) — COMPLET ✅
 
 **Version** : 0.3.0-beta.3 | **Tests E2E** : 66 | **Bugs actifs** : 0
 
@@ -25,6 +25,7 @@
 - Label "Nook" pour default_global (avatar 🌿)
 - Chess temps réel WS : `chess_move`, `chess_ai_move`, `chess_player_joined`
 - Docker distroless arm64/amd64, CI 5 workflows
+- **E2E stabilisé** : 5 bugs résolus (format réponses chess/polls, champ opponent, waitForResponse race, Rate Limit serial, loginAs retry)
 
 ### 📋 Backlog restant
 - **DT-05** : WebRTC WAN instable — serveur TURN absent (LAN OK)
@@ -49,3 +50,4 @@
 | 29 | DT-06 (analytics enrichis) | ✅ |
 | 30 | Call routing, GIF fix, Upload download, Chess mobile | ✅ |
 | 31 | WS temps réel chat, edit/delete msg, pagination, badges non-lus, notifs, chess WS reconnect, renommage groupe, label Nook, upload 50Mo feedback, 66 tests E2E | ✅ |
+| 32 | Fix 5 bugs E2E (format chess/polls, opponent, waitForResponse race, Rate Limit serial, loginAs retry) | ✅ |
