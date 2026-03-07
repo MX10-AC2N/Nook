@@ -1,18 +1,53 @@
 name: 🧪 E2E — Test ciblé (debug rapide)
 
-# Lance UN test Playwright par son nom exact ou un grep partiel.
-# Évite de relancer toute la suite (10 min) pour debugger un seul test.
-# Agent concerné : 🧪 E2E — sessions 15-23 auraient été 3x plus rapides avec ce workflow.
+# Lance un groupe ou un test Playwright en sélectionnant dans la liste déroulante.
+# Évite de relancer toute la suite (~10 min) pour debugger une seule zone.
+# Agent concerné : 🧪 E2E
 
 on:
   workflow_dispatch:
     inputs:
-      test_grep:
-        description: "Nom du test ou regex (ex: 'Login valide', 'Admin', 'chess')"
+      test_suite:
+        description: "🎯 Suite ou test à lancer"
         required: true
-        default: ""
+        type: choice
+        default: "🔐 Auth — login, logout, /auth/me"
+        options:
+          # ── Suites complètes ──────────────────────────────────────────
+          - "🔐 Auth — login, logout, /auth/me"
+          - "💬 Chat — envoi message, conversations, messages"
+          - "🛡️ Admin — login admin, onglets, membres, invitation"
+          - "⚙️ Settings — onglets, changement thème"
+          - "📅 Calendar — chargement, GET/POST events"
+          - "♟️ Chess — liste, créer partie, formulaire UI"
+          - "♟️ Chess IA — partie vs IA, coups légaux, coup illégal"
+          - "📊 Polls — page, créer sondage, vote, fermeture"
+          - "🗺️ Navigation — 7 routes"
+          - "🏥 API Sanity — /health + 401 non-auth"
+          - "📁 Upload & Download"
+          - "📈 Analytics — /api/analytics + page admin"
+          - "🔑 E2EE — clés publiques"
+          - "🔁 Conversations DM — créer DM, bouton appel"
+          - "🚦 Rate Limiting — flood x15 → 429"
+          # ── Tests individuels (debug précis) ─────────────────────────
+          - "🔬 Login valide e2e_ci"
+          - "🔬 Login invalide"
+          - "🔬 Logout"
+          - "🔬 Envoi message dans le chat"
+          - "🔬 Admin login + changement mdp"
+          - "🔬 Admin generation invitation"
+          - "🔬 Chess creer partie"
+          - "🔬 Chess partie vs IA medium"
+          - "🔬 Chess coups legaux"
+          - "🔬 Polls vote enregistre"
+          - "🔬 Polls vote doublon"
+          - "🔬 Polls fermeture sondage"
+          - "🔬 Upload chat vers 200"
+          - "🔬 Analytics champs enrichis"
+          - "🔬 DM creer avec admin"
+
       debug_traces:
-        description: "Générer les traces Playwright (screenshots + réseau)"
+        description: "📸 Traces Playwright (screenshots + réseau) — utile si le test échoue"
         required: false
         default: "false"
         type: choice
@@ -22,10 +57,61 @@ permissions:
   contents: write
 
 jobs:
-  # ── Build frontend (parallèle) ───────────────────────────────────
+
+  # ── Résolution suite → grep Playwright ───────────────────────────────────────
+  resolve:
+    name: "🔍 Résoudre le filtre"
+    runs-on: ubuntu-latest
+    outputs:
+      grep: ${{ steps.map.outputs.grep }}
+      label: ${{ steps.map.outputs.label }}
+    steps:
+      - id: map
+        run: |
+          case "${{ inputs.test_suite }}" in
+            # Suites complètes
+            "🔐 Auth — login, logout, /auth/me")              GREP="Auth" ;;
+            "💬 Chat — envoi message, conversations, messages") GREP="Chat" ;;
+            "🛡️ Admin — login admin, onglets, membres, invitation") GREP="Admin" ;;
+            "⚙️ Settings — onglets, changement thème")        GREP="Settings" ;;
+            "📅 Calendar — chargement, GET/POST events")      GREP="Calendar" ;;
+            "♟️ Chess — liste, créer partie, formulaire UI")  GREP="Chess$" ;;
+            "♟️ Chess IA — partie vs IA, coups légaux, coup illégal") GREP="Chess — Partie vs IA" ;;
+            "📊 Polls — page, créer sondage, vote, fermeture") GREP="Polls" ;;
+            "🗺️ Navigation — 7 routes")                       GREP="Navigation" ;;
+            "🏥 API Sanity — /health + 401 non-auth")         GREP="API Sanity" ;;
+            "📁 Upload & Download")                           GREP="Upload" ;;
+            "📈 Analytics — /api/analytics + page admin")     GREP="Analytics" ;;
+            "🔑 E2EE — clés publiques")                       GREP="E2EE" ;;
+            "🔁 Conversations DM — créer DM, bouton appel")  GREP="Conversations — DM" ;;
+            "🚦 Rate Limiting — flood x15 → 429")             GREP="Rate Limiting" ;;
+            # Tests individuels
+            "🔬 Login valide e2e_ci")         GREP="Login valide e2e_ci" ;;
+            "🔬 Login invalide")              GREP="Login invalide" ;;
+            "🔬 Logout")                     GREP="Logout" ;;
+            "🔬 Envoi message dans le chat")  GREP="Envoi message" ;;
+            "🔬 Admin login + changement mdp") GREP="Admin login.*changement" ;;
+            "🔬 Admin generation invitation")  GREP="generation lien" ;;
+            "🔬 Chess creer partie")          GREP="POST /api/chess/create" ;;
+            "🔬 Chess partie vs IA medium")   GREP="Creer une partie vs IA medium" ;;
+            "🔬 Chess coups legaux")          GREP="coups legaux" ;;
+            "🔬 Polls vote enregistre")       GREP="vote enregistre" ;;
+            "🔬 Polls vote doublon")          GREP="vote doublon" ;;
+            "🔬 Polls fermeture sondage")     GREP="close.*createur|sondage ferme" ;;
+            "🔬 Upload chat vers 200")        GREP="upload/chat avec auth" ;;
+            "🔬 Analytics champs enrichis")   GREP="analytics avec admin" ;;
+            "🔬 DM creer avec admin")         GREP="Creer un DM" ;;
+            *)                               GREP="${{ inputs.test_suite }}" ;;
+          esac
+          echo "grep=$GREP" >> $GITHUB_OUTPUT
+          echo "label=${{ inputs.test_suite }}" >> $GITHUB_OUTPUT
+          echo "Filtre resolu : $GREP"
+
+  # ── Build frontend (parallèle) ───────────────────────────────────────────────
   frontend:
     name: "Build Frontend"
     runs-on: ubuntu-latest
+    needs: resolve
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -44,10 +130,11 @@ jobs:
           path: frontend/build
           retention-days: 1
 
-  # ── Build backend (parallèle) ────────────────────────────────────
+  # ── Build backend (parallèle) ────────────────────────────────────────────────
   backend:
     name: "Build Backend"
     runs-on: ubuntu-latest
+    needs: resolve
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -64,11 +151,11 @@ jobs:
           path: backend/target/release/nook-backend
           retention-days: 1
 
-  # ── Test ciblé ───────────────────────────────────────────────────
+  # ── Test ciblé ───────────────────────────────────────────────────────────────
   e2e-targeted:
-    name: "🧪 '${{ inputs.test_grep }}'"
+    name: "🧪 ${{ needs.resolve.outputs.label }}"
     runs-on: ubuntu-latest
-    needs: [frontend, backend]
+    needs: [resolve, frontend, backend]
 
     steps:
       - uses: actions/checkout@v4
@@ -83,23 +170,8 @@ jobs:
           name: nook-backend-e2e-targeted
           path: /tmp/nook-bin/
 
-      # ── Démarrer le backend ───────────────────────────────────────
+      # ── Démarrer le backend ───────────────────────────────────────────────
       - name: Démarrer backend Nook
-        run: |
-          chmod +x /tmp/nook-bin/nook-backend
-          mkdir -p /tmp/nook-data /tmp/nook-uploads
-
-          /tmp/nook-bin/nook-backend &
-
-          # Healthcheck /api/health (pas /health — distroless pattern)
-          echo "Attente backend..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:6300/api/health | grep -q "OK"; then
-              echo "✅ Backend prêt (tentative $i)"
-              break
-            fi
-            sleep 2
-          done
         env:
           DATABASE_URL: sqlite:///tmp/nook-data/nook.db
           ALLOWED_ORIGINS: http://localhost:6300
@@ -107,6 +179,19 @@ jobs:
           UPLOAD_DIR: /tmp/nook-uploads
           BACKEND_PORT: 3000
           E2E_SETUP: "1"
+        run: |
+          chmod +x /tmp/nook-bin/nook-backend
+          mkdir -p /tmp/nook-data /tmp/nook-uploads
+          /tmp/nook-bin/nook-backend &
+
+          echo "Attente backend..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:6300/api/health | grep -q "OK"; then
+              echo "Backend pret (tentative $i)"
+              break
+            fi
+            sleep 2
+          done
 
       - uses: actions/setup-node@v4
         with:
@@ -114,15 +199,15 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      # ── Installer Playwright ──────────────────────────────────────
+      # ── Installer Playwright ──────────────────────────────────────────────
       - name: Installer Playwright + Chromium
         working-directory: ./frontend
         run: |
           npm ci --legacy-peer-deps
           npx playwright install chromium --with-deps
 
-      # ── Lancer le test ciblé ─────────────────────────────────────
-      - name: Lancer test "${{ inputs.test_grep }}"
+      # ── Lancer le test ciblé ─────────────────────────────────────────────
+      - name: "Lancer : ${{ needs.resolve.outputs.label }}"
         working-directory: ./frontend
         env:
           CI: "true"
@@ -133,35 +218,40 @@ jobs:
           fi
 
           npx playwright test \
-            --grep "${{ inputs.test_grep }}" \
+            --grep "${{ needs.resolve.outputs.grep }}" \
             --reporter=list \
             $EXTRA_ARGS \
-            2>&1 | tee /tmp/e2e-targeted-output.txt
+            2>&1 | tee /tmp/e2e-targeted-output.txt || true
 
-          # Extraire résultat
-          PASSED=$(grep -c "✓\|passed" /tmp/e2e-targeted-output.txt || echo 0)
-          FAILED=$(grep -c "✘\|failed\|×" /tmp/e2e-targeted-output.txt || echo 0)
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/e2e-targeted-output.txt | grep -oE '[0-9]+' | head -1 || echo 0)
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/e2e-targeted-output.txt | grep -oE '[0-9]+' | head -1 || echo 0)
           echo "passed=$PASSED" >> $GITHUB_ENV
           echo "failed=$FAILED" >> $GITHUB_ENV
 
-      # ── Upload traces si demandées ou si échec ────────────────────
+          if [ "${FAILED:-0}" -gt 0 ]; then exit 1; fi
+
+      # ── Upload traces si demandées ou si échec ────────────────────────────
       - name: Upload traces
         if: inputs.debug_traces == 'true' || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-traces-targeted-${{ github.run_id }}
+          name: playwright-traces-${{ github.run_id }}
           path: frontend/test-results/
           retention-days: 5
 
-      # ── Résumé ────────────────────────────────────────────────────
+      # ── Résumé ────────────────────────────────────────────────────────────
       - name: Résumé
         if: always()
         run: |
-          echo "## 🧪 Test ciblé : \`${{ inputs.test_grep }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ "${failed:-0}" = "0" ]; then STATUS="✅ PASS"; else STATUS="❌ FAIL"; fi
+          echo "## 🧪 ${STATUS} — ${{ needs.resolve.outputs.label }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| | |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Filtre** | \`${{ inputs.test_grep }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Suite** | ${{ needs.resolve.outputs.label }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Filtre Playwright** | \`${{ needs.resolve.outputs.grep }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests passés** | ${passed:-?} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests échoués** | ${failed:-?} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Traces** | ${{ inputs.debug_traces }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Output" >> $GITHUB_STEP_SUMMARY
