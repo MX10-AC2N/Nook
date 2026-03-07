@@ -5,11 +5,17 @@
   import {
     chatStore,
     loadMessages,
+    loadMoreMessages,
     sendMessage,
+    editMessage,
+    deleteMessage,
     sendGif,
     searchGifs,
     toggleGifs,
     formatTimestamp,
+    setActiveConv,
+    disconnectWs,
+    requestNotificationPermission,
   } from '$lib/chatStore.svelte.ts';
 
   // ─────────────────────────────────────────────────────────────────
@@ -107,6 +113,12 @@
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  // État édition de message
+  let editingMsgId   = $state<string | null>(null);
+  let editingContent = $state('');
+  // Menu contextuel (hover)
+  let hoveredMsgId   = $state<string | null>(null);
+
   // ─────────────────────────────────────────────────────────────────
   // Chargement
   // ─────────────────────────────────────────────────────────────────
@@ -198,10 +210,14 @@
         : (conv.name ?? '💬 Message direct');
     }
 
-    // Recharger les messages et relancer le polling sur la nouvelle conv
+    // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
+    setActiveConv(conv.id);
     await loadMessages(conv.id);
+    // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(() => loadMessages(conv.id), 5000);
+    if (!chatStore.wsConnected) {
+      pollTimer = setInterval(() => loadMessages(conv.id), 8000);
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -282,7 +298,7 @@
     sending = true;
     const content = newMessage;
     newMessage = '';
-    await sendMessage(content, activeConvId, [], new Uint8Array());
+    await sendMessage(content, activeConvId);
     sending = false;
   }
 
@@ -309,26 +325,79 @@
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
     const file = input.files[0];
+
+    // Vérification taille côté client (limite backend = 50 Mo)
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+
     const fd = new FormData();
     fd.append('file', file);
     fd.append('conversation_id', activeConvId);
     fd.append('from_user_id', authStore.user?.id || '');
     try {
       const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
-      if (!res.ok) throw new Error('Upload échoué');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
+      }
       const data = await res.json();
       const content = file.type.startsWith('image/')
         ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
         : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
-      await sendMessage(content, activeConvId, [], new Uint8Array());
+      await sendMessage(content, activeConvId);
       input.value = '';
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('[Upload]', err);
-      alert("Échec de l'upload");
+      chatStore.connectionError = err instanceof Error ? err.message : "Échec de l'upload";
+      setTimeout(() => chatStore.connectionError = null, 5000);
     }
   }
 
   function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
+
+  function startEdit(msg: { id: string; content: string }) {
+    editingMsgId   = msg.id;
+    editingContent = msg.content;
+  }
+
+  async function submitEdit() {
+    if (!editingMsgId || !editingContent.trim()) { cancelEdit(); return; }
+    await editMessage(editingMsgId, activeConvId, editingContent.trim());
+    cancelEdit();
+  }
+
+  function cancelEdit() {
+    editingMsgId   = null;
+    editingContent = '';
+  }
+
+  async function confirmDelete(msgId: string) {
+    if (!confirm('Supprimer ce message ?')) return;
+    await deleteMessage(msgId, activeConvId);
+  }
+
+  function handleEditKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitEdit(); }
+    if (e.key === 'Escape') cancelEdit();
+  }
+
+  /** Pagination — déclenché au scroll en haut du conteneur de messages */
+  async function handleMessagesScroll(e: Event) {
+    const el = e.target as HTMLElement;
+    if (el.scrollTop < 80 && chatStore.hasMore && !chatStore.loadingMore) {
+      const prevHeight = el.scrollHeight;
+      await loadMoreMessages(activeConvId);
+      // Maintenir la position de scroll après insertion en haut
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight - prevHeight;
+      });
+    }
+  }
 
   // ─────────────────────────────────────────────────────────────────
   // Cycle de vie
@@ -338,10 +407,21 @@
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
-    pollTimer = setInterval(() => loadMessages(activeConvId), 5000);
+    setActiveConv(activeConvId);
+    // Demande permission notifications (non-bloquant)
+    requestNotificationPermission();
+    // Fallback polling si WS pas connecté après 3s
+    setTimeout(() => {
+      if (!chatStore.wsConnected) {
+        pollTimer = setInterval(() => loadMessages(activeConvId), 8000);
+      }
+    }, 3000);
   });
 
-  onDestroy(() => { if (pollTimer) clearInterval(pollTimer); });
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    disconnectWs();
+  });
 
   $effect(() => {
     const _ = chatStore.messages.length;
@@ -382,6 +462,9 @@
               <span class="name">Nook</span>
               <span class="preview">Canal familial</span>
             </div>
+            {#if (chatStore.unreadCounts['default_global'] ?? 0) > 0}
+              <span class="unread-badge">{chatStore.unreadCounts['default_global']}</span>
+            {/if}
           </button>
         {/if}
 
@@ -396,6 +479,9 @@
               <span class="name">{convDisplayName(conv)}</span>
               <span class="preview">{conv.is_group ? 'Groupe' : 'Message privé'}</span>
             </div>
+            {#if (chatStore.unreadCounts[conv.id] ?? 0) > 0}
+              <span class="unread-badge">{chatStore.unreadCounts[conv.id]}</span>
+            {/if}
           </button>
         {/each}
 
@@ -439,7 +525,15 @@
       {/if}
     </header>
 
-    <div class="messages-container" bind:this={chatContainer}>
+    <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll}>
+      {#if chatStore.loadingMore}
+        <div class="load-more-indicator">⏳ Chargement…</div>
+      {:else if chatStore.hasMore}
+        <button class="load-more-btn" onclick={() => handleMessagesScroll({ target: chatContainer } as unknown as Event)}>
+          ↑ Messages précédents
+        </button>
+      {/if}
+
       {#if chatStore.messages.length === 0}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
@@ -447,12 +541,50 @@
         </div>
       {:else}
         {#each chatStore.messages as msg (msg.id)}
-          <div class="message" class:mine={isMyMessage(msg.sender_id)}>
+          <div
+            class="message"
+            class:mine={isMyMessage(msg.sender_id)}
+            onmouseenter={() => hoveredMsgId = msg.id}
+            onmouseleave={() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }}
+          >
             {#if !isMyMessage(msg.sender_id)}
               <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
             {/if}
-            <div class="message-content">{@html msg.content}</div>
-            <div class="message-time">{formatTimestamp(msg.timestamp)}</div>
+
+            {#if editingMsgId === msg.id}
+              <div class="edit-zone">
+                <textarea
+                  class="edit-input"
+                  bind:value={editingContent}
+                  onkeydown={handleEditKeydown}
+                  rows="2"
+                ></textarea>
+                <div class="edit-actions">
+                  <button class="edit-ok" onclick={submitEdit}>✓ Sauvegarder</button>
+                  <button class="edit-cancel" onclick={cancelEdit}>✕ Annuler</button>
+                </div>
+              </div>
+            {:else}
+              <div class="message-content">{@html msg.content}</div>
+            {/if}
+
+            <div class="message-meta">
+              <span class="message-time">{formatTimestamp(msg.timestamp)}</span>
+              {#if msg.edited_at}
+                <span class="edited-label">(modifié)</span>
+              {/if}
+            </div>
+
+            {#if hoveredMsgId === msg.id && editingMsgId !== msg.id}
+              <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
+                {#if isMyMessage(msg.sender_id)}
+                  <button class="msg-action-btn" onclick={() => startEdit(msg)} title="Modifier">✏️</button>
+                {/if}
+                {#if isMyMessage(msg.sender_id) || authStore.isAdmin}
+                  <button class="msg-action-btn danger" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
+                {/if}
+              </div>
+            {/if}
           </div>
         {/each}
       {/if}
@@ -781,6 +913,65 @@
     font-size: .68rem; color: var(--text-secondary, #94a3b8);
     margin-top: .25rem; text-align: right;
   }
+  .message-meta { display: flex; gap: .4rem; align-items: center; justify-content: flex-end; }
+  .edited-label { font-size: .62rem; color: var(--text-secondary, #94a3b8); font-style: italic; }
+
+  /* Unread badge */
+  .unread-badge {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent, #4ade80); color: #166534;
+    font-size: .65rem; font-weight: 700; border-radius: 999px;
+    min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
+    flex-shrink: 0; margin-left: auto;
+  }
+
+  /* Pagination */
+  .load-more-btn {
+    display: block; width: 100%; background: none;
+    border: 1px dashed var(--border, #e2e8f0); border-radius: .5rem;
+    color: var(--text-secondary, #94a3b8); font-size: .8rem;
+    cursor: pointer; padding: .4rem; margin-bottom: .5rem; transition: background .15s;
+  }
+  .load-more-btn:hover { background: var(--bg-secondary, #f8fafc); }
+  .load-more-indicator { text-align: center; font-size: .8rem; color: var(--text-secondary, #94a3b8); padding: .5rem; }
+
+  /* Menu contextuel message */
+  .message { position: relative; }
+  .msg-actions {
+    position: absolute; top: .2rem; right: .2rem;
+    display: flex; gap: .2rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .45rem; padding: .15rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+    z-index: 10;
+  }
+  .mine-actions { right: auto; left: .2rem; }
+  .msg-action-btn {
+    background: none; border: none; cursor: pointer; font-size: .8rem;
+    padding: .2rem .3rem; border-radius: .3rem; transition: background .12s;
+  }
+  .msg-action-btn:hover { background: var(--bg-secondary, #f1f5f9); }
+  .msg-action-btn.danger:hover { background: #fee2e2; }
+
+  /* Zone édition */
+  .edit-zone { display: flex; flex-direction: column; gap: .4rem; }
+  .edit-input {
+    width: 100%; padding: .4rem .6rem; font-size: .9rem;
+    border: 1.5px solid var(--accent, #4ade80); border-radius: .4rem;
+    background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
+    resize: vertical; outline: none; font-family: inherit;
+  }
+  .edit-actions { display: flex; gap: .4rem; }
+  .edit-ok, .edit-cancel {
+    padding: .25rem .6rem; border: none; border-radius: .35rem;
+    font-size: .8rem; cursor: pointer; transition: background .12s;
+  }
+  .edit-ok    { background: #dcfce7; color: #166534; }
+  .edit-ok:hover    { background: #bbf7d0; }
+  .edit-cancel      { background: var(--bg-secondary, #f1f5f9); color: var(--text-primary, #1e293b); }
+  .edit-cancel:hover { background: #fee2e2; }
+
   @keyframes pop { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 
   /* ─── GIF ─── */
