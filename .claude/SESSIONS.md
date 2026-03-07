@@ -920,3 +920,44 @@ Rate Limiting E2E → test.describe.serial pour éviter pollution des workers pa
 ### Mise à jour `.claude/`
 - `BUGS.md` → R32a-f ajoutés, session 32
 - `SESSIONS.md` → cette entrée
+
+---
+
+## Session 33 — 2026-03-07
+
+### Contexte
+Run CI `logs_59748675805.zip` — branche develop. Stats : **63 expected · 2 unexpected · 1 flaky**.
+Backend ✅ (214 tests, clippy clean). Frontend ✅ (build 4.79s).
+
+### Bugs corrigés
+
+#### R33a — `GET /chess/{id}/moves` : format UCI vs SAN
+- **Symptôme** : `expect(body).toContain('e4')` → reçu `["e2e3", "e2e4"]`
+- **Cause** : Le backend retourne le format UCI (`from+to` = `"e2e4"`), le test attendait le format SAN (`"e4"` = destination seule). Le format UCI est correct — il correspond à ce que le frontend utilise dans `playMove(from, to)`.
+- **Fix** : `e2e.spec.ts` ligne 864 : `expect(body).toContain('e2e4')` + log mis à jour
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+#### R33b — `.cell-last` absent après `page.reload()`
+- **Symptôme** : `expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 8000 })` → `element(s) not found`
+- **Cause** : `loadGame()` dans `chessStore.svelte.ts` ne restaurait pas `this.lastMove` depuis `move_history`. Après reload, `lastMove = null` → aucune case ne reçoit la classe `.cell-last` malgré le coup joué en DB.
+- **Fix** :
+  1. `chessStore.svelte.ts` `loadGame()` : après `this.currentGame = data.game`, chercher le dernier coup avec `from`/`to` dans `move_history` (les coups humains stockent `{san, from, to, by, color}`)
+  2. `e2e.spec.ts` : timeout relevé à 12s, attente que les 64 cases soient visibles avant `.cell-last`
+- **Fichiers** : `frontend/src/lib/chessStore.svelte.ts` + `frontend/tests/e2e.spec.ts`
+
+#### R33c — Flaky `GET /api/users/pending avec admin → 200`
+- **Symptôme** : Retry 0 → `Error: Login admin API échoué : HTTP 429`, retry 1 → passé (donc flaky, pas unexpected)
+- **Cause** : Le describe `Admin` n'est pas `.serial`, ses 5 tests tournent en parallèle avec d'autres workers — dont `Rate Limiting` (`.serial` mais ses 15 requêtes consomment tout le quota `Quota::per_minute(10)`). Un seul retry à 5s peut tomber encore dans la fenêtre de 60s du rate limiter.
+- **Fix** : `loginAsAdmin` — boucle `for (let attempt = 0; attempt < 2 && status === 429; attempt++)` avec 6s d'attente entre chaque essai (au lieu d'un seul `if` à 5s)
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+### Nouvelle règle pièges
+```
+GET /chess/{id}/moves → format UCI "e2e4" (from+to, pas SAN "e4")
+loadGame() → restaure lastMove depuis move_history[last].from/to
+loginAsAdmin() → 2 retries × 6s si 429 (boucle for, pas if)
+```
+
+### Fichiers modifiés
+- `frontend/src/lib/chessStore.svelte.ts` — `loadGame()` : restauration `lastMove` depuis `move_history`
+- `frontend/tests/e2e.spec.ts` — 3 corrections (R33a, R33b, R33c)
