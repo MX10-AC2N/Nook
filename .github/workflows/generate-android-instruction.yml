@@ -160,3 +160,4 @@ jobs:
           echo "| **Bugs actifs** | ${{ steps.info.outputs.active_bugs }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📄 Fichier disponible : \`.claude/ANDROID-INSTRUCTION.md\`" >> $GITHUB_STEP_SUMMARY
+
