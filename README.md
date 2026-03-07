@@ -1,4 +1,3 @@
-# Nook 🏠
 ![Logo animé du projet](frontend/static/logo-animated.svg)
 
 > **v0.3.0-beta.2 — Work in progress**
