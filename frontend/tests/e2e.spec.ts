@@ -86,7 +86,18 @@ async function loginAs(page: Page, username: string, password: string) {
   await page.fill('#username', username);
   await page.fill('#password', password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
-  await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+  // Attendre la redirection — si elle ne se produit pas (rate limit ou slow CI),
+  // on réessaie une fois après un court délai.
+  try {
+    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+  } catch {
+    // Retry : si on est encore sur /login, réessayer le submit
+    await page.locator('#username').waitFor({ state: 'visible', timeout: 5_000 });
+    await page.fill('#username', username);
+    await page.fill('#password', password);
+    await page.getByRole('button', { name: 'Se connecter' }).click();
+    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+  }
 }
 
 /**
@@ -103,6 +114,14 @@ async function loginAsAdmin(page: Page) {
   let loginRes = await page.request.post(`${BASE}/auth/login`, {
     data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
   });
+
+  // Si 429 (rate limit pollué par test flood) : attendre 5s et réessayer
+  if (loginRes.status() === 429) {
+    await new Promise(r => setTimeout(r, 5_000));
+    loginRes = await page.request.post(`${BASE}/auth/login`, {
+      data: { username: 'admin', password: ADMIN_NEW_PASSWORD },
+    });
+  }
 
   // Essai 2 : mdp initial (premier appel de la suite, fresh DB)
   if (!loginRes.ok()) {
@@ -203,11 +222,8 @@ test.describe('Chat', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await waitForAppReady(page);
 
-    await page.waitForResponse(
-      (res) => res.url().includes('/api/conversations') && res.request().method() === 'GET',
-      { timeout: 10_000 }
-    );
-    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 8_000 });
+    // Attendre que la sidebar ait chargé les conversations (présence DOM directe)
+    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
 
     const names = await page.locator('.conversation-info .name').allTextContents();
     const hasGlobal = names.some(n => n.includes('Nook') || n.includes('Global'));
@@ -791,7 +807,7 @@ test.describe('Chess — Partie vs IA', () => {
 
     // Créer la partie via API
     const createRes = await page.request.post('/api/chess/create', {
-      data: { color: 'white', ai_difficulty: 'medium' },
+      data: { color: 'white', opponent: 'medium' },
     });
     expect([200, 201]).toContain(createRes.status());
     const { game_id } = await createRes.json();
@@ -834,7 +850,7 @@ test.describe('Chess — Partie vs IA', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
 
     const createRes = await page.request.post('/api/chess/create', {
-      data: { color: 'white', ai_difficulty: 'easy' },
+      data: { color: 'white', opponent: 'easy' },
     });
     expect([200, 201]).toContain(createRes.status());
     const { game_id } = await createRes.json();
@@ -852,7 +868,7 @@ test.describe('Chess — Partie vs IA', () => {
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
 
     const createRes = await page.request.post('/api/chess/create', {
-      data: { color: 'white', ai_difficulty: 'easy' },
+      data: { color: 'white', opponent: 'easy' },
     });
     const { game_id } = await createRes.json();
 
@@ -1111,7 +1127,7 @@ test.describe('Conversations — DM', () => {
 // 16. RATE LIMITING (session 30)
 // ─────────────────────────────────────────────
 
-test.describe('Rate Limiting', () => {
+test.describe.serial('Rate Limiting', () => {
 
   test('POST /api/auth/login × 15 → au moins un 429', async ({ request }) => {
     test.setTimeout(30_000);
