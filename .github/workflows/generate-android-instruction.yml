@@ -91,7 +91,7 @@ jobs:
           status = "✅ OK" if char_count <= 1500 else f"⚠️ TROP LONG ({char_count} chars)"
 
           with open(".claude/ANDROID-INSTRUCTION.md", "w") as f:
-          f.write(f"""# 📱 Instruction personnalisée Android — Nook
+              f.write(f"""# 📱 Instruction personnalisée Android — Nook
 
           > Générée le : **{date}** | Version : **{version}** | Session : **{session}**
           > Taille : **{char_count} / 1500 chars** {status}
