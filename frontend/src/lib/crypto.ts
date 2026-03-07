@@ -20,19 +20,29 @@
 //                       → decryptSessionKey(encKey, senderPubKey, myPrivKey)
 //                       → decryptContent(ciphertext, nonce, sessionKey)
 
-import sodium from 'libsodium-wrappers';
+// DT-01 : pas d'import statique — dynamic import dans ensureSodium()
+// Le chunk libsodium (938 kB WASM) n'est téléchargé qu'au premier appel crypto.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Initialisation libsodium (singleton)
+// Initialisation libsodium (singleton, dynamic import)
 // ─────────────────────────────────────────────────────────────────────────────
-let _sodiumReady = false;
+type SodiumType = typeof import('libsodium-wrappers').default;
 
-async function ensureSodium(): Promise<typeof sodium> {
-  if (!_sodiumReady) {
+let _sodium: SodiumType | null = null;
+let _loadPromise: Promise<SodiumType> | null = null;
+
+async function ensureSodium(): Promise<SodiumType> {
+  if (_sodium) return _sodium;
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = (async () => {
+    const { default: sodium } = await import('libsodium-wrappers');
     await sodium.ready;
-    _sodiumReady = true;
-  }
-  return sodium;
+    _sodium = sodium;
+    return sodium;
+  })();
+
+  return _loadPromise;
 }
 
 /** Smoke-test libsodium au démarrage. Retourne true si OK. */
