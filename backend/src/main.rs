@@ -476,6 +476,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(db::get_conversation_messages),
         )
         .route("/conversations/{id}/messages", post(db::send_message))
+        .route(
+            "/conversations/{conv_id}/messages/{msg_id}",
+            axum::routing::patch(db::edit_message).delete(db::delete_message),
+        )
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
         .route("/download/{file_id}", get(upload::download_file))
