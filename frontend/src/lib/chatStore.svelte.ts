@@ -5,7 +5,7 @@
  * est réactif partout où il est lu. On accède à chatStore.messages dans
  * les templates — jamais via un faux .subscribe().
  *
- * Chiffrement : envoi en clair pour l'instant (encrypted: false).
+ * Chiffrement E2EE : activé si cryptoStore.ready (unlockCrypto() appelé au login).
  * Le chiffrement E2E (libsodium) sera activé quand les clés par-user
  * seront gérées — les fonctions acceptent déjà les paramètres de clés.
  */
@@ -19,11 +19,12 @@ export interface ChatMessage {
   conversation_id: string;
   sender_id: string;
   sender_name: string;   // COALESCE(users.name, users.username) via JOIN
+  sender_public_key: string | null; // Clé publique X25519 de l'expéditeur (base64)
   content: string;
   message_type: string;
   file_id: string | null;
   encrypted: boolean;
-  nonce: string | null;
+  nonce: string | null;  // Nonce XSalsa20 base64 si encrypted=true
   timestamp: number;
   created_at: number;
   edited_at: number | null;
@@ -102,6 +103,30 @@ export async function loadMessages(conversationId: string): Promise<void> {
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     // Tri ASC par sécurité (le backend fait ORDER BY created_at ASC)
     msgs.sort((a, b) => a.created_at - b.created_at);
+
+    // Déchiffrement E2EE — seulement si le store crypto est prêt
+    const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
+    if (cs.ready) {
+      for (const msg of msgs) {
+        if (msg.encrypted && msg.nonce && msg.sender_public_key) {
+          try {
+            msg.content = await decryptMessage({
+              messageId:       msg.id,
+              conversationId:  msg.conversation_id,
+              ciphertext:      msg.content,
+              nonce:           msg.nonce,
+              senderPubkeyB64: msg.sender_public_key,
+            });
+          } catch (e) {
+            // Non-bloquant : afficher un placeholder si le déchiffrement échoue
+            // (clé de session absente pour ce message, ou clé privée différente)
+            console.warn(`[Chat] Déchiffrement échoué pour message ${msg.id}:`, e);
+            msg.content = '🔒 Message chiffré (clé indisponible)';
+          }
+        }
+      }
+    }
+
     chatStore.messages = msgs;
     chatStore.connectionError = null;
   } catch (err) {
