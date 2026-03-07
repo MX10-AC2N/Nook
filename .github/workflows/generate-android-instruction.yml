@@ -8,7 +8,7 @@ name: 📱 Générer l'instruction Android Claude.ai
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main,develop]
     paths:
       - '.claude/BUGS.md'
       - '.claude/rules/memory-sessions.md'
