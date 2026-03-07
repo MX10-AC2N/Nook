@@ -277,7 +277,7 @@
       const data = await res.json();
       const content = file.type.startsWith('image/')
         ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
-        : `<span class="file-attachment">📎 <a href="${data.url}" download="${data.file_name}">${data.file_name}</a></span>`;
+        : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
       await sendMessage(content, activeConvId, [], new Uint8Array());
       input.value = '';
     } catch (err) {
@@ -423,8 +423,8 @@
           <div class="gif-grid">
             {#each chatStore.gifResults as gif}
               <button class="gif-item"
-                onclick={() => handleSelectGif(gif.media?.[0]?.tinygif?.url ?? '')}>
-                <img src={gif.media?.[0]?.tinygif?.url ?? ''} alt={gif.title} loading="lazy" />
+                onclick={() => handleSelectGif(gif.fullUrl)}>
+                <img src={gif.previewUrl} alt={gif.title} loading="lazy" />
               </button>
             {/each}
           </div>
@@ -437,7 +437,7 @@
     <form class="input-area" onsubmit={handleSubmit}>
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
-      <button type="button" class="icon-btn" onclick={toggleGifs} title="GIF">🎬</button>
+      <button type="button" class="icon-btn gif-btn" onclick={toggleGifs} title="GIF">GIF</button>
       <input
         type="text"
         class="message-input"
@@ -756,6 +756,14 @@
     transition: background .15s; flex-shrink: 0;
   }
   .icon-btn:hover { background: var(--bg-secondary, #f1f5f9); }
+  .gif-btn {
+    font-size: .7rem; font-weight: 700; letter-spacing: .04em;
+    border-radius: .35rem !important;
+    padding: .3rem .45rem !important;
+    border: 1.5px solid var(--border, #e2e8f0) !important;
+    color: var(--text-secondary, #64748b);
+  }
+  .gif-btn:hover { background: var(--accent, #4ade80) !important; color: #fff; border-color: transparent !important; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
