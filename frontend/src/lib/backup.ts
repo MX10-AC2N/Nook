@@ -10,7 +10,16 @@
  * fonctionne uniquement côté client (`browser`).
  */
 
-import sodium from 'libsodium-wrappers'; // <-- default export (ready, crypto_*, …)
+// DT-01: dynamic import — sodium chargé à la demande, pas au démarrage
+type SodiumType = typeof import('libsodium-wrappers').default;
+let _na: SodiumType | null = null;
+async function getSodium(): Promise<SodiumType> {
+  if (_na) return _na;
+  const { default: s } = await import('libsodium-wrappers');
+  await s.ready;
+  _na = s;
+  return s;
+}
 import { browser } from '$app/environment';
 
 /**
@@ -29,7 +38,7 @@ export async function exportBackup(
     return;
   }
 
-  await sodium.ready;
+  const sodium = await getSodium();
 
   // -----------------------------------------------------------------
   // 1️⃣ Sérialisation & chiffrement
@@ -79,7 +88,7 @@ export async function importBackup(
     throw new Error('Import de backup uniquement disponible dans le navigateur.');
   }
 
-  await sodium.ready;
+  const sodium = await getSodium();
 
   const key = sodium.from_base64(privateKeyB64, sodium.base64_variants.ORIGINAL);
   if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
