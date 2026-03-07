@@ -39,7 +39,7 @@
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
-  let activeConvName  = $state('👨‍👩‍👧‍👦 Groupe Global');
+  let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
   let availableUsers  = $state<AvailUser[]>([]);
@@ -62,6 +62,48 @@
   let selectedUsers  = $state<string[]>([]);
   let creatingConv   = $state(false);
   let convError      = $state<string | null>(null);
+
+  // Renommage inline du groupe actif
+  let renamingConv   = $state(false);
+  let renameValue    = $state('');
+
+  function startRename() {
+    renameValue = activeConv?.name ?? activeConvName.replace(/^[^ ]+ /, '');
+    renamingConv = true;
+  }
+
+  async function submitRename() {
+    if (!activeConv || !renameValue.trim()) { renamingConv = false; return; }
+    try {
+      const res = await fetch(`/api/conversations/${activeConv.id}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: renameValue.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        console.error('[Rename]', d.error);
+        return;
+      }
+      const data = await res.json();
+      activeConvName = `👥 ${data.name}`;
+      // Mettre à jour le cache local sans recharger toute la liste
+      conversations = conversations.map(c =>
+        c.id === activeConv!.id ? { ...c, name: data.name } : c
+      );
+      activeConv = { ...activeConv, name: data.name };
+    } catch (e) {
+      console.error('[Rename]', e);
+    } finally {
+      renamingConv = false;
+    }
+  }
+
+  function handleRenameKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); submitRename(); }
+    if (e.key === 'Escape') { renamingConv = false; }
+  }
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -122,7 +164,7 @@
 
   /** Nom affiché dans la sidebar pour une conv */
   function convDisplayName(conv: Conv): string {
-    if (conv.id === 'default_global') return 'Groupe Global';
+    if (conv.id === 'default_global') return 'Nook';
     if (conv.is_group) return conv.name ?? 'Groupe sans nom';
     // DM : nom de l'autre participant depuis le cache
     const parts = participantsCache[conv.id] ?? [];
@@ -131,7 +173,7 @@
   }
 
   function convAvatar(conv: Conv): string {
-    if (conv.id === 'default_global') return '👨‍👩‍👧‍👦';
+    if (conv.id === 'default_global') return '🌿';
     return conv.is_group ? '👥' : '💬';
   }
 
@@ -144,7 +186,7 @@
     activeConv   = conv;
 
     if (conv.id === 'default_global') {
-      activeConvName = '👨‍👩‍👧‍👦 Groupe Global';
+      activeConvName = '🌿 Nook';
     } else if (conv.is_group) {
       activeConvName = conv.name ?? 'Groupe sans nom';
     } else {
@@ -333,11 +375,11 @@
           <button
             class="conversation-item"
             class:active={activeConvId === 'default_global'}
-            onclick={() => selectConversation({ id: 'default_global', name: 'Groupe Global', is_group: true, updated_at: 0, created_by: '' })}
+            onclick={() => selectConversation({ id: 'default_global', name: 'Nook', is_group: true, updated_at: 0, created_by: '' })}
           >
-            <span class="avatar">👨‍👩‍👧‍👦</span>
+            <span class="avatar">🌿</span>
             <div class="conversation-info">
-              <span class="name">Groupe Global</span>
+              <span class="name">Nook</span>
               <span class="preview">Canal familial</span>
             </div>
           </button>
@@ -368,25 +410,32 @@
   <main class="chat-area">
 
     <header class="chat-header">
-      <h2>{activeConvName}</h2>
-      {#if chatStore.connectionError}
-        <span class="conn-error">⚠️ {chatStore.connectionError}</span>
-      {/if}
-      {#if activeConv && !activeConv.is_group && activeConv.id !== 'default_global'}
-        <div class="call-actions">
-          <a
-            href="/call/{activeConv.id}?type=audio"
-            class="call-btn call-btn--audio"
-            title="Appel audio"
-            aria-label="Démarrer un appel audio"
-          >🎤</a>
-          <a
-            href="/call/{activeConv.id}?type=video"
-            class="call-btn call-btn--video"
-            title="Appel vidéo"
-            aria-label="Démarrer un appel vidéo"
-          >📹</a>
-        </div>
+      {#if renamingConv}
+        <input
+          class="rename-input"
+          type="text"
+          bind:value={renameValue}
+          onkeydown={handleRenameKeydown}
+          onblur={submitRename}
+          maxlength="60"
+          placeholder="Nom du groupe…"
+        />
+        <button class="rename-ok" onclick={submitRename} aria-label="Valider">✓</button>
+        <button class="rename-cancel" onclick={() => renamingConv = false} aria-label="Annuler">✕</button>
+      {:else}
+        <h2>{activeConvName}</h2>
+        {#if chatStore.connectionError}
+          <span class="conn-error">⚠️ {chatStore.connectionError}</span>
+        {/if}
+        {#if activeConv && activeConv.is_group && activeConv.id !== 'default_global'}
+          <button class="rename-btn" onclick={startRename} title="Renommer le groupe" aria-label="Renommer">✏️</button>
+        {/if}
+        {#if activeConv && !activeConv.is_group && activeConv.id !== 'default_global'}
+          <div class="call-actions">
+            <a href="/call/{activeConv.id}?type=audio" class="call-btn call-btn--audio" title="Appel audio" aria-label="Démarrer un appel audio">🎤</a>
+            <a href="/call/{activeConv.id}?type=video" class="call-btn call-btn--video" title="Appel vidéo" aria-label="Démarrer un appel vidéo">📹</a>
+          </div>
+        {/if}
       {/if}
     </header>
 
@@ -665,6 +714,28 @@
     transition: background .15s, transform .15s;
   }
   .call-btn:hover { background: var(--accent, #4ade80); transform: scale(1.1); }
+  .rename-btn {
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer;
+    font-size: .95rem; padding: .2rem .3rem; border-radius: .35rem;
+    opacity: .5; transition: opacity .15s, background .15s; flex-shrink: 0;
+  }
+  .rename-btn:hover { opacity: 1; background: var(--bg-secondary, #f1f5f9); }
+  .rename-input {
+    flex: 1; min-width: 0; font-size: 1rem; font-weight: 600;
+    color: var(--text-primary, #1e293b);
+    border: none; border-bottom: 2px solid var(--accent, #4ade80);
+    background: transparent; outline: none; padding: 0 .25rem;
+  }
+  .rename-ok, .rename-cancel {
+    background: none; border: none; cursor: pointer;
+    font-size: 1rem; padding: .2rem .35rem; border-radius: .35rem;
+    flex-shrink: 0; transition: background .15s;
+  }
+  .rename-ok    { color: #166534; }
+  .rename-ok:hover   { background: #dcfce7; }
+  .rename-cancel     { color: #dc2626; }
+  .rename-cancel:hover { background: #fee2e2; }
 
   /* ─── Messages ─── */
   .messages-container {
