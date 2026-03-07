@@ -404,7 +404,7 @@ pub async fn send_message(
             .map(|(n,)| n)
             .unwrap_or_else(|| user.username.clone());
 
-    Ok(Json(serde_json::json!({
+    let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
         "sender_id": user.id,
@@ -418,7 +418,119 @@ pub async fn send_message(
         "timestamp": now,
         "created_at": now,
         "edited_at": null
-    })))
+    });
+
+    // ── Broadcast WS → tous les clients (filtrés côté client par conversation_id) ──
+    {
+        let ws_payload = serde_json::json!({
+            "type": "new_message",
+            "conversation_id": conversation_id,
+            "message": msg_json.clone(),
+        });
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(ws_payload.to_string());
+        }
+    }
+
+    Ok(Json(msg_json))
+}
+
+// ── PATCH /api/conversations/{conv_id}/messages/{msg_id} ────────────────────
+// Seul l'expéditeur peut éditer son propre message (max 4000 chars).
+#[derive(Debug, serde::Deserialize)]
+pub struct EditMessageRequest {
+    pub content: String,
+}
+
+pub async fn edit_message(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path((conv_id, msg_id)): Path<(String, String)>,
+    Json(req): Json<EditMessageRequest>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    let content = req.content.trim().to_string();
+    if content.is_empty() || content.len() > 4000 {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Contenu invalide (1-4000 chars)"}))).into_response();
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct MsgMeta { sender_id: String }
+
+    let meta = match sqlx::query_as::<_, MsgMeta>(
+        "SELECT sender_id FROM messages WHERE id = ? AND conversation_id = ?"
+    )
+    .bind(&msg_id).bind(&conv_id)
+    .fetch_optional(&state.db).await {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "Message introuvable"}))).into_response(),
+        Err(_)    => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response(),
+    };
+
+    if meta.sender_id != user.id {
+        return (StatusCode::FORBIDDEN, Json(json!({"error": "Seul l'auteur peut modifier"}))).into_response();
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    if sqlx::query("UPDATE messages SET content = ?, edited_at = ? WHERE id = ?")
+        .bind(&content).bind(now).bind(&msg_id)
+        .execute(&state.db).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
+    }
+
+    {
+        let ws = serde_json::json!({"type": "message_edited", "conversation_id": conv_id, "message_id": msg_id, "content": content, "edited_at": now});
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+    }
+
+    tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message édité");
+    Json(json!({"success": true, "edited_at": now})).into_response()
+}
+
+// ── DELETE /api/conversations/{conv_id}/messages/{msg_id} ──────────────────
+// Autorisé : expéditeur ou admin.
+pub async fn delete_message(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path((conv_id, msg_id)): Path<(String, String)>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    #[derive(sqlx::FromRow)]
+    struct MsgMeta { sender_id: String }
+
+    let meta = match sqlx::query_as::<_, MsgMeta>(
+        "SELECT sender_id FROM messages WHERE id = ? AND conversation_id = ?"
+    )
+    .bind(&msg_id).bind(&conv_id)
+    .fetch_optional(&state.db).await {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "Message introuvable"}))).into_response(),
+        Err(_)    => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response(),
+    };
+
+    if meta.sender_id != user.id && user.role != "admin" {
+        return (StatusCode::FORBIDDEN, Json(json!({"error": "Seul l'auteur ou l'admin peut supprimer"}))).into_response();
+    }
+
+    if sqlx::query("DELETE FROM messages WHERE id = ?")
+        .bind(&msg_id).execute(&state.db).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
+    }
+
+    {
+        let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+    }
+
+    tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message supprimé");
+    StatusCode::NO_CONTENT.into_response()
 }
 
 pub async fn get_conversation_messages(
