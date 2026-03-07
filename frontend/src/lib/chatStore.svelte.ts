@@ -187,26 +187,46 @@ export async function sendGif(
   gifUrl: string,
   conversationId: string
 ): Promise<void> {
-  const content = `<img src="${gifUrl}" alt="GIF" class="chat-gif" />`;
+  // gifUrl = GifResult.fullUrl (gif pleine résolution)
+  const content = `<img src="${gifUrl}" alt="GIF" class="chat-gif" loading="lazy" />`;
   await sendMessage(content, conversationId);
 }
 
 // -----------------------------------------------------------------
-// 8️⃣ API — searchGifs (Tenor)
+// 8️⃣ API — searchGifs (Tenor v2)
+// Format réponse Tenor v2 :
+//   results[i].media_formats.tinygif.url  → miniature animée (~50 kB)
+//   results[i].media_formats.gif.url      → GIF pleine résolution
+//   results[i].title                       → alt text
 // -----------------------------------------------------------------
+export interface GifResult {
+  id: string;
+  title: string;
+  previewUrl: string;  // tinygif — affiché dans la grille
+  fullUrl: string;     // gif     — envoyé dans le message
+}
+
 export async function searchGifs(query: string): Promise<void> {
   if (!query.trim()) return;
   try {
     chatStore.gifLoading = true;
     chatStore.gifResults = [];
     const res = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&client_key=nook&limit=12`
+      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&client_key=nook&limit=12&media_filter=tinygif,gif`
     );
-    if (!res.ok) throw new Error('Tenor error');
+    if (!res.ok) throw new Error(`Tenor ${res.status}`);
     const data = await res.json();
-    chatStore.gifResults = data.results ?? [];
+
+    // Normaliser en GifResult pour isoler le composant des détails API
+    chatStore.gifResults = (data.results ?? []).map((r: any): GifResult => ({
+      id:         r.id,
+      title:      r.title ?? 'GIF',
+      previewUrl: r.media_formats?.tinygif?.url ?? r.media_formats?.gif?.url ?? '',
+      fullUrl:    r.media_formats?.gif?.url ?? r.media_formats?.tinygif?.url ?? '',
+    })).filter((g: GifResult) => g.previewUrl);
   } catch (err) {
     console.error('[Chat] searchGifs:', err);
+    chatStore.connectionError = 'Impossible de charger les GIFs';
   } finally {
     chatStore.gifLoading = false;
   }
