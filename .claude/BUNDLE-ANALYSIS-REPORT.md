@@ -1,6 +1,6 @@
 # 📦 Bundle Analysis — Nook Frontend
 
-> Généré le : **2026-03-07 18:40 UTC** | Commit : `a486d39`
+> Généré le : **2026-03-07 20:42 UTC** | Commit : `e596bd4`
 
 ## Résumé
 
