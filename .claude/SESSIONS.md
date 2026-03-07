@@ -854,3 +854,69 @@ affichait un doughnut avec 3 métriques fixes sans jamais vérifier `res.ok`.
 | DT-04 Rate limiting governor   | 28 | ✅ |
 | DT-05 E2EE complet             | 27-28 | ✅ |
 | DT-06 Analytics enrichis       | 29 | ✅ |
+
+---
+
+## Session 32 — 2026-03-07 — Fix 5 bugs E2E + corrections backend
+
+### Contexte
+Analyse des logs CI `logs_59742721357.zip` (run `a486d39`, branche `develop`).
+Stats : 50 expected, **5 unexpected**, **11 flaky**.
+
+### Bugs corrigés
+
+#### R32a — `GET /chess/{id}/moves` → mauvais format de réponse
+- **Symptôme** : `expect(Array.isArray(body)).toBe(true)` → false
+- **Cause** : `chess.rs` retournait `Json(json!({success:true, moves:[...]}))` — objet, pas array
+- **Fix** : `Json(moves_json).into_response()` — tableau `Vec<String>` direct
+- **Fichier** : `backend/src/chess.rs` ligne ~859
+
+#### R32b — `POST /polls/{id}/vote` → `body.success` absent
+- **Symptôme** : `expect(body.success).toBe(true)` → false (`body.success` = undefined)
+- **Cause** : `polls.rs` retournait `{poll:{...}}` sans champ `success`
+- **Fix** : `Json(json!({success:true, poll:p}))` — champ ajouté
+- **Fichier** : `backend/src/polls.rs` ligne ~455
+
+#### R32c — Test chess IA : champ `ai_difficulty` → `opponent`
+- **Symptôme** : `POST /api/chess/create` avec `{ai_difficulty:'medium'}` → le backend ignore le champ (pas dans `CreateGameRequest`), créé en humain vs humain (status='waiting'), puis `/move` reçoit 400 "Partie non en cours"
+- **Cause** : `CreateGameRequest.opponent` != `ai_difficulty` envoyé par le test
+- **Fix** : `e2e.spec.ts` : `opponent:'medium'` / `opponent:'easy'` (3 occurrences)
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+#### R32d — Test Chat "Envoi message" : race condition `waitForResponse`
+- **Symptôme** : Timeout 10s sur `waitForResponse('/api/conversations' GET)` à line 206
+- **Cause** : `waitForAppReady` attend la disparition du loading-screen, puis l'app charge les conversations. La requête GET /api/conversations est lancée dans `onMount` de chat/+page.svelte AVANT que le test arrive à `waitForResponse` → la réponse est déjà passée
+- **Fix** : Remplacé par `expect('.conversation-item').toBeVisible({timeout:15s})` — attend directement le DOM
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+#### R32e — `loginAsAdmin` → HTTP 429 (rate limit)
+- **Symptôme** : `Error: Login admin API échoué : HTTP 429` dans les tests Admin
+- **Cause** : Le test `Rate Limiting` fait 15 requêtes en parallèle avec d'autres workers → épuise le quota global `Quota::per_minute(10)` → les `loginAsAdmin` concurrents reçoivent 429
+- **Fix** :
+  1. `test.describe.serial('Rate Limiting')` → sérialise le test flood, évite la pollution parallèle
+  2. Retry 429 dans `loginAsAdmin` avec `setTimeout(5000)` avant réessai
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+#### R32f — `loginAs` flaky (11/66)
+- **Symptôme** : `expect(page).toHaveURL(/(chat|admin|change-password)/)` timeout 15s après click
+- **Cause** : Sous forte charge CI (27 workers), `unlockCrypto` + network peuvent ralentir le `goto('/chat')` post-login. Parfois le submit réussit mais la navigation est lente
+- **Fix** : Retry automatique dans `loginAs` — si `toHaveURL` échoue, refill + re-submit + wait 15s
+- **Fichier** : `frontend/tests/e2e.spec.ts`
+
+### Nouvelle règle pièges (à ajouter debug-and-glossary)
+```
+GET /chess/{id}/moves → retourne Vec<String> brut (pas {success, moves:[...]})
+POST /polls/{id}/vote → retourne {success:true, poll:{...}}
+CreateGameRequest.opponent (pas ai_difficulty) → "easy"|"medium"|"hard"|"human"
+waitForResponse() race condition : placer AVANT goto() ou remplacer par expect(locator).toBeVisible()
+Rate Limiting E2E → test.describe.serial pour éviter pollution des workers parallèles
+```
+
+### Fichiers modifiés
+- `backend/src/chess.rs` — ligne ~859 : `Json(moves_json)` (array brut)
+- `backend/src/polls.rs` — ligne ~455 : `{success:true, poll:p}`
+- `frontend/tests/e2e.spec.ts` — 6 corrections (opponent, waitForResponse, loginAs retry, loginAsAdmin retry, serial)
+
+### Mise à jour `.claude/`
+- `BUGS.md` → R32a-f ajoutés, session 32
+- `SESSIONS.md` → cette entrée
