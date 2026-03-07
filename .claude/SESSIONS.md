@@ -518,3 +518,185 @@ Chaque fichier est auto-suffisant. Zéro coordination nécessaire entre jobs.
 - [ ] Chess temps réel : WS client → abonnement coups adverses
 - [ ] Polls : backend API (actuellement localStorage only)
 - [ ] Chiffrement E2E : réactiver quand clés disponibles
+
+## Session 21 — 2026-03-05 — Fix E2E : localStorage cross-test (Bug #21)
+
+### Contexte
+Analyse des logs CI du 2026-03-05 (zip fourni). Résultats : 12 tests passés / 31 échecs.
+Backend Rust : ✅ 0 erreur clippy, build OK. Frontend Vite : ✅ build OK (3 warnings a11y non-bloquants).
+Tests E2E : ❌ 31/43 timeout sur `waiting for locator('#username')`.
+
+### Cause racine identifiée
+
+`playwright.config.ts` avait `fullyParallel: true` avec `workers: 1` en CI.
+Avec `fullyParallel: true`, tous les tests du même fichier partagent le **même browser context** (et donc le même `localStorage` de `localhost:6300`).
+
+Séquence de défaillance :
+1. Test 1 (Auth/Login valide e2e_ci) — loginAs() → login réussi → localStorage : `nook_user` + `nook_session_id` posés
+2. Test 2 (Auth/Login invalide) — goto('/login') → AuthStore constructeur lit localStorage → `isAuthenticated=true` → `$effect()` redirige vers `/chat` → `#username` disponible ~0ms → Playwright timeout
+
+**Pourquoi les 12 tests passaient** : tous des tests `request` (API purs) ou `loginAsAdmin` (API-first).
+
+### Corrections
+
+#### 1. `playwright.config.ts` — `fullyParallel: false`
+```typescript
+fullyParallel: false,  // ✅ (était true)
+```
+Empêche le partage de browser context entre tests.
+
+#### 2. `frontend/tests/e2e.spec.ts` — `clearSession()` helper
+Nouvelle fonction appelée en tête de `loginAs()` :
+```typescript
+async function clearSession(page: Page) {
+  await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10_000 });
+  await page.evaluate(() => {
+    localStorage.removeItem('nook_user');
+    localStorage.removeItem('nook_session_id');
+    localStorage.removeItem('nook_token');
+  });
+  await page.context().clearCookies();
+}
+```
+**Pourquoi goto('/') d'abord** : le localStorage est isolé par origine. On doit être sur `localhost:6300` pour manipuler son localStorage. `about:blank` est une autre origine → inefficace.
+
+#### 3. `.github/workflows/test-nook.yml` — healthcheck `/api/health`
+```bash
+# ❌ /health retourne index.html (ServeDir fallback → 200 trompeur)
+# ✅ /api/health retourne "OK" depuis le handler Axum
+until curl -sf http://localhost:6300/api/health | grep -q "OK"; do sleep 3; done
+```
+
+### Fichiers modifiés session 21
+- `frontend/playwright.config.ts` — `fullyParallel: false`
+- `frontend/tests/e2e.spec.ts` — `clearSession()` + `loginAs()` mis à jour
+- `.github/workflows/test-nook.yml` — healthcheck `/api/health`
+- `.claude/BUGS.md` — Bug #21 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+- **43 tests** au total (inchangé)
+- **43/43 ✅** attendus si les sélecteurs UI sont corrects
+- Le seul risque résiduel : sélecteurs UI obsolètes (classes CSS renommées entre sessions)
+
+### Ce qui reste à faire
+- [ ] Déclencher test-nook.yml → confirmer 43/43 ✅
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → découper avec dynamic import()
+
+## Session 22 — 2026-03-05 — Fix E2E clearSession API-first (Bug #22)
+
+### Contexte
+Logs CI du 2026-03-05 (2ème run). Les fixes de session 21 sont bien committés
+(fullyParallel:false, clearSession avec goto('/')), mais 31/43 tests échouent encore
+avec les mêmes timeouts `waiting for locator('#username')`.
+
+### Cause racine
+
+`clearSession()` session 21 faisait `goto('/')` en premier pour être sur l'origine
+de l'app avant de manipuler le localStorage. Mais :
+
+1. `goto('/')` → layout monte → `onMount` → `authStore.init()`
+2. `authStore.init()` → `fetch('/api/auth/me')` avec le cookie encore présent
+3. Cookie valide → 200 → `isAuthenticated=true`
+4. `$effect()` → redirect `/chat`
+5. `clearCookies()` appelé APRÈS → trop tard
+6. `goto('/login')` → `isAuthenticated=true` → redirect → timeout `#username`
+
+### Fix définitif — approche API-first pour clearSession
+
+```typescript
+async function clearSession(page: Page) {
+  try {
+    await page.request.post(`${BASE}/auth/logout`);
+    // 200 = révoqué, 401 = pas de session → les deux sont OK
+  } catch {}
+  await page.context().clearCookies();
+}
+```
+
+`page.request` envoie la requête sans déclencher le browser/layout.
+Le token est révoqué en DB **AVANT** toute navigation.
+Ensuite `goto('/login')` → `authStore.init()` → `/api/auth/me` → 401 → `authStore.logout()` → `isAuthenticated=false` ✅
+
+Pas besoin de `localStorage.clear()` explicite : `authStore.logout()` le fait automatiquement sur 401.
+
+### Chronologie complète clearSession (sessions 17-22)
+
+| Session | Approche | Cause d'échec |
+|---------|----------|--------------|
+| 17 | `clearCookies()` seul | localStorage intact → `isAuthenticated=true` |
+| 18 | `about:blank + localStorage.clear()` | Origine ≠ → localStorage isolé |
+| 18 | `addInitScript(Page)` | S'exécute sur about:blank |
+| 19 | `loginAsAdmin` API-first | ✅ admin uniquement |
+| 21 | `goto('/') + evaluate + clearCookies` | goto('/') déclenche init() avec cookie valide |
+| **22** | **`request.post(logout) + clearCookies`** | **✅ token révoqué avant navigation** |
+
+### Fichiers modifiés session 22
+- `frontend/tests/e2e.spec.ts` — `clearSession()` réécrit en API-first
+- `.claude/BUGS.md` — Bug #22 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+- **43/43 tests ✅** si les sélecteurs UI sont corrects
+- `playwright.config.ts` : `fullyParallel: false` (inchangé depuis session 21)
+
+### Ce qui reste à faire
+- [ ] Déclencher test-nook.yml → confirmer 43/43 ✅
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → dynamic import()
+
+---
+
+## Session 23 — 2026-03-06 — Fix E2E loginAs waitFor #username (Bug #23)
+
+### Contexte
+Logs CI run 11 (2026-03-05 ~18h37). Fix session 22 bien commité et présent dans le repo.
+Résultats inchangés : 12/43 ✅, 31/43 ❌. Même symptôme : timeout `#username`.
+
+### Cause racine définitive
+
+La cause n'était **pas** le localStorage, **pas** les cookies, **pas** le fullyParallel.
+C'était le **timing de rendu du layout Svelte**.
+
+Le layout `+layout.svelte` :
+1. Démarre avec `loading = $state(true)`
+2. `onMount` → `waitForSodium()` + `initCryptoSystem()` + `authStore.init()` (async, ~1-3s)
+3. Seulement après : `loading = false`
+4. `{#if loading}` masque `{@render children()}` tant que `loading=true`
+
+`page.goto('/login')` se resolve à l'événement `load` du browser (HTML+JS reçus) — avant
+que `onMount` ait terminé. À ce moment, `#username` n'est pas dans le DOM.
+`page.fill('#username')` attend un élément inexistant → timeout 30s.
+
+### Fix — une ligne dans loginAs()
+
+```typescript
+async function loginAs(page: Page, username: string, password: string) {
+  await clearSession(page);
+  await page.goto('/login');
+  // NOUVEAU : attendre que le layout finisse de charger
+  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.fill('#username', username);
+  ...
+}
+```
+
+### Fichiers modifiés session 23
+- `frontend/tests/e2e.spec.ts` — `loginAs()` : ajout `waitFor('#username', visible)`
+- `.claude/BUGS.md` — Bug #23 documenté
+- `.claude/SESSIONS.md` — ce fichier
+
+### État attendu après fix
+**43/43 tests ✅** (sous réserve que les sélecteurs UI soient corrects)
+
+### Ce qui reste à faire
+- [ ] Confirmer 43/43 ✅ au prochain run CI
+- [ ] Chess temps réel : WS client → abonnement coups adverses
+- [ ] Polls : backend API (actuellement localStorage only)
+- [ ] Chiffrement E2E : réactiver quand clés disponibles
+- [ ] Chunk libsodium 938 kB → dynamic import()

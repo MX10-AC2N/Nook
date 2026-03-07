@@ -1,0 +1,74 @@
+name: 🗄️ SQLx — Régénérer queries.json
+
+# Déclencher après une migration SQL ou un changement de macro sqlx!
+# Commit automatique du nouveau .sqlx/queries.json
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/migrations/**.sql'
+      - 'backend/src/**.rs'
+
+permissions:
+  contents: write
+
+jobs:
+  sqlx-prepare:
+    name: 🗄️ cargo sqlx prepare
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      # sqlx-cli pour cargo sqlx prepare
+      - name: Installer sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features sqlite
+
+      # Démarrer une DB temporaire pour que sqlx prepare puisse inspecter le schéma
+      - name: Créer DB temporaire + appliquer migrations
+        run: |
+          mkdir -p /tmp/nook-sqlx
+          export DATABASE_URL="sqlite:/tmp/nook-sqlx/nook.db"
+          sqlx database create
+          sqlx migrate run
+          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+
+      # Régénérer queries.json
+      - name: cargo sqlx prepare
+        run: |
+          cargo sqlx prepare -- --lib
+          echo "✅ queries.json régénéré"
+          cat .sqlx/queries.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Queries indexées : {len(d)}')"
+
+      # Commit si changement
+      - name: Commit queries.json si modifié
+        run: |
+          cd $GITHUB_WORKSPACE
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/.sqlx/queries.json
+          if git diff --staged --quiet; then
+            echo "Aucun changement dans queries.json"
+          else
+            git commit -m "chore(sqlx): régénérer queries.json [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ queries.json commité"
+          fi
+
+      - name: Résumé
+        run: |
+          echo "## 🗄️ SQLx Prepare" >> $GITHUB_STEP_SUMMARY
+          echo "queries.json régénéré et synchronisé avec les migrations." >> $GITHUB_STEP_SUMMARY

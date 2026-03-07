@@ -80,14 +80,13 @@ pub async fn validate_invite(
     let now = Utc::now().timestamp();
 
     // Schéma corrigé : colonnes id, used, expires_at, created_by, token
-    let invite: Option<(String, bool, i64, String)> = sqlx::query_as(
-        "SELECT id, used, expires_at, created_by FROM invites WHERE token = ?",
-    )
-    .bind(token)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+    let invite: Option<(String, bool, i64, String)> =
+        sqlx::query_as("SELECT id, used, expires_at, created_by FROM invites WHERE token = ?")
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
 
     match invite {
         Some((_id, used, expires_at, created_by)) => {
@@ -148,9 +147,7 @@ pub async fn generate_invite(
     let (user_id, session_token) = match headers
         .get("cookie")
         .and_then(|h| h.to_str().ok())
-        .and_then(|s| {
-            s.split(';').find(|c| c.trim().starts_with("auth_token="))
-        })
+        .and_then(|s| s.split(';').find(|c| c.trim().starts_with("auth_token=")))
         .and_then(|c| {
             // splitn(2) pour ne splitter qu'une fois (au cas où le token contiendrait ':')
             c.trim().strip_prefix("auth_token=")
@@ -159,7 +156,11 @@ pub async fn generate_invite(
             let mut parts = v.splitn(2, ':');
             let uid = parts.next()?.to_string();
             let tok = parts.next()?.to_string();
-            if uid.is_empty() || tok.is_empty() { None } else { Some((uid, tok)) }
+            if uid.is_empty() || tok.is_empty() {
+                None
+            } else {
+                Some((uid, tok))
+            }
         }) {
         Some(t) => t,
         None => {

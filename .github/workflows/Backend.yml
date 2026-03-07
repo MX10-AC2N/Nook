@@ -240,7 +240,7 @@ jobs:
             echo "Aucune modification — pas de commit"
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
-            git pull --rebase origin ${{ github.ref_name }}
+            git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité"
           fi

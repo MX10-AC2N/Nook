@@ -5,8 +5,7 @@ use axum::{
     extract::{Multipart, State as AxumState},
     http::StatusCode,
     response::IntoResponse,
-    Extension,
-    Json as AxumJson,
+    Extension, Json as AxumJson,
 };
 use chrono::Utc;
 use serde_json::json;
@@ -30,7 +29,7 @@ pub struct UploadResponse {
 
 pub async fn upload_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,   // ← AUTHENTIFIÉ
+    Extension(CurrentUser(user)): Extension<CurrentUser>, // ← AUTHENTIFIÉ
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
@@ -44,7 +43,10 @@ pub async fn upload_handler(
             }
         } else if name == "file" {
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
-            let content_type = field.content_type().map(|s| s.to_string()).unwrap_or_default();
+            let content_type = field
+                .content_type()
+                .map(|s| s.to_string())
+                .unwrap_or_default();
 
             let mut data_vec = Vec::new();
             while let Some(chunk) = field.chunk().await.transpose() {
@@ -52,7 +54,10 @@ pub async fn upload_handler(
                     Ok(bytes) => data_vec.extend_from_slice(&bytes),
                     Err(e) => {
                         eprintln!("[Upload] Erreur lecture chunk: {}", e);
-                        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to read file"})));
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            AxumJson(json!({"error": "Failed to read file"})),
+                        );
                     }
                 }
             }
@@ -79,7 +84,10 @@ pub async fn upload_handler(
     let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
     if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
         eprintln!("[Upload] Erreur écriture: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to save file"})));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(json!({"error": "Failed to save file"})),
+        );
     }
 
     let now = Utc::now().timestamp();
@@ -91,7 +99,7 @@ pub async fn upload_handler(
     if let Err(e) = sqlx::query(query)
         .bind(&file_id)
         .bind(&data.conversation_id)
-        .bind(&user.id)                    // ← CurrentUser
+        .bind(&user.id) // ← CurrentUser
         .bind(&data.file_name)
         .bind(storage_path.to_str().unwrap_or(""))
         .bind(data.data.len() as i64)
@@ -104,25 +112,34 @@ pub async fn upload_handler(
         .await
     {
         eprintln!("[Upload] Erreur DB: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Database error"})));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(json!({"error": "Database error"})),
+        );
     }
 
-    state.file_manager.register_file(&file_id, storage_path).await;
+    state
+        .file_manager
+        .register_file(&file_id, storage_path)
+        .await;
 
-    (StatusCode::OK, AxumJson(json!({
-        "status": "uploaded",
-        "file_id": file_id,
-        "file_name": data.file_name,
-        "file_size": data.data.len(),
-        "uploaded_at": now,
-        "encrypted": true,
-        "url": format!("/files/{}", file_id)
-    })))
+    (
+        StatusCode::OK,
+        AxumJson(json!({
+            "status": "uploaded",
+            "file_id": file_id,
+            "file_name": data.file_name,
+            "file_size": data.data.len(),
+            "uploaded_at": now,
+            "encrypted": true,
+            "url": format!("/files/{}", file_id)
+        })),
+    )
 }
 
 pub async fn upload_chat_file(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,   // ← CurrentUser
+    Extension(CurrentUser(user)): Extension<CurrentUser>, // ← CurrentUser
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
@@ -143,7 +160,10 @@ pub async fn upload_chat_file(
                     Ok(bytes) => data_vec.extend_from_slice(&bytes),
                     Err(e) => {
                         eprintln!("[Upload Chat] Erreur lecture chunk: {}", e);
-                        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to read file"})));
+                        return (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            AxumJson(json!({"error": "Failed to read file"})),
+                        );
                     }
                 }
             }
@@ -164,7 +184,10 @@ pub async fn upload_chat_file(
     let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
     if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
         eprintln!("[Upload Chat] Erreur écriture: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to save file"})));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(json!({"error": "Failed to save file"})),
+        );
     }
 
     let now = Utc::now().timestamp();
@@ -176,7 +199,7 @@ pub async fn upload_chat_file(
     if let Err(e) = sqlx::query(query)
         .bind(&file_id)
         .bind(&data.conversation_id)
-        .bind(&user.id)                    // ← CurrentUser
+        .bind(&user.id) // ← CurrentUser
         .bind(&data.file_name)
         .bind(storage_path.to_str().unwrap_or(""))
         .bind(data.data.len() as i64)
@@ -189,20 +212,29 @@ pub async fn upload_chat_file(
         .await
     {
         eprintln!("[Upload Chat] Erreur DB: {}", e);
-        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Database error"})));
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(json!({"error": "Database error"})),
+        );
     }
 
-    state.file_manager.register_file(&file_id, storage_path).await;
+    state
+        .file_manager
+        .register_file(&file_id, storage_path)
+        .await;
 
-    (StatusCode::OK, AxumJson(json!({
-        "status": "uploaded",
-        "file_id": file_id,
-        "file_name": data.file_name,
-        "file_size": data.data.len(),
-        "uploaded_at": now,
-        "encrypted": true,
-        "url": format!("/files/{}", file_id)
-    })))
+    (
+        StatusCode::OK,
+        AxumJson(json!({
+            "status": "uploaded",
+            "file_id": file_id,
+            "file_name": data.file_name,
+            "file_size": data.data.len(),
+            "uploaded_at": now,
+            "encrypted": true,
+            "url": format!("/files/{}", file_id)
+        })),
+    )
 }
 
 // ====================== STRUCTURES INTERNES ======================

@@ -1,215 +1,203 @@
-# 🤖 CLAUDE.md — Référence opérationnelle Nook
+# 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
-> Lire ce fichier EN PREMIER avant toute intervention.  
-> Dernière mise à jour : **2026-02-28** (session 20)
-
----
-
-## 📍 Localisation
-
-- **Repo** : https://github.com/MX10-AC2N/Nook
-- **Branche active** : `main` ← tout le travail est sur main désormais
-- **Raw** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/[chemin]`
-- **Lire aussi** : `DOCKER.md`, `BUGS.md`, `SESSIONS.md` dans ce dossier
-
-## 📊 Rapports CI disponibles dans `.claude/`
-
-| Fichier | Généré par | Contenu |
-|---------|-----------|---------|
-| `FRONTEND-BUILD-REPORT.md` | `Frontend.yml` | Erreurs TS/Vite, warnings a11y svelte, tailles chunks gzip, npm audit |
-| `BACKEND-BUILD-REPORT-amd64.md` | `Backend.yml` (job amd64) | cargo check/clippy/build, warnings avec fichier:ligne, taille binaire |
-| `BACKEND-BUILD-REPORT-arm64.md` | `Backend.yml` (job arm64) | idem pour arm64 |
-| `DOCKER-BUILD-REPORT.md` | `Docker.yml` | digest GHCR, tags publiés, tailles artifacts intégrés |
-| `TEST_REPORT.md` | `test-nook.yml` | Résultats E2E Playwright (38 tests), logs Docker |
-
-> ⚠️ **Deux fichiers backend** — la matrix compile amd64 et arm64 en parallèle.
-> Un seul fichier partagé causerait une race condition (les deux jobs commitent simultanément).
-> Lire les deux rapports pour avoir le statut complet.
+> **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
+> Version projet : **0.3.0-beta.2** | Session courante : **24** | Mis à jour : **2026-03-06**
+> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
+> Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
 ---
 
-## 🏗️ Architecture
+## ⚙️ PROTOCOLE D'ORCHESTRATION — appliquer à CHAQUE demande
 
 ```
-Nook/
-├── backend/
-│   ├── src/
-│   │   ├── main.rs        # Router Axum 0.8, middleware base_inject, init DB, E2E_SETUP
-│   │   ├── auth.rs        # Register/Login/Logout/Me/ChangePassword — cookie HttpOnly
-│   │   ├── db.rs          # Conversations + messages (SQLx)
-│   │   ├── admin.rs       # Approbation users, invites, gestion
-│   │   ├── invites.rs     # Génération/validation liens invitation
-│   │   ├── upload.rs      # Upload fichiers (max 50Mo, TTL 48h)
-│   │   ├── webrtc.rs      # Signaling WebSocket + XChaCha20-Poly1305
-│   │   ├── prune.rs       # Nettoyage DB toutes les 24h
-│   │   ├── cleanup.rs     # Nettoyage fichiers expirés
-│   │   ├── config.rs      # Config depuis env vars
-│   │   └── emergency.rs   # Mode urgence
-│   ├── migrations/
-│   │   ├── 001_initial.sql
-│   │   └── 002_add_file_id_to_messages.sql
-│   ├── .sqlx/queries.json # Cache offline SQLx (CI/Docker)
-│   ├── .cargo/config.toml # Linkers cross + crt-static (Backend.yml seulement !)
-│   ├── Cargo.toml
-│   └── Cargo.lock
-│
-├── frontend/
-│   ├── src/
-│   │   ├── lib/           # Stores Svelte 5, crypto, auth, webrtc
-│   │   └── routes/        # login, register, chat, admin, calendar, call, settings…
-│   ├── tests/e2e.spec.ts  # Tests Playwright E2E
-│   ├── playwright.config.ts
-│   └── package.json       # v0.5.0 — @playwright/test inclus
-│
-├── VERSION                # Source de vérité : 0.1.0
-├── Dockerfile             # Build depuis sources (test-nook.yml + docker-compose local)
-├── Dockerfile.release     # Binaires pré-compilés (Docker.yml)
-├── docker-compose.yml     # Production (bind mounts, sans E2E_SETUP)
-├── docker-compose.ci.yml  # Override CI (named volumes, init container, E2E_SETUP=1)
-│
-└── .github/workflows/
-    ├── Backend.yml        # Manuel — compile Rust amd64 + arm64 → artifacts 7j
-    ├── Frontend.yml       # Manuel — build SvelteKit → artifact 7j
-    ├── test-nook.yml      # Manuel — intégration Docker + E2E Playwright
-    ├── Docker.yml         # Manuel — assemble artifacts → GHCR (dawidd6)
-    ├── Release.yml        # Manuel — bump VERSION + tag git
-    └── update-frontend-lock.yml  # Manuel — régénère package-lock.json
+① CONSULTER  — Lire BUGS.md + memory-sessions.md (contexte immédiat)
+② ANALYSER   — Décortiquer la demande, identifier les domaines et fichiers touchés
+③ DISPATCHER — Sélectionner les agents via la table ci-dessous
+④ SÉQUENCER  — Ordonner selon le graphe de dépendances (Phase 1→4)
+⑤ ANNONCER   — Déclarer le plan complet avant toute intervention
+⑥ EXÉCUTER   — Chaque agent intervient, signale ses sorties vers les agents suivants
+⑦ APPRENDRE  — Mettre à jour BUGS.md + SESSIONS.md + le fichier d'apprentissage de l'agent
 ```
 
+> ⚠️ Étape ① obligatoire même pour les demandes simples — le contexte change entre sessions.
+
 ---
 
-## 🦀 Stack Backend
+## 🎭 AGENTS DISPONIBLES
 
-| Crate | Version | Rôle |
-|-------|---------|------|
-| axum | 0.8 | HTTP + WebSocket + multipart |
-| sqlx | 0.8.6 | SQLite + migrations offline |
-| argon2 | 0.5 | Hash password |
-| rand | 0.9 | RNG (`rand::rng()`) |
-| rand_core | **0.6** | OsRng pour argon2 ⚠️ diamond dep |
-| tower-http | 0.6.8 | CORS, ServeDir, Compression |
-| chacha20poly1305 | 0.10.1 | Chiffrement fichiers |
-| tokio | 1.0 | Runtime async |
-| reqwest | 0.13 | Client HTTP (rustls) |
+| Agent | Fichier | Domaine principal |
+|-------|---------|-------------------|
+| 🦀 **RUST** | `roles/rust-backend.md` | Axum 0.8, SQLx, SQLite, auth, upload, WebSocket, migrations |
+| 🎨 **SVELTE** | `roles/svelte-frontend.md` | SvelteKit 5 Runes, stores, composants, UX, responsive, thèmes |
+| 🚀 **DEVOPS** | `roles/ci-devops.md` | GitHub Actions, Docker, Zimaboard, GHCR, compose |
+| 🧪 **E2E** | `roles/e2e-testing.md` | Playwright, fixtures, debug timeout, sélecteurs, TEST_REPORT |
+| 🔐 **CRYPTO** | `roles/security-crypto.md` | E2EE, argon2, XChaCha20, WebRTC, cookies, sécurité |
+| ♟️ **CHESS** | `roles/chess-engine.md` | Moteur Rust pur, IA minimax, SAN/PGN, API parties, chessStore |
+| 📊 **DATA** | `roles/data-analytics.md` | Polls, analytics, calendar, events, migrations données |
+| 📐 **ARCHITECT** | `roles/architect.md` | Design système, ADR, cohérence inter-agents, dette technique |
+| 🤖 **DELEGATE** | `roles/delegate.md` | Routing tâches mécaniques vers IAs gratuites (Gemini Flash, GPT-4o mini) |
 
-### ⚠️ Points critiques Rust
+---
 
-```rust
-// rand_core 0.6 OBLIGATOIRE pour argon2 (pas rand::rngs::OsRng)
-use rand_core::OsRng;
+## 🧠 DISPATCH — Identification automatique des agents
 
-// rand 0.9 : thread_rng() supprimé
-rand::rng().fill_bytes(&mut buf);  // ✅
+### Grille de sélection
 
-// axum 0.8 : routes avec {param} (plus :param)
-.route("/conversations/{id}", get(handler))  // ✅
-
-// axum 0.8 : Message::Text attend Utf8Bytes
-Message::Text(msg.into())  // ✅
-
-// axum 0.8 : Host supprimé → extraire depuis HeaderMap
-headers.get("host").and_then(|v| v.to_str().ok())
-
-// CORS : allow_credentials(true) incompatible avec Any
-// → lister origines, méthodes et headers explicitement
-
-// SQLite : toujours SqliteConnectOptions avec create_if_missing(true)
-// SqlitePool::connect() refuse d'ouvrir un fichier inexistant → SQLITE_CANTOPEN (code 14)
+```
+□ Fichiers .rs backend hors chess_engine/ ?           → 🦀 RUST
+□ Fichiers .svelte, .svelte.ts, .svelte.js ?          → 🎨 SVELTE
+□ Workflows .yml, Dockerfile*, docker-compose* ?      → 🚀 DEVOPS
+□ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?    → 🧪 E2E
+□ Auth, crypto, clés, cookies, WebRTC, E2EE ?         → 🔐 CRYPTO
+□ chess_engine/, chess.rs, chessStore ?               → ♟️ CHESS
+□ polls.rs, analytics, calendar, events, DB données ? → 📊 DATA
+□ Nouvelle feature cross-domaines, refacto majeure,
+  question d'architecture, dette technique ?          → 📐 ARCHITECT (en premier)
+□ Tâche isolée, spécification complète, résultat
+  vérifiable sans contexte projet ?                   → 🤖 DELEGATE (avant d'engager un agent)
 ```
 
+### Exemples de dispatch enrichis
+
+| Demande | Pipeline agents |
+|---------|----------------|
+| "Corrige bug conversationStore" | 🎨 SVELTE |
+| "Ajoute DELETE /messages/{id}" | 🦀 RUST → 🧪 E2E |
+| "Build arm64 échoue" | 🚀 DEVOPS |
+| "Test Login timeout" | 🧪 E2E |
+| "Temps réel aux échecs" | 📐 ARCHITECT → ♟️ CHESS → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| "Inscription E2EE" | 📐 ARCHITECT → 🔐 CRYPTO → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| "Dashboard analytics admin" | 📊 DATA → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| "Système de réactions aux messages" | 📊 DATA → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| "Notifications push" | 📐 ARCHITECT → 🦀 RUST → 🎨 SVELTE → 🚀 DEVOPS → 🧪 E2E |
+| "Refonte du système de thèmes" | 📐 ARCHITECT → 🎨 SVELTE |
+| "Analyse rapport CI avec erreurs" | 🚀 DEVOPS + agents concernés |
+| "Convertis cette struct en TypeScript" | 🤖 DELEGATE (Gemini Flash) |
+| "Écris le test pour ce scénario" | 🤖 DELEGATE (GPT-4o mini) |
+| "Corrige ce warning clippy" | 🤖 DELEGATE (Gemini Flash) |
+
 ---
 
-## 🎨 Stack Frontend
+## 🔢 SÉQUENÇAGE — Graphe de dépendances
 
-- **SvelteKit 5** + TypeScript strict
-- **Svelte 5 Runes** — voir règles dans `BUGS.md`
-- Port dev : 5173 | Port prod : 6300
+```
+Phase 0 — Pré-qualification (toujours, coût < 5 sec)
+  🤖 DELEGATE  → vérifier si tout ou partie est déléguable à une IA gratuite
 
-### Routes principales
+Phase 1 — Architecture (si feature cross-domaines ou ambiguïté)
+  📐 ARCHITECT  → ADR + contrat inter-agents + plan de migration
 
-| Route | Fichier | Description |
-|-------|---------|-------------|
-| `/` | `+page.svelte` | Redirect auto (admin→/admin, user→/chat, anon→/login) |
-| `/login` | `login/+page.svelte` | Inputs `id="username"` + `id="password"` |
-| `/chat` | `chat/+page.svelte` | Groupe Global hardcodé, textarea "Envoyer un message..." |
-| `/admin` | `admin/+page.svelte` | Gestion users, approbation |
-| `/register` | `register/+page.svelte` | Inscription (approved=0 par défaut) |
+Phase 1 — Fondations et contrats
+  🔐 CRYPTO  → protocoles de sécurité, formats de clés
+  🦀 RUST    → endpoints, types Rust, schéma DB, migrations
+  ♟️ CHESS   → API chess, logique moteur, types Move/GameState
+  📊 DATA    → modèles de données, agrégations, migrations data
+
+Phase 2 — Consommateurs
+  🎨 SVELTE  → consomme endpoints + types de Phase 1
+
+Phase 3 — Infrastructure
+  🚀 DEVOPS  → pipeline, variables d'env, compose, secrets
+
+Phase 4 — Validation
+  🧪 E2E     → tests sur tout ce que les phases précédentes ont produit
+```
+
+> **Règle de court-circuit** : si une demande ne touche qu'un seul domaine,
+> sauter directement à l'agent concerné sans annoncer les phases inutiles.
 
 ---
 
-## 🗄️ Schéma DB
+## 📣 FORMAT D'ANNONCE (multi-agents obligatoire)
 
-```sql
-users(id, username, email, password_hash, name, role, approved,
-      needs_password_change, token, created_at)
--- Admin initial : approved=1, needs_password_change=1, mdp "changeme2026"
--- E2E CI user   : approved=1, needs_password_change=0, mdp "E2eTest123!" (si E2E_SETUP=1)
+```markdown
+## 🎯 Analyse
+[Ce qui est demandé + fichiers identifiés]
 
-conversations(id, name, is_group, created_at, created_by, updated_at)
-conversation_members(conversation_id, user_id, joined_at)   -- NOM RÉEL EN DB
--- ⚠️ db.rs utilise "conversation_participants" → incohérence à corriger (Bug #5)
-messages(id, conversation_id, sender_id, content, message_type,
-         file_id, encrypted, timestamp, created_at, edited_at)
-uploads(id, conversation_id, from_user_id, file_name, file_path,
-        file_size, content_type, uploaded_at, encrypted, nonce, key_text)
-invites(code, created_by, created_at, expires_at, max_uses, current_uses)
+## 🤝 Pipeline d'agents
+Phase 1 → 🦀 RUST    : [action précise]
+Phase 2 → 🎨 SVELTE  : [action précise, dépend de RUST pour : X]
+Phase 4 → 🧪 E2E     : [tests à couvrir]
+
+## ⚠️ Points de vigilance inter-agents
+[Effets de bord, contrats à respecter, régressions possibles]
+
+---
+[Intervention Phase 1]
+---
+[Intervention Phase 2]
+---
+[Intervention Phase 4]
 ```
 
 ---
 
-## 🔐 Auth : Cookie HttpOnly
+## 🧬 AUTO-APPRENTISSAGE — Comment les agents évoluent
+
+Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier `roles/*.md`.
+
+### Quand mettre à jour un agent
+
+| Événement | Action |
+|-----------|--------|
+| Bug corrigé lié au domaine de l'agent | Ajouter dans `## 📚 Apprentissages` + `BUGS.md` |
+| Nouveau piège découvert (compile, runtime, CI) | Ajouter dans `## 📚 Apprentissages` de l'agent concerné |
+| Décision architecturale prise | Ajouter dans `rules/memory-decisions.md` (D-series) |
+| Pattern validé après plusieurs sessions | Promouvoir de "Apprentissages" vers la section principale du rôle |
+| Nouvel agent identifié comme nécessaire | Créer `roles/nouvel-agent.md` + l'ajouter ici |
+
+### Cycle de vie d'un apprentissage
 
 ```
-Set-Cookie: auth_token=<userId>:<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400
+1. Découverte  → noté dans SESSIONS.md (observation brute)
+2. Confirmation → revu dans BUGS.md ou apprentissages (pattern avéré)
+3. Intégration → promu dans la section principale du rôle (règle permanente)
+4. Décision    → archivé dans memory-decisions.md si architectural
 ```
 
-- Token stocké en DB → révocable
-- `require_auth` vérifie `approved=1` ET token valide
-- `needs_password_change` **non vérifié** dans `require_auth` → admin peut appeler les API même avec ce flag
+### Créer un nouvel agent
+
+Si une demande révèle un domaine non couvert par les agents existants :
+1. Identifier le périmètre exact (fichiers, responsabilités)
+2. Créer `roles/nouvel-agent.md` avec les sections standards
+3. L'ajouter à la table AGENTS DISPONIBLES ci-dessus
+4. Documenter la décision dans `memory-decisions.md`
 
 ---
 
-## 📋 API Endpoints
+## 📚 Référentiels
 
-```
-POST /api/auth/register      — inscription (approved=0)
-POST /api/auth/login         — login → cookie
-POST /api/auth/logout        — révoque token
-GET  /api/auth/me            — infos user courant (401 si non auth)
-POST /api/auth/change-password
-
-GET  /api/conversations      — liste conversations (auth)
-POST /api/conversations      — créer conversation
-GET  /api/conversations/{id}
-POST /api/conversations/{id}/join
-GET  /api/conversations/{id}/messages
-POST /api/conversations/{id}/messages
-
-POST /api/upload
-POST /api/upload/chat
-
-GET  /api/pending-users-json  — admin : users en attente (SimpleUser[])
-GET  /api/all-users-json      — admin : tous les users
-POST /api/approve             — admin : { user_id: string }
-GET  /api/list-invites
-POST /api/delete-invite
-POST /api/generate-invite
-
-GET  /api/health              — "OK" (texte, pas JSON)
-GET  /api/invite/validate
-POST /api/join
-
-WS   /ws                      — WebSocket signaling WebRTC
-POST /api/webrtc/offer
-POST /api/webrtc/answer
-```
+| Fichier | Lire quand |
+|---------|-----------|
+| `BUGS.md` | **Étape ① — toujours** |
+| `rules/memory-sessions.md` | **Étape ① — contexte rapide** |
+| `rules/architecture.md` | Schéma DB, API, structure fichiers |
+| `rules/coding-style.md` | Pièges Rust/Svelte (résumé) |
+| `rules/workflows.md` | Docker, CI, déploiement |
+| `rules/memory-decisions.md` | Avant tout changement architectural |
+| `rules/memory-preferences.md` | Format livraison, optimisations Android |
+| `SESSIONS.md` | Historique détaillé sessions 1–24 |
+| `USER_TEST.md` | Si mis à jour récemment |
 
 ---
 
-## 🔄 Workflow de collaboration
+## ⚡ Règles non-négociables (tous agents)
 
-1. **Toujours lire le repo avant d'intervenir** — fetcher les fichiers concernés via Raw GitHub
-2. **Fournir le contenu complet** des fichiers (jamais de diffs partiels)
-3. **Livrer en `.txt`** pour éviter les bugs de téléchargement Claude.ai
-4. **Mettre à jour `.claude/`** après chaque session
-5. **Lire `BUGS.md`** pour ne pas réintroduire des bugs déjà résolus
+1. **Fetcher les sources** — Raw GitHub avant toute intervention, jamais de mémoire
+2. **Fichier complet** — jamais de diff partiel
+3. **Format livraison** — `.svelte`/`.ts`/`.svelte.ts` → `.txt` | `.rs`/`.sql` → direct
+4. **Chemin explicite** — `frontend/src/lib/chatStore.svelte.ts` en tête de chaque bloc
+5. **Effets de bord** — signaler explicitement ce que chaque changement impacte chez les autres agents
+6. **Apprentissage** — tout bug non trivial résolu → section `## 📚 Apprentissages` de l'agent
+
+---
+
+## 📊 Rapports CI → Agent lecteur
+
+| Fichier | Agent | Déclenché par |
+|---------|-------|---------------|
+| `FRONTEND-BUILD-REPORT.md` | 🎨 SVELTE | `Frontend.yml` |
+| `BACKEND-BUILD-REPORT-amd64.md` | 🦀 RUST | `Backend.yml` |
+| `BACKEND-BUILD-REPORT-arm64.md` | 🦀 RUST | `Backend.yml` |
+| `DOCKER-BUILD-REPORT.md` | 🚀 DEVOPS | `Docker.yml` |
+| `TEST_REPORT.md` | 🧪 E2E | `test-nook.yml` |

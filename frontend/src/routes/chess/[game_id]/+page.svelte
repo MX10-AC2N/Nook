@@ -5,24 +5,54 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chessStore,
-    PIECE_SYMBOLS,
-    PIECE_SYMBOLS_FILLED,
-    PLAYER_LABELS,
-    PLAYER_COLORS_HEX,
-    type ChessPiece,
+    toAlgebraic,
+    fromAlgebraic,
+    decodePiece,
+    PIECE_UNICODE,
+    PIECE_NAMES,
+    statusLabel,
+    getLegalTargets,
   } from '$lib/chessStore.svelte.ts';
 
   const gameId = $derived($page.params.game_id);
 
-  let showResignConfirm  = $state(false);
-  let showPromotionModal = $state(false);
-  let pendingPromoMove   = $state<{ row: number; col: number } | null>(null);
+  // ── Clic sur une case ─────────────────────────────────────────
+  async function handleClick(row: number, col: number) {
+    if (chessStore.isGameOver) return;
+    await chessStore.selectSquare(row, col);
+  }
 
-  const PROMOTION_CHOICES = ['queen', 'rook', 'bishop', 'knight'] as const;
-  const PROMO_LABELS: Record<string, string> = {
-    queen: 'Reine', rook: 'Tour', bishop: 'Fou', knight: 'Cavalier'
-  };
+  // ── Classes CSS d'une case ────────────────────────────────────
+  function cellClass(row: number, col: number): string {
+    const alg     = toAlgebraic(row, col);
+    const isLight = (row + col) % 2 === 0;
+    let cls = `cell ${isLight ? 'cell-light' : 'cell-dark'}`;
 
+    // Sélection
+    if (chessStore.selected?.algebraic === alg) cls += ' cell-selected';
+
+    // Case cible légale
+    if (chessStore.legalTargets.includes(alg)) {
+      const board = chessStore.board();
+      const hasPiece = board[row]?.[col] !== '';
+      cls += hasPiece ? ' cell-capture' : ' cell-target';
+    }
+
+    // Dernier coup
+    if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) {
+      cls += ' cell-last';
+    }
+
+    return cls;
+  }
+
+  // ── Promotion ─────────────────────────────────────────────────
+  const PROMO_PIECES = ['q', 'r', 'b', 'n'] as const;
+  const PROMO_LABELS: Record<string, string> = { q: '♛ Dame', r: '♜ Tour', b: '♝ Fou', n: '♞ Cavalier' };
+
+  let showResign = $state(false);
+
+  // ── Cycle de vie ──────────────────────────────────────────────
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await chessStore.loadGame(gameId);
@@ -30,112 +60,32 @@
 
   onDestroy(() => chessStore.disconnectWebSocket());
 
-  // ── Helpers ──────────────────────────────────────────────────
-
-  function isCellInBounds(row: number, col: number): boolean {
-    if (!chessStore.currentGame) return false;
-    const pc = chessStore.currentGame.player_count;
-    if (pc === 2) return true;
-    if (row < 4 && col < 4) return false;
-    if (row < 4 && col > 9) return false;
-    if (row > 9 && col < 4) return false;
-    if (row > 9 && col > 9) return false;
-    return true;
-  }
-
-  function pieceAt(row: number, col: number): ChessPiece | null {
-    return chessStore.currentGame?.board_state.find(
-      p => p.row === row && p.col === col && p.alive
-    ) ?? null;
-  }
-
-  function isValidTarget(row: number, col: number) {
-    return chessStore.validMoves.find(m => m.row === row && m.col === col) ?? null;
-  }
-
-  function isSelected(piece: ChessPiece): boolean {
-    return chessStore.selectedPiece?.id === piece.id;
-  }
-
-  function isLastMoveFrom(row: number, col: number): boolean {
-    return chessStore.lastMoveHighlight?.from[0] === row &&
-           chessStore.lastMoveHighlight?.from[1] === col;
-  }
-
-  function isLastMoveTo(row: number, col: number): boolean {
-    return chessStore.lastMoveHighlight?.to[0] === row &&
-           chessStore.lastMoveHighlight?.to[1] === col;
-  }
-
-  function getCellClass(row: number, col: number): string {
-    if (!isCellInBounds(row, col)) return 'cell cell-void';
-    const light = (row + col) % 2 === 0;
-    const vm    = isValidTarget(row, col);
-    let cls = `cell ${light ? 'cell-light' : 'cell-dark'}`;
-    if (vm?.capture)         cls += ' cell-capture';
-    else if (vm)             cls += ' cell-valid';
-    if (isLastMoveFrom(row, col) || isLastMoveTo(row, col)) cls += ' cell-last-move';
-    return cls;
-  }
-
-  function getPieceSymbol(piece: ChessPiece): string {
-    const filled = piece.color === 'black' || piece.color === 'red';
-    return filled ? PIECE_SYMBOLS_FILLED[piece.piece_type] : PIECE_SYMBOLS[piece.piece_type];
-  }
-
-  // ── Clic sur une case ────────────────────────────────────────
-
-  function handleCellClick(row: number, col: number) {
-    if (!chessStore.isMyTurn || !chessStore.currentGame) return;
-    if (!isCellInBounds(row, col)) return;
-
-    const vm = isValidTarget(row, col);
-    if (vm) {
-      const piece = chessStore.selectedPiece;
-      if (piece?.piece_type === 'pawn') {
-        const bs = chessStore.currentGame.player_count === 2 ? 8 : 14;
-        const promotes =
-          (piece.color === 'white' && row === 0) ||
-          (piece.color === 'black' && row === bs - 1) ||
-          (piece.color === 'red'   && col === bs - 1) ||
-          (piece.color === 'green' && col === 0);
-        if (promotes) {
-          pendingPromoMove = { row, col };
-          showPromotionModal = true;
-          return;
-        }
-      }
-      chessStore.playMove(row, col);
-    } else {
-      const p = pieceAt(row, col);
-      if (p && p.color === chessStore.myColor) chessStore.selectPiece(p);
-      else chessStore.selectPiece(null);
-    }
-  }
-
-  async function handlePromotion(choice: string) {
-    if (pendingPromoMove) await chessStore.playMove(pendingPromoMove.row, pendingPromoMove.col, choice);
-    showPromotionModal = false;
-    pendingPromoMove = null;
-  }
-
-  // ── Slots joueurs ─────────────────────────────────────────────
-
-  const playerSlots = $derived(() => {
+  // ── Infos joueurs ─────────────────────────────────────────────
+  const myInfo = $derived(() => {
     const g = chessStore.currentGame;
-    if (!g) return [];
-    return [
-      { slot: 1, id: g.player1_id, color: g.player1_color },
-      { slot: 2, id: g.player2_id, color: g.player2_color },
-      { slot: 3, id: g.player3_id, color: g.player3_color },
-      { slot: 4, id: g.player4_id, color: g.player4_color },
-    ].slice(0, g.player_count);
+    if (!g) return null;
+    const uid = authStore.user?.id;
+    if (g.player1_id === uid) return { color: g.player1_color, slot: 1 };
+    if (g.player2_id === uid) return { color: g.player2_color, slot: 2 };
+    return null; // spectateur
   });
+
+  // Afficher le plateau orienté selon ma couleur (noirs = retourné)
+  const flipped = $derived(chessStore.myColor() === 'black');
+
+  // Rangées et colonnes selon orientation
+  const rows = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
+  const cols = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
+
+  // Historique de coups paginé (les 20 derniers)
+  const recentHistory = $derived(
+    (chessStore.currentGame?.move_history ?? []).slice(-20)
+  );
 </script>
 
 <svelte:head>
   <title>
-    {chessStore.currentGame ? `♟ Partie ${chessStore.currentGame.id.slice(0,8)}` : '♟ Chargement…'}
+    {chessStore.currentGame ? `♟ Partie — Nook` : '♟ Chargement…'}
   </title>
 </svelte:head>
 
@@ -155,310 +105,504 @@
 
   {:else}
     {@const game = chessStore.currentGame}
+    {@const engine = game.engine}
+
     <div class="game-layout">
 
-      <!-- ── Sidebar ── -->
+      <!-- ══ SIDEBAR ══ -->
       <aside class="sidebar">
         <a href="/chess" class="back-link">← Lobby</a>
 
-        <div class="players-panel">
-          <h2>Joueurs</h2>
-          {#each playerSlots() as { slot, id, color } (slot)}
-            <div
-              class="player-row"
-              class:is-turn={game.current_turn === slot && game.status === 'playing'}
-              class:is-eliminated={game.eliminated.includes(slot)}
-              class:is-me={chessStore.mySlot === slot}
-            >
-              <div class="dot" style="background:{PLAYER_COLORS_HEX[color]}"></div>
-              <div class="pinfo">
-                <span class="plabel">
-                  {PLAYER_LABELS[slot] ?? `Joueur ${slot}`}
-                  {#if chessStore.mySlot === slot}
-                    <span class="you">(vous)</span>
-                  {/if}
-                </span>
-                <span class="pid">{id ? id.slice(0,10)+'…' : 'En attente…'}</span>
-              </div>
-              <span class="pstatus">
-                {#if game.eliminated.includes(slot)}☠
-                {:else if game.current_turn === slot && game.status === 'playing'}▶
-                {:else}–{/if}
+        <!-- Joueurs -->
+        <div class="panel players-panel">
+          <h3>Joueurs</h3>
+
+          <!-- Joueur 2 (haut — adversaire si je joue blanc) -->
+          <div class="player-row"
+               class:active-turn={engine?.side_to_move === game.player2_color && game.status === 'playing'}
+               class:is-me={myInfo()?.slot === 2}>
+            <div class="color-dot" class:dot-white={game.player2_color === 'white'}
+                                   class:dot-black={game.player2_color === 'black'}></div>
+            <div class="player-info">
+              <span class="player-name">
+                {game.player2_id
+                  ? (myInfo()?.slot === 2 ? 'Vous' : (game.player2_id.slice(0,10) + '…'))
+                  : (game.ai_difficulty ? `🤖 IA (${game.ai_difficulty})` : 'En attente…')}
               </span>
+              <span class="player-color">{game.player2_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
             </div>
-          {/each}
+            {#if engine?.side_to_move === game.player2_color && game.status === 'playing'}
+              <span class="turn-arrow">▶</span>
+            {/if}
+          </div>
+
+          <!-- Joueur 1 (bas — moi si je joue blanc) -->
+          <div class="player-row"
+               class:active-turn={engine?.side_to_move === game.player1_color && game.status === 'playing'}
+               class:is-me={myInfo()?.slot === 1}>
+            <div class="color-dot" class:dot-white={game.player1_color === 'white'}
+                                   class:dot-black={game.player1_color === 'black'}></div>
+            <div class="player-info">
+              <span class="player-name">
+                {game.player1_id
+                  ? (myInfo()?.slot === 1 ? 'Vous' : (game.player1_id.slice(0,10) + '…'))
+                  : 'En attente…'}
+              </span>
+              <span class="player-color">{game.player1_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
+            </div>
+            {#if engine?.side_to_move === game.player1_color && game.status === 'playing'}
+              <span class="turn-arrow">▶</span>
+            {/if}
+          </div>
         </div>
 
         <!-- Statut -->
-        <div class="status-panel">
+        <div class="panel status-panel">
           {#if game.status === 'waiting'}
-            <div class="banner waiting">🟡 En attente des joueurs</div>
+            <div class="banner waiting">🟡 En attente d'un adversaire</div>
           {:else if game.status === 'playing'}
-            {#if chessStore.isMyTurn}
+            {#if chessStore.aiThinking}
+              <div class="banner thinking">
+                <span class="dots"><span></span><span></span><span></span></span>
+                IA réfléchit…
+              </div>
+            {:else if chessStore.isMyTurn}
               <div class="banner your-turn">✅ À vous de jouer !</div>
             {:else}
-              <div class="banner wait">⏳ Tour de {PLAYER_LABELS[game.current_turn] ?? `Joueur ${game.current_turn}`}</div>
+              <div class="banner waiting-turn">
+                ⏳ Tour des {engine?.side_to_move === 'white' ? 'Blancs' : 'Noirs'}
+              </div>
             {/if}
-          {:else if game.status === 'finished'}
-            <div class="banner finished">
-              🏆 Partie terminée !
+          {:else}
+            <div class="banner game-over">
+              {statusLabel(game.status)}
               {#if game.winner_id}
-                <small>{game.winner_id.slice(0,12)} a gagné</small>
+                <small>
+                  {game.winner_id === authStore.user?.id ? 'Vous avez gagné 🏆' : 'Vous avez perdu'}
+                </small>
               {/if}
             </div>
+            <a href="/chess" class="btn-new-game">Nouvelle partie</a>
           {/if}
         </div>
 
         <!-- Abandon -->
-        {#if game.status === 'playing' && chessStore.mySlot !== null}
-          {#if !showResignConfirm}
-            <button class="btn-resign" onclick={() => showResignConfirm = true}>
-              🏳 Abandonner
-            </button>
-          {:else}
-            <div class="resign-confirm">
-              <p>Confirmer l'abandon ?</p>
+        {#if game.status === 'playing' && myInfo()}
+          <div class="panel resign-panel">
+            {#if !showResign}
+              <button class="btn-resign" onclick={() => showResign = true}>🏳 Abandonner</button>
+            {:else}
+              <p class="resign-confirm-text">Confirmer l'abandon ?</p>
               <div class="resign-btns">
-                <button class="rbtn-yes" onclick={() => { chessStore.resign(); showResignConfirm = false; }}>Oui</button>
-                <button class="rbtn-no"  onclick={() => showResignConfirm = false}>Non</button>
+                <button class="rbtn-yes" onclick={() => { chessStore.resign(); showResign = false; }}>Oui</button>
+                <button class="rbtn-no"  onclick={() => showResign = false}>Non</button>
               </div>
-            </div>
-          {/if}
+            {/if}
+          </div>
+        {/if}
+
+        <!-- Historique des coups -->
+        {#if recentHistory.length > 0}
+          <div class="panel history-panel">
+            <h3>Historique</h3>
+            <ol class="move-list">
+              {#each recentHistory as move, i}
+                <li class="move-item" class:white-move={move.color === 'white'}>
+                  <span class="move-san">{move.san}</span>
+                  <span class="move-by">{move.by}</span>
+                </li>
+              {/each}
+            </ol>
+          </div>
         {/if}
 
         {#if chessStore.error}
-          <div class="sidebar-error">⚠️ {chessStore.error}</div>
+          <div class="panel error-panel">⚠️ {chessStore.error}</div>
         {/if}
       </aside>
 
-      <!-- ── Plateau ── -->
-      <main class="board-container">
-        <div
-          class="chess-board"
-          class:board-2p={game.player_count === 2}
-          class:board-4p={game.player_count > 2}
-        >
-          {#each { length: chessStore.boardSize } as _, row}
-            {#each { length: chessStore.boardSize } as _, col}
-              {@const piece = pieceAt(row, col)}
-              {@const vm    = isValidTarget(row, col)}
-              <div
-                class={getCellClass(row, col)}
-                role="button"
-                tabindex={isCellInBounds(row, col) ? 0 : -1}
-                onclick={() => handleCellClick(row, col)}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') handleCellClick(row, col);
-                }}
-              >
-                {#if isCellInBounds(row, col)}
-                  {#if col === 0}
-                    <span class="coord coord-r">{chessStore.boardSize - row}</span>
-                  {/if}
-                  {#if row === chessStore.boardSize - 1}
-                    <span class="coord coord-c">{String.fromCharCode(65 + col)}</span>
-                  {/if}
+      <!-- ══ PLATEAU ══ -->
+      <main class="board-wrap">
+        <div class="board-container">
 
-                  {#if piece}
-                    <span
-                      class="piece"
-                      class:selected={isSelected(piece)}
-                      class:can-move={piece.color === chessStore.myColor && chessStore.isMyTurn}
-                      style="color:{PLAYER_COLORS_HEX[piece.color]}"
-                    >
-                      {getPieceSymbol(piece)}
-                    </span>
-                  {:else if vm && !vm.capture}
-                    <span class="valid-dot"></span>
-                  {/if}
-                {/if}
-              </div>
+          <!-- Lettres colonnes (haut) -->
+          <div class="coords-top">
+            {#each cols as c}
+              <span>{String.fromCharCode(97 + c)}</span>
             {/each}
-          {/each}
+          </div>
+
+          <div class="board-and-ranks">
+            <!-- Chiffres rangées (gauche) -->
+            <div class="coords-left">
+              {#each rows as r}
+                <span>{8 - r}</span>
+              {/each}
+            </div>
+
+            <!-- Plateau 8×8 -->
+            <div class="chess-board">
+              {#each rows as row}
+                {#each cols as col}
+                  {@const piece = chessStore.board()[row]?.[col] ?? ''}
+                  {@const decoded = decodePiece(piece)}
+                  <div
+                    class={cellClass(row, col)}
+                    role="button"
+                    tabindex="0"
+                    onclick={() => handleClick(row, col)}
+                    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClick(row, col)}
+                  >
+                    {#if decoded}
+                      <span
+                        class="piece"
+                        class:piece-mine={decoded.color === (chessStore.myColor() === 'white' ? 'w' : 'b')}
+                        class:piece-selected={chessStore.selected?.algebraic === toAlgebraic(row, col)}
+                        style="color: {decoded.color === 'w' ? '#fff' : '#1a1a1a'};
+                               text-shadow: {decoded.color === 'w'
+                                 ? '0 1px 3px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,1)'
+                                 : '0 1px 2px rgba(255,255,255,0.3)'};"
+                      >
+                        {PIECE_UNICODE[piece] ?? '?'}
+                      </span>
+                    {:else if chessStore.legalTargets.includes(toAlgebraic(row, col))}
+                      <span class="target-dot"></span>
+                    {/if}
+                  </div>
+                {/each}
+              {/each}
+            </div>
+
+            <!-- Chiffres rangées (droite) -->
+            <div class="coords-right">
+              {#each rows as r}
+                <span>{8 - r}</span>
+              {/each}
+            </div>
+          </div>
+
+          <!-- Lettres colonnes (bas) -->
+          <div class="coords-bottom">
+            {#each cols as c}
+              <span>{String.fromCharCode(97 + c)}</span>
+            {/each}
+          </div>
+
         </div>
       </main>
 
     </div>
 
-    <!-- ── Modal promotion ── -->
-    {#if showPromotionModal}
+    <!-- ══ MODAL PROMOTION ══ -->
+    {#if chessStore.pendingPromotion}
       <div class="modal-backdrop">
-        <div class="modal-promo" role="dialog">
+        <div class="modal-promo" role="dialog" aria-modal="true">
           <h3>Promouvoir le pion</h3>
-          <div class="promo-choices">
-            {#each PROMOTION_CHOICES as choice}
+          <div class="promo-grid">
+            {#each PROMO_PIECES as p}
               <button
                 class="promo-btn"
-                onclick={() => handlePromotion(choice)}
-                style="color:{PLAYER_COLORS_HEX[chessStore.myColor ?? 'white']}"
+                onclick={() => chessStore.confirmPromotion(p)}
               >
-                <span class="promo-symbol">{PIECE_SYMBOLS[choice]}</span>
-                <span class="promo-label">{PROMO_LABELS[choice]}</span>
+                <span class="promo-piece"
+                  style="color: {chessStore.myColor() === 'white' ? '#fff' : '#1a1a1a'};
+                         text-shadow: {chessStore.myColor() === 'white'
+                           ? '0 1px 3px rgba(0,0,0,0.8)'
+                           : '0 1px 2px rgba(255,255,255,0.3)'};">
+                  {PROMO_LABELS[p].split(' ')[0]}
+                </span>
+                <span class="promo-name">{PROMO_LABELS[p].split(' ')[1]}</span>
               </button>
             {/each}
           </div>
+          <button class="promo-cancel" onclick={() => chessStore.cancelPromotion()}>
+            Annuler
+          </button>
         </div>
       </div>
     {/if}
+
   {/if}
 </div>
 
+
+
 <style>
-  .chess-page { min-height: 100vh; background: var(--color-bg, #f8fafc); }
+  /* ── Page ── */
+  .chess-page {
+    min-height: 100vh;
+    background: var(--color-bg, #f8fafc);
+  }
 
   .loading-full, .error-state {
-    min-height: 60vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 1rem; color: #64748b;
+    min-height: 70vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1rem; color: #64748b;
   }
   .spinner-lg {
-    width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #2d5a27;
+    width: 40px; height: 40px;
+    border: 3px solid #e2e8f0; border-top-color: #2d5a27;
     border-radius: 50%; animation: spin 1s linear infinite;
   }
-  .btn-back {
-    padding: 0.75rem 1.5rem; background: #2d5a27; color: white; border-radius: 0.5rem;
-    text-decoration: none; font-weight: 600;
-  }
   @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-back {
+    padding: .7rem 1.5rem; background: #2d5a27; color: #fff;
+    border-radius: .5rem; text-decoration: none; font-weight: 600;
+  }
 
   /* ── Layout ── */
   .game-layout {
-    display: grid; grid-template-columns: 220px 1fr;
-    gap: 1.5rem; padding: 1.5rem; align-items: start;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 1.5rem;
+    padding: 1.25rem;
+    align-items: start;
   }
 
   /* ── Sidebar ── */
-  .sidebar { display: flex; flex-direction: column; gap: 1rem; position: sticky; top: 1rem; }
-  .back-link { font-size: 0.85rem; color: #64748b; text-decoration: none; }
+  .sidebar {
+    display: flex; flex-direction: column; gap: .75rem;
+    position: sticky; top: 1rem;
+  }
+  .back-link { font-size: .83rem; color: #64748b; text-decoration: none; }
   .back-link:hover { color: #2d5a27; }
 
-  .players-panel {
-    background: white; border: 1px solid #e2e8f0; border-radius: 0.875rem; padding: 1rem;
+  .panel {
+    background: #fff; border: 1px solid #e2e8f0;
+    border-radius: .875rem; padding: .9rem;
   }
-  .players-panel h2 { margin: 0 0 0.75rem; font-size: 0.9rem; font-weight: 700; color: #1e293b; }
+  .panel h3 {
+    margin: 0 0 .65rem;
+    font-size: .8rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+    color: #64748b;
+  }
 
+  /* Joueurs */
+  .players-panel { }
   .player-row {
-    display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem;
-    border-radius: 0.4rem; margin-bottom: 0.25rem; border: 2px solid transparent;
-    transition: all 0.15s;
+    display: flex; align-items: center; gap: .45rem;
+    padding: .35rem .45rem; border-radius: .4rem;
+    border: 2px solid transparent; margin-bottom: .25rem;
+    transition: all .15s;
   }
-  .player-row.is-turn    { background: #f0fdf4; border-color: #86efac; }
-  .player-row.is-eliminated { opacity: 0.35; }
-  .player-row.is-me      { font-weight: 700; }
-
-  .dot {
-    width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
-    border: 1.5px solid rgba(0,0,0,0.15);
+  .player-row.active-turn { background: #f0fdf4; border-color: #86efac; }
+  .player-row.is-me { font-weight: 700; }
+  .color-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    border: 1.5px solid #94a3b8;
   }
-  .pinfo { flex: 1; min-width: 0; }
-  .plabel { display: block; font-size: 0.82rem; font-weight: 600; color: #1e293b; }
-  .pid    { font-size: 0.72rem; color: #94a3b8; display: block; }
-  .you    { color: #2d5a27; font-size: 0.72rem; }
-  .pstatus { font-size: 0.9rem; color: #64748b; }
+  .dot-white { background: #f8fafc; border-color: #94a3b8; }
+  .dot-black { background: #1e293b; border-color: #64748b; }
+  .player-info { flex: 1; min-width: 0; }
+  .player-name { display: block; font-size: .82rem; font-weight: 600; color: #1e293b; }
+  .player-color { font-size: .7rem; color: #94a3b8; }
+  .turn-arrow { color: #22c55e; font-size: .75rem; }
 
+  /* Bannières statut */
   .status-panel { }
   .banner {
-    padding: 0.7rem 0.9rem; border-radius: 0.6rem; font-size: 0.82rem;
-    font-weight: 600; text-align: center; line-height: 1.4;
+    padding: .6rem .75rem; border-radius: .5rem;
+    font-size: .82rem; font-weight: 600; text-align: center;
+    line-height: 1.4;
   }
-  .banner.waiting   { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
-  .banner.your-turn { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
-  .banner.wait      { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
-  .banner.finished  { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
-  .banner small     { display: block; font-size: 0.72rem; opacity: 0.7; margin-top: 0.2rem; }
+  .banner.waiting       { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
+  .banner.your-turn     { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+  .banner.waiting-turn  { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+  .banner.game-over     { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+  .banner.game-over small { display: block; font-size: .72rem; opacity: .75; margin-top: .2rem; }
+  .banner.thinking {
+    background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+    display: flex; align-items: center; justify-content: center; gap: .5rem;
+  }
 
-  .btn-resign {
-    width: 100%; padding: 0.55rem; background: #fef2f2; border: 1px solid #fecaca;
-    color: #dc2626; border-radius: 0.5rem; font-size: 0.82rem; cursor: pointer;
+  /* Dots animation IA */
+  .dots { display: flex; gap: 3px; }
+  .dots span {
+    width: 5px; height: 5px; border-radius: 50%; background: #1d4ed8;
+    animation: bounce 1.2s infinite;
   }
-  .btn-resign:hover { background: #fee2e2; }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bounce { 0%,80%,100% { transform: scale(0); } 40% { transform: scale(1); } }
 
-  .resign-confirm {
-    background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.6rem; padding: 0.75rem;
-    font-size: 0.82rem;
+  .btn-new-game {
+    display: block; margin-top: .5rem;
+    padding: .5rem; text-align: center;
+    background: #2d5a27; color: #fff;
+    border-radius: .45rem; text-decoration: none;
+    font-size: .82rem; font-weight: 600;
+    transition: background .15s;
   }
-  .resign-confirm p { margin: 0 0 0.5rem; color: #dc2626; font-weight: 600; }
-  .resign-btns { display: flex; gap: 0.4rem; }
-  .rbtn-yes {
-    flex: 1; padding: 0.35rem; background: #dc2626; color: white;
-    border: none; border-radius: 0.35rem; font-size: 0.78rem; cursor: pointer;
+  .btn-new-game:hover { background: #3d7a37; }
+
+  /* Historique */
+  .history-panel { max-height: 180px; overflow-y: auto; }
+  .move-list {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: .2rem;
   }
-  .rbtn-no {
-    flex: 1; padding: 0.35rem; background: #f1f5f9; color: #475569;
-    border: none; border-radius: 0.35rem; font-size: 0.78rem; cursor: pointer;
+  .move-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .2rem .35rem; border-radius: .3rem; font-size: .78rem;
   }
-  .sidebar-error {
-    padding: 0.55rem 0.7rem; background: #fef2f2; border: 1px solid #fecaca;
-    border-radius: 0.5rem; color: #dc2626; font-size: 0.8rem;
+  .move-item.white-move { background: #f8fafc; }
+  .move-san { font-weight: 700; font-family: monospace; color: #1e293b; }
+  .move-by  { color: #94a3b8; font-size: .7rem; }
+
+  /* Erreur */
+  .error-panel {
+    background: #fef2f2; border-color: #fecaca;
+    color: #dc2626; font-size: .82rem;
   }
 
   /* ── Plateau ── */
-  .board-container { display: flex; justify-content: center; align-items: flex-start; }
+  .board-wrap {
+    display: flex; justify-content: center; align-items: flex-start;
+  }
+  .board-container {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .board-and-ranks {
+    display: flex; align-items: stretch; gap: 2px;
+  }
 
+  /* Coordonnées */
+  .coords-top, .coords-bottom {
+    display: grid; grid-template-columns: repeat(8, 1fr);
+    width: min(74vw, 580px); padding: 0 2px;
+  }
+  .coords-top span, .coords-bottom span {
+    text-align: center; font-size: .6rem; font-weight: 700;
+    color: #94a3b8; line-height: 1.6;
+  }
+  .coords-left, .coords-right {
+    display: flex; flex-direction: column;
+  }
+  .coords-left span, .coords-right span {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: .6rem; font-weight: 700; color: #94a3b8;
+    width: 16px;
+  }
+
+  /* Grille 8×8 */
   .chess-board {
     display: grid;
-    border: 3px solid #374151; border-radius: 4px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18); overflow: hidden;
-    width: min(75vw, 600px); aspect-ratio: 1;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: min(74vw, 580px);
+    aspect-ratio: 1;
+    border: 2.5px solid #374151;
+    border-radius: 3px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px rgba(0,0,0,.2);
   }
-  .board-2p { grid-template-columns: repeat(8,  1fr); grid-template-rows: repeat(8,  1fr); }
-  .board-4p { grid-template-columns: repeat(14, 1fr); grid-template-rows: repeat(14, 1fr); }
 
-  /* ── Cases ── */
+  /* Cases */
   .cell {
-    position: relative; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: background 0.1s; user-select: none;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: filter .1s;
+    user-select: none;
   }
-  .cell:focus-visible { outline: 2px solid #2d5a27; outline-offset: -2px; z-index: 1; }
-  .cell-light    { background: #f0d9b5; }
-  .cell-dark     { background: #b58863; }
-  .cell-void     { background: #1a1a1a; cursor: default; }
-  .cell-valid    { background: rgba(99, 190, 90, 0.5) !important; }
-  .cell-capture  { background: rgba(220, 50, 50, 0.5) !important; }
-  .cell-last-move { outline: 3px solid rgba(255, 196, 0, 0.7); outline-offset: -3px; }
-  .cell:not(.cell-void):hover { filter: brightness(1.07); }
+  .cell:focus-visible {
+    outline: 3px solid #f59e0b; outline-offset: -3px; z-index: 2;
+  }
+  .cell-light   { background: #f0d9b5; }
+  .cell-dark    { background: #b58863; }
+  .cell-selected { outline: 3px solid #f59e0b; outline-offset: -3px; z-index: 1; }
+  .cell-target   { background: rgba(99, 200, 90, 0.45) !important; }
+  .cell-capture  { background: rgba(220, 60, 60, 0.5) !important; }
+  .cell-last     { background: rgba(255, 196, 0, 0.35) !important; }
+  .cell:not(.cell-selected):hover { filter: brightness(1.08); }
 
-  .coord { position: absolute; font-size: 0.5rem; font-weight: 700; opacity: 0.45; pointer-events: none; }
-  .coord-r { left: 2px; top: 2px; }
-  .coord-c { right: 2px; bottom: 2px; }
-
+  /* Pièces */
   .piece {
-    font-size: clamp(0.8rem, 3.2vw, 1.8rem); line-height: 1;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.5); cursor: pointer; z-index: 1;
-    transition: transform 0.1s;
+    font-size: clamp(1rem, 4.5vw, 2.2rem);
+    line-height: 1;
+    z-index: 1;
+    transition: transform .1s;
+    cursor: pointer;
   }
-  .piece.selected { transform: scale(1.3); filter: drop-shadow(0 0 5px rgba(255,220,0,0.9)); }
-  .piece.can-move:hover { transform: scale(1.1); }
+  .piece.piece-mine:hover    { transform: scale(1.12); }
+  .piece.piece-selected      { transform: scale(1.25); filter: drop-shadow(0 0 6px rgba(245,158,11,.9)); }
 
-  .valid-dot {
-    width: 30%; height: 30%; border-radius: 50%;
-    background: rgba(0,0,0,0.22); pointer-events: none;
+  /* Point cible */
+  .target-dot {
+    width: 28%; height: 28%;
+    border-radius: 50%;
+    background: rgba(0,0,0,.22);
+    pointer-events: none;
   }
 
   /* ── Modal promotion ── */
   .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-    display: flex; align-items: center; justify-content: center; z-index: 999;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 999;
   }
   .modal-promo {
-    background: white; border-radius: 1rem; padding: 1.75rem; text-align: center;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.3); min-width: 260px;
+    background: #fff; border-radius: 1rem;
+    padding: 1.75rem; text-align: center;
+    box-shadow: 0 16px 48px rgba(0,0,0,.3);
+    min-width: 280px;
   }
-  .modal-promo h3 { margin: 0 0 1.25rem; font-size: 1.15rem; color: #1e293b; }
-  .promo-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; }
+  .modal-promo h3 { margin: 0 0 1.1rem; font-size: 1.1rem; color: #1e293b; }
+  .promo-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: .6rem;
+    margin-bottom: 1rem;
+  }
   .promo-btn {
-    padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 0.7rem; background: white;
-    cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
-    transition: all 0.15s;
+    padding: .8rem .5rem; border: 2px solid #e2e8f0; border-radius: .7rem;
+    background: #fff; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: .2rem;
+    transition: all .15s;
   }
   .promo-btn:hover { border-color: #2d5a27; background: #f0fdf4; }
-  .promo-symbol { font-size: 1.8rem; line-height: 1; }
-  .promo-label  { font-weight: 600; color: #374151; font-size: 0.82rem; }
+  .promo-piece { font-size: 2rem; line-height: 1; }
+  .promo-name  { font-size: .8rem; font-weight: 600; color: #374151; }
+  .promo-cancel {
+    padding: .4rem 1.2rem; background: #f1f5f9; color: #475569;
+    border: none; border-radius: .45rem; cursor: pointer;
+    font-size: .85rem; transition: background .15s;
+  }
+  .promo-cancel:hover { background: #e2e8f0; }
+
+  /* ── Widget abandon ── */
+  .resign-panel { padding: .65rem !important; }
+  .btn-resign {
+    width: 100%; padding: .5rem; background: #fef2f2;
+    border: 1px solid #fecaca; color: #dc2626;
+    border-radius: .45rem; font-size: .82rem; cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-resign:hover { background: #fee2e2; }
+  .resign-confirm-text { margin: 0 0 .4rem; font-size: .82rem; color: #dc2626; font-weight: 600; }
+  .resign-btns { display: flex; gap: .35rem; }
+  .rbtn-yes {
+    flex: 1; padding: .35rem; background: #dc2626; color: #fff;
+    border: none; border-radius: .35rem; font-size: .78rem; cursor: pointer;
+  }
+  .rbtn-no {
+    flex: 1; padding: .35rem; background: #f1f5f9; color: #475569;
+    border: none; border-radius: .35rem; font-size: .78rem; cursor: pointer;
+  }
 
   /* ── Responsive ── */
   @media (max-width: 768px) {
-    .game-layout { grid-template-columns: 1fr; }
-    .sidebar { position: static; flex-direction: row; flex-wrap: wrap; }
-    .players-panel { flex: 1; min-width: 180px; }
-    .chess-board { width: min(95vw, 460px); }
+    .game-layout {
+      grid-template-columns: 1fr;
+    }
+    .sidebar {
+      position: static;
+      flex-direction: row; flex-wrap: wrap;
+    }
+    .players-panel, .status-panel { flex: 1; min-width: 160px; }
+    .history-panel { display: none; }
+    .chess-board { width: min(94vw, 460px); }
+    .coords-top, .coords-bottom { width: min(94vw, 460px); }
   }
 </style>
