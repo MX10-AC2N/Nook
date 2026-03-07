@@ -268,6 +268,16 @@ class ChessStore {
       this.currentGame = data.game;
       this.selected    = null;
       this.legalTargets = [];
+
+      // Restaurer le dernier coup pour l'affichage .cell-last après reload
+      // Les coups humains ont { from, to } dans move_history ; les coups IA n'ont pas from/to
+      const history: Array<{ from?: string; to?: string }> =
+        data.game?.move_history ?? [];
+      const lastWithCoords = [...history].reverse().find((m) => m.from && m.to);
+      this.lastMove = lastWithCoords
+        ? { from: lastWithCoords.from!, to: lastWithCoords.to! }
+        : null;
+
       this.connectWebSocket(gameId);
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
