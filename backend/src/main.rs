@@ -455,6 +455,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites", get(admin::list_invites))
         .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
+        .route("/analytics", get(admin::get_analytics))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
