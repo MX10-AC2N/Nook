@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-06** (session 24)
+> Mis à jour : **2026-03-07** (session 25)
 
 ---
 
@@ -37,6 +37,7 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R24 | 25 | Layout bloque sur `!cryptoInitialized` → `#username` jamais visible | Retirer `!cryptoInitialized` de la guard template, crypto failure = mode dégradé non-bloquant |
 | R22 | 22 | clearSession goto('/') → authStore.init avec cookie | `page.request.post(logout)` avant tout goto |
 | R23 | 23 | fill('#username') avant layout onMount | `waitFor('#username', visible, 20s)` |
 | R21 | 21 | fullyParallel:true partage browser context | `fullyParallel: false` |
