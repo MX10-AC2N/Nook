@@ -228,6 +228,66 @@ pub async fn get_conversation(
     Ok(Json(conv))
 }
 
+// PATCH /api/conversations/{id}/rename
+// Autorisé : créateur du groupe ou admin. Interdit sur default_global.
+#[derive(Debug, serde::Deserialize)]
+pub struct RenameConversationRequest {
+    pub name: String,
+}
+
+pub async fn rename_conversation(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(crate::auth::CurrentUser(user)): Extension<crate::auth::CurrentUser>,
+    Path(id): Path<String>,
+    Json(req): Json<RenameConversationRequest>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    // default_global est intouchable
+    if id == "default_global" {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Impossible de renommer le groupe Nook"}))));
+    }
+
+    let name = req.name.trim().to_string();
+    if name.is_empty() || name.len() > 60 {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "Nom invalide (1-60 caractères)"}))));
+    }
+
+    // Vérifier que la conv existe et que l'utilisateur est le créateur ou admin
+    #[derive(sqlx::FromRow)]
+    struct ConvMeta { created_by: String, is_group: bool }
+
+    let meta = sqlx::query_as::<_, ConvMeta>(
+        "SELECT created_by, is_group FROM conversations WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))))?
+    .ok_or((StatusCode::NOT_FOUND, Json(json!({"error": "Conversation introuvable"}))))?;
+
+    if !meta.is_group {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Impossible de renommer un DM"}))));
+    }
+
+    if meta.created_by != user.id && user.role != "admin" {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Seul le créateur ou l'admin peut renommer"}))));
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query("UPDATE conversations SET name = ?, updated_at = ? WHERE id = ?")
+        .bind(&name)
+        .bind(now)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))))?;
+
+    tracing::info!(conv_id = %id, new_name = %name, "Groupe renommé");
+    Ok(Json(json!({"success": true, "name": name})))
+}
+
 pub async fn get_user_conversations(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
