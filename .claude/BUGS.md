@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 32)
+> Mis à jour : **2026-03-07** (session 33)
 
 ---
 
@@ -27,6 +27,9 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R33a | 33 | `GET /chess/{id}/moves` → test attendait `'e4'` (SAN) mais backend retourne `'e2e4'` (UCI) | `e2e.spec.ts` : `expect(body).toContain('e2e4')` |
+| R33b | 33 | `.cell-last` absent après `page.reload()` : `loadGame()` ne restaurait pas `lastMove` | `chessStore.svelte.ts` : restauration depuis `move_history` dans `loadGame()` |
+| R33c | 33 | Flaky `GET /api/users/pending` : `loginAsAdmin` → 429 une seule fois, retry insuffisant | `e2e.spec.ts` : boucle for (2 retries × 6s) au lieu d'un seul retry 5s |
 | R32a | 32 | `GET /chess/{id}/moves` retourne `{success,moves:[]}` → test attend array brut | `chess.rs` : `Json(moves_json)` au lieu de `Json(json!({success,moves}))` |
 | R32b | 32 | `POST /polls/{id}/vote` retourne `{poll:{...}}` sans `success:true` | `polls.rs` : `Json(json!({success:true, poll:p}))` |
 | R32c | 32 | Test chess IA envoie `ai_difficulty:'medium'` → backend attend `opponent:'medium'` | `e2e.spec.ts` : champ renommé partout |
