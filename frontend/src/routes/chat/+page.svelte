@@ -40,6 +40,8 @@
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
   let activeConvName  = $state('👨‍👩‍👧‍👦 Groupe Global');
+  // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
+  let activeConv      = $state<Conv | null>(null);
   let availableUsers  = $state<AvailUser[]>([]);
   let loadingConvs    = $state(true);
 
@@ -139,6 +141,7 @@
 
   async function selectConversation(conv: Conv) {
     activeConvId = conv.id;
+    activeConv   = conv;
 
     if (conv.id === 'default_global') {
       activeConvName = '👨‍👩‍👧‍👦 Groupe Global';
@@ -368,6 +371,22 @@
       <h2>{activeConvName}</h2>
       {#if chatStore.connectionError}
         <span class="conn-error">⚠️ {chatStore.connectionError}</span>
+      {/if}
+      {#if activeConv && !activeConv.is_group && activeConv.id !== 'default_global'}
+        <div class="call-actions">
+          <a
+            href="/call/{activeConv.id}?type=audio"
+            class="call-btn call-btn--audio"
+            title="Appel audio"
+            aria-label="Démarrer un appel audio"
+          >🎤</a>
+          <a
+            href="/call/{activeConv.id}?type=video"
+            class="call-btn call-btn--video"
+            title="Appel vidéo"
+            aria-label="Démarrer un appel vidéo"
+          >📹</a>
+        </div>
       {/if}
     </header>
 
@@ -635,8 +654,17 @@
     align-items: center;
     gap: 1rem;
   }
-  .chat-header h2 { margin: 0; font-size: 1.05rem; color: var(--text-primary, #1e293b); }
-  .conn-error { font-size: .78rem; color: #dc2626; margin-left: auto; }
+  .chat-header h2 { margin: 0; font-size: 1.05rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conn-error { font-size: .78rem; color: #dc2626; }
+  .call-actions { display: flex; gap: .35rem; flex-shrink: 0; margin-left: auto; }
+  .call-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bg-secondary, #f1f5f9);
+    font-size: .95rem; text-decoration: none;
+    transition: background .15s, transform .15s;
+  }
+  .call-btn:hover { background: var(--accent, #4ade80); transform: scale(1.1); }
 
   /* ─── Messages ─── */
   .messages-container {
