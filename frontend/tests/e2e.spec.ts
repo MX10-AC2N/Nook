@@ -210,11 +210,11 @@ test.describe('Chat', () => {
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 8_000 });
 
     const names = await page.locator('.conversation-info .name').allTextContents();
-    const hasGlobal = names.some(n => n.includes('Groupe Global') || n.includes('Global'));
+    const hasGlobal = names.some(n => n.includes('Nook') || n.includes('Global'));
     expect(hasGlobal).toBe(true);
-    console.log(`✅ Sidebar : ${names.length} conversation(s), Groupe Global présent`);
+    console.log(`✅ Sidebar : ${names.length} conversation(s), Nook présent`);
 
-    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Groupe Global' });
+    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' });
     if (await globalItem.count() > 0) {
       await globalItem.first().click();
     }
@@ -1088,21 +1088,21 @@ test.describe('Conversations — DM', () => {
     console.log('✅ Boutons appel audio/vidéo visibles dans le header DM');
   });
 
-  test('Chat UI — bouton appel ABSENT pour Groupe Global', async ({ page }) => {
+  test('Chat UI — bouton appel ABSENT pour Nook', async ({ page }) => {
     test.setTimeout(30_000);
     await loginAs(page, 'e2e_ci', 'E2eTest123!');
     await page.goto('/chat');
     await waitForAppReady(page);
 
-    // Cliquer sur Groupe Global
-    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Groupe Global' }).first();
+    // Cliquer sur Nook
+    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
     await expect(globalItem).toBeVisible({ timeout: 8_000 });
     await globalItem.click();
     await page.waitForTimeout(500);
 
     // Les boutons appel NE doivent PAS apparaître pour un groupe
     await expect(page.locator('.call-actions')).not.toBeVisible({ timeout: 2_000 });
-    console.log('✅ Pas de bouton appel sur Groupe Global (is_group=true)');
+    console.log('✅ Pas de bouton appel sur Nook (is_group=true)');
   });
 
 });
