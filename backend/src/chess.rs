@@ -856,7 +856,7 @@ pub async fn legal_moves(
         })
         .collect();
 
-    Json(json!({ "success": true, "moves": moves_json })).into_response()
+    Json(moves_json).into_response()
 }
 
 // ════════════════════════════════════════════════════════════════
