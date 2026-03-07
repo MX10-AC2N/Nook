@@ -452,8 +452,8 @@ pub async fn vote_poll(
     }
 
     match load_poll(&state.db, &poll_id, &user.id).await {
-        Some(p) => Json(json!({ "poll": p })).into_response(),
-        None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({}))).into_response(),
+        Some(p) => Json(json!({ "success": true, "poll": p })).into_response(),
+        None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
     }
 }
 
