@@ -39,16 +39,14 @@ jobs:
           AGENT_COUNT=$(ls .claude/roles/*.md 2>/dev/null | wc -l || echo 0)
           echo "agent_count=$AGENT_COUNT" >> $GITHUB_OUTPUT
 
-          AGENTS=$(grep "^\| [🦀🎨🚀🧪🔐♟📊📐🤖]" .claude/CLAUDE.md 2>/dev/null | \
-            sed 's/| \*\*\([^*]*\)\*\*.*/\1/' | \
-            sed 's/^| //' | tr '\n' '/' | sed 's/\/$//')
-          echo "agents=$AGENTS" >> $GITHUB_OUTPUT
-
-          ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null || echo 0)
+          # grep -c retourne exit 1 quand 0 match → utiliser grep | wc -l
+          ACTIVE_BUGS=$(grep "^### Bug #" .claude/BUGS.md 2>/dev/null | wc -l)
           echo "active_bugs=$ACTIVE_BUGS" >> $GITHUB_OUTPUT
 
-          SESSION=$(grep "Session courante" .claude/CLAUDE.md | grep -oE "[0-9]+" | head -1)
-          echo "session=$SESSION" >> $GITHUB_OUTPUT
+          # "Session courante : **24**" → extraire le dernier **N** avant la date
+          # grep -oE "[0-9]+" seul retourne aussi les chiffres de la version et de la date
+          SESSION=$(grep "Session courante" .claude/CLAUDE.md | grep -oE "\*\*[0-9]+\*\*" | tail -1 | tr -d '*')
+          echo "session=${SESSION:-0}" >> $GITHUB_OUTPUT
 
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
