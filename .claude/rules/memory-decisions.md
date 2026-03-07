@@ -81,3 +81,13 @@
 **Décision** : Aucun workflow déclenché automatiquement (pas de `on: push`).  
 **Pourquoi** : Projet familial homeserver — pas besoin de CI automatique. Les déclenchements manuels permettent de choisir quand compiler/tester. Économise les GitHub Actions minutes.  
 **Exception possible** : Ajouter un check lint automatique sur PR si l'équipe grandit.
+
+---
+
+## [D11] test.describe.serial() pour tests à quota global — Session 32
+
+**Décision** : Tout groupe de tests qui épuise intentionnellement un quota global (rate limit, ressource partagée) doit être enveloppé dans `test.describe.serial()`.
+
+**Pourquoi** : Le rate limiter Nook est global (pas par IP) : `Quota::per_minute(10)` sur `/auth/login`. Avec 27 workers CI parallèles, un flood × 15 épuise le quota pour tous les workers → les `loginAsAdmin` concurrents reçoivent 429. `test.describe.serial` force l'exécution séquentielle du groupe entier, libérant le quota avant que les autres workers tentent de se connecter.
+
+**Règle** : Si un test doit déclencher un 429, le mettre dans `describe.serial`. Ajouter un retry 429 dans les helpers critiques (`loginAsAdmin`) comme défense en profondeur.
