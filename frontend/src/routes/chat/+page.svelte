@@ -346,8 +346,10 @@
         throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
       }
       const data = await res.json();
-      const content = file.type.startsWith('image/')
-        ? `<img src="${data.url}" alt="${data.file_name}" class="uploaded-image" />`
+      // data.url pointe maintenant vers /api/download/{id} (déchiffré) — session 34
+      const isImage = data.is_image ?? file.type.startsWith('image/');
+      const content = isImage
+        ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
         : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
       await sendMessage(content, activeConvId);
       input.value = '';
