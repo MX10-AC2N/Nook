@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-07 21:32 UTC**
+> **Dernière mise à jour : 2026-03-08 07:09 UTC**
 
 ---
 
@@ -9,13 +9,13 @@
 
 | Champ | Valeur |
 |-------|--------|
-| **Statut** | ✅ SUCCÈS |
+| **Statut** | ❌ ÉCHEC |
 | **Tests passés** | ? |
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `develop` |
-| **Commit** | [`585e63b`](https://github.com/MX10-AC2N/Nook/commit/585e63bc3c30b87cf24395fecff06f49743ff96e) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22807513070) |
+| **Commit** | [`46cf648`](https://github.com/MX10-AC2N/Nook/commit/46cf648f632f7c5df40a38a3c071800b9d6259fe) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22816027893) |
 
 ---
 
@@ -46,7 +46,46 @@
 ## Erreurs détectées
 
 ```
-Aucune erreur détectée
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "location": {
+                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
+                          "column": 22,
+                          "line": 704
+                        },
+--
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+--
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "location": {
+                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
+                          "column": 22,
+                          "line": 704
+                        },
+--
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+--
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "location": {
+                          "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
+                          "column": 22,
+                          "line": 704
+                        },
+--
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                        }
 ```
 
 ---
@@ -54,22 +93,22 @@ Aucune erreur détectée
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-07T21:31:20.116327Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:31:36.498974Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:31:53.581631Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.442108Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.443448Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.444659Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.445944Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.447455Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.448651Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.449817Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.451040Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.452556Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.453739Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.455437Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.457073Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-07T21:32:09.458543Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:08:25.849038Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:08:42.264356Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:08:59.845867Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.708403Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.709683Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.711390Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.712667Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.714015Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.715304Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.716890Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.718222Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.719537Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.720770Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.722376Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.723732Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T07:09:15.725096Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
 ```
 
 ---
