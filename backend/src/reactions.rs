@@ -36,6 +36,7 @@ pub struct AddReactionRequest {
 /// Agrégat retourné par GET /reactions : { "👍": ["alice", "bob"], "❤️": ["carol"] }
 /// + ma propre réaction pour l'UI
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct ReactionsResponse {
     pub counts: std::collections::HashMap<String, Vec<String>>, // emoji → [user_name]
     pub my_emoji: Option<String>,                                // réaction de l'utilisateur courant
@@ -252,7 +253,7 @@ pub async fn get_reactions(
 // ────────────────────────────────────────────────────────────────────────────
 
 pub fn reactions_routes() -> axum::Router<Arc<SharedState>> {
-    use axum::routing::{delete, get, post};
+    use axum::routing::post;
     axum::Router::new()
         .route(
             "/conversations/{conv_id}/messages/{msg_id}/reactions",
