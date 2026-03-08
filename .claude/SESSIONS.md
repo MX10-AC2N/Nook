@@ -961,3 +961,74 @@ loginAsAdmin() → 2 retries × 6s si 429 (boucle for, pas if)
 ### Fichiers modifiés
 - `frontend/src/lib/chessStore.svelte.ts` — `loadGame()` : restauration `lastMove` depuis `move_history`
 - `frontend/tests/e2e.spec.ts` — 3 corrections (R33a, R33b, R33c)
+
+---
+
+## Session 34 — Correctifs UI/UX + Proxy GIF + Déchiffrement fichiers
+
+**Date** : 2026-03-08 | **CI** : 66✅ 0❌ 0🔥 (session précédente) | **Version** : 0.4.0-beta.1
+
+### Contexte
+7 problèmes fonctionnels identifiés depuis l'utilisation réelle en production sur le Zimaboard :
+images cassées dans le chat, GIFs invisibles, thèmes sans effet visuel, onglet analytics manquant,
+FAQ obsolète, sondages sans ciblage, badge admin hardcodé.
+
+### Corrections
+
+#### R34a — `download_file` ne déchiffrait pas (images cassées)
+- **Symptôme** : `<img src="/files/{id}">` affichait des icônes cassées — le fichier servi était du binaire XChaCha20 chiffré
+- **Cause** : `upload_chat_file` stockait `content_type = "application/octet-stream"` (hardcodé). `download_file` ne lisait pas `nonce` ni `key_text` depuis la DB — il servait le ciphertext brut.
+- **Fix** :
+  1. `upload_chat_file` : conserve le vrai MIME type (depuis `field.content_type()` ou `guess_content_type()`)
+  2. `download_file` : sélectionne `nonce, key_text, encrypted` + appelle `decrypt_file_from_storage()` avant envoi
+  3. `Content-Disposition: inline` pour images/vidéos/audio/pdf ; `attachment` pour le reste
+  4. Cache `private, max-age=3600`
+- **Fichier** : `backend/src/upload.rs`
+
+#### R34b — Images chat pointaient vers `/files/{id}` (chiffré brut)
+- **Cause** : `chat/+page.svelte` utilisait `data.url` (= `/files/{id}`) pour les `<img src=...>` — or `/files/` est un `ServeDir` qui sert les fichiers chiffrés sans déchiffrement.
+- **Fix** : `<img src="/api/download/{data.file_id}">` — la route `/api/download/` déchiffre. L'URL retournée par le backend est également corrigée (`/api/download/` au lieu de `/files/`).
+- **Fichiers** : `backend/src/upload.rs` + `frontend/src/routes/chat/+page.svelte`
+
+#### R34c — GIFs Tenor : CORS + clé demo saturée
+- **Cause** : `searchGifs` appelait `tenor.googleapis.com` directement depuis le navigateur → CORS bloqué sur certains réseaux + clé `LIVDSRZULELA` (démo publique) saturée.
+- **Fix** : Proxy backend `GET /api/gifs/search?q=...` dans `main.rs` (handler inline `gif_search_proxy`). Appel Tenor depuis Rust (pas de CORS). Clé configurable via `TENOR_API_KEY` dans `.env`.
+- **Fichiers** : `backend/src/main.rs` + `frontend/src/lib/chatStore.svelte.ts`
+
+#### R34d — Onglet Analytics manquant + badge hardcodé
+- **Cause** : `/admin/+page.svelte` n'avait pas de bouton vers `/admin/analytics`. Le badge affichait "Connecté en tant qu'admin" hardcodé.
+- **Fix** : Ajout onglet `📊 Analytics ↗` (goto). Badge : `authStore.user.name || authStore.user.username`. Couleurs → variables CSS thème.
+- **Fichier** : `frontend/src/routes/admin/+page.svelte`
+
+#### R34e — Thèmes sans effet visuel (couleurs hardcodées)
+- **Cause** : `settings/+page.svelte` utilisait des couleurs CSS hardcodées (`#2d5a27`, `white`, `#f1f5f9`…) au lieu des variables du système de design (`var(--accent)`, `var(--bg-primary)`…). Résultat : changer de thème n'avait aucun effet sur cette page.
+- **Fix** : Remplacement systématique de toutes les couleurs par les variables CSS thème. Ajout d'un aperçu visuel live dans chaque carte de thème (mini-UI avec les vraies couleurs).
+- **Note** : Le texte explicatif "identifiant de connexion ≠ nom affiché" a été ajouté dans l'onglet Profil.
+- **Fichier** : `frontend/src/routes/settings/+page.svelte`
+
+#### R34f — Sondages sans ciblage des participants
+- **Implémentation** : Sélection des destinataires côté frontend uniquement (zero-migration). Les IDs sélectionnés sont stockés dans `localStorage` (`nook-poll-audience`). Un badge "📩 Pour : vous + X, Y" est affiché sur les sondages ciblés. L'API `/api/polls` ne change pas.
+- **DT-06** : Une migration complète (table `poll_invitations`) est prévue pour forcer le filtrage côté serveur.
+- **Fichier** : `frontend/src/routes/polls/+page.svelte`
+
+#### R34g — Page d'aide obsolète
+- **Fix** : FAQ entièrement réécrite avec les vraies fonctionnalités v0.4.x : images chiffrées, GIF proxy, thèmes variables, sondages ciblés, analytics admin, identifiant vs nom affiché, Chess IA.
+- **Fichier** : `frontend/src/routes/help/+page.svelte`
+
+### Nouvelle règle — piège identifié
+```
+/files/{id}           → ServeDir raw (CHIFFRÉ) — ne pas utiliser pour <img src>
+/api/download/{id}    → déchiffre + sert avec bon Content-Type (toujours utiliser)
+TENOR_API_KEY         → variable .env optionnelle (clé demo si absente)
+download_file         → SELECT nonce, key_text, encrypted FROM uploads (champs requis)
+```
+
+### Fichiers modifiés
+- `backend/src/upload.rs`
+- `backend/src/main.rs` (proxy GIF inline)
+- `frontend/src/lib/chatStore.svelte.ts`
+- `frontend/src/routes/chat/+page.svelte`
+- `frontend/src/routes/admin/+page.svelte`
+- `frontend/src/routes/settings/+page.svelte`
+- `frontend/src/routes/polls/+page.svelte`
+- `frontend/src/routes/help/+page.svelte`
