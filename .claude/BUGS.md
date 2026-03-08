@@ -1,48 +1,42 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 33)
+> Dernière mise à jour : Session 34
+
+## ✅ Bugs actifs : 0
 
 ---
 
-## 🔴 BUGS ACTIFS
+## 📋 Historique des corrections
 
-*Aucun bug actif bloquant.*
+| Session | ID    | Fichier(s)                                  | Description                                             |
+|---------|-------|---------------------------------------------|---------------------------------------------------------|
+| 34      | R34a  | `backend/src/upload.rs`                     | `download_file` ne déchiffrait pas → images cassées     |
+| 34      | R34b  | `upload.rs` + `chat/+page.svelte`           | `upload_chat_file` perdait le `content_type` (octet-stream) |
+| 34      | R34c  | `chatStore.svelte.ts` + `main.rs`           | GIFs Tenor : CORS + clé demo → proxy backend `/api/gifs/search` |
+| 34      | R34d  | `admin/+page.svelte`                        | Onglet Analytics manquant + badge hardcodé "admin"      |
+| 34      | R34e  | `settings/+page.svelte`                     | Couleurs hardcodées → variables CSS thème (var(--accent) etc.) |
+| 34      | R34f  | `polls/+page.svelte`                        | Sondages ciblés (sélection participants)                |
+| 34      | R34g  | `help/+page.svelte`                         | Contenu obsolète → FAQ à jour v0.4.x                    |
+| 33      | R33a  | `e2e.spec.ts`                               | Format UCI vs SAN pour les coups échecs                 |
+| 33      | R33b  | `chessStore.svelte.ts` + `e2e.spec.ts`     | `.cell-last` absent après reload                        |
+| 33      | R33c  | `e2e.spec.ts`                               | `loginAsAdmin` 429 flaky (retry loop)                   |
+| 32      | R32a-f| `chess.rs`, `polls.rs`, `e2e.spec.ts`       | Multiples fixes CI session 32                           |
 
 ---
 
-## 📋 Règles Svelte 5 (éviter régressions)
+## ⚠️ Dettes techniques connues
 
-```typescript
-// ✅ export $state → objet encapsulant, mutation via propriété
-export const store = $state<State>({...});
-store.prop = newValue;  // ✅
-// ❌ jamais : export let x = $state(); x = newVal;
-// ❌ jamais : writable() Svelte 4
-// ❌ $derived/$effect hors composant .svelte
-```
+| ID    | Priorité | Description                                                      |
+|-------|----------|------------------------------------------------------------------|
+| DT-01 | Moyenne  | libsodium-wrappers 938 kB charge synchrone (layout delay)        |
+| DT-02 | Haute    | Chess temps réel absent côté adversaire (refresh requis)         |
+| DT-05 | Haute    | WebRTC WAN instable (TURN absent)                                |
+| DT-06 | Basse    | Sondages ciblés côté client uniquement (pas de table DB dédiée) |
 
 ---
 
-## ✅ BUGS RÉSOLUS — Index compact
+## 📌 Notes importantes
 
-| ID | Session | Titre | Fix |
-|----|---------|-------|-----|
-| R33a | 33 | `GET /chess/{id}/moves` → test attendait `'e4'` (SAN) mais backend retourne `'e2e4'` (UCI) | `e2e.spec.ts` : `expect(body).toContain('e2e4')` |
-| R33b | 33 | `.cell-last` absent après `page.reload()` : `loadGame()` ne restaurait pas `lastMove` | `chessStore.svelte.ts` : restauration depuis `move_history` dans `loadGame()` |
-| R33c | 33 | Flaky `GET /api/users/pending` : `loginAsAdmin` → 429 une seule fois, retry insuffisant | `e2e.spec.ts` : boucle for (2 retries × 6s) au lieu d'un seul retry 5s |
-| R32a | 32 | `GET /chess/{id}/moves` retourne `{success,moves:[]}` → test attend array brut | `chess.rs` : `Json(moves_json)` au lieu de `Json(json!({success,moves}))` |
-| R32b | 32 | `POST /polls/{id}/vote` retourne `{poll:{...}}` sans `success:true` | `polls.rs` : `Json(json!({success:true, poll:p}))` |
-| R32c | 32 | Test chess IA envoie `ai_difficulty:'medium'` → backend attend `opponent:'medium'` | `e2e.spec.ts` : champ renommé partout |
-| R32d | 32 | Test Chat "Envoi message" : `waitForResponse('/api/conversations')` rate la réponse (déjà passée) | Remplacé par `expect('.conversation-item').toBeVisible({timeout:15s})` |
-| R32e | 32 | `loginAsAdmin` → 429 : test Rate Limit × 15 pollue le quota global shared | `test.describe.serial('Rate Limiting')` + retry 429 dans `loginAsAdmin` |
-| R32f | 32 | `loginAs` flaky (11/66) : submit puis reste sur `/login` sous charge CI | Retry automatique si `toHaveURL` timeout après 15s |
-| DT-02 | 31 | Chess temps réel absent — adversaire voit coups au refresh | WS reconnect exponentiel + gestion chess_player_joined + chess_ai_move dans chessStore |
-| DT-05 | — | WebRTC WAN instable (TURN absent) | Non résolu — prévu |
-| R31a | 31 | `send_message` ne broadcastait pas via WS | Ajout broadcast `new_message` dans `db.rs::send_message()` |
-| R31b | 31 | `sendMessage()` appelé avec mauvaise signature (3 params) | Signature corrigée : `(content, convId)` |
-| R31c | 31 | Upload échoue silencieusement > 50 Mo | Vérification côté client + message d'erreur avec timeout |
-| R25 | 26 | Polls E2E race condition `waitForResponse` après `goto()` | `Promise.all([waitForResponse, goto()])` |
-| R24 | 25 | Layout bloque sur `!cryptoInitialized` | Crypto failure = mode dégradé non-bloquant |
-| R23 | 23 | `fill('#username')` avant layout onMount | `waitFor('#username', visible, 20s)` |
-| R22 | 22 | `clearSession` goto('/') → authStore.init avec cookie | `page.request.post(logout)` avant tout goto |
-| R21 | 21 | `fullyParallel:true` partage browser context | `fullyParallel: false` |
+- **Identifiant admin** : `username = "admin"` permanent (connexion). Le `name` peut être changé via Settings.
+- **TENOR_API_KEY** : variable `.env` optionnelle. Si absente → clé de démonstration Tenor.
+- **`/api/download/{id}`** : seule route qui déchiffre les fichiers. `/files/{id}` sert le binaire chiffré brut (ne plus utiliser pour les images).
