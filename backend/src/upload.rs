@@ -1,6 +1,15 @@
-// backend/src/upload.rs - Gestion des uploads avec chiffrement + CurrentUser
+// backend/src/upload.rs — Session 34
+// Corrections :
+//   - download_file déchiffre maintenant le fichier avant de le servir
+//   - upload_chat_file conserve le vrai content_type (image/jpeg, image/gif, etc.)
+//   - Les deux handlers retournent url="/api/download/{id}" (déchiffre) au lieu de "/files/{id}"
+//   - download_file : Content-Disposition inline pour images/vidéos/audio/pdf
 
-use crate::{auth::CurrentUser, webrtc::encrypt_file_for_storage, SharedState};
+use crate::{
+    auth::CurrentUser,
+    webrtc::{decrypt_file_from_storage, encrypt_file_for_storage},
+    SharedState,
+};
 use axum::{
     body::Body,
     extract::{Multipart, Path, State as AxumState},
@@ -26,18 +35,53 @@ pub struct UploadResponse {
     pub url: String,
 }
 
+// ====================== UTILITAIRES ======================
+
+/// Devine le MIME type depuis l'extension du fichier.
+fn guess_content_type(filename: &str) -> String {
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png"          => "image/png",
+        "gif"          => "image/gif",
+        "webp"         => "image/webp",
+        "svg"          => "image/svg+xml",
+        "mp4"          => "video/mp4",
+        "webm"         => "video/webm",
+        "mov"          => "video/quicktime",
+        "mp3"          => "audio/mpeg",
+        "ogg"          => "audio/ogg",
+        "wav"          => "audio/wav",
+        "m4a"          => "audio/mp4",
+        "pdf"          => "application/pdf",
+        "txt"          => "text/plain; charset=utf-8",
+        _              => "application/octet-stream",
+    }
+    .to_string()
+}
+
+fn is_viewable_inline(content_type: &str) -> bool {
+    content_type.starts_with("image/")
+        || content_type.starts_with("video/")
+        || content_type.starts_with("audio/")
+        || content_type == "application/pdf"
+}
+
 // ====================== HANDLERS (protégés) ======================
 
 pub async fn upload_handler(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>, // ← AUTHENTIFIÉ
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
 
     while let Ok(Some(mut field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
-
         if name == "conversation_id" {
             if let Ok(text) = field.text().await {
                 form_data.conversation_id = text;
@@ -47,7 +91,8 @@ pub async fn upload_handler(
             let content_type = field
                 .content_type()
                 .map(|s| s.to_string())
-                .unwrap_or_default();
+                .filter(|s| !s.is_empty() && s != "application/octet-stream")
+                .unwrap_or_else(|| guess_content_type(&filename));
 
             let mut data_vec = Vec::new();
             while let Some(chunk) = field.chunk().await.transpose() {
@@ -55,10 +100,8 @@ pub async fn upload_handler(
                     Ok(bytes) => data_vec.extend_from_slice(&bytes),
                     Err(e) => {
                         eprintln!("[Upload] Erreur lecture chunk: {}", e);
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            AxumJson(json!({"error": "Failed to read file"})),
-                        );
+                        return (StatusCode::INTERNAL_SERVER_ERROR,
+                                AxumJson(json!({"error": "Failed to read file"})));
                     }
                 }
             }
@@ -69,26 +112,20 @@ pub async fn upload_handler(
     }
 
     let data = match form_data.validate() {
-        Ok(data) => data,
+        Ok(d) => d,
         Err(e) => return (StatusCode::BAD_REQUEST, AxumJson(json!({"error": e}))),
     };
 
     let file_id = Uuid::new_v4().to_string();
     let file_ext = std::path::Path::new(&data.file_name)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("bin");
+        .extension().and_then(|e| e.to_str()).unwrap_or("bin");
     let stored_filename = format!("{}.{}", file_id, file_ext);
     let storage_path = state.file_manager.get_uploads_dir().join(&stored_filename);
 
-    // Chiffrement (toujours activé pour la sécurité)
     let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
     if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
         eprintln!("[Upload] Erreur écriture: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            AxumJson(json!({"error": "Failed to save file"})),
-        );
+        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to save file"})));
     }
 
     let now = Utc::now().timestamp();
@@ -96,64 +133,55 @@ pub async fn upload_handler(
         INSERT INTO uploads (id, conversation_id, from_user_id, file_name, file_path, file_size, content_type, uploaded_at, encrypted, nonce, key_text)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     "#;
-
     if let Err(e) = sqlx::query(query)
-        .bind(&file_id)
-        .bind(&data.conversation_id)
-        .bind(&user.id) // ← CurrentUser
-        .bind(&data.file_name)
-        .bind(storage_path.to_str().unwrap_or(""))
-        .bind(data.data.len() as i64)
-        .bind(&data.content_type)
-        .bind(now)
-        .bind(true)
-        .bind(&nonce_b64)
-        .bind(&key_b64)
-        .execute(&state.db)
-        .await
+        .bind(&file_id).bind(&data.conversation_id).bind(&user.id)
+        .bind(&data.file_name).bind(storage_path.to_str().unwrap_or(""))
+        .bind(data.data.len() as i64).bind(&data.content_type)
+        .bind(now).bind(true).bind(&nonce_b64).bind(&key_b64)
+        .execute(&state.db).await
     {
         eprintln!("[Upload] Erreur DB: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            AxumJson(json!({"error": "Database error"})),
-        );
+        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Database error"})));
     }
 
-    state
-        .file_manager
-        .register_file(&file_id, storage_path)
-        .await;
+    state.file_manager.register_file(&file_id, storage_path).await;
 
-    (
-        StatusCode::OK,
-        AxumJson(json!({
-            "status": "uploaded",
-            "file_id": file_id,
-            "file_name": data.file_name,
-            "file_size": data.data.len(),
-            "uploaded_at": now,
-            "encrypted": true,
-            "url": format!("/files/{}", file_id)
-        })),
-    )
+    let is_image = data.content_type.starts_with("image/");
+    (StatusCode::OK, AxumJson(json!({
+        "status":       "uploaded",
+        "file_id":      file_id,
+        "file_name":    data.file_name,
+        "file_size":    data.data.len(),
+        "content_type": data.content_type,
+        "is_image":     is_image,
+        "uploaded_at":  now,
+        "encrypted":    true,
+        // URL canonique → route déchiffrante
+        "url": format!("/api/download/{}", file_id)
+    })))
 }
 
 pub async fn upload_chat_file(
     AxumState(state): AxumState<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>, // ← CurrentUser
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
     mut multipart: Multipart,
 ) -> impl IntoResponse {
     let mut form_data = UploadFormData::default();
 
     while let Ok(Some(mut field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
-
         if name == "conversation_id" {
             if let Ok(text) = field.text().await {
                 form_data.conversation_id = text;
             }
         } else if name == "file" {
             let filename = field.file_name().map(|s| s.to_string()).unwrap_or_default();
+            // Conserver le vrai content_type pour que le frontend sache si c'est une image
+            let content_type = field
+                .content_type()
+                .map(|s| s.to_string())
+                .filter(|s| !s.is_empty() && s != "application/octet-stream")
+                .unwrap_or_else(|| guess_content_type(&filename));
 
             let mut data_vec = Vec::new();
             while let Some(chunk) = field.chunk().await.transpose() {
@@ -161,21 +189,19 @@ pub async fn upload_chat_file(
                     Ok(bytes) => data_vec.extend_from_slice(&bytes),
                     Err(e) => {
                         eprintln!("[Upload Chat] Erreur lecture chunk: {}", e);
-                        return (
-                            StatusCode::INTERNAL_SERVER_ERROR,
-                            AxumJson(json!({"error": "Failed to read file"})),
-                        );
+                        return (StatusCode::INTERNAL_SERVER_ERROR,
+                                AxumJson(json!({"error": "Failed to read file"})));
                     }
                 }
             }
             form_data.data = Some(data_vec);
             form_data.file_name = filename;
-            form_data.content_type = "application/octet-stream".to_string();
+            form_data.content_type = content_type;
         }
     }
 
     let data = match form_data.validate() {
-        Ok(data) => data,
+        Ok(d) => d,
         Err(e) => return (StatusCode::BAD_REQUEST, AxumJson(json!({"error": e}))),
     };
 
@@ -185,10 +211,7 @@ pub async fn upload_chat_file(
     let (ciphertext, nonce_b64, key_b64) = encrypt_file_for_storage(&data.data);
     if let Err(e) = tokio::fs::write(&storage_path, &ciphertext).await {
         eprintln!("[Upload Chat] Erreur écriture: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            AxumJson(json!({"error": "Failed to save file"})),
-        );
+        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Failed to save file"})));
     }
 
     let now = Utc::now().timestamp();
@@ -196,46 +219,31 @@ pub async fn upload_chat_file(
         INSERT INTO uploads (id, conversation_id, from_user_id, file_name, file_path, file_size, content_type, uploaded_at, encrypted, nonce, key_text)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     "#;
-
     if let Err(e) = sqlx::query(query)
-        .bind(&file_id)
-        .bind(&data.conversation_id)
-        .bind(&user.id) // ← CurrentUser
-        .bind(&data.file_name)
-        .bind(storage_path.to_str().unwrap_or(""))
-        .bind(data.data.len() as i64)
-        .bind(&data.content_type)
-        .bind(now)
-        .bind(true)
-        .bind(&nonce_b64)
-        .bind(&key_b64)
-        .execute(&state.db)
-        .await
+        .bind(&file_id).bind(&data.conversation_id).bind(&user.id)
+        .bind(&data.file_name).bind(storage_path.to_str().unwrap_or(""))
+        .bind(data.data.len() as i64).bind(&data.content_type)
+        .bind(now).bind(true).bind(&nonce_b64).bind(&key_b64)
+        .execute(&state.db).await
     {
         eprintln!("[Upload Chat] Erreur DB: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            AxumJson(json!({"error": "Database error"})),
-        );
+        return (StatusCode::INTERNAL_SERVER_ERROR, AxumJson(json!({"error": "Database error"})));
     }
 
-    state
-        .file_manager
-        .register_file(&file_id, storage_path)
-        .await;
+    state.file_manager.register_file(&file_id, storage_path).await;
 
-    (
-        StatusCode::OK,
-        AxumJson(json!({
-            "status": "uploaded",
-            "file_id": file_id,
-            "file_name": data.file_name,
-            "file_size": data.data.len(),
-            "uploaded_at": now,
-            "encrypted": true,
-            "url": format!("/files/{}", file_id)
-        })),
-    )
+    let is_image = data.content_type.starts_with("image/");
+    (StatusCode::OK, AxumJson(json!({
+        "status":       "uploaded",
+        "file_id":      file_id,
+        "file_name":    data.file_name,
+        "file_size":    data.data.len(),
+        "content_type": data.content_type,
+        "is_image":     is_image,
+        "uploaded_at":  now,
+        "encrypted":    true,
+        "url": format!("/api/download/{}", file_id)
+    })))
 }
 
 // ====================== STRUCTURES INTERNES ======================
@@ -258,14 +266,8 @@ struct ValidatedUploadData {
 impl UploadFormData {
     fn validate(self) -> Result<ValidatedUploadData, String> {
         let data = self.data.ok_or("Aucun fichier fourni")?;
-
-        if data.is_empty() {
-            return Err("Fichier vide".to_string());
-        }
-        if data.len() > 50 * 1024 * 1024 {
-            return Err("Fichier trop volumineux (>50Mo)".to_string());
-        }
-
+        if data.is_empty() { return Err("Fichier vide".to_string()); }
+        if data.len() > 50 * 1024 * 1024 { return Err("Fichier trop volumineux (>50Mo)".to_string()); }
         Ok(ValidatedUploadData {
             conversation_id: self.conversation_id,
             file_name: self.file_name,
@@ -277,41 +279,45 @@ impl UploadFormData {
 
 // ====================== DOWNLOAD ======================
 // GET /api/download/{file_id}
-// Lit le nom original en DB et sert le fichier avec Content-Disposition: attachment
-// Protégé par require_auth (le middleware est posé sur la route dans main.rs)
+// - Déchiffre le fichier (XChaCha20-Poly1305) avant envoi
+// - Content-Disposition: inline pour images/vidéos/audio/pdf (affiché dans le navigateur)
+// - Content-Disposition: attachment pour les autres types (téléchargement)
+// - Protégé par require_auth
 
 pub async fn download_file(
     AxumState(state): AxumState<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(file_id): Path<String>,
 ) -> Response {
-    // 1. Trouver le fichier en DB
     #[derive(sqlx::FromRow)]
     struct FileRow {
         file_name: String,
         file_path: String,
         content_type: String,
+        encrypted: bool,
+        nonce: Option<String>,
+        key_text: Option<String>,
     }
 
+    // 1. Récupérer les métadonnées + clés de déchiffrement
     let row = match sqlx::query_as::<_, FileRow>(
-        "SELECT file_name, file_path, content_type FROM uploads WHERE id = ?",
+        "SELECT file_name, file_path, content_type, encrypted, nonce, key_text FROM uploads WHERE id = ?",
     )
     .bind(&file_id)
     .fetch_optional(&state.db)
     .await
     {
         Ok(Some(r)) => r,
-        Ok(None) => {
-            return (StatusCode::NOT_FOUND, AxumJson(json!({"error": "Fichier introuvable"}))).into_response();
-        }
+        Ok(None) => return (StatusCode::NOT_FOUND,
+            AxumJson(json!({"error": "Fichier introuvable"}))).into_response(),
         Err(e) => {
             tracing::error!(file_id = %file_id, err = %e, "Erreur DB download");
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
 
-    // 2. Lire le fichier sur disque
-    let bytes = match tokio::fs::read(&row.file_path).await {
+    // 2. Lire le fichier brut (chiffré) sur disque
+    let raw_bytes = match tokio::fs::read(&row.file_path).await {
         Ok(b) => b,
         Err(e) => {
             tracing::error!(path = %row.file_path, err = %e, "Fichier absent du disque");
@@ -319,16 +325,51 @@ pub async fn download_file(
         }
     };
 
-    // 3. Construire la réponse avec Content-Disposition: attachment
-    // Encodage RFC 5987 du nom de fichier pour les caractères spéciaux
+    // 3. Déchiffrer si le fichier est chiffré
+    let plaintext = if row.encrypted {
+        match (row.nonce.as_deref(), row.key_text.as_deref()) {
+            (Some(nonce), Some(key)) => {
+                match decrypt_file_from_storage(&raw_bytes, nonce, key) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        tracing::error!(file_id = %file_id, err = %e, "Déchiffrement échoué");
+                        return (StatusCode::INTERNAL_SERVER_ERROR,
+                            AxumJson(json!({"error": "Déchiffrement impossible"}))).into_response();
+                    }
+                }
+            }
+            _ => {
+                tracing::warn!(file_id = %file_id, "Fichier chiffré mais nonce/key absents — servi brut");
+                raw_bytes
+            }
+        }
+    } else {
+        raw_bytes
+    };
+
+    // 4. Déterminer le vrai content_type (fallback sur extension si absent)
+    let content_type = if row.content_type.is_empty()
+        || row.content_type == "application/octet-stream"
+    {
+        guess_content_type(&row.file_name)
+    } else {
+        row.content_type.clone()
+    };
+
+    // 5. Inline pour images/vidéos/audio/pdf, attachment pour le reste
     let safe_name = row.file_name.replace('"', "\\\"");
-    let disposition = format!("attachment; filename=\"{safe_name}\"");
+    let disposition = if is_viewable_inline(&content_type) {
+        format!("inline; filename=\"{safe_name}\"")
+    } else {
+        format!("attachment; filename=\"{safe_name}\"")
+    };
 
     Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, &row.content_type)
+        .header(header::CONTENT_TYPE, &content_type)
         .header(header::CONTENT_DISPOSITION, disposition)
-        .header(header::CONTENT_LENGTH, bytes.len())
-        .body(Body::from(bytes))
+        .header(header::CONTENT_LENGTH, plaintext.len())
+        .header(header::CACHE_CONTROL, "private, max-age=3600")
+        .body(Body::from(plaintext))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
