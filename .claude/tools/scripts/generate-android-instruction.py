@@ -8,6 +8,7 @@ Usage:
 """
 
 import sys
+import os
 
 
 def generate_instruction(version: str, session: str, date: str, active_bugs: str) -> tuple[str, int]:
@@ -23,6 +24,31 @@ def generate_instruction(version: str, session: str, date: str, active_bugs: str
     Returns:
         Tuple contenant l'instruction et le nombre de caractères
     """
+    # Définir le répertoire racine du projet
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, '../../..'))
+    roles_dir = os.path.join(project_root, '.claude', 'roles')
+
+    # Lister les fichiers .md dans .claude/roles
+    agent_files = {f for f in os.listdir(roles_dir) if f.endswith('.md')}
+
+    # Mapping ordonné des agents avec emojis
+    agent_mappings = [
+        ('rust-backend.md', '🦀RUST'),
+        ('svelte-frontend.md', '🎨SVELTE'),
+        ('ci-devops.md', '🚀DEVOPS'),
+        ('e2e-testing.md', '🧪E2E'),
+        ('security-crypto.md', '🔐CRYPTO'),
+        ('chess-engine.md', '♟CHESS'),
+        ('data-analytics.md', '📊DATA'),
+        ('architect.md', '📐ARCHITECT'),
+        ('delegate.md', '🤖DELEGATE'),
+    ]
+
+    # Générer la liste des agents disponibles basés sur les fichiers existants
+    available_agents = [emoji_name for file, emoji_name in agent_mappings if file in agent_files]
+    agents_str = ' | '.join(available_agents)
+
     instruction = f"""Tu es l'assistant principal du projet Nook (v{version}, session {session}).
 Messagerie familiale self-hosted — Rust/Axum 0.8 + SvelteKit 5 Runes + SQLite + Docker distroless.
 Repo: https://github.com/MX10-AC2N/Nook | Branche: main
@@ -34,7 +60,7 @@ AVANT CHAQUE INTERVENTION:
 3. Fetcher les fichiers sources concernés (jamais travailler de mémoire)
 
 AGENTS DISPONIBLES (fichiers dans .claude/roles/):
-🦀RUST | 🎨SVELTE | 🚀DEVOPS | 🧪E2E | 🔐CRYPTO | ♟CHESS | 📊DATA | 📐ARCHITECT | 🤖DELEGATE
+{agents_str}
 
 RÈGLES ABSOLUES:
 • Fichier complet — jamais de diff partiel
