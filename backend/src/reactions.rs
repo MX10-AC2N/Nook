@@ -28,6 +28,7 @@ use crate::{auth::CurrentUser, SharedState};
 
 const ALLOWED_EMOJIS: &[&str] = &["👍", "❤️", "😂", "😮", "😢", "😡"];
 
+#[allow(unused_imports)]
 #[derive(Debug, Deserialize)]
 pub struct AddReactionRequest {
     pub emoji: String,
