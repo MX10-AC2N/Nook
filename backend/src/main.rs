@@ -40,6 +40,7 @@ mod db;
 mod e2ee;
 mod invites;
 mod polls;
+mod reactions;
 mod prune;
 mod upload;
 mod webrtc;
@@ -579,6 +580,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
+        .merge(reactions::reactions_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
