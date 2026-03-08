@@ -40,7 +40,7 @@ def _detect_roles_dir() -> Path:
     Le calcul est résilient même si le script est lancé depuis un sous‑répertoire.
     """
     script_path = Path(__file__).resolve()
-    project_root = script_path.parent.parent.parent  # ../../..
+    project_root = script_path.parent.parent.parent.parent  # ../../../..
     roles_dir = project_root / ".claude" / "roles"
     if not roles_dir.is_dir():
         raise FileNotFoundError(f"Répertoire rôles introuvable : {roles_dir}")
