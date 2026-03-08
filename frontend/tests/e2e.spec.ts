@@ -1131,7 +1131,212 @@ test.describe('Conversations — DM', () => {
 });
 
 // ─────────────────────────────────────────────
-// 16. RATE LIMITING (session 30)
+// 16. RÉACTIONS AUX MESSAGES (session 35)
+// ─────────────────────────────────────────────
+
+test.describe('Réactions aux messages', () => {
+
+  // Helper : crée un message dans default_global et retourne son id
+  async function createTestMessage(page: Page): Promise<string> {
+    const res = await page.request.post(`${BASE}/conversations/default_global/messages`, {
+      data: { content: `msg-reaction-test-${Date.now()}`, message_type: 'text' },
+    });
+    expect(res.ok()).toBeTruthy();
+    const body = await res.json();
+    return body.id as string;
+  }
+
+  test('POST réaction valide → 200 + counts mis à jour', async ({ page }) => {
+    test.setTimeout(20_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const msgId = await createTestMessage(page);
+
+    const res = await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '👍' } },
+    );
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.message_id).toBe(msgId);
+    expect(body.my_emoji).toBe('👍');
+    // counts doit contenir au moins 1 nom sous "👍"
+    expect(Array.isArray(body.counts['👍'])).toBe(true);
+    expect(body.counts['👍'].length).toBeGreaterThan(0);
+    console.log(`✅ Réaction 👍 ajoutée sur ${msgId}`);
+  });
+
+  test('POST réaction emoji non autorisé → 400', async ({ page }) => {
+    test.setTimeout(15_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const msgId = await createTestMessage(page);
+
+    const res = await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '🦄' } },  // emoji hors liste autorisée
+    );
+    expect(res.status()).toBe(400);
+    console.log('✅ Emoji non autorisé → 400');
+  });
+
+  test('UPSERT : changer sa réaction remplace l\'ancienne', async ({ page }) => {
+    test.setTimeout(20_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const msgId = await createTestMessage(page);
+
+    // Poser 👍
+    await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '👍' } },
+    );
+
+    // Changer vers ❤️ → UPSERT, pas d'erreur
+    const res = await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '❤️' } },
+    );
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(body.my_emoji).toBe('❤️');
+    // 👍 ne doit plus apparaître pour ce user
+    const thumbsNames: string[] = body.counts['👍'] ?? [];
+    expect(thumbsNames.length).toBe(0);
+    // ❤️ doit apparaître
+    expect(body.counts['❤️'].length).toBeGreaterThan(0);
+    console.log('✅ UPSERT réaction : 👍 → ❤️ sans doublon');
+  });
+
+  test('DELETE réaction → 200 + my_emoji null', async ({ page }) => {
+    test.setTimeout(20_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const msgId = await createTestMessage(page);
+
+    // Ajouter une réaction
+    await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '😂' } },
+    );
+
+    // La supprimer
+    const res = await page.request.delete(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+    );
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.my_emoji).toBeNull();
+    // counts['😂'] vide ou absent
+    const count = body.counts['😂']?.length ?? 0;
+    expect(count).toBe(0);
+    console.log('✅ Réaction supprimée → my_emoji null');
+  });
+
+  test('GET réactions → 200 + structure correcte', async ({ page }) => {
+    test.setTimeout(20_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const msgId = await createTestMessage(page);
+
+    // Poster une réaction
+    await page.request.post(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+      { data: { emoji: '😮' } },
+    );
+
+    const res = await page.request.get(
+      `${BASE}/conversations/default_global/messages/${msgId}/reactions`,
+    );
+    expect(res.status()).toBe(200);
+
+    const body = await res.json();
+    expect(body.message_id).toBe(msgId);
+    expect(typeof body.counts).toBe('object');
+    expect(body.my_emoji).toBe('😮');
+    console.log('✅ GET réactions → structure {message_id, counts, my_emoji} correcte');
+  });
+
+  test('POST réaction sans auth → 401', async ({ request }) => {
+    const res = await request.post(
+      `${BASE}/conversations/default_global/messages/inexistant/reactions`,
+      { data: { emoji: '👍' } },
+    );
+    expect(res.status()).toBe(401);
+    console.log('✅ POST réaction sans auth → 401');
+  });
+
+  test('DELETE réaction sans auth → 401', async ({ request }) => {
+    const res = await request.delete(
+      `${BASE}/conversations/default_global/messages/inexistant/reactions`,
+    );
+    expect(res.status()).toBe(401);
+    console.log('✅ DELETE réaction sans auth → 401');
+  });
+
+  test('POST réaction sur message inexistant → 404', async ({ page }) => {
+    test.setTimeout(15_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+
+    const res = await page.request.post(
+      `${BASE}/conversations/default_global/messages/msg-inexistant-xyz/reactions`,
+      { data: { emoji: '👍' } },
+    );
+    expect(res.status()).toBe(404);
+    console.log('✅ POST réaction message inexistant → 404');
+  });
+
+  test('Chat UI — pills réactions visibles après hover + clic', async ({ page }) => {
+    test.setTimeout(35_000);
+    await loginAs(page, 'e2e_ci', 'E2eTest123!');
+    await page.goto('/chat');
+    await waitForAppReady(page);
+
+    // Attendre les messages
+    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 12_000 });
+
+    // Envoyer un message via l'UI pour avoir un message récent
+    const input = page.locator('.message-input');
+    await input.fill('test-reaction-ui');
+    await input.press('Enter');
+
+    // Attendre que le message apparaisse
+    const msg = page.locator('.message').last();
+    await expect(msg).toBeVisible({ timeout: 10_000 });
+
+    // Hover pour faire apparaître les actions
+    await msg.hover();
+
+    // Le bouton réaction (😊) doit apparaître
+    const reactionTrigger = page.locator('.reaction-trigger').last();
+    await expect(reactionTrigger).toBeVisible({ timeout: 5_000 });
+
+    // Cliquer pour ouvrir le picker
+    await reactionTrigger.click();
+
+    // Le picker doit s'afficher avec les 6 emojis rapides
+    const picker = page.locator('.emoji-picker').last();
+    await expect(picker).toBeVisible({ timeout: 3_000 });
+
+    // Cliquer sur 👍
+    await picker.locator('.emoji-quick-btn').first().click();
+
+    // La pill de réaction doit apparaître
+    await expect(msg.locator('.reaction-pill')).toBeVisible({ timeout: 5_000 });
+    const pillText = await msg.locator('.reaction-pill').first().textContent();
+    expect(pillText).toContain('1');
+    console.log('✅ Réaction UI : picker → pill visible avec count=1');
+  });
+
+});
+
+// ─────────────────────────────────────────────
+// 17. RATE LIMITING (session 30)
 // ─────────────────────────────────────────────
 
 test.describe.serial('Rate Limiting', () => {
