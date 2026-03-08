@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-08 07:09 UTC**
+> **Dernière mise à jour : 2026-03-08 18:20 UTC**
 
 ---
 
@@ -14,8 +14,8 @@
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `develop` |
-| **Commit** | [`46cf648`](https://github.com/MX10-AC2N/Nook/commit/46cf648f632f7c5df40a38a3c071800b9d6259fe) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22816027893) |
+| **Commit** | [`8aed26f`](https://github.com/MX10-AC2N/Nook/commit/8aed26fe5102bb63172f02179292e2dd8fb04dea) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/22825934401) |
 
 ---
 
@@ -46,45 +46,45 @@
 ## Erreurs détectées
 
 ```
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n",
+                        "stack": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 22,
-                          "line": 704
+                          "column": 35,
+                          "line": 85
                         },
 --
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/51c5292c-f373-4740-96e5-da31fe5f4aed\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                          "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  83 |   // goto('/login') se resolve au 'load' event (HTML+JS chargés) AVANT que onMount finisse.\n  84 |   // → Il faut attendre explicitement que #username soit visible avant de fill.\n> 85 |   await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });\n     |                                   ^\n  86 |   await page.fill('#username', username);\n  87 |   await page.fill('#password', password);\n  88 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 0,
 --
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n",
+                        "stack": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 22,
-                          "line": 704
+                          "column": 35,
+                          "line": 85
                         },
 --
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/7e0e031e-331e-4e15-b5c0-82db583cd6e5\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                          "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  83 |   // goto('/login') se resolve au 'load' event (HTML+JS chargés) AVANT que onMount finisse.\n  84 |   // → Il faut attendre explicitement que #username soit visible avant de fill.\n> 85 |   await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });\n     |                                   ^\n  86 |   await page.fill('#username', username);\n  87 |   await page.fill('#password', password);\n  88 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5"
                         }
                       ],
                       "stdout": [],
                       "stderr": [],
                       "retry": 1,
 --
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22",
+                        "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n",
+                        "stack": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5",
                         "location": {
                           "file": "/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts",
-                          "column": 22,
-                          "line": 704
+                          "column": 35,
+                          "line": 85
                         },
 --
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/\\/files\\//\u001b[39m\nReceived string:  \u001b[31m\"/api/download/ea2c86ce-ef53-425c-8bcb-311a6145c3ad\"\u001b[39m\n\n  702 |     expect(body.file_id).toBeTruthy();\n  703 |     expect(body.file_name).toBe('test-e2e.txt');\n> 704 |     expect(body.url).toMatch(/\\/files\\//);\n      |                      ^\n  705 |     console.log(`✅ POST /api/upload/chat → file_id=${body.file_id}`);\n  706 |\n  707 |     // Vérifier que le download fonctionne avec auth\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:704:22"
+                          "message": "TimeoutError: locator.waitFor: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#username') to be visible\u001b[22m\n\n\n  83 |   // goto('/login') se resolve au 'load' event (HTML+JS chargés) AVANT que onMount finisse.\n  84 |   // → Il faut attendre explicitement que #username soit visible avant de fill.\n> 85 |   await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });\n     |                                   ^\n  86 |   await page.fill('#username', username);\n  87 |   await page.fill('#password', password);\n  88 |   await page.getByRole('button', { name: 'Se connecter' }).click();\n    at loginAs (/home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:85:35)\n    at /home/runner/work/Nook/Nook/frontend/tests/e2e.spec.ts:180:5"
                         }
 ```
 
@@ -93,22 +93,12 @@
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-08T07:08:25.849038Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:08:42.264356Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:08:59.845867Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.708403Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.709683Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.711390Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.712667Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.714015Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.715304Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.716890Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.718222Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.719537Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.720770Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.722376Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.723732Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
-nook  | [2m2026-03-08T07:09:15.725096Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T17:24:29.578396Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+nook  | [2m2026-03-08T18:20:12.481650Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T18:20:12.484224Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T18:20:12.486287Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T18:20:12.488263Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
+nook  | [2m2026-03-08T18:20:12.490633Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m Rate limit dépassé sur route d'authentification (429) [3mpath[0m[2m=[0m/auth/login
 ```
 
 ---
