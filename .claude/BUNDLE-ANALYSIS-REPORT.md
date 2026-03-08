@@ -1,12 +1,12 @@
 # 📦 Bundle Analysis — Nook Frontend
 
-> Généré le : **2026-03-07 20:42 UTC** | Commit : `e596bd4`
+> Généré le : **2026-03-08 14:47 UTC** | Commit : `8d419bd`
 
 ## Résumé
 
 | Métrique | Valeur |
 |----------|--------|
-| JS total | **1361 kB** |
+| JS total | **1393 kB** |
 | Chunk libsodium | **917 kB** (HEavZsIZ.js (plus gros chunk)) |
 | Alerte DT-01 | 🟢 OK |
 
