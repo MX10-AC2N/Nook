@@ -17,6 +17,7 @@
     disconnectWs,
     requestNotificationPermission,
   } from '$lib/chatStore.svelte.ts';
+  import { sanitizeHtml } from '$lib/sanitize';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -120,6 +121,53 @@
   let hoveredMsgId   = $state<string | null>(null);
 
   // ─────────────────────────────────────────────────────────────────
+  // Réactions aux messages
+  // ─────────────────────────────────────────────────────────────────
+  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
+  // reactions : Map<msgId, { counts: Record<emoji, string[]>, myEmoji: string|null }>
+  let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+  // picker étendu ouvert pour quel message
+  let emojiPickerMsgId = $state<string | null>(null);
+  // tous les emojis disponibles (picker étendu)
+  const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
+
+  async function toggleReaction(msgId: string, emoji: string) {
+    const cur = reactions[msgId];
+    const isMyEmoji = cur?.myEmoji === emoji;
+
+    try {
+      const convId = activeConvId;
+      let res: Response;
+      if (isMyEmoji) {
+        res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
+          method: 'DELETE', credentials: 'include',
+        });
+      } else {
+        res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emoji }),
+        });
+      }
+      if (res.ok) {
+        const data = await res.json();
+        reactions[msgId] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+      }
+    } catch (e) {
+      console.error('[Reaction]', e);
+    }
+    emojiPickerMsgId = null;
+  }
+
+  function countReactions(msgId: string): { emoji: string; count: number; names: string }[] {
+    const r = reactions[msgId];
+    if (!r) return [];
+    return Object.entries(r.counts)
+      .filter(([, names]) => names.length > 0)
+      .map(([emoji, names]) => ({ emoji, count: names.length, names: names.join(', ') }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // Chargement
   // ─────────────────────────────────────────────────────────────────
 
@@ -213,11 +261,30 @@
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
     await loadMessages(conv.id);
+    // Charger les réactions pour les messages visibles
+    await loadReactionsForMessages(conv.id);
     // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
     if (!chatStore.wsConnected) {
       pollTimer = setInterval(() => loadMessages(conv.id), 8000);
     }
+  }
+
+  async function loadReactionsForMessages(convId: string) {
+    // Charger les réactions des messages visibles en parallèle (max 50)
+    const msgs = chatStore.messages.slice(-50);
+    await Promise.allSettled(msgs.map(async (msg) => {
+      try {
+        const res = await fetch(
+          `/api/conversations/${convId}/messages/${msg.id}/reactions`,
+          { credentials: 'include' }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          reactions[msg.id] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+        }
+      } catch { /* non-bloquant */ }
+    }));
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -409,6 +476,7 @@
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
+    await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
     // Demande permission notifications (non-bloquant)
     requestNotificationPermission();
@@ -432,6 +500,18 @@
         if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
       });
     }
+  });
+
+  // Rafraîchir la réaction d'un seul message à la réception du signal WS
+  $effect(() => {
+    const update = chatStore.lastReactionUpdate;
+    if (!update || update.conversationId !== activeConvId) return;
+    const { messageId, conversationId } = update;
+    fetch(`/api/conversations/${conversationId}/messages/${messageId}/reactions`, {
+      credentials: 'include',
+    }).then(r => r.ok ? r.json() : null).then(data => {
+      if (data) reactions[messageId] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+    }).catch(() => {});
   });
 </script>
 
@@ -567,7 +647,23 @@
                 </div>
               </div>
             {:else}
-              <div class="message-content">{@html msg.content}</div>
+              <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
+              <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+            {/if}
+
+            <!-- ─── Réactions affichées ─── -->
+            {#if countReactions(msg.id).length > 0}
+              <div class="reactions-row">
+                {#each countReactions(msg.id) as r}
+                  <button
+                    class="reaction-pill"
+                    class:my-reaction={reactions[msg.id]?.myEmoji === r.emoji}
+                    onclick={() => toggleReaction(msg.id, r.emoji)}
+                    title={r.names}
+                    aria-label="{r.emoji} {r.count}"
+                  >{r.emoji} {r.count}</button>
+                {/each}
+              </div>
             {/if}
 
             <div class="message-meta">
@@ -579,6 +675,13 @@
 
             {#if hoveredMsgId === msg.id && editingMsgId !== msg.id}
               <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
+                <!-- Bouton réaction rapide — toujours visible au hover -->
+                <button
+                  class="msg-action-btn reaction-trigger"
+                  onclick={(e) => { e.stopPropagation(); emojiPickerMsgId = emojiPickerMsgId === msg.id ? null : msg.id; }}
+                  title="Réagir"
+                  aria-label="Ajouter une réaction"
+                >😊</button>
                 {#if isMyMessage(msg.sender_id)}
                   <button class="msg-action-btn" onclick={() => startEdit(msg)} title="Modifier">✏️</button>
                 {/if}
@@ -586,6 +689,42 @@
                   <button class="msg-action-btn danger" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
                 {/if}
               </div>
+
+              <!-- Emoji picker rapide (6 fixes + picker étendu) -->
+              {#if emojiPickerMsgId === msg.id}
+                <div
+                  class="emoji-picker"
+                  class:picker-mine={isMyMessage(msg.sender_id)}
+                  role="dialog"
+                  aria-label="Choisir une réaction"
+                >
+                  {#each QUICK_EMOJIS as emoji}
+                    <button
+                      class="emoji-quick-btn"
+                      class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
+                      onclick={() => toggleReaction(msg.id, emoji)}
+                      aria-label={emoji}
+                    >{emoji}</button>
+                  {/each}
+                  <!-- Bouton + pour picker étendu -->
+                  <button
+                    class="emoji-more-btn"
+                    onclick={(e) => { e.stopPropagation(); /* toggle zone étendue */ const el = e.currentTarget.nextElementSibling as HTMLElement; if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none'; }}
+                    aria-label="Plus d'emojis"
+                  >＋</button>
+                  <!-- Zone étendue (cachée par défaut) -->
+                  <div class="emoji-extended" style="display:none">
+                    {#each ALL_EMOJIS as emoji}
+                      <button
+                        class="emoji-quick-btn"
+                        class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
+                        onclick={() => toggleReaction(msg.id, emoji)}
+                        aria-label={emoji}
+                      >{emoji}</button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
             {/if}
           </div>
         {/each}
@@ -954,7 +1093,61 @@
     padding: .2rem .3rem; border-radius: .3rem; transition: background .12s;
   }
   .msg-action-btn:hover { background: var(--bg-secondary, #f1f5f9); }
-  .msg-action-btn.danger:hover { background: #fee2e2; }
+  .msg-action-btn.danger:hover { background: var(--error-light, #fee2e2); }
+
+  /* ─── Réactions ─── */
+  .reactions-row {
+    display: flex; flex-wrap: wrap; gap: .25rem;
+    margin-top: .3rem;
+  }
+  .reaction-pill {
+    display: inline-flex; align-items: center; gap: .2rem;
+    padding: .15rem .45rem; border-radius: 999px;
+    border: 1.5px solid var(--border, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    font-size: .8rem; cursor: pointer; transition: all .12s;
+    color: var(--text-primary, #1e293b);
+  }
+  .reaction-pill:hover { border-color: var(--accent, #4ade80); background: var(--bg-tertiary, #f0fdf4); }
+  .reaction-pill.my-reaction {
+    border-color: var(--accent, #4ade80);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    font-weight: 600;
+  }
+
+  /* Emoji picker */
+  .emoji-picker {
+    position: absolute; bottom: calc(100% + .3rem); right: .2rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .6rem; padding: .35rem .4rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    display: flex; flex-wrap: wrap; gap: .2rem; max-width: 240px;
+    z-index: 20; animation: pop .12s var(--animation, ease);
+  }
+  .emoji-picker.picker-mine { right: auto; left: .2rem; }
+  .emoji-quick-btn {
+    background: none; border: none; font-size: 1.15rem;
+    cursor: pointer; padding: .2rem; border-radius: .35rem;
+    transition: background .1s; line-height: 1;
+  }
+  .emoji-quick-btn:hover { background: var(--bg-secondary, #f1f5f9); }
+  .emoji-quick-btn.emoji-active {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    border-radius: .35rem;
+  }
+  .emoji-more-btn {
+    background: var(--bg-secondary, #f1f5f9); border: none;
+    font-size: .85rem; cursor: pointer; padding: .2rem .4rem;
+    border-radius: .35rem; color: var(--text-secondary, #64748b);
+    transition: background .1s; font-weight: 600;
+  }
+  .emoji-more-btn:hover { background: var(--border, #e2e8f0); }
+  .emoji-extended {
+    width: 100%; flex-wrap: wrap; gap: .2rem;
+    border-top: 1px solid var(--border, #e2e8f0);
+    padding-top: .3rem; margin-top: .2rem;
+  }
 
   /* Zone édition */
   .edit-zone { display: flex; flex-direction: column; gap: .4rem; }
