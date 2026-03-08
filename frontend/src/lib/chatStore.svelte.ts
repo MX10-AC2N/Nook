@@ -1,7 +1,13 @@
 /**
  * chatStore.svelte.ts — Store du chat, Svelte 5 Runes.
- * Session 34 — Correction GIFs : proxy backend /api/gifs/search
- *   au lieu d'appel direct Tenor (CORS + clé demo périmée)
+ *
+ * Session 31 — refonte majeure :
+ *   - WS temps réel : new_message, message_edited, message_deleted
+ *   - Reconnexion automatique WS (backoff exponentiel)
+ *   - Pagination messages (before + limit)
+ *   - Edit / Delete de messages
+ *   - Badges non-lus (unreadCounts par conversation)
+ *   - Notifications navigateur (Permission API)
  */
 
 // -----------------------------------------------------------------
@@ -34,6 +40,8 @@ export interface ChatState {
   loadingMore: boolean;
   unreadCounts: Record<string, number>;
   wsConnected: boolean;
+  /** Signal WS pour les mises à jour de réactions — { messageId, conversationId, ts } */
+  lastReactionUpdate: { messageId: string; conversationId: string; ts: number } | null;
 }
 
 export interface GifResult {
@@ -57,6 +65,7 @@ export const chatStore = $state<ChatState>({
   loadingMore: false,
   unreadCounts: {},
   wsConnected: false,
+  lastReactionUpdate: null,
 });
 
 // -----------------------------------------------------------------
@@ -136,6 +145,17 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   if (type === 'message_deleted') {
     const id = msg.message_id as string;
     chatStore.messages = chatStore.messages.filter(m => m.id !== id);
+    return;
+  }
+
+  if (type === 'reaction_updated') {
+    // Le frontend recharge les réactions depuis la page chat — ici on émet juste un signal
+    // via un champ réactif pour que la page puisse réagir si besoin
+    chatStore.lastReactionUpdate = {
+      messageId: msg.message_id as string,
+      conversationId: msg.conversation_id as string,
+      ts: Date.now(),
+    };
     return;
   }
 }
@@ -273,6 +293,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
   }
 }
 
+/** Charge les messages plus anciens (pagination vers le haut) */
 export async function loadMoreMessages(conversationId: string): Promise<void> {
   if (chatStore.loadingMore || !chatStore.hasMore) return;
   const oldest = chatStore.messages[0];
@@ -321,6 +342,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // WS injectera automatiquement via new_message
     if (!chatStore.wsConnected) await loadMessages(conversationId);
     chatStore.connectionError = null;
   } catch (err) {
@@ -377,13 +399,7 @@ export async function sendGif(gifUrl: string, conversationId: string): Promise<v
 }
 
 // -----------------------------------------------------------------
-// 1️⃣2️⃣ API — searchGifs via proxy backend /api/gifs/search
-//
-// Session 34 : l'appel direct à Tenor causait une erreur CORS et
-// la clé démo "LIVDSRZULELA" est soumise à des quotas stricts.
-// Le proxy backend /api/gifs/search?q=... appelle Tenor server-side
-// (pas de CORS) et peut utiliser une vraie clé configurée via
-// TENOR_API_KEY dans le .env (fallback sur la clé démo si absente).
+// 1️⃣2️⃣ API — searchGifs (Tenor v2)
 // -----------------------------------------------------------------
 
 export async function searchGifs(query: string): Promise<void> {
@@ -392,16 +408,19 @@ export async function searchGifs(query: string): Promise<void> {
     chatStore.gifLoading = true;
     chatStore.gifResults = [];
     const res = await fetch(
-      `/api/gifs/search?q=${encodeURIComponent(query)}&limit=12`,
-      { credentials: 'include' }
+      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&client_key=nook&limit=12&media_filter=tinygif,gif`
     );
-    if (!res.ok) throw new Error(`GIF proxy ${res.status}`);
+    if (!res.ok) throw new Error(`Tenor ${res.status}`);
     const data = await res.json();
-    chatStore.gifResults = (data.results ?? []) as GifResult[];
+    chatStore.gifResults = (data.results ?? []).map((r: Record<string, unknown>): GifResult => ({
+      id:         r.id as string,
+      title:      (r.title as string) ?? 'GIF',
+      previewUrl: (r as any).media_formats?.tinygif?.url ?? (r as any).media_formats?.gif?.url ?? '',
+      fullUrl:    (r as any).media_formats?.gif?.url     ?? (r as any).media_formats?.tinygif?.url ?? '',
+    })).filter((g: GifResult) => g.previewUrl);
   } catch (err) {
     console.error('[Chat] searchGifs:', err);
-    chatStore.connectionError = 'Impossible de charger les GIFs. Vérifiez la connexion internet du serveur.';
-    setTimeout(() => { chatStore.connectionError = null; }, 4000);
+    chatStore.connectionError = 'Impossible de charger les GIFs';
   } finally {
     chatStore.gifLoading = false;
   }
