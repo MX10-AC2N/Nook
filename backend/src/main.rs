@@ -44,6 +44,84 @@ mod prune;
 mod upload;
 mod webrtc;
 
+// ─── Proxy GIF (Tenor v2) — évite CORS + clé demo ───────────────────────────
+// GET /api/gifs/search?q=<query>&limit=<n>
+// Appel Tenor depuis le serveur → retourne { results: GifResult[] }
+// Clé configurée via TENOR_API_KEY dans .env (fallback: clé demo)
+async fn gif_search_proxy(
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let query = params.get("q").cloned().unwrap_or_default();
+    let limit  = params.get("limit").and_then(|l| l.parse::<u32>().ok()).unwrap_or(12).min(24);
+
+    if query.trim().is_empty() {
+        return axum::Json(serde_json::json!({ "results": [] })).into_response();
+    }
+
+    let api_key = std::env::var("TENOR_API_KEY")
+        .unwrap_or_else(|_| "AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCDs".to_string());
+
+    let url = format!(
+        "https://tenor.googleapis.com/v2/search?q={}&key={}&client_key=nook&limit={}&media_filter=tinygif,gif",
+        urlencoding::encode(&query),
+        api_key,
+        limit
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build();
+
+    let client = match client {
+        Ok(c) => c,
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(data) => {
+                    let results: Vec<serde_json::Value> = data["results"]
+                        .as_array()
+                        .cloned()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter_map(|r| {
+                            let preview = r["media_formats"]["tinygif"]["url"]
+                                .as_str()
+                                .or_else(|| r["media_formats"]["gif"]["url"].as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let full = r["media_formats"]["gif"]["url"]
+                                .as_str()
+                                .or_else(|| r["media_formats"]["tinygif"]["url"].as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            if preview.is_empty() { return None; }
+                            Some(serde_json::json!({
+                                "id":         r["id"].as_str().unwrap_or(""),
+                                "title":      r["title"].as_str().unwrap_or("GIF"),
+                                "previewUrl": preview,
+                                "fullUrl":    full,
+                            }))
+                        })
+                        .collect();
+                    axum::Json(serde_json::json!({ "results": results })).into_response()
+                }
+                Err(_) => axum::http::StatusCode::BAD_GATEWAY.into_response(),
+            }
+        }
+        Ok(resp) => {
+            tracing::warn!(status = %resp.status(), "Tenor API erreur");
+            axum::http::StatusCode::BAD_GATEWAY.into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, "Tenor API inaccessible");
+            axum::http::StatusCode::BAD_GATEWAY.into_response()
+        }
+    }
+}
+
 use crate::config::Config;
 use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
@@ -497,6 +575,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/conversations/{id}/leave", post(db::leave_conversation))
         .route("/users/available", get(db::get_available_users))
+        .route("/gifs/search", get(gif_search_proxy))
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
