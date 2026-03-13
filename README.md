@@ -1,6 +1,6 @@
 ![Logo animé du projet](frontend/static/logo-animated.svg)
 
-> **v0.3.0-beta.2 — Work in progress**
+> **v0.4.0-beta.1 — Work in progress**
 
 <div align="center">
 
