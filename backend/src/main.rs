@@ -9,7 +9,7 @@ use axum::{
     extract::ConnectInfo,
     http::{
         header::CONTENT_TYPE,
-        HeaderValue, Request,
+        Request,
     },
     middleware::{self, Next},
     response::IntoResponse,
