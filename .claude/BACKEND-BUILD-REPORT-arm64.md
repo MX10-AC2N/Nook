@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `aarch64-unknown-linux-gnu`
-> **2026-03-13 18:09 UTC**
+> **2026-03-13 18:18 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `arm64` (`aarch64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`ad45a7c`](https://github.com/MX10-AC2N/Nook/commit/ad45a7c5a8caff101dacb1cea39c33dc942ffeba) |
+| **Commit** | [`826fcf0`](https://github.com/MX10-AC2N/Nook/commit/826fcf042ecce454b7aa2a78b8cb7e7195bb5a65) |
 | **Rust** | `rustc 1.94.0 (4a4ef493e 2026-03-02)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23064277096) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23064570293) |
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Étape | Statut | Détail |
 |-------|--------|--------|
-| **cargo check** | ❌ | exit 101 |
+| **cargo check** | ✅ | exit 0 |
 | **cargo clippy** | ❌ | exit 101 (-D warnings) |
-| **cargo build --release** | ❌ | binaire N/A stripped |
+| **cargo build --release** | ✅ | binaire 8.5M stripped |
 
 ---
 
@@ -60,7 +60,7 @@
 ## Résumé compilation
 
 ```
-error[E0432]: unresolved import `governor::state::KeyedRateLimiter`
+    Finished `release` profile [optimized] target(s) in 53.69s
 ```
 
 ---
