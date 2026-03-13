@@ -72,6 +72,22 @@ async function clearSession(page: Page) {
   }
   // Étape 2 : vider les cookies du browser context
   await page.context().clearCookies();
+  // Étape 3 : vider le localStorage (nook_user + nook_session_id).
+  //
+  // BUG #33 (session 33) — CAUSE RACINE DES 55 ÉCHECS :
+  //   authStore.constructor() relit localStorage au démarrage → si nook_user
+  //   et nook_session_id sont présents, isAuthenticated=$derived → true
+  //   IMMÉDIATEMENT, avant même authStore.init().
+  //   Le $effect du layout voit isAuthenticated=true → goto('/chat') avant
+  //   que loading=false → #username jamais dans le DOM → timeout 20s.
+  //   clearCookies() seul ne suffit pas : le localStorage persiste entre tests
+  //   dans le même browser context.
+  //   Fix : effacer le localStorage pour que authStore démarre à l'état vide.
+  try {
+    await page.evaluate(() => localStorage.clear());
+  } catch {
+    // Peut échouer si aucune page n'est encore chargée (contexte vierge) → OK
+  }
 }
 
 async function loginAs(page: Page, username: string, password: string) {
@@ -156,6 +172,12 @@ async function loginAsAdmin(page: Page) {
 
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin/, { timeout: 10_000 });
+  // Attendre que le layout finisse son onMount (waitForSodium + authStore.init)
+  // et que la page admin finisse son checkAuthAndRedirect() → authChecked=true
+  // → authStore.isAdmin=true → .admin-header visible.
+  // Sans ce waitFor, les tests Admin arrivent sur la page avant que
+  // authStore.init() ait mis isAdmin=true → template affiche "Accès non autorisé".
+  await page.locator('.admin-header').waitFor({ state: 'visible', timeout: 15_000 });
   console.log('✅ Admin connecté sur /admin (API login)');
 }
 
