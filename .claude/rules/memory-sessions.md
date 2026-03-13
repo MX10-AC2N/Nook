@@ -4,50 +4,51 @@
 
 ---
 
-## État du projet (après session 32) — COMPLET ✅
+## État du projet (après session 24)
 
-**Version** : 0.3.0-beta.3 | **Tests E2E** : 66 | **Bugs actifs** : 0
+**Version** : 0.3.0-beta.2 | **Tests E2E** : 43 (fix session 23, à confirmer)
 
-### ✅ Tout fonctionnel
-- Backend Rust : compile sans warning, tous modules exposés
-- Chat **temps réel WS** : `new_message`, `message_edited`, `message_deleted` broadcastés
-- **WS reconnexion automatique** (backoff exponentiel) dans chatStore ET chessStore
-- **Edit/Delete messages** : PATCH + DELETE `/api/conversations/{conv_id}/messages/{msg_id}`
-- **Pagination messages** : `before` + `limit` utilisés, bouton "Charger plus" + scroll
-- **Badges non-lus** par conversation dans la sidebar
-- **Notifications navigateur** (Permission API, désactivées si app au premier plan)
-- **Upload** : vérification 50 Mo côté client avec message d'erreur temporaire
-- E2EE complet : keygen, chiffrement envoi, déchiffrement réception
-- Rate limiting : 10 req/min sur /login, /register, /join
-- libsodium : dynamic import, 0 blocage au démarrage
-- Analytics admin : 8 métriques + 2 charts
-- Renommage groupe inline (✏️ dans header)
-- Label "Nook" pour default_global (avatar 🌿)
-- Chess temps réel WS : `chess_move`, `chess_ai_move`, `chess_player_joined`
-- Docker distroless arm64/amd64, CI 5 workflows
-- **E2E stabilisé** : 5 bugs résolus (format réponses chess/polls, champ opponent, waitForResponse race, Rate Limit serial, loginAs retry)
+### ✅ Fonctionnel et stable
+- Backend Rust compile sans erreur (axum 0.8, rand 0.9, sqlx 0.8.6)
+- Docker build sources + release, distroless arm64/amd64
+- Auth cookie HttpOnly, LAN + WAN (Nginx)
+- CI : 5 workflows manuels stables
+- E2E : infrastructure stable (sessions 21-23), résultat 43/43 attendu
 
-### 📋 Backlog restant
-- **DT-05** : WebRTC WAN instable — serveur TURN absent (LAN OK)
-- Recherche de messages (endpoint + UI)
-- Réactions emoji sur les messages
+### 🔴 Bugs actifs
+- Bug #1 : state_invalid_export conversationStore (non bloquant)
+- Bug #3 : connectionError.set() (non bloquant)
+
+### 📋 Backlog priorisé
+1. **DT-01** : libsodium 938 kB → dynamic import (bloque E2EE)
+2. **DT-02** : Chess temps réel (décision ARCHITECT requise)
+3. **DT-03** : Polls — confirmer si backend opérationnel ou localStorage only
+4. **DT-04** : Rate limiting governor à configurer
+5. **DT-05** : E2EE activation complète (après DT-01)
+6. **DT-06** : Analytics enrichis (DATA agent)
 
 ---
 
 ## Chronologie condensée
 
-| Sessions | Thème | Résultat |
-|----------|-------|---------| 
-| 1 | Analyse initiale | CLAUDE.md créé |
+| Sessions | Thème principal | Résultat |
+|----------|----------------|---------|
+| 1 | Analyse initiale, identification bugs | CLAUDE.md créé |
 | 2-5 | Rust upgrades, Docker, SQLite, CORS | Backend stable ✅ |
-| 6-7 | CI Playwright, E2E_SETUP | CI infra stable ✅ |
+| 6-7 | CI Playwright infra, E2E_SETUP | CI infra stable ✅ |
 | 8-14 | Bugs prod : UUID, CORS, SameSite, prune | Prod stable ✅ |
-| 15-23 | E2E stabilisation → 43/43 | Tests verts ✅ |
-| 24 | Refonte .claude/ v4 | Structure v4 ✅ |
-| 25-26 | Crypto non-bloquant, Polls E2E | ✅ |
-| 27 | E2EE activé (db.rs + chatStore) | ✅ |
-| 28 | DT-01 (dynamic import) + DT-04 (rate limit) | ✅ |
-| 29 | DT-06 (analytics enrichis) | ✅ |
-| 30 | Call routing, GIF fix, Upload download, Chess mobile | ✅ |
-| 31 | WS temps réel chat, edit/delete msg, pagination, badges non-lus, notifs, chess WS reconnect, renommage groupe, label Nook, upload 50Mo feedback, 66 tests E2E | ✅ |
-| 32 | Fix 5 bugs E2E (format chess/polls, opponent, waitForResponse race, Rate Limit serial, loginAs retry) | ✅ |
+| 15-19 | E2E stabilisation (sélecteurs, admin, git) | 12/43 → progrès |
+| 20 | Race condition matrix CI amd64/arm64 | Build reports séparés ✅ |
+| 21 | fullyParallel:true → localStorage partagé | fullyParallel:false ✅ |
+| 22 | clearSession goto('/') → init avec cookie | request.post(logout) ✅ |
+| 23 | fill() avant layout onMount | waitFor(visible) ✅ |
+| 24 | Refonte .claude/ v4 : orchestration + agents | Structure v4 ✅ |
+
+---
+
+## Dernière session (24) — Points clés
+
+- 8 agents créés/enrichis avec section `## 📚 Apprentissages`
+- 2 nouveaux agents : 📊 DATA + 📐 ARCHITECT
+- `rules/agent-lifecycle.md` créé
+- CLAUDE.md → orchestrateur 7 étapes avec étape ⑦ APPRENDRE
