@@ -1,9 +1,12 @@
-// backend/src/upload.rs — Session 34
-// Corrections :
-//   - download_file déchiffre maintenant le fichier avant de le servir
-//   - upload_chat_file conserve le vrai content_type (image/jpeg, image/gif, etc.)
-//   - Les deux handlers retournent url="/api/download/{id}" (déchiffre) au lieu de "/files/{id}"
-//   - download_file : Content-Disposition inline pour images/vidéos/audio/pdf
+// backend/src/upload.rs — Session 36
+// Corrections depuis session 34 :
+//   - download_file déchiffre le fichier avant de le servir
+//   - upload_chat_file conserve le vrai content_type
+//   - URL canonique : /api/download/{id} (route déchiffrante)
+// Session 36 — SEC-04 : validation magic bytes
+//   - Refuse les fichiers dont les magic bytes ne correspondent pas au content_type déclaré
+//   - Bloque .html/.php/.exe déguisés en image/jpeg etc.
+//   - Permissif pour les types non reconnus (documents, audio, vidéo)
 
 use crate::{
     auth::CurrentUser,
@@ -69,6 +72,69 @@ fn is_viewable_inline(content_type: &str) -> bool {
         || content_type.starts_with("video/")
         || content_type.starts_with("audio/")
         || content_type == "application/pdf"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEC-04 : Validation par magic bytes
+//
+// Vérifie que les premiers octets du fichier correspondent au content_type déclaré
+// par le client. Un fichier .html ou .php renommé en .jpg sera rejeté.
+//
+// Stratégie : liste blanche des types courants ; les types non listés passent
+// (permissif pour les documents, archives, audio/vidéo exotiques).
+// ─────────────────────────────────────────────────────────────────────────────
+fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static str> {
+    if data.len() < 4 {
+        return Ok(()); // trop court pour vérifier — accepté
+    }
+    let magic = &data[..data.len().min(16)];
+
+    // Normaliser : ignorer les paramètres (ex: "image/jpeg; charset=...")
+    let ct_base = content_type.split(';').next().unwrap_or(content_type).trim();
+
+    match ct_base {
+        "image/jpeg" => {
+            if !magic.starts_with(&[0xFF, 0xD8, 0xFF]) {
+                return Err("Fichier invalide : magic bytes JPEG attendus");
+            }
+        }
+        "image/png" => {
+            if !magic.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+                return Err("Fichier invalide : magic bytes PNG attendus");
+            }
+        }
+        "image/gif" => {
+            if !magic.starts_with(b"GIF8") {
+                return Err("Fichier invalide : magic bytes GIF attendus");
+            }
+        }
+        "image/webp" => {
+            // RIFF....WEBP
+            let is_webp = magic.len() >= 12
+                && magic.starts_with(b"RIFF")
+                && &magic[8..12] == b"WEBP";
+            if !is_webp {
+                return Err("Fichier invalide : magic bytes WebP attendus");
+            }
+        }
+        "application/pdf" => {
+            if !magic.starts_with(b"%PDF") {
+                return Err("Fichier invalide : magic bytes PDF attendus");
+            }
+        }
+        "image/svg+xml" => {
+            // SVG = XML → commence par <?xml ou <svg (après éventuel BOM)
+            let text = std::str::from_utf8(&data[..data.len().min(64)]).unwrap_or("");
+            let trimmed = text.trim_start_matches('\u{FEFF}').trim(); // strip BOM
+            if !trimmed.starts_with("<?xml") && !trimmed.starts_with("<svg") {
+                return Err("Fichier invalide : contenu SVG/XML attendu");
+            }
+        }
+        // Types non vérifiés : vidéo, audio, texte, octet-stream → permissif
+        _ => {}
+    }
+
+    Ok(())
 }
 
 // ====================== HANDLERS (protégés) ======================
@@ -156,7 +222,6 @@ pub async fn upload_handler(
         "is_image":     is_image,
         "uploaded_at":  now,
         "encrypted":    true,
-        // URL canonique → route déchiffrante
         "url": format!("/api/download/{}", file_id)
     })))
 }
@@ -266,8 +331,16 @@ struct ValidatedUploadData {
 impl UploadFormData {
     fn validate(self) -> Result<ValidatedUploadData, String> {
         let data = self.data.ok_or("Aucun fichier fourni")?;
-        if data.is_empty() { return Err("Fichier vide".to_string()); }
-        if data.len() > 50 * 1024 * 1024 { return Err("Fichier trop volumineux (>50Mo)".to_string()); }
+        if data.is_empty() {
+            return Err("Fichier vide".to_string());
+        }
+        if data.len() > 50 * 1024 * 1024 {
+            return Err("Fichier trop volumineux (>50Mo)".to_string());
+        }
+        // SEC-04 : validation magic bytes
+        validate_magic_bytes(&data, &self.content_type)
+            .map_err(|e| e.to_string())?;
+
         Ok(ValidatedUploadData {
             conversation_id: self.conversation_id,
             file_name: self.file_name,
@@ -280,8 +353,8 @@ impl UploadFormData {
 // ====================== DOWNLOAD ======================
 // GET /api/download/{file_id}
 // - Déchiffre le fichier (XChaCha20-Poly1305) avant envoi
-// - Content-Disposition: inline pour images/vidéos/audio/pdf (affiché dans le navigateur)
-// - Content-Disposition: attachment pour les autres types (téléchargement)
+// - Content-Disposition: inline pour images/vidéos/audio/pdf
+// - Content-Disposition: attachment pour les autres types
 // - Protégé par require_auth
 
 pub async fn download_file(
@@ -299,7 +372,6 @@ pub async fn download_file(
         key_text: Option<String>,
     }
 
-    // 1. Récupérer les métadonnées + clés de déchiffrement
     let row = match sqlx::query_as::<_, FileRow>(
         "SELECT file_name, file_path, content_type, encrypted, nonce, key_text FROM uploads WHERE id = ?",
     )
@@ -316,7 +388,6 @@ pub async fn download_file(
         }
     };
 
-    // 2. Lire le fichier brut (chiffré) sur disque
     let raw_bytes = match tokio::fs::read(&row.file_path).await {
         Ok(b) => b,
         Err(e) => {
@@ -325,7 +396,6 @@ pub async fn download_file(
         }
     };
 
-    // 3. Déchiffrer si le fichier est chiffré
     let plaintext = if row.encrypted {
         match (row.nonce.as_deref(), row.key_text.as_deref()) {
             (Some(nonce), Some(key)) => {
@@ -347,7 +417,6 @@ pub async fn download_file(
         raw_bytes
     };
 
-    // 4. Déterminer le vrai content_type (fallback sur extension si absent)
     let content_type = if row.content_type.is_empty()
         || row.content_type == "application/octet-stream"
     {
@@ -356,7 +425,6 @@ pub async fn download_file(
         row.content_type.clone()
     };
 
-    // 5. Inline pour images/vidéos/audio/pdf, attachment pour le reste
     let safe_name = row.file_name.replace('"', "\\\"");
     let disposition = if is_viewable_inline(&content_type) {
         format!("inline; filename=\"{safe_name}\"")
