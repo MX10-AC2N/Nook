@@ -149,3 +149,15 @@ pub struct MyResponse { ... }
 → Après tout changement DB     : mettre à jour rules/api-and-db.md
 → Tout endpoint nouveau        : informer 🧪 E2E avec contrat HTTP
 ```
+
+### governor 0.10 — KeyedRateLimiter n'est pas dans governor::state
+```rust
+// ❌ E0432 — n'existe pas dans governor::state
+use governor::state::{keyed::DefaultKeyedStateStore, KeyedRateLimiter};
+type IpRateLimiter = KeyedRateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
+
+// ✅ RateLimiter générique avec 4 paramètres de type
+use governor::state::keyed::DefaultKeyedStateStore;
+type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
+// RateLimiter::keyed(Quota::per_minute(...)) → retourne ce type
+```
