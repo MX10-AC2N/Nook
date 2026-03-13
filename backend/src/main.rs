@@ -12,14 +12,14 @@ use axum::{
         HeaderValue, Request,
     },
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::{delete, get, post},
     Router,
 };
 use governor::{
     clock::DefaultClock,
     middleware::NoOpMiddleware,
-    state::{keyed::DefaultKeyedStateStore, KeyedRateLimiter},
+    state::keyed::DefaultKeyedStateStore,
     Quota, RateLimiter,
 };
 use std::num::NonZeroU32;
@@ -130,7 +130,7 @@ use webrtc::{FileManager, WebRtcState};
 // Remplace le NotKeyed global qui causait des faux-positifs en CI
 // et ne protégeait pas correctement contre le brute-force par IP unique.
 // ---------------------------------------------------------------------
-type IpRateLimiter = KeyedRateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
+type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
 
 #[derive(Clone)]
 pub struct SharedState {
