@@ -1,8 +1,8 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.3.0-beta.3** | Session courante : **32** | Mis à jour : **2026-03-07**
-> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
+> Version projet : **0.4.0-beta.1** | Session courante : **32** | Mis à jour : **2026-03-10**
+> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
 ---
@@ -178,6 +178,23 @@ Si une demande révèle un domaine non couvert par les agents existants :
 | `rules/memory-preferences.md` | Format livraison, optimisations Android |
 | `SESSIONS.md` | Historique détaillé sessions 1–24 |
 | `USER_TEST.md` | Si mis à jour récemment |
+
+---
+
+## 🛠️ SKILLS — Chargement automatique
+
+Les skills sont dans `.claude/skills/`. Chaque agent DOIT lire le skill correspondant
+avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
+
+| Skill | Fichier | Déclenché par |
+|-------|---------|---------------|
+| `nook-rust-backend` | `skills/nook-rust-backend/SKILL.md` | Tout fichier `.rs`, endpoint API, migration SQL, rapport `BACKEND-BUILD-REPORT-*.md` |
+| `nook-svelte-frontend` | `skills/nook-svelte-frontend/SKILL.md` | Tout fichier `.svelte`, `.svelte.ts`, `.svelte.js`, rapport `FRONTEND-BUILD-REPORT.md` |
+| `nook-ci-devops` | `skills/nook-ci-devops/SKILL.md` | Tout `.yml` workflow, `Dockerfile*`, `docker-compose*`, rapport `DOCKER-BUILD-REPORT.md` |
+| `nook-e2e-testing` | `skills/nook-e2e-testing/SKILL.md` | `e2e.spec.ts`, `playwright.config.ts`, rapport `TEST_REPORT.md`, debug timeout/sélecteur |
+
+> Ces skills condensent 32 sessions de patterns validés. Les lire évite de répéter
+> les mêmes erreurs (rand::thread_rng, state_invalid_export, heredoc CI, waitFor E2E…).
 
 ---
 
