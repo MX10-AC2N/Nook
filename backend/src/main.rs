@@ -653,8 +653,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
         .merge(webrtc::webrtc_routes())
         .fallback_service(static_service)
-        .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
+        .layer(middleware::from_fn(base_inject_middleware))
         .layer(cors_layer)
         .with_state(shared_state);
 
