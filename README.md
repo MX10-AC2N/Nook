@@ -11,6 +11,7 @@
 
 [![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=&ignore=sha-*,latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size&tag=v0.4.0-beta.1)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
+[![Docker Image Date](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/date?color=blue&label=image%20date&tag=v0.4.0-beta.1)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 [![Last Commit](https://img.shields.io/github/last-commit/MX10-AC2N/Nook/main?label=dernier%20commit&color=informational)](https://github.com/MX10-AC2N/Nook/commits/main)
 [![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
 
