@@ -1,7 +1,7 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.1** | Session courante : **32** | Mis à jour : **2026-03-10**
+> Version projet : **0.4.0-beta.1** | Session courante : **37** | Mis à jour : **2026-03-13**
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
@@ -13,7 +13,7 @@
 ① CONSULTER  — Lire BUGS.md + memory-sessions.md (contexte immédiat)
 ② ANALYSER   — Décortiquer la demande, identifier les domaines et fichiers touchés
 ③ DISPATCHER — Sélectionner les agents via la table ci-dessous
-④ SÉQUENCER  — Ordonner selon le graphe de dépendances (Phase 1→4)
+④ SÉQUENCER  — Ordonner selon le graphe de dépendances (Phase -1→4)
 ⑤ ANNONCER   — Déclarer le plan complet avant toute intervention
 ⑥ EXÉCUTER   — Chaque agent intervient, signale ses sorties vers les agents suivants
 ⑦ APPRENDRE  — Mettre à jour BUGS.md + SESSIONS.md + le fichier d'apprentissage de l'agent
@@ -24,6 +24,8 @@
 ---
 
 ## 🎭 AGENTS DISPONIBLES
+
+### Agents de développement
 
 | Agent | Fichier | Domaine principal |
 |-------|---------|-------------------|
@@ -37,55 +39,77 @@
 | 📐 **ARCHITECT** | `roles/architect.md` | Design système, ADR, cohérence inter-agents, dette technique |
 | 🤖 **DELEGATE** | `roles/delegate.md` | Routing tâches mécaniques vers IAs gratuites (Gemini Flash, GPT-4o mini) |
 
+### Agents de mode cognitif (inspirés de gstack)
+
+> Ces agents répondent à des **commandes slash** ou s'activent automatiquement selon le type de demande.
+> Chacun a un skill dédié dans `.claude/skills/` à lire avant d'intervenir.
+
+| Agent | Fichier | Commande | Quand l'activer |
+|-------|---------|----------|-----------------|
+| 🏠 **FOUNDER** | `roles/founder.md` | `/plan-ceo` | Nouvelle feature → valider qu'on construit la bonne chose |
+| 🔎 **REVIEWER** | `roles/reviewer.md` | `/review` | Avant tout merge → trouver ce qui casse en prod |
+
+> Les modes `/plan-eng`, `/ship` et `/retro` s'exécutent via ARCHITECT et DEVOPS
+> avec leurs skills dédiés — pas d'agent séparé nécessaire.
+
 ---
 
 ## 🧠 DISPATCH — Identification automatique des agents
 
-### Grille de sélection
+### Grille de sélection — développement
 
 ```
-□ Fichiers .rs backend hors chess_engine/ ?           → 🦀 RUST
-□ Fichiers .svelte, .svelte.ts, .svelte.js ?          → 🎨 SVELTE
-□ Workflows .yml, Dockerfile*, docker-compose* ?      → 🚀 DEVOPS
-□ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?    → 🧪 E2E
-□ Auth, crypto, clés, cookies, WebRTC, E2EE ?         → 🔐 CRYPTO
-□ chess_engine/, chess.rs, chessStore ?               → ♟️ CHESS
-□ polls.rs, analytics, calendar, events, DB données ? → 📊 DATA
-□ Nouvelle feature cross-domaines, refacto majeure,
-  question d'architecture, dette technique ?          → 📐 ARCHITECT (en premier)
-□ Tâche isolée, spécification complète, résultat
-  vérifiable sans contexte projet ?                   → 🤖 DELEGATE (avant d'engager un agent)
+□ Fichiers .rs backend hors chess_engine/ ?              → 🦀 RUST
+□ Fichiers .svelte, .svelte.ts, .svelte.js ?             → 🎨 SVELTE
+□ Workflows .yml, Dockerfile*, docker-compose* ?         → 🚀 DEVOPS
+□ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?       → 🧪 E2E
+□ Auth, crypto, clés, cookies, WebRTC, E2EE ?            → 🔐 CRYPTO
+□ chess_engine/, chess.rs, chessStore ?                  → ♟️ CHESS
+□ polls.rs, analytics, calendar, events, DB données ?    → 📊 DATA
+□ Feature cross-domaines, refacto majeure, architecture? → 📐 ARCHITECT (en premier)
+□ Tâche isolée, spec complète, vérifiable sans contexte  → 🤖 DELEGATE
+```
+
+### Grille de sélection — modes cognitifs
+
+```
+□ "Est-ce qu'on devrait faire X ?" / feature incertaine → /plan-ceo → 🏠 FOUNDER
+□ Direction validée, besoin d'un plan technique béton   → /plan-eng → 📐 ARCHITECT
+□ Avant merge sur main / code prêt                      → /review   → 🔎 REVIEWER
+□ Review ✅, tests ✅, prêt à shipper                    → /ship     → 🚀 DEVOPS
+□ Bilan de sessions / orientation backlog               → /retro    → 📐 ARCHITECT
 ```
 
 ### Exemples de dispatch enrichis
 
 | Demande | Pipeline agents |
 |---------|----------------|
-| "Corrige bug conversationStore" | 🎨 SVELTE |
-| "Ajoute DELETE /messages/{id}" | 🦀 RUST → 🧪 E2E |
-| "Build arm64 échoue" | 🚀 DEVOPS |
-| "Test Login timeout" | 🧪 E2E |
-| "Temps réel aux échecs" | 📐 ARCHITECT → ♟️ CHESS → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
-| "Inscription E2EE" | 📐 ARCHITECT → 🔐 CRYPTO → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
-| "Dashboard analytics admin" | 📊 DATA → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
-| "Système de réactions aux messages" | 📊 DATA → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
-| "Notifications push" | 📐 ARCHITECT → 🦀 RUST → 🎨 SVELTE → 🚀 DEVOPS → 🧪 E2E |
-| "Refonte du système de thèmes" | 📐 ARCHITECT → 🎨 SVELTE |
-| "Analyse rapport CI avec erreurs" | 🚀 DEVOPS + agents concernés |
-| "Convertis cette struct en TypeScript" | 🤖 DELEGATE (Gemini Flash) |
-| "Écris le test pour ce scénario" | 🤖 DELEGATE (GPT-4o mini) |
-| "Corrige ce warning clippy" | 🤖 DELEGATE (Gemini Flash) |
+| `"Corrige bug conversationStore"` | 🎨 SVELTE |
+| `"Ajoute DELETE /messages/{id}"` | 🦀 RUST → 🧪 E2E |
+| `"Build arm64 échoue"` | 🚀 DEVOPS |
+| `"Test Login timeout"` | 🧪 E2E |
+| `"Temps réel aux échecs"` | 📐 ARCHITECT → ♟️ CHESS → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| `"Inscription E2EE"` | 📐 ARCHITECT → 🔐 CRYPTO → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| `"Dashboard analytics admin"` | 📊 DATA → 🦀 RUST → 🎨 SVELTE → 🧪 E2E |
+| `"Notifications push"` | 🏠 FOUNDER → 📐 ARCHITECT → 🦀 RUST → 🎨 SVELTE → 🚀 DEVOPS → 🧪 E2E |
+| `"Analyse rapport CI"` | 🚀 DEVOPS + agents concernés |
+| `"Convertis cette struct en TypeScript"` | 🤖 DELEGATE (Gemini Flash) |
+| `"/plan-ceo : ajouter X"` | 🏠 FOUNDER → spec → pipeline selon verdict |
+| `"/review"` | 🔎 REVIEWER → rapport → fixes ciblés |
+| `"/ship"` | 🚀 DEVOPS → pipeline complet → Zimaboard |
+| `"/retro"` | 📐 ARCHITECT → bilan + priorités |
 
 ---
 
 ## 🔢 SÉQUENÇAGE — Graphe de dépendances
 
 ```
-Phase 0 — Pré-qualification (toujours, coût < 5 sec)
-  🤖 DELEGATE  → vérifier si tout ou partie est déléguable à une IA gratuite
+Phase -1 — Vision produit (si feature nouvelle ou incertaine)
+  🏠 FOUNDER    → valider qu'on construit la bonne chose avant tout
 
-Phase 1 — Architecture (si feature cross-domaines ou ambiguïté)
-  📐 ARCHITECT  → ADR + contrat inter-agents + plan de migration
+Phase 0 — Pré-qualification (toujours, coût < 5 sec)
+  🤖 DELEGATE   → vérifier si tout ou partie est déléguable
+  📐 ARCHITECT  → si feature cross-domaines ou ambiguïté
 
 Phase 1 — Fondations et contrats
   🔐 CRYPTO  → protocoles de sécurité, formats de clés
@@ -101,10 +125,11 @@ Phase 3 — Infrastructure
 
 Phase 4 — Validation
   🧪 E2E     → tests sur tout ce que les phases précédentes ont produit
+  🔎 REVIEWER → audit avant merge si code touche auth/upload/WS/E2EE
 ```
 
-> **Règle de court-circuit** : si une demande ne touche qu'un seul domaine,
-> sauter directement à l'agent concerné sans annoncer les phases inutiles.
+> **Règle de court-circuit** : demande mono-domaine → aller directement à l'agent,
+> sans annoncer les phases inutiles.
 
 ---
 
@@ -121,14 +146,36 @@ Phase 4 → 🧪 E2E     : [tests à couvrir]
 
 ## ⚠️ Points de vigilance inter-agents
 [Effets de bord, contrats à respecter, régressions possibles]
+```
 
 ---
-[Intervention Phase 1]
----
-[Intervention Phase 2]
----
-[Intervention Phase 4]
-```
+
+## 🛠️ SKILLS — Chargement automatique
+
+Les skills sont dans `.claude/skills/`. Chaque agent DOIT lire le skill correspondant
+avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
+
+### Skills de développement
+
+| Skill | Fichier | Déclenché par |
+|-------|---------|---------------|
+| `nook-rust-backend` | `skills/nook-rust-backend/SKILL.md` | Tout `.rs`, endpoint API, migration SQL, `BACKEND-BUILD-REPORT-*.md` |
+| `nook-svelte-frontend` | `skills/nook-svelte-frontend/SKILL.md` | Tout `.svelte/.svelte.ts/.svelte.js`, `FRONTEND-BUILD-REPORT.md` |
+| `nook-ci-devops` | `skills/nook-ci-devops/SKILL.md` | Tout `.yml` workflow, `Dockerfile*`, `docker-compose*`, `DOCKER-BUILD-REPORT.md` |
+| `nook-e2e-testing` | `skills/nook-e2e-testing/SKILL.md` | `e2e.spec.ts`, `playwright.config.ts`, `TEST_REPORT.md`, debug timeout/sélecteur |
+
+### Skills de mode cognitif
+
+| Skill | Fichier | Commande | Ce qu'il contient |
+|-------|---------|----------|-------------------|
+| `nook-plan-ceo` | `skills/nook-plan-ceo/SKILL.md` | `/plan-ceo` | Protocole vision produit, filtre "bonne feature", format spec |
+| `nook-plan-eng` | `skills/nook-plan-eng/SKILL.md` | `/plan-eng` | Plan technique, contrats inter-agents, checklist risques Nook |
+| `nook-review` | `skills/nook-review/SKILL.md` | `/review` | Checklist 60+ points, pièges historiques, format rapport audit |
+| `nook-ship` | `skills/nook-ship/SKILL.md` | `/ship` | Pipeline CI/CD ordonné, bump version, déploiement Zimaboard |
+| `nook-retro` | `skills/nook-retro/SKILL.md` | `/retro` | Métriques, patterns récurrents, backlog priorisé |
+
+> Ces skills condensent **36 sessions** de patterns validés. Les lire évite de répéter
+> les mêmes erreurs (rand::thread_rng, state_invalid_export, heredoc CI, waitFor E2E…).
 
 ---
 
@@ -141,10 +188,10 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 | Événement | Action |
 |-----------|--------|
 | Bug corrigé lié au domaine de l'agent | Ajouter dans `## 📚 Apprentissages` + `BUGS.md` |
-| Nouveau piège découvert (compile, runtime, CI) | Ajouter dans `## 📚 Apprentissages` de l'agent concerné |
+| Nouveau piège découvert | Ajouter dans `## 📚 Apprentissages` de l'agent concerné |
 | Décision architecturale prise | Ajouter dans `rules/memory-decisions.md` (D-series) |
-| Pattern validé après plusieurs sessions | Promouvoir de "Apprentissages" vers la section principale du rôle |
-| Nouvel agent identifié comme nécessaire | Créer `roles/nouvel-agent.md` + l'ajouter ici |
+| Pattern validé après plusieurs sessions | Promouvoir vers la section principale du rôle |
+| Nouvel agent identifié | Créer `roles/nouvel-agent.md` + l'ajouter ici |
 
 ### Cycle de vie d'un apprentissage
 
@@ -155,14 +202,6 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 4. Décision    → archivé dans memory-decisions.md si architectural
 ```
 
-### Créer un nouvel agent
-
-Si une demande révèle un domaine non couvert par les agents existants :
-1. Identifier le périmètre exact (fichiers, responsabilités)
-2. Créer `roles/nouvel-agent.md` avec les sections standards
-3. L'ajouter à la table AGENTS DISPONIBLES ci-dessus
-4. Documenter la décision dans `memory-decisions.md`
-
 ---
 
 ## 📚 Référentiels
@@ -172,29 +211,11 @@ Si une demande révèle un domaine non couvert par les agents existants :
 | `BUGS.md` | **Étape ① — toujours** |
 | `rules/memory-sessions.md` | **Étape ① — contexte rapide** |
 | `rules/architecture.md` | Schéma DB, API, structure fichiers |
-| `rules/coding-style.md` | Pièges Rust/Svelte (résumé) |
+| `rules/coding-style.md` | Pièges Rust/Svelte (index vers les rôles) |
 | `rules/workflows.md` | Docker, CI, déploiement |
 | `rules/memory-decisions.md` | Avant tout changement architectural |
 | `rules/memory-preferences.md` | Format livraison, optimisations Android |
-| `SESSIONS.md` | Historique détaillé sessions 1–24 |
-| `USER_TEST.md` | Si mis à jour récemment |
-
----
-
-## 🛠️ SKILLS — Chargement automatique
-
-Les skills sont dans `.claude/skills/`. Chaque agent DOIT lire le skill correspondant
-avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
-
-| Skill | Fichier | Déclenché par |
-|-------|---------|---------------|
-| `nook-rust-backend` | `skills/nook-rust-backend/SKILL.md` | Tout fichier `.rs`, endpoint API, migration SQL, rapport `BACKEND-BUILD-REPORT-*.md` |
-| `nook-svelte-frontend` | `skills/nook-svelte-frontend/SKILL.md` | Tout fichier `.svelte`, `.svelte.ts`, `.svelte.js`, rapport `FRONTEND-BUILD-REPORT.md` |
-| `nook-ci-devops` | `skills/nook-ci-devops/SKILL.md` | Tout `.yml` workflow, `Dockerfile*`, `docker-compose*`, rapport `DOCKER-BUILD-REPORT.md` |
-| `nook-e2e-testing` | `skills/nook-e2e-testing/SKILL.md` | `e2e.spec.ts`, `playwright.config.ts`, rapport `TEST_REPORT.md`, debug timeout/sélecteur |
-
-> Ces skills condensent 32 sessions de patterns validés. Les lire évite de répéter
-> les mêmes erreurs (rand::thread_rng, state_invalid_export, heredoc CI, waitFor E2E…).
+| `SESSIONS.md` | Historique détaillé sessions 1–36 |
 
 ---
 
@@ -204,7 +225,7 @@ avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
 2. **Fichier complet** — jamais de diff partiel
 3. **Format livraison** — `.svelte`/`.ts`/`.svelte.ts` → `.txt` | `.rs`/`.sql` → direct
 4. **Chemin explicite** — `frontend/src/lib/chatStore.svelte.ts` en tête de chaque bloc
-5. **Effets de bord** — signaler explicitement ce que chaque changement impacte chez les autres agents
+5. **Effets de bord** — signaler ce que chaque changement impacte chez les autres agents
 6. **Apprentissage** — tout bug non trivial résolu → section `## 📚 Apprentissages` de l'agent
 
 ---
@@ -218,3 +239,15 @@ avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
 | `BACKEND-BUILD-REPORT-arm64.md` | 🦀 RUST | `Backend.yml` |
 | `DOCKER-BUILD-REPORT.md` | 🚀 DEVOPS | `Docker.yml` |
 | `TEST_REPORT.md` | 🧪 E2E | `test-nook.yml` |
+
+---
+
+## 📖 Référence rapide des commandes slash
+
+| Commande | Agent | Skill lu | Résultat |
+|----------|-------|----------|----------|
+| `/plan-ceo` | 🏠 FOUNDER | `nook-plan-ceo` | Spec produit validée ou reformulée |
+| `/plan-eng` | 📐 ARCHITECT | `nook-plan-eng` | Plan technique + contrats inter-agents |
+| `/review` | 🔎 REVIEWER | `nook-review` | Rapport audit + verdict merge |
+| `/ship` | 🚀 DEVOPS | `nook-ship` | Pipeline CI/CD complet + Zimaboard |
+| `/retro` | 📐 ARCHITECT | `nook-retro` | Bilan sessions + priorités backlog |
