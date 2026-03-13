@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-07** (session 26)
+> Mis à jour : **2026-03-13** (session 33)
 
 ---
 
@@ -29,6 +29,7 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R33 | 33 | `clearSession` ne vidait pas localStorage → `isAuthenticated=true` → goto('/chat') avant `#username` | `page.evaluate(() => localStorage.clear())` + `loginAsAdmin` attend `.admin-header` visible |
 | R25 | 26 | Polls E2E race condition `waitForResponse` après `goto()` | `Promise.all([waitForResponse, goto()])` — listener enregistré AVANT navigation |
 | R24 | 25 | Layout bloque sur `!cryptoInitialized` → `#username` jamais visible | Crypto failure = mode dégradé non-bloquant, guard template sur `loading` seul |
 | R23 | 23 | `fill('#username')` avant layout onMount | `waitFor('#username', visible, 20s)` |
