@@ -294,21 +294,3 @@ Les macros `sqlx::query!` et `sqlx::query_as!` nécessitent que `.sqlx/queries.j
 contienne la requête au moment de la compilation offline.
 → Après toute nouvelle macro sqlx : régénérer avec `cargo sqlx prepare`.
 → En attendant : utiliser `sqlx::query_as::<_, T>(sql_string)` (pas de macro).
-
-### [APP-RUST-06] Format réponse /chess/{id}/moves — Session 32
-
-L'endpoint `legal_moves` retourne `Json(moves_json)` où `moves_json: Vec<String>` —
-un tableau JSON brut, pas un objet `{success, moves}`.
-→ Ne jamais envelopper ce endpoint dans un objet. Le consommateur (test ou frontend) attend un array direct.
-
-### [APP-RUST-07] Format réponse /polls/{id}/vote — Session 32
-
-`vote_poll` retourne `Json(json!({ "success": true, "poll": p }))`.
-Les deux champs sont obligatoires : `success` pour les tests API, `poll` pour la mise à jour UI.
-→ Ne jamais retourner uniquement `{ "poll": p }` sans `"success": true`.
-
-### [APP-RUST-08] CreateGameRequest.opponent (pas ai_difficulty) — Session 32
-
-La struct `CreateGameRequest` a un champ `opponent: Option<String>` pour la difficulté IA.
-La colonne DB s'appelle `ai_difficulty` mais le champ JSON de l'API est `opponent`.
-→ Ne pas les confondre. Si jamais renommé, mettre à jour les tests ET le frontend.
