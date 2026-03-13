@@ -1,8 +1,9 @@
 // backend/src/webrtc.rs
 // Signalisation P2P + Chiffrement fichiers (XChaCha20-Poly1305)
-// Session 9 — fix sécurité : authentification du WebSocket
+// Session 9  — fix sécurité : authentification du WebSocket
 //   → le cookie auth_token est vérifié dès la connexion WS
 //   → connexion refusée si token invalide ou manquant
+// Session 36 — SEC-05 : limite 64 KB sur les messages WS de signaling
 
 use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
@@ -403,6 +404,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
                     let text_str = text.to_string();
+
+                    // SEC-05 : limite de taille sur les messages de signaling (64 KB)
+                    // Empêche un client malveillant d'envoyer un payload massif
+                    // qui serait désérialisé par serde_json et broadcasté à tous.
+                    if text_str.len() > 65_536 {
+                        tracing::warn!(
+                            ws_id = %id,
+                            bytes = text_str.len(),
+                            "WebSocket : message trop volumineux (>64KB) — ignoré"
+                        );
+                        continue;
+                    }
 
                     // Parse pour logging
                     if let Ok(json) = serde_json::from_str::<Value>(&text_str) {
