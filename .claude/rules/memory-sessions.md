@@ -46,9 +46,14 @@
 
 ---
 
-## Dernière session (24) — Points clés
+## Dernière session (33) — Points clés
 
-- 8 agents créés/enrichis avec section `## 📚 Apprentissages`
-- 2 nouveaux agents : 📊 DATA + 📐 ARCHITECT
-- `rules/agent-lifecycle.md` créé
-- CLAUDE.md → orchestrateur 7 étapes avec étape ⑦ APPRENDRE
+- **CI : 55 tests échouaient** (20 passaient) — cause unique : localStorage non vidé entre tests
+- `clearSession()` révoquait cookie + `clearCookies()` mais pas `localStorage`
+- `authStore.constructor()` relit `nook_user` + `nook_session_id` → `isAuthenticated=true` immédiat
+- `$effect` layout → `goto('/chat')` avant `loading=false` → `#username` jamais visible
+- **Fix A** : `page.evaluate(() => localStorage.clear())` dans `clearSession()` (Bug R33)
+- **Fix B** : `loginAsAdmin()` attend `.admin-header` visible (15s) après `goto('/admin')`
+- Version : 0.4.0-beta.1 | Tests E2E : 75 total, 55 en échec → attendu 75/75 après fix
+- Livraison : `e2e.spec.ts.txt`
+
