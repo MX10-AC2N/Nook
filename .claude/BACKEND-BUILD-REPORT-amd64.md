@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `x86_64-unknown-linux-gnu`
-> **2026-03-13 18:00 UTC**
+> **2026-03-13 18:09 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `amd64` (`x86_64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`00acb2b`](https://github.com/MX10-AC2N/Nook/commit/00acb2bf2bde8e14bbc400ccc01c8f755136ac71) |
+| **Commit** | [`ad45a7c`](https://github.com/MX10-AC2N/Nook/commit/ad45a7c5a8caff101dacb1cea39c33dc942ffeba) |
 | **Rust** | `rustc 1.94.0 (4a4ef493e 2026-03-02)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23063943557) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23064277096) |
 
 ---
 
