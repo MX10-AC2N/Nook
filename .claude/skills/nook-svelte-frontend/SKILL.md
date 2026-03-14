@@ -139,3 +139,20 @@ type Theme = 'jardin-secret' | 'space-hub' | 'maison-chaleureuse'
 → Après tout nouveau sélecteur  : informer 🧪 E2E (id= ou data-testid= ajouté)
 → Après tout nouveau store      : documenter dans rules/frontend-and-business.md
 ```
+
+### [APP-SVELTE-R37] waitForSodium() dans onMount bloque loading=false — CI headless
+```
+Symptôme : waitFor('#username', 20_000) timeout sur 75/75 tests E2E
+Cause    : onMount faisait await waitForSodium() (938kB WASM) AVANT authStore.init()
+           En CI Chromium headless, le chargement WASM prend >20s
+           → loading reste true → {#if loading} masque le contenu → #username absent du DOM
+
+Fix      : Sodium en fire-and-forget, authStore.init() en priorité
+           waitForSodium().then(() => initCryptoSystem()).then(...).catch(...)  // PAS de await
+           await authStore.init()   // seule chose qui détermine l'affichage
+           loading = false          // dès que la session est vérifiée (~100ms)
+
+Règle    : Ne JAMAIS await waitForSodium() dans onMount du layout principal
+           Sodium s'initialise en arrière-plan, cryptoStore.ready devient true
+           quand il est prêt → unlockCrypto() l'utilisera au moment du login
+```
