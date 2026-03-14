@@ -53,7 +53,7 @@ jobs:
         env:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
         run: |
-          cargo sqlx prepare -- --bin
+          cargo sqlx prepare -- --bin nook-backend
           echo "✅ queries.json régénéré"
           QUERY_COUNT=$(cat .sqlx/queries.json | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
           echo "Queries indexées : $QUERY_COUNT"
