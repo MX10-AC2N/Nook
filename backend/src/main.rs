@@ -2,6 +2,7 @@
 // CORS dynamique : origines lues depuis .env (ALLOWED_ORIGINS + PUBLIC_SITE_URL)
 // Cookie adaptatif : SameSite=None;Secure (HTTPS/WAN) ou SameSite=Lax (HTTP/LAN)
 // Session 36 — SEC-02: rate limiter keyed par IP (KeyedRateLimiter)
+// Session 38 — SEC-02: quota configurable via RATE_LIMIT_PER_MIN (défaut 60)
 //            — Suppression base_inject_middleware (inutile avec SvelteKit adapter-static)
 
 use axum::{
@@ -388,12 +389,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ============================================================
     // 🛣️ Routes publiques — SEC-02 : rate limiter par IP
-    // 30 req / 60s par IP (vs 10 global avant)
-    // Permet les tests E2E (multiples logins) sans 429 intempestifs
-    // tout en bloquant le brute-force depuis une IP unique.
+    // Quota configurable via RATE_LIMIT_PER_MIN (défaut : 60)
+    // En prod : 60/min bloque le brute-force sans gêner l'usage normal
+    // En CI   : 60/min suffit pour 3 suites × retries sans 429
     // ============================================================
+    let rate_limit: u32 = std::env::var("RATE_LIMIT_PER_MIN")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60);
     let ip_limiter: Arc<IpRateLimiter> = Arc::new(
-        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(30).unwrap()))
+        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(rate_limit).unwrap()))
     );
 
     let limiter_clone = ip_limiter.clone();
@@ -424,7 +429,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }));
 
-    tracing::info!("Routes publiques configurées (rate limit: 30 req/min par IP):");
+    tracing::info!("Routes publiques configurées (rate limit: {}/min par IP):", rate_limit);
     tracing::info!("  • POST   /auth/register");
     tracing::info!("  • POST   /auth/login");
     tracing::info!("  • POST   /join");
