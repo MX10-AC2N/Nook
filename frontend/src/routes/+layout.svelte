@@ -69,27 +69,49 @@
   });
 
   onMount(async () => {
+    // ─────────────────────────────────────────────────────────────────────
+    // ARCHITECTURE : sodium en fire-and-forget, authStore.init() en priorité
+    //
+    // PROBLÈME PRÉCÉDENT (Bug R37) :
+    //   await waitForSodium()   ← bloquait ici (938kB WASM, >20s en CI headless)
+    //   await initCryptoSystem()
+    //   await authStore.init()
+    //   loading = false          ← trop tard → #username jamais visible → 75/75 timeouts
+    //
+    // SOLUTION :
+    //   Sodium n'est PAS nécessaire pour afficher la page de login ni vérifier
+    //   la session (authStore.init = fetch /api/auth/me).
+    //   On lance sodium en arrière-plan sans bloquer, puis on fait authStore.init()
+    //   immédiatement → loading = false dès que la session est vérifiée (~100ms).
+    //   La crypto s'active toute seule quand sodium est prêt (via unlockCrypto au login).
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Lance sodium en arrière-plan — ne PAS await ici
+    waitForSodium()
+      .then(() => initCryptoSystem())
+      .then((ok) => {
+        cryptoInitialized = ok;
+        if (!ok) {
+          cryptoError = 'Système de chiffrement indisponible — mode dégradé activé';
+          console.warn('[layout] Crypto init failed — running in degraded mode (E2EE off)');
+        }
+      })
+      .catch((err) => {
+        // Sodium peut échouer en CI headless (WASM non supporté) → mode dégradé non-bloquant
+        cryptoError = 'Système de chiffrement indisponible — mode dégradé activé';
+        console.warn('[layout] waitForSodium/initCrypto error (non-bloquant) :', err);
+      });
+
+    // Vérification de session : c'est ça qui détermine si on est connecté ou non
+    // C'est la SEULE chose qui doit bloquer l'affichage
     try {
-      await waitForSodium();
-
-      cryptoInitialized = await initCryptoSystem();
-      if (!cryptoInitialized) {
-        // NON BLOQUANT : mode dégradé, on continue sans E2EE
-        cryptoError = "Système de chiffrement indisponible — mode dégradé activé";
-        console.warn('[layout] Crypto init failed — running in degraded mode (E2EE off)');
-        // Ne PAS throw ici → authStore.init() continue quand même
-      }
-
       await authStore.init();
-
     } catch (err) {
-      console.error("Erreur d'initialisation globale :", err);
-      if (sodiumState.error) {
-        appError = 'Erreur de chargement des bibliothèques de sécurité.';
-      } else {
-        appError = 'Impossible de vérifier votre session. Réessayez.';
-      }
+      console.error("Erreur d'initialisation de session :", err);
+      appError = 'Impossible de vérifier votre session. Réessayez.';
     } finally {
+      // loading = false dès que authStore.init() est terminé (~100ms réseau local)
+      // Sodium continue en arrière-plan — cryptoError se mettra à jour quand il finit
       loading = false;
     }
   });
