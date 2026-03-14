@@ -60,7 +60,7 @@ jobs:
           # Permet la compilation des proc-macros même dans un env croisé
           RUSTFLAGS: "--cfg proc_macro_span"
         run: |
-          cargo sqlx prepare -p nook-backend
+          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu
           echo "✅ queries.json régénéré"
           QUERY_COUNT=$(python3 -c "import json; data=json.load(open('.sqlx/queries.json')); print(len(data))" 2>/dev/null || echo "?")
           echo "Queries indexées : $QUERY_COUNT"
