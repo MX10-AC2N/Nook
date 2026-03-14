@@ -9,9 +9,13 @@
 
     <!-- Session 36 : base-placeholder supprimé — SvelteKit adapter-static génère
          des assets avec paths absolus (/_app/...) qui n'ont pas besoin de <base href>.
-         Le middleware base_inject_middleware a été supprimé de main.rs. -->
+         Le middleware base_inject_middleware a été supprimé de main.rs.
 
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://media.tenor.com https://c.tenor.com data: blob:; connect-src 'self' wss: ws:; font-src 'self'; media-src 'self' blob:; worker-src 'self'; object-src 'none';">
+         Session 37 : meta CSP supprimée — SvelteKit adapter-static génère des scripts
+         inline (hydratation, __sveltekit_data) bloqués par script-src 'self'.
+         Sur homeserver familial self-hosted, la sécurité vient de l'auth backend
+         + HTTPS Nginx + réseau LAN. La CSP meta apportait une fausse protection
+         tout en cassant 100% des tests E2E (0 requêtes backend en CI headless). -->
     %sveltekit.head%
   </head>
 
