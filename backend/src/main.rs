@@ -42,6 +42,7 @@ mod e2ee;
 mod invites;
 mod polls;
 mod reactions;
+mod push;
 mod prune;
 mod upload;
 mod webrtc;
