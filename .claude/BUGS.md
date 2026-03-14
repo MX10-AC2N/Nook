@@ -29,6 +29,7 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R37 | 37 | `waitForSodium()` bloquait `loading=false` → `#username` jamais visible en CI | Sodium lancé en fire-and-forget, `loading=false` après `authStore.init()` uniquement |
 | R36a | 36 | Page blanche Zimaboard — base_inject_middleware inutile | Supprimé de main.rs + app.html nettoyé |
 | R36b | 36 | Rate limit 429 en CI E2E — NotKeyed global épuisé par les tests | KeyedRateLimiter par IP, quota 30/min |
 | R33 | 33 | `clearSession` ne vidait pas localStorage → `isAuthenticated=true` | `page.evaluate(() => localStorage.clear())` |
@@ -78,3 +79,6 @@ WAN : HTTPS via Nginx → X-Forwarded-Proto: https → SameSite=None; Secure
 CORS : ALLOWED_ORIGINS env, jamais Any avec credentials
 Rate limit : 30 req/min par IP (KeyedRateLimiter, governor)
 ```
+
+---
+*Mis à jour session 37 — ajout R37*
