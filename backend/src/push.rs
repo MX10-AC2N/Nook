@@ -58,6 +58,7 @@ pub struct UpdatePrefsRequest {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[allow(dead_code)] // S38 : utilisé par send_push_notification
 pub struct PushPayload {
     pub title: String,
     pub body: String,
@@ -242,6 +243,7 @@ async fn update_preferences(
 /// ⚠️ Stub S37 — stocke + vérifie les prefs, log les notifs à envoyer.
 ///    L'envoi VAPID réel (reqwest POST vers endpoint) sera implémenté en S38
 ///    sans dépendance externe (web-push tire async-trait → interdit, voir D10).
+#[allow(dead_code)] // S38 : appelé depuis db.rs après send_message
 pub async fn send_push_notification(
     pool: &sqlx::SqlitePool,
     recipient_user_id: &str,
@@ -276,6 +278,7 @@ pub async fn send_push_notification(
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn should_notify(pool: &sqlx::SqlitePool, user_id: &str) -> bool {
     let row = sqlx::query_as::<_, (i64, String, String, i64)>(
         "SELECT enabled, quiet_start, quiet_end, on_message
