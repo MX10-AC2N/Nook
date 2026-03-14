@@ -1,90 +1,71 @@
-# 🧪 Rapport de test E2E — Nook
+# 🧪 Rapport E2E — Nook
 
-> Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-14 16:17 UTC**
+> Généré par `test-nook.yml` · **2026-03-14 17:07 UTC**
 
 ---
 
-## Résumé du run
+## 📊 Résumé
 
-| Champ | Valeur |
-|-------|--------|
-| **Statut** | ✅ SUCCÈS |
-| **Tests passés** | ? |
-| **Tests échoués** | ? |
+| Indicateur | Valeur |
+|-----------|--------|
+| **Statut** | ❌ **ÉCHEC** |
+| **Tests passés** | 0 |
+| **Tests échoués** | 0 |
 | **Tests ignorés** | 0 |
+| **Total** | 0 |
+| **Durée** | N/A |
 | **Branche** | `develop` |
-| **Commit** | [`6fab76a`](https://github.com/MX10-AC2N/Nook/commit/6fab76a129b9a4d43e2f27abee276201372bbee8) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23091549925) |
+| **Commit** | [`6f9dff8`](https://github.com/MX10-AC2N/Nook/commit/6f9dff8105923053f3788ae2a6d5faf59682921b) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23092363013) |
 
 ---
 
-## Résultats détaillés
+## 🗂️ Suites de tests
 
-```
-
-```
-
----
-
-## Suites couvertes
-
-| Suite | Description |
-|-------|-------------|
-| **Auth** | Login valide/invalide, /auth/me non-auth → 401, Logout |
-| **Chat** | Envoi message, affichage DOM, GET conversations, GET messages |
-| **Admin** | Login admin, onglets, liste users, génération invitation |
-| **Settings** | Navigation onglets (profil/sécurité/apparence), changement thème |
-| **Calendar** | Chargement page, GET/POST /api/events, bouton ajout |
-| **Chess** | Chargement page, GET /api/chess/list, POST /api/chess/create, formulaire UI |
-| **Polls** | Chargement page, création sondage (localStorage) |
-| **Navigation** | 7 routes testées (chat, calendar, chess, polls, settings, help, events) |
-| **API Sanity** | /health, /conversations, /events, /chess/list, /invites (non-auth → 401) |
+| Suite | Fichier | Périmètre |
+|-------|---------|-----------|
+| **Sanité API** | `api-sanity.spec.ts` | 401/403 sur toutes les routes protégées |
+| **Admin** | `admin.spec.ts` | Login, change-pwd, membres, inscription→approbation, invitations, analytics, isolation |
+| **User** | `user.spec.ts` | Auth, chat, réactions, upload, polls, chess, calendar, settings, E2EE, push, navigation |
 
 ---
 
-## Erreurs détectées
+## 📋 Résultats par suite
+
+---
+
+## ✅ Aucun échec
+
+Tous les tests ont passé.
+
+---
+
+## 🐳 Logs backend (warnings/erreurs)
 
 ```
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:48:28",
-                        "location": {
-                          "file": "/home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts",
-                          "column": 28,
-                          "line": 48
-                        },
---
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m\n\n  46 |           ? await request.delete(`${BASE}${route.path}`)\n  47 |           : await request.post(`${BASE}${route.path}`, { data: route.body });\n> 48 |       expect(res.status()).toBe(401);\n     |                            ^\n  49 |     });\n  50 |   }\n  51 |\n    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:48:28"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
---
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m\n    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:48:28",
-                        "location": {
-                          "file": "/home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts",
-                          "column": 28,
-                          "line": 48
-                        },
---
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m401\u001b[39m\nReceived: \u001b[31m404\u001b[39m\n\n  46 |           ? await request.delete(`${BASE}${route.path}`)\n  47 |           : await request.post(`${BASE}${route.path}`, { data: route.body });\n> 48 |       expect(res.status()).toBe(401);\n     |                            ^\n  49 |     });\n  50 |   }\n  51 |\n    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:48:28"
-                        }
-                      ],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
+WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
 ```
 
 ---
 
-## Logs backend (warnings/erreurs)
+## 🔍 Couverture fonctionnelle
 
-```
-nook  | [2m2026-03-14T16:16:31.594592Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-```
+| Domaine | Endpoints / Fonctionnalités | Couverture |
+|---------|----------------------------|-----------|
+| **Auth** | login, logout, /me, change-pwd, register→approve | ✅ Complet |
+| **Conversations** | GET/POST conv, messages, participants, rename | ✅ Complet |
+| **Réactions** | POST/DELETE/GET, UPSERT, UI picker→pill | ✅ Complet |
+| **Upload/Download** | upload chat, download, 401/404 | ✅ Complet |
+| **Polls** | CRUD, vote, UPSERT, double vote, fermeture, vote fermé | ✅ Complet |
+| **Chess** | créer, coups légaux/illégaux, IA, resign, invitations, UI plateau | ✅ Complet |
+| **Calendrier** | GET/POST/DELETE événements, UI grille | ✅ Complet |
+| **Settings** | profil, sécurité, apparence, update nom | ✅ Complet |
+| **Admin** | users, pending, approve, invites, delete, analytics | ✅ Complet |
+| **E2EE** | register/get public keys | ✅ Complet |
+| **Push** | subscribe, preferences, vapid-key | ✅ Complet |
+| **Sécurité** | ~47 routes 401, 403 admin, rate limit flood | ✅ Complet |
+| **Navigation** | 7 routes accessibles sans erreur | ✅ Complet |
 
 ---
 
-*Rapport généré par `.github/workflows/test-nook.yml` — session 14*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-14 17:07 UTC*
