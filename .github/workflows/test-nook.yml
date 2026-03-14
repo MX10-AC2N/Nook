@@ -77,7 +77,9 @@ jobs:
       # ── Démarrer avec l'image locale ──────────────────────────────────────
       - name: "Demarrage stack avec image locale"
         run: |
-          NOOK_IMAGE=nook-ci:local docker compose \
+          NOOK_IMAGE=nook-ci:local \
+          RATE_LIMIT_PER_MIN=120 \
+          docker compose \
             -f docker-compose.yml \
             up -d
 
@@ -172,6 +174,8 @@ jobs:
           npx playwright install --with-deps chromium
           # Reporter JSON pour extraire les résultats dans le step suivant
           npx playwright test --reporter=json,html 2>&1 | tee /tmp/playwright-output.txt || true
+          # Copier aussi le JSON si généré par playwright.config.ts
+          cp /tmp/playwright-results.json . 2>/dev/null || true
           # Extraire le code de sortie réel
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
