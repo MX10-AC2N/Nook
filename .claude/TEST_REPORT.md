@@ -1,7 +1,7 @@
 # 🧪 Rapport de test E2E — Nook
 
 > Généré automatiquement par le workflow CI `test-nook.yml`
-> **Dernière mise à jour : 2026-03-13 19:25 UTC**
+> **Dernière mise à jour : 2026-03-14 08:29 UTC**
 
 ---
 
@@ -14,8 +14,8 @@
 | **Tests échoués** | ? |
 | **Tests ignorés** | 0 |
 | **Branche** | `develop` |
-| **Commit** | [`2bd205c`](https://github.com/MX10-AC2N/Nook/commit/2bd205c439c9ae2a9176ce1f0fa27a34bd6f16c1) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23064778520) |
+| **Commit** | [`6df55ed`](https://github.com/MX10-AC2N/Nook/commit/6df55edf569dd90fda229c5c8a2f466508ecdcd8) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23083283505) |
 
 ---
 
@@ -93,7 +93,7 @@
 ## Logs backend (warnings/erreurs)
 
 ```
-nook  | [2m2026-03-13T18:26:18.656639Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+nook  | [2m2026-03-14T07:30:10.241237Z[0m [33m WARN[0m [2mnook_backend[0m[2m:[0m ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
 ```
 
 ---
