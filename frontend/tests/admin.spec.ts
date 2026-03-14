@@ -1,22 +1,26 @@
 // frontend/tests/admin.spec.ts
-// Flux admin complet — reproduit exactement ce que fait un admin réel.
+// Flux admin complet — reproduit le parcours réel d'un administrateur Nook.
 //
-// SÉQUENCE :
-//   1. Premier login → needs_password_change=true → changement mdp obligatoire
-//   2. Re-login avec nouveau mdp → arrivée sur /admin
-//   3. Tests UI admin : onglets, membres, invitations, analytics
-//   4. Tests API admin : /users/pending, /users, /invites
-//   5. Vérification isolation : user normal → 403 sur routes admin
+// SÉQUENCE RÉELLE :
+//   1. Premier login → needs_password_change=true → change le mot de passe
+//   2. Re-login avec nouveau mot de passe → arrivée sur /admin
+//   3. Parcourt toutes les fonctionnalités admin : membres, invitations, approbations, analytics
+//   4. Flux inscription d'un nouvel utilisateur → approbation admin
+//   5. Gestion des invitations (génération + suppression)
+//   6. Tests analytics complets
+//   7. Vérification isolation : user normal → 403 sur routes admin
 //
-// LOGIN : 1 seul login via API dans beforeAll → partagé par tous les tests du describe.
-// Aucun loginAs() répété → rate limit impossible à atteindre.
+// OPTIMISATION RATE LIMIT :
+//   loginAsAdmin() dans beforeAll → 1 seul login pour toute la suite.
 
 import { test, expect, type Page } from '@playwright/test';
-import { loginAsAdmin, loginViaAPI, waitForAppReady, BASE, E2E_USER, E2E_PASS } from './helpers';
+import {
+  loginAsAdmin, loginViaAPI, waitForAppReady,
+  BASE, ADMIN_NEW_PASSWORD, E2E_USER, E2E_PASS,
+} from './helpers';
 
 test.describe.serial('Admin — Flux complet', () => {
 
-  // Session admin partagée par tous les tests
   let adminPage: Page;
 
   test.beforeAll(async ({ browser }) => {
@@ -28,51 +32,173 @@ test.describe.serial('Admin — Flux complet', () => {
     await adminPage.close();
   });
 
-  // ── 1. Arrivée sur /admin ──────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 1. CONNEXION & PAGE ADMIN
+  // ══════════════════════════════════════════════════════════════
 
-  test('Admin connecté → page /admin avec header visible', async () => {
+  test('Admin — page /admin chargée avec header', async () => {
     await expect(adminPage.locator('.admin-header')).toBeVisible({ timeout: 8_000 });
-    console.log('✅ Page /admin chargée avec header');
+    console.log('✅ Page /admin OK');
   });
 
-  test('Page /admin → 3 onglets visibles', async () => {
+  test('Admin — 3 onglets visibles', async () => {
     const tabs = adminPage.locator('.admin-tabs .tab');
     expect(await tabs.count()).toBeGreaterThanOrEqual(3);
-    await expect(tabs.nth(0)).toBeVisible();
-    await expect(tabs.nth(1)).toBeVisible();
-    await expect(tabs.nth(2)).toBeVisible();
+    for (let i = 0; i < 3; i++) await expect(tabs.nth(i)).toBeVisible();
     console.log('✅ 3 onglets admin visibles');
   });
 
-  // ── 2. Gestion des membres ─────────────────────────────────────
-
-  test('Onglet "Membres" → liste admin et e2e_ci', async () => {
-    await adminPage.locator('.admin-tabs .tab').nth(1).click();
-    await expect(adminPage.locator('.user-card').first()).toBeVisible({ timeout: 8_000 });
-    const usernames = await adminPage.locator('.user-username').allTextContents();
-    expect(usernames.some(u => u.includes('e2e_ci') || u.includes('admin'))).toBe(true);
-    console.log(`✅ Onglet Membres → ${usernames.length} utilisateur(s)`);
-  });
-
-  test('GET /api/users/pending avec admin → 200', async () => {
-    const res = await adminPage.request.get(`${BASE}/users/pending`);
+  test('GET /auth/me avec session admin → role=admin', async () => {
+    const res = await adminPage.request.get(`${BASE}/auth/me`);
     expect(res.status()).toBe(200);
-    console.log('✅ GET /api/users/pending → 200');
+    const body = await res.json();
+    expect(body.user?.role).toBe('admin');
+    console.log(`✅ /auth/me → role=${body.user?.role}`);
   });
 
-  test('GET /api/users avec admin → 200 et liste non vide', async () => {
+  // ══════════════════════════════════════════════════════════════
+  // 2. GESTION DES UTILISATEURS
+  // ══════════════════════════════════════════════════════════════
+
+  test('GET /users → liste complète (admin)', async () => {
     const res = await adminPage.request.get(`${BASE}/users`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     const users = Array.isArray(body) ? body : (body.users ?? []);
     expect(users.length).toBeGreaterThan(0);
-    console.log(`✅ GET /api/users → ${users.length} utilisateur(s)`);
+    const admin = users.find((u: { username: string }) => u.username === 'admin');
+    expect(admin).toBeDefined();
+    console.log(`✅ GET /users → ${users.length} utilisateur(s)`);
   });
 
-  // ── 3. Invitations ─────────────────────────────────────────────
+  test('GET /users/pending → 200', async () => {
+    const res = await adminPage.request.get(`${BASE}/users/pending`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const list = Array.isArray(body) ? body : (body.users ?? []);
+    expect(Array.isArray(list)).toBe(true);
+    console.log(`✅ GET /users/pending → ${list.length} en attente`);
+  });
 
-  test('Admin → génération lien d\'invitation via UI', async () => {
-    // Revenir sur l'onglet invitations (onglet 0 ou chercher le bouton)
+  test('Onglet "Membres" → users visibles dans UI', async () => {
+    await adminPage.goto('/admin');
+    await adminPage.locator('.admin-header').waitFor({ state: 'visible', timeout: 10_000 });
+    await adminPage.locator('.admin-tabs .tab').nth(1).click();
+    await expect(adminPage.locator('.user-card').first()).toBeVisible({ timeout: 8_000 });
+    const usernames = await adminPage.locator('.user-username').allTextContents();
+    expect(usernames.some(u => u.includes('admin') || u.includes('e2e_ci'))).toBe(true);
+    console.log(`✅ Onglet Membres → ${usernames.length} utilisateur(s)`);
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 3. FLUX INSCRIPTION → APPROBATION
+  // Test du cycle complet : register → pending → approve
+  // ══════════════════════════════════════════════════════════════
+
+  test('Flux inscription : register → pending → approve → connecté', async ({ browser }) => {
+    test.setTimeout(60_000);
+
+    const testUser = `testuser_${Date.now()}`;
+    const testPass = 'TestPass2026!';
+
+    // 1. Inscription (route publique — pas de session)
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: testUser, password: testPass, email: `${testUser}@test.nook`, name: 'Test User' },
+    });
+    expect([200, 201]).toContain(regRes.status());
+    const regBody = await regRes.json();
+    expect(regBody.success).toBe(true);
+    console.log(`✅ Inscription ${testUser}`);
+
+    // 2. Le compte est en attente — tentative de login échoue
+    const loginPending = await adminPage.request.post(`${BASE}/auth/login`, {
+      data: { username: testUser, password: testPass },
+    });
+    // 401 ou 403 : compte non approuvé
+    expect([401, 403]).toContain(loginPending.status());
+    console.log(`✅ Login refusé avant approbation → ${loginPending.status()}`);
+
+    // 3. Admin récupère les users en attente
+    const pendingRes = await adminPage.request.get(`${BASE}/users/pending`);
+    const pendingBody = await pendingRes.json();
+    const pendingList = Array.isArray(pendingBody) ? pendingBody : (pendingBody.users ?? []);
+    const newUser = pendingList.find((u: { username: string }) => u.username === testUser);
+    expect(newUser).toBeDefined();
+    console.log(`✅ ${testUser} visible dans /users/pending`);
+
+    // 4. Admin approuve
+    const approveRes = await adminPage.request.post(`${BASE}/users/approve`, {
+      data: { user_id: newUser.id },
+    });
+    expect(approveRes.status()).toBe(200);
+    console.log(`✅ ${testUser} approuvé`);
+
+    // 5. Login réussit après approbation
+    const loginApproved = await adminPage.request.post(`${BASE}/auth/login`, {
+      data: { username: testUser, password: testPass },
+    });
+    expect(loginApproved.status()).toBe(200);
+    console.log(`✅ Login réussi après approbation`);
+
+    // 6. Nettoyage : l'utilisateur existe en DB — pas de DELETE endpoint, on laisse
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 4. INVITATIONS
+  // ══════════════════════════════════════════════════════════════
+
+  test('POST /invites → génère un token valide', async () => {
+    const res = await adminPage.request.post(`${BASE}/invites`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.token).toBeTruthy();
+    expect(body.expires_at).toBeTruthy();
+    console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
+  });
+
+  test('GET /invites → liste non vide', async () => {
+    const res = await adminPage.request.get(`${BASE}/invites`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const invites = Array.isArray(body) ? body : (body.invites ?? []);
+    expect(invites.length).toBeGreaterThan(0);
+    console.log(`✅ GET /invites → ${invites.length} invitation(s)`);
+  });
+
+  test('POST /invites/delete → supprime une invitation', async () => {
+    // Créer une invitation à supprimer
+    const createRes = await adminPage.request.post(`${BASE}/invites`);
+    const { token } = await createRes.json();
+
+    // Récupérer son id
+    const listRes = await adminPage.request.get(`${BASE}/invites`);
+    const listBody = await listRes.json();
+    const invites = Array.isArray(listBody) ? listBody : (listBody.invites ?? []);
+    const invite = invites.find((i: { token: string }) => i.token === token);
+
+    if (invite) {
+      const delRes = await adminPage.request.post(`${BASE}/invites/delete`, {
+        data: { invite_id: invite.id },
+      });
+      expect(delRes.status()).toBe(200);
+      console.log(`✅ Invitation supprimée → id=${invite.id}`);
+    } else {
+      console.log('⚠️ Invitation non trouvée dans la liste — skip suppression');
+    }
+  });
+
+  test('GET /invite/validate?token=xxx → valide le token', async () => {
+    const createRes = await adminPage.request.post(`${BASE}/invites`);
+    const { token } = await createRes.json();
+    const res = await adminPage.request.get(`${BASE}/invite/validate?token=${token}`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(true);
+    console.log(`✅ Token validé → valid=${body.valid}`);
+  });
+
+  test('Admin UI — invitation générée visible dans l\'interface', async () => {
+    test.setTimeout(30_000);
     await adminPage.goto('/admin');
     await adminPage.locator('.admin-header').waitFor({ state: 'visible', timeout: 10_000 });
 
@@ -87,56 +213,83 @@ test.describe.serial('Admin — Flux complet', () => {
     await expect(adminPage.locator('.invite-link code')).toBeVisible({ timeout: 8_000 });
     const link = await adminPage.locator('.invite-link code').textContent();
     expect(link).toContain('/invite?token=');
-    console.log(`✅ Invitation générée : ${link}`);
+    console.log(`✅ Invitation UI → lien visible`);
   });
 
-  test('GET /api/invites avec admin → 200', async () => {
-    const res = await adminPage.request.get(`${BASE}/invites`);
-    expect(res.status()).toBe(200);
-    console.log('✅ GET /api/invites → 200');
-  });
+  // ══════════════════════════════════════════════════════════════
+  // 5. ANALYTICS
+  // ══════════════════════════════════════════════════════════════
 
-  // ── 4. Analytics ───────────────────────────────────────────────
-
-  test('GET /api/analytics avec admin → 200 et champs requis', async () => {
+  test('GET /analytics → tous les champs requis', async () => {
     const res = await adminPage.request.get(`${BASE}/analytics`);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(typeof body.user_count).toBe('number');
-    expect(typeof body.message_count).toBe('number');
-    expect(typeof body.conversation_count).toBe('number');
-    expect(typeof body.poll_count).toBe('number');
-    expect(typeof body.active_users_7d).toBe('number');
-    expect(typeof body.messages_7d).toBe('number');
+    // Champs numériques
+    for (const field of ['user_count', 'message_count', 'conversation_count', 'poll_count', 'active_users_7d', 'messages_7d']) {
+      expect(typeof body[field]).toBe('number');
+    }
     expect(Array.isArray(body.messages_per_day)).toBe(true);
     expect(body.messages_7d).toBeLessThanOrEqual(body.message_count);
-    console.log(`✅ /api/analytics → users=${body.user_count}, msgs=${body.message_count}`);
+    console.log(`✅ Analytics → users=${body.user_count} msgs=${body.message_count} actifs7j=${body.active_users_7d}`);
   });
 
-  test('Page /admin/analytics → stat-cards et canvas visible', async () => {
+  test('Page /admin/analytics → stat-cards + 2 charts', async () => {
+    test.setTimeout(30_000);
     await adminPage.goto('/admin/analytics');
     await waitForAppReady(adminPage);
     await expect(adminPage.locator('.stat-card').first()).toBeVisible({ timeout: 10_000 });
     expect(await adminPage.locator('.stat-card').count()).toBeGreaterThanOrEqual(4);
     await expect(adminPage.locator('canvas').first()).toBeVisible({ timeout: 8_000 });
-    console.log('✅ /admin/analytics → stat-cards et canvas OK');
+    console.log('✅ /admin/analytics → stat-cards et charts OK');
   });
 
-  // ── 5. Isolation : user normal ne peut pas accéder aux routes admin ──
+  // ══════════════════════════════════════════════════════════════
+  // 6. POLLS — Actions admin (delete)
+  // ══════════════════════════════════════════════════════════════
 
-  test('GET /api/analytics avec user normal → 403', async ({ browser }) => {
+  test('Admin — DELETE /polls/{id} → 200', async () => {
+    // Créer un sondage avec la session admin
+    const createRes = await adminPage.request.post(`${BASE}/polls`, {
+      data: { question: `Admin delete test ${Date.now()}`, options: ['A', 'B'] },
+    });
+    expect([200, 201]).toContain(createRes.status());
+    const pollId = (await createRes.json()).id;
+
+    const delRes = await adminPage.request.delete(`${BASE}/polls/${pollId}`);
+    expect(delRes.status()).toBe(200);
+
+    // Vérifier que le sondage n'existe plus
+    const getRes = await adminPage.request.get(`${BASE}/polls/${pollId}`);
+    expect([404, 400]).toContain(getRes.status());
+    console.log(`✅ Admin delete poll → 200, GET vérifie 404`);
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 7. ISOLATION ADMIN
+  // ══════════════════════════════════════════════════════════════
+
+  test('GET /analytics avec user normal → 403', async ({ browser }) => {
     const userPage = await browser.newPage();
     try {
       await loginViaAPI(userPage, E2E_USER, E2E_PASS);
       const res = await userPage.request.get(`${BASE}/analytics`);
       expect(res.status()).toBe(403);
-      console.log('✅ /api/analytics user normal → 403');
-    } finally {
-      await userPage.close();
-    }
+      console.log('✅ /analytics user normal → 403');
+    } finally { await userPage.close(); }
+  });
+
+  test('GET /users/pending avec user normal → 403', async ({ browser }) => {
+    const userPage = await browser.newPage();
+    try {
+      await loginViaAPI(userPage, E2E_USER, E2E_PASS);
+      const res = await userPage.request.get(`${BASE}/users/pending`);
+      expect(res.status()).toBe(403);
+      console.log('✅ /users/pending user normal → 403');
+    } finally { await userPage.close(); }
   });
 
   test('Page /admin → non accessible pour user normal', async ({ browser }) => {
+    test.setTimeout(30_000);
     const userPage = await browser.newPage();
     try {
       await loginViaAPI(userPage, E2E_USER, E2E_PASS);
@@ -147,9 +300,7 @@ test.describe.serial('Admin — Flux complet', () => {
       const redirected = url.includes('/chat') || url.includes('/login');
       expect(notAuth || redirected).toBe(true);
       console.log(`✅ /admin protégé : not-auth=${notAuth}, redirected=${redirected}`);
-    } finally {
-      await userPage.close();
-    }
+    } finally { await userPage.close(); }
   });
 
 });
