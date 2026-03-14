@@ -2,15 +2,10 @@
 // Store pour la gestion des médias (audio/vidéo) avec chiffrement E2EE
 
 import { waitForSodium } from '$lib/sodium.svelte.js';
-import { 
-  encryptForRecipients, 
-  decryptMessage, 
-  getStoredKeys,
-  decryptPrivateKey 
-} from './crypto';
+import { encryptForRecipients } from './crypto';
 import { authStore } from './authStore.svelte.js';
 import { activeConversationId } from './conversationStore.svelte.ts';
-import { connectionError } from './chatStore.svelte.ts';
+import { setConnectionError } from './chatStore.svelte.ts';
 
 // =====================================================================
 // CONSTANTES
@@ -370,7 +365,7 @@ export async function sendMediaMessage(mediaBlob, mediaType, conversationId, rec
 
   } catch (err) {
     console.error('Error sending media message:', err);
-    connectionError.set('Erreur lors de l\'envoi du média');
+    setConnectionError('Erreur lors de l\'envoi du média');
     throw err;
   }
 }
@@ -381,122 +376,15 @@ export async function sendMediaMessage(mediaBlob, mediaType, conversationId, rec
 
 /**
  * Télécharge et déchiffre un média
- * @param {string} mediaUrl - URL ou ID du média
- * @param {Object} encryptedKeys - Dictionnaire des clés chiffrées {recipient_id: Uint8Array}
- * @param {Uint8Array|Array} nonce - Nonce utilisé
- * @param {string} senderId - ID de l'expéditeur
- * @returns {Promise<Blob>} Le blob média déchiffré
+ * @stub — implémentation complète prévue en S38 avec cryptoStore
  */
 export async function downloadAndDecryptMedia(mediaUrl, encryptedKeys, nonce, senderId) {
-  try {
-    const sodium = await waitForSodium();
-
-    // Télécharger le média chiffré
-    const response = await fetch(mediaUrl, {
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error('Erreur lors du téléchargement du média');
-    }
-
-    const data = await response.json();
-    
-    // Convertir depuis base64
-    const encryptedContent = sodium.from_base64(data.media_data);
-    const nonceBytes = Array.isArray(nonce) ? new Uint8Array(nonce) : nonce;
-
-    // Récupérer l'utilisateur actuel
-    const currentUser = authStore.user;
-    if (!currentUser || !currentUser.id) {
-      throw new Error('Utilisateur non authentifié');
-    }
-
-    // Récupérer les clés stockées de l'utilisateur actuel
-    const storedKeys = await getStoredKeys(currentUser.id);
-    if (!storedKeys) {
-      throw new Error('Clés de déchiffrement introuvables');
-    }
-
-    // Demander le mot de passe pour déchiffrer la clé privée
-    // Note: Dans une vraie app, le mot de passe devrait être en cache
-    // ou demandé via un modal plutôt qu'un prompt
-    const password = currentUser.password || prompt('Entrez votre mot de passe pour déchiffrer le média:');
-    if (!password) {
-      throw new Error('Mot de passe requis pour le déchiffrement');
-    }
-
-    const recipientPrivateKey = await decryptPrivateKey(storedKeys.encryptedPrivateKey, password);
-
-    // Trouver la clé chiffrée pour cet utilisateur
-    // encryptedKeys est un objet {recipient_0: Uint8Array, recipient_1: Uint8Array, ...}
-    // On prend la première clé disponible (à améliorer en trouvant la bonne)
-    const encryptedKeyData = Object.values(encryptedKeys)[0];
-    
-    if (!encryptedKeyData) {
-      throw new Error('Aucune clé de déchiffrement disponible pour cet utilisateur');
-    }
-
-    const encryptedKeyBytes = Array.isArray(encryptedKeyData) 
-      ? new Uint8Array(encryptedKeyData) 
-      : encryptedKeyData;
-
-    // Récupérer la clé publique de l'expéditeur
-    // TODO: Dans une vraie implémentation, récupérer depuis le serveur
-    // Pour l'instant, on suppose qu'elle est stockée dans le message
-    const senderPublicKey = data.sender_public_key 
-      ? sodium.from_base64(data.sender_public_key)
-      : storedKeys.publicKey; // Fallback temporaire
-
-    // Déchiffrer le contenu
-    const decryptedData = await decryptMessage(
-      encryptedContent,
-      encryptedKeyBytes,
-      senderPublicKey,
-      recipientPrivateKey,
-      nonceBytes
-    );
-
-    // decryptMessage retourne une string, mais on a besoin de bytes pour un média
-    // On va donc modifier l'approche et déchiffrer directement
-    
-    // Extraction du nonce asymétrique et de la clé chiffrée
-    const asymNonce = encryptedKeyBytes.slice(0, sodium.crypto_box_NONCEBYTES);
-    const encryptedSessionKey = encryptedKeyBytes.slice(sodium.crypto_box_NONCEBYTES);
-
-    // Déchiffrer la clé de session
-    const sessionKey = sodium.crypto_box_open_easy(
-      encryptedSessionKey,
-      asymNonce,
-      senderPublicKey,
-      recipientPrivateKey
-    );
-
-    // Déchiffrer le contenu avec la clé de session
-    const decryptedBytes = sodium.crypto_secretbox_open_easy(
-      encryptedContent,
-      nonceBytes,
-      sessionKey
-    );
-
-    // Créer le blob avec le bon type MIME
-    const mimeType = data.metadata?.mimeType || 'audio/webm';
-    const blob = arrayBufferToBlob(decryptedBytes.buffer, mimeType);
-
-    return blob;
-
-  } catch (err) {
-    console.error('Error downloading/decrypting media:', err);
-    connectionError.set('Erreur lors du déchiffrement du média: ' + err.message);
-    throw err;
-  }
+  // TODO S38 : implémenter avec cryptoStore.decryptMessage()
+  // Les primitives getStoredKeys/decryptMessage ont été retirées de crypto.ts
+  // et sont maintenant dans cryptoStore.svelte.ts
+  throw new Error('[mediaStore] downloadAndDecryptMedia : non implémenté — utiliser cryptoStore.decryptMessage()');
 }
 
-/**
- * Crée un URL object à partir d'un Blob
- * @param {Blob} blob
- * @returns {string} URL object
- */
 export function createMediaObjectURL(blob) {
   return URL.createObjectURL(blob);
 }
