@@ -18,6 +18,13 @@
     requestNotificationPermission,
   } from '$lib/chatStore.svelte.ts';
   import { sanitizeHtml } from '$lib/sanitize';
+  import {
+    recordingState,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+    formatDuration,
+  } from '$lib/mediaStore.svelte.js';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -62,6 +69,11 @@
   let gifSearchQuery = $state('');
   let fileInput      = $state<HTMLInputElement | undefined>(undefined);
   let sending        = $state(false);
+
+  // ─── Messages vocaux ──────────────────────────────────────────────
+  // Durée max : 2 min audio, 30s vidéo
+  const MAX_AUDIO_SEC = 120;
+  const MAX_VIDEO_SEC = 30;
 
   // Modal nouvelle conversation
   let showNewConv    = $state(false);
@@ -427,6 +439,57 @@
     }
   }
 
+  // ─── Messages vocaux ─────────────────────────────────────────────
+  async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
+    if (recordingState.isRecording) {
+      // Arrêt : récupérer le blob et l'envoyer comme upload
+      try {
+        const blob = await stopRecording(true);
+        if (!blob) return;
+
+        // Vérifier durée max côté client
+        const maxSec = mediaType === 'video' ? MAX_VIDEO_SEC : MAX_AUDIO_SEC;
+        if (recordingState.duration > maxSec) {
+          chatStore.connectionError = `Enregistrement trop long (max ${maxSec}s).`;
+          setTimeout(() => chatStore.connectionError = null, 4000);
+          return;
+        }
+
+        // Uploader via le endpoint existant /api/upload/chat
+        const ext  = blob.type.includes('ogg') ? 'ogg' : blob.type.includes('mp4') ? 'mp4' : 'webm';
+        const name = `vocal_${Date.now()}.${ext}`;
+        const file = new File([blob], name, { type: blob.type });
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('conversation_id', activeConvId);
+        fd.append('from_user_id', authStore.user?.id || '');
+
+        const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
+        if (!res.ok) throw new Error(`Upload échoué (HTTP ${res.status})`);
+        const data = await res.json();
+
+        // Envoyer un message avec le tag html <audio> ou <video>
+        // Le contenu est sanitisé côté affichage via DOMPurify qui autorise <audio>/<video>
+        const tag     = mediaType === 'video' ? 'video' : 'audio';
+        const content = `<${tag} src="/api/download/${data.file_id}" controls preload="none" class="voice-${tag}"></${tag}>`;
+        await sendMessage(content, activeConvId);
+      } catch (err: unknown) {
+        console.error('[VoiceRecord stop]', err);
+        chatStore.connectionError = err instanceof Error ? err.message : 'Erreur envoi vocal';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+      }
+    } else {
+      // Démarrage
+      try {
+        await startRecording(mediaType);
+      } catch (err: unknown) {
+        console.error('[VoiceRecord start]', err);
+        // Erreur déjà dans recordingState.error — pas de doublon
+      }
+    }
+  }
+
   function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
 
   function startEdit(msg: { id: string; content: string }) {
@@ -648,7 +711,28 @@
               </div>
             {:else}
               <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
-              <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+              <!-- Messages vocaux : <audio>/<video> natif si le contenu commence par ces tags -->
+              {#if msg.content.trimStart().startsWith('<audio')}
+                <div class="voice-message">
+                  🎤 <audio
+                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
+                    controls
+                    preload="none"
+                    class="voice-audio"
+                  ></audio>
+                </div>
+              {:else if msg.content.trimStart().startsWith('<video')}
+                <div class="voice-message">
+                  🎥 <video
+                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
+                    controls
+                    preload="none"
+                    class="voice-video"
+                  ></video>
+                </div>
+              {:else}
+                <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+              {/if}
             {/if}
 
             <!-- ─── Réactions affichées ─── -->
@@ -756,10 +840,46 @@
       </div>
     {/if}
 
+    {#if recordingState.isRecording}
+      <!-- Barre d'enregistrement en cours -->
+      <div class="recording-bar">
+        <span class="recording-dot"></span>
+        <span class="recording-timer">⏱ {formatDuration(recordingState.duration)}</span>
+        {#if recordingState.mediaType === 'video'}
+          <span class="recording-type">Vidéo</span>
+          <span class="recording-limit">(max {MAX_VIDEO_SEC}s)</span>
+        {:else}
+          <span class="recording-type">Audio</span>
+          <span class="recording-limit">(max {MAX_AUDIO_SEC}s)</span>
+        {/if}
+        {#if recordingState.error}
+          <span class="recording-error">{recordingState.error}</span>
+        {/if}
+        <div class="recording-actions">
+          <button type="button" class="rec-btn rec-stop" onclick={() => handleVoiceRecord(recordingState.mediaType ?? 'audio')} title="Envoyer">
+            ✅ Envoyer
+          </button>
+          <button type="button" class="rec-btn rec-cancel" onclick={cancelRecording} title="Annuler">
+            ❌
+          </button>
+        </div>
+      </div>
+    {/if}
+
     <form class="input-area" onsubmit={handleSubmit}>
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
       <button type="button" class="icon-btn gif-btn" onclick={toggleGifs} title="GIF">GIF</button>
+      <!-- Bouton message vocal -->
+      <button
+        type="button"
+        class="icon-btn"
+        class:recording={recordingState.isRecording && recordingState.mediaType === 'audio'}
+        onclick={() => handleVoiceRecord('audio')}
+        title={recordingState.isRecording ? 'Arrêter et envoyer' : 'Message vocal'}
+        aria-label={recordingState.isRecording ? 'Arrêter et envoyer le message vocal' : 'Démarrer un message vocal'}
+        disabled={recordingState.isRecording && recordingState.mediaType === 'video'}
+      >🎙️</button>
       <input
         type="text"
         class="message-input"
@@ -1367,6 +1487,58 @@
   }
   .btn-create-conv:hover:not(:disabled) { background: var(--button-hover, #22c55e); }
   .btn-create-conv:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ─── Messages vocaux ─── */
+  .voice-message {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .2rem 0;
+  }
+  .voice-audio {
+    height: 36px;
+    max-width: 220px;
+    border-radius: 999px;
+    accent-color: var(--accent, #4ade80);
+  }
+  .voice-video {
+    max-width: 240px;
+    border-radius: .5rem;
+    margin-top: .2rem;
+  }
+
+  /* Barre d'enregistrement en cours */
+  .recording-bar {
+    display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+    padding: .5rem 1rem;
+    background: color-mix(in srgb, var(--accent, #4ade80) 10%, var(--bg-primary, #fff));
+    border-top: 1px solid color-mix(in srgb, var(--accent, #4ade80) 30%, transparent);
+    font-size: .85rem; flex-shrink: 0;
+  }
+  .recording-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #ef4444; flex-shrink: 0;
+    animation: blink 1s ease infinite;
+  }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  .recording-timer { font-weight: 700; color: var(--text-primary, #1e293b); }
+  .recording-type { font-size: .78rem; color: var(--text-secondary, #64748b); }
+  .recording-limit { font-size: .72rem; color: var(--text-secondary, #94a3b8); }
+  .recording-error { font-size: .78rem; color: #dc2626; }
+  .recording-actions { display: flex; gap: .35rem; margin-left: auto; }
+  .rec-btn {
+    padding: .3rem .7rem; border: none; border-radius: .45rem;
+    font-size: .82rem; cursor: pointer; font-weight: 600; transition: all .12s;
+  }
+  .rec-stop   { background: var(--accent, #4ade80); color: #fff; }
+  .rec-stop:hover { background: var(--button-hover, #22c55e); }
+  .rec-cancel { background: var(--bg-secondary, #f1f5f9); color: #64748b; }
+  .rec-cancel:hover { background: #fee2e2; color: #dc2626; }
+
+  /* Bouton micro actif */
+  .icon-btn.recording {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #ef4444;
+    animation: blink .8s ease infinite;
+  }
 
   /* ─── Mobile ─── */
   @media (max-width: 640px) {
