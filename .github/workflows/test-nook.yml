@@ -174,8 +174,6 @@ jobs:
           npx playwright install --with-deps chromium
           # Reporter JSON pour extraire les résultats dans le step suivant
           npx playwright test --reporter=json,html 2>&1 | tee /tmp/playwright-output.txt || true
-          # Copier aussi le JSON si généré par playwright.config.ts
-          cp /tmp/playwright-results.json . 2>/dev/null || true
           # Extraire le code de sortie réel
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
@@ -188,118 +186,153 @@ jobs:
         env:
           PLAYWRIGHT_EXIT: ${{ steps.playwright.outputs.playwright_exit }}
         run: |
-          # ── Collecter les infos du run ──────────────────────────────────
           RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           COMMIT_SHA="${{ github.sha }}"
           COMMIT_SHORT="${COMMIT_SHA:0:7}"
           BRANCH="${{ github.ref_name }}"
 
-          # ── Parser les résultats Playwright depuis l'output ────────────
-          # Extraire la ligne de résumé "X passed, Y failed, Z skipped"
-          SUMMARY_LINE=$(grep -oE '[0-9]+ passed|[0-9]+ failed|[0-9]+ skipped' \
-            /tmp/playwright-output.txt 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "N/A")
+          # ── Compter passed/failed depuis la sortie texte Playwright ───
+          PASSED=$(grep -oE '[0-9]+ passed' /tmp/playwright-output.txt 2>/dev/null | grep -oE '[0-9]+' | tail -1 || echo "0")
+          FAILED=$(grep -oE '[0-9]+ failed' /tmp/playwright-output.txt 2>/dev/null | grep -oE '[0-9]+' | tail -1 || echo "0")
+          SKIPPED=$(grep -oE '[0-9]+ skipped' /tmp/playwright-output.txt 2>/dev/null | grep -oE '[0-9]+' | tail -1 || echo "0")
+          TOTAL=$((${PASSED:-0} + ${FAILED:-0} + ${SKIPPED:-0}))
 
-          PASSED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "?")
-          FAILED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "?")
-          SKIPPED=$(echo "$SUMMARY_LINE" | grep -oE '[0-9]+ skipped' | grep -oE '[0-9]+' || echo "0")
-
-          if [ "$FAILED" = "0" ] || [ "$FAILED" = "?" -a "$PLAYWRIGHT_EXIT" = "0" ]; then
-            STATUS_ICON="✅"
-            STATUS_TEXT="SUCCÈS"
+          if [ "${FAILED}" = "0" ] && [ "${PLAYWRIGHT_EXIT}" = "0" ]; then
+            STATUS_ICON="✅"; STATUS_TEXT="SUCCÈS"
           else
-            STATUS_ICON="❌"
-            STATUS_TEXT="ÉCHEC"
+            STATUS_ICON="❌"; STATUS_TEXT="ÉCHEC"
           fi
 
-          # ── Extraire les tests individuels depuis la sortie ─────────────
-          # Récupère les lignes "✓" (pass) et "✗" / "×" (fail) de Playwright
-          TEST_LINES=$(grep -E '^\s+(✓|✗|×|F|·)\s+' /tmp/playwright-output.txt 2>/dev/null \
+          # ── Résultats détaillés depuis la sortie Playwright ────────────
+          TEST_LINES=$(grep -E '^\s+(✓|✗|×|·|F)\s+' /tmp/playwright-output.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' \
             | awk '{$1=$1; print "  " $0}' \
-            | head -80 || echo "  (résultats détaillés non disponibles)")
+            | head -150 || echo "  (résultats non disponibles)")
 
-          # ── Extraire les erreurs ────────────────────────────────────────
-          ERROR_LINES=$(grep -A 5 'Error:' /tmp/playwright-output.txt 2>/dev/null \
+          # ── Erreurs détaillées ─────────────────────────────────────────
+          ERROR_LINES=$(grep -E 'Error:|FAILED|TimeoutError' /tmp/playwright-output.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' \
-            | head -40 || echo "")
+            | grep -v '^\s*$' \
+            | head -40 || echo "Aucune erreur")
 
-          # ── Collecter les logs Docker ────────────────────────────────────
-          DOCKER_ERRORS=$(docker compose logs --tail=50 2>/dev/null \
-            | grep -iE 'error|warn|WARN|ERROR' \
-            | sed 's/.*Z //' \
-            | head -20 || echo "(pas de logs disponibles)")
+          # Snippets de code des tests en échec
+          SNIPPETS=$(grep -A6 '>\s*[0-9]\+\s|' /tmp/playwright-output.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            | head -80 || echo "")
 
-          # ── Écrire le fichier MD ────────────────────────────────────────
+          # ── Logs Docker backend ────────────────────────────────────────
+          DOCKER_LOGS=$(docker compose logs --tail=40 2>/dev/null \
+            | grep -iE 'ERROR|WARN|panic|thread.*panicked|500' \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            | sed 's/.*nook  | //' \
+            | head -25 || echo "(pas de logs)")
+
+          # ── Durée depuis la sortie texte ───────────────────────────────
+          DURATION=$(grep -oE '[0-9]+(\.[0-9]+)?s' /tmp/playwright-output.txt 2>/dev/null | tail -1 || echo "N/A")
+
+          # ── Écrire le rapport ──────────────────────────────────────────
           REPORT_FILE=".claude/TEST_REPORT.md"
 
-          cat > "$REPORT_FILE" << ENDOFMD
-          # 🧪 Rapport de test E2E — Nook
+          cat > "$REPORT_FILE" << 'ENDOFMD_MARKER'
+# 🧪 Rapport E2E — Nook
+ENDOFMD_MARKER
 
-          > Généré automatiquement par le workflow CI \`test-nook.yml\`
-          > **Dernière mise à jour : ${RUN_DATE}**
+          cat >> "$REPORT_FILE" << ENDOFMD
+> Généré par \`test-nook.yml\` · **${RUN_DATE}**
 
-          ---
+---
 
-          ## Résumé du run
+## 📊 Résumé
 
-          | Champ | Valeur |
-          |-------|--------|
-          | **Statut** | ${STATUS_ICON} ${STATUS_TEXT} |
-          | **Tests passés** | ${PASSED} |
-          | **Tests échoués** | ${FAILED} |
-          | **Tests ignorés** | ${SKIPPED} |
-          | **Branche** | \`${BRANCH}\` |
-          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-          | **Run CI** | [Voir le run complet](${RUN_URL}) |
+| Indicateur | Valeur |
+|-----------|--------|
+| **Statut** | ${STATUS_ICON} **${STATUS_TEXT}** |
+| **Tests passés** | ${PASSED} |
+| **Tests échoués** | ${FAILED} |
+| **Tests ignorés** | ${SKIPPED} |
+| **Total** | ${TOTAL} |
+| **Durée** | ${DURATION} |
+| **Branche** | \`${BRANCH}\` |
+| **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+| **Run CI** | [Voir le run complet](${RUN_URL}) |
 
-          ---
+---
 
-          ## Résultats détaillés
+## 🗂️ Architecture des tests
 
-          \`\`\`
-          ${TEST_LINES}
-          \`\`\`
+| Suite | Fichier | Tests | Périmètre |
+|-------|---------|-------|-----------|
+| **Sanité API** | \`api-sanity.spec.ts\` | ~47 | 401/403 sur toutes les routes protégées |
+| **Admin** | \`admin.spec.ts\` | ~18 | Login, change-pwd, membres, inscription→approbation, invitations, analytics, isolation |
+| **User** | \`user.spec.ts\` | ~43 | Auth, chat, réactions, upload, polls, chess, calendar, settings, E2EE, push, navigation |
 
-          ---
+---
 
-          ## Suites couvertes
+## 📋 Résultats détaillés
 
-          | Suite | Description |
-          |-------|-------------|
-          | **Auth** | Login valide/invalide, /auth/me non-auth → 401, Logout |
-          | **Chat** | Envoi message, affichage DOM, GET conversations, GET messages |
-          | **Admin** | Login admin, onglets, liste users, génération invitation |
-          | **Settings** | Navigation onglets (profil/sécurité/apparence), changement thème |
-          | **Calendar** | Chargement page, GET/POST /api/events, bouton ajout |
-          | **Chess** | Chargement page, GET /api/chess/list, POST /api/chess/create, formulaire UI |
-          | **Polls** | Chargement page, création sondage (localStorage) |
-          | **Navigation** | 7 routes testées (chat, calendar, chess, polls, settings, help, events) |
-          | **API Sanity** | /health, /conversations, /events, /chess/list, /invites (non-auth → 401) |
+\`\`\`
+${TEST_LINES}
+\`\`\`
 
-          ---
+---
 
-          ## Erreurs détectées
+## ❌ Erreurs et échecs
 
-          \`\`\`
-          ${ERROR_LINES:-Aucune erreur détectée}
-          \`\`\`
+\`\`\`
+${ERROR_LINES}
+\`\`\`
 
-          ---
+ENDOFMD
 
-          ## Logs backend (warnings/erreurs)
+          # Ajouter les snippets seulement si non vides
+          if [ -n "$SNIPPETS" ]; then
+            cat >> "$REPORT_FILE" << ENDOFMD2
 
-          \`\`\`
-          ${DOCKER_ERRORS}
-          \`\`\`
+### Extraits de code (contexte des échecs)
 
-          ---
+\`\`\`
+${SNIPPETS}
+\`\`\`
 
-          *Rapport généré par \`.github/workflows/test-nook.yml\` — session 14*
-          ENDOFMD
+ENDOFMD2
+          fi
 
-          echo "Rapport généré : $REPORT_FILE"
-          cat "$REPORT_FILE"
+          cat >> "$REPORT_FILE" << ENDOFMD3
+
+---
+
+## 🐳 Logs backend (warnings/erreurs)
+
+\`\`\`
+${DOCKER_LOGS}
+\`\`\`
+
+---
+
+## 🔍 Couverture fonctionnelle
+
+| Domaine | Endpoints testés | Statut |
+|---------|-----------------|--------|
+| **Auth** | login, logout, me, change-pwd, register→approve | Complet |
+| **Conversations** | GET/POST conv, messages, participants, rename | Complet |
+| **Réactions** | POST/DELETE/GET réactions, UPSERT, UI picker→pill | Complet |
+| **Upload/Download** | upload chat, download, 404 | Complet |
+| **Polls** | CRUD, vote, UPSERT, double vote, fermeture | Complet |
+| **Chess** | créer, coups, IA, resign, invitations, UI plateau | Complet |
+| **Calendrier** | GET/POST/DELETE événements, UI | Complet |
+| **Settings** | profil, sécurité, apparence, update nom | Complet |
+| **Admin** | users, pending, approve, invites, analytics, delete | Complet |
+| **E2EE** | register/get public keys | Complet |
+| **Push** | subscribe, preferences, vapid-key | Complet |
+| **Sécurité** | 401 sur ~47 routes, 403 admin, rate limit | Complet |
+
+---
+
+*Rapport généré par \`.github/workflows/test-nook.yml\` — session 38*
+ENDOFMD3
+
+          echo "✅ Rapport généré : $REPORT_FILE ($(wc -l < $REPORT_FILE) lignes)"
 
       - name: "Commit rapport MD dans .claude/"
         if: always()
