@@ -110,7 +110,7 @@ async fn subscribe(
              last_used  = excluded.last_used"#,
     )
     .bind(&id)
-    .bind(&current_user.id)
+    .bind(&current_user.0.id)
     .bind(&req.endpoint)
     .bind(&req.keys.p256dh)
     .bind(&req.keys.auth)
@@ -127,12 +127,12 @@ async fn subscribe(
                    (user_id, enabled, quiet_start, quiet_end, on_message, on_mention, updated_at)
                    VALUES (?, 1, '22:00', '07:00', 1, 1, ?)"#,
             )
-            .bind(&current_user.id)
+            .bind(&current_user.0.id)
             .bind(now)
             .execute(&state.db)
             .await;
 
-            tracing::info!(user_id = %current_user.id, "Push subscription enregistrée");
+            tracing::info!(user_id = %current_user.0.id, "Push subscription enregistrée");
             Json(json!({"success": true})).into_response()
         }
         Err(e) => {
@@ -150,14 +150,14 @@ async fn unsubscribe(
     let endpoint = body.get("endpoint").and_then(|v| v.as_str()).unwrap_or("");
     if endpoint.is_empty() {
         let _ = sqlx::query("DELETE FROM push_subscriptions WHERE user_id = ?")
-            .bind(&current_user.id)
+            .bind(&current_user.0.id)
             .execute(&state.db)
             .await;
     } else {
         let _ = sqlx::query(
             "DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?",
         )
-        .bind(&current_user.id)
+        .bind(&current_user.0.id)
         .bind(endpoint)
         .execute(&state.db)
         .await;
@@ -173,7 +173,7 @@ async fn get_preferences(
         "SELECT enabled, quiet_start, quiet_end, on_message, on_mention
          FROM push_preferences WHERE user_id = ?",
     )
-    .bind(&current_user.id)
+    .bind(&current_user.0.id)
     .fetch_optional(&state.db)
     .await;
 
@@ -214,7 +214,7 @@ async fn update_preferences(
              on_mention  = COALESCE(excluded.on_mention,  on_mention),
              updated_at  = excluded.updated_at"#,
     )
-    .bind(&current_user.id)
+    .bind(&current_user.0.id)
     .bind(req.enabled.map(|b| b as i64))
     .bind(&req.quiet_start)
     .bind(&req.quiet_end)
