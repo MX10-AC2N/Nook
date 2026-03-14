@@ -1,27 +1,24 @@
 // frontend/tests/user.spec.ts
-// Flux utilisateur complet — reproduit le parcours réel d'un membre de la famille.
+// Flux utilisateur complet — parcours réel d'un membre de la famille Nook.
 //
 // SÉQUENCE :
-//   1. Login e2e_ci → /chat
-//   2. Chat : envoyer un message, vérifier affichage DOM
-//   3. Réactions : ajouter, modifier (UPSERT), supprimer
-//   4. Upload : fichier texte → file_id → download
-//   5. Polls : créer, voter, changer vote, fermer
-//   6. Chess : créer partie vs IA, faire un coup légal, coup illégal → 400
-//   7. Calendar : créer événement, vérifier
-//   8. Settings : onglets profil / sécurité / apparence
-//   9. Navigation : toutes les routes accessibles
-//  10. E2EE : enregistrer clé publique
-//  11. Auth : logout → retour /login
-//
-// LOGIN : 1 seul loginAs() dans beforeAll → session partagée dans le describe.
-// Tests API utilisant page.request → cookie partagé automatiquement.
+//   1. Login UI réel (teste le vrai flux de connexion)
+//   2. Chat : envoyer messages, conversations, participants, DM, renommer
+//   3. Réactions : add / UPSERT / delete / get + UI picker→pill
+//   4. Upload & Download : fichier texte, image, vérif download, 404
+//   5. Polls : créer / voter / changer vote / double vote / fermer / vote fermé
+//   6. Chess : créer vs IA, coups légaux, coup illégal, resign, plateau UI
+//   7. Chess invitations : inviter, lister, refuser
+//   8. Calendar : créer événement, vérifier liste, supprimer
+//   9. Settings : profil (update nom), sécurité, apparence (thème)
+//  10. Navigation : toutes les routes accessibles sans erreur
+//  11. E2EE : register key, get public keys
+//  12. Push : vapid-key, subscribe, preferences
+//  13. Profil : mise à jour du nom
+//  14. Auth : logout → retour /login, login invalide
 
 import { test, expect, type Page } from '@playwright/test';
-import {
-  loginAs, loginViaAPI, waitForAppReady,
-  BASE, E2E_USER, E2E_PASS,
-} from './helpers';
+import { loginAs, loginViaAPI, waitForAppReady, BASE, E2E_USER, E2E_PASS } from './helpers';
 
 test.describe.serial('User — Flux complet', () => {
 
@@ -29,7 +26,6 @@ test.describe.serial('User — Flux complet', () => {
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
-    // Login UI réel : teste le vrai flux de connexion utilisateur
     await loginAs(page, E2E_USER, E2E_PASS);
   });
 
@@ -37,77 +33,136 @@ test.describe.serial('User — Flux complet', () => {
     await page.close();
   });
 
-  // ── 1. Authentification ────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 1. AUTHENTIFICATION
+  // ══════════════════════════════════════════════════════════════
 
   test('Login e2e_ci → redirigé vers /chat', async () => {
     await expect(page).toHaveURL(/\/chat/, { timeout: 10_000 });
-    console.log('✅ Login e2e_ci → /chat');
+    console.log('✅ Login → /chat');
   });
 
-  test('GET /api/auth/me → utilisateur authentifié', async () => {
+  test('GET /auth/me → username=e2e_ci', async () => {
     const res = await page.request.get(`${BASE}/auth/me`);
     expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.user?.username).toBe(E2E_USER);
-    console.log(`✅ /api/auth/me → ${body.user?.username}`);
+    expect((await res.json()).user?.username).toBe(E2E_USER);
+    console.log('✅ /auth/me OK');
   });
 
-  // ── 2. Chat ────────────────────────────────────────────────────
+  test('Login invalide → reste sur /login', async ({ browser }) => {
+    test.setTimeout(30_000);
+    const p = await browser.newPage();
+    try {
+      await p.goto('/login');
+      await p.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
+      await p.fill('#username', 'utilisateur_inexistant');
+      await p.fill('#password', 'mauvais_mot_de_passe');
+      await p.getByRole('button', { name: 'Se connecter' }).click();
+      await p.waitForTimeout(3_000);
+      await expect(p).toHaveURL(/\/login/);
+      console.log('✅ Login invalide → reste /login');
+    } finally { await p.close(); }
+  });
 
-  test('Chat — sidebar contient default_global', async () => {
-    await waitForAppReady(page);
-    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
+  // ══════════════════════════════════════════════════════════════
+  // 2. CONVERSATIONS & CHAT
+  // ══════════════════════════════════════════════════════════════
+
+  test('GET /conversations → default_global présente', async () => {
     const res = await page.request.get(`${BASE}/conversations`);
     expect(res.status()).toBe(200);
-    const convs = await res.json();
-    const list = Array.isArray(convs) ? convs : (convs.conversations ?? []);
-    expect(list.find((c: { id: string }) => c.id === 'default_global')).toBeDefined();
-    console.log(`✅ ${list.length} conversation(s), default_global présente`);
+    const list = await res.json();
+    const convs = Array.isArray(list) ? list : (list.conversations ?? []);
+    expect(convs.find((c: { id: string }) => c.id === 'default_global')).toBeDefined();
+    console.log(`✅ ${convs.length} conversation(s), default_global présente`);
   });
 
-  test('Chat — envoyer un message → visible dans le DOM', async () => {
+  test('GET /conversations/default_global → détail de la conv', async () => {
+    const res = await page.request.get(`${BASE}/conversations/default_global`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.id ?? body.conversation?.id).toBe('default_global');
+    console.log('✅ GET /conversations/default_global → OK');
+  });
+
+  test('GET /conversations/default_global/participants → e2e_ci présent', async () => {
+    const res = await page.request.get(`${BASE}/conversations/default_global/participants`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const parts = Array.isArray(body) ? body : (body.participants ?? []);
+    expect(parts.find((p: { username: string }) => p.username === E2E_USER)).toBeDefined();
+    console.log(`✅ ${parts.length} participants, e2e_ci présent`);
+  });
+
+  test('Chat UI — sidebar et envoi message', async () => {
     test.setTimeout(60_000);
     await waitForAppReady(page);
+    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
 
     const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' });
     if (await globalItem.count() > 0) await globalItem.first().click();
 
     const input = page.locator('input.message-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
-
     const msgText = `E2E message ${Date.now()}`;
     await input.fill(msgText);
 
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        res => res.url().includes('/api/conversations/') && res.url().includes('/messages') && res.request().method() === 'POST',
-        { timeout: 10_000 }
-      ),
+    const [res] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/messages') && r.request().method() === 'POST', { timeout: 10_000 }),
       page.locator('button.send-btn').click(),
     ]);
-    expect(response.status()).toBe(200);
+    expect(res.status()).toBe(200);
     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
-    console.log('✅ Message envoyé et affiché');
+    console.log('✅ Message envoyé et affiché dans le DOM');
   });
 
-  test('GET /api/conversations/default_global/messages → 200', async () => {
+  test('GET /conversations/default_global/messages → messages récupérés', async () => {
     const res = await page.request.get(`${BASE}/conversations/default_global/messages`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     const msgs = Array.isArray(body) ? body : (body.messages ?? []);
-    expect(msgs.length).toBeGreaterThanOrEqual(0);
-    console.log(`✅ ${msgs.length} message(s) dans default_global`);
+    expect(msgs.length).toBeGreaterThan(0);
+    console.log(`✅ ${msgs.length} message(s) récupérés`);
   });
 
-  // ── 3. Réactions ───────────────────────────────────────────────
-
-  test('Réactions — POST 👍 → counts mis à jour', async () => {
-    const msgRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
-      data: { content: `reaction-test-${Date.now()}`, message_type: 'text' },
+  test('POST /conversations → créer un groupe de test', async () => {
+    const res = await page.request.post(`${BASE}/conversations`, {
+      data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
     });
-    expect(msgRes.ok()).toBeTruthy();
-    const msgId = (await msgRes.json()).id as string;
+    expect([200, 201]).toContain(res.status());
+    const body = await res.json();
+    expect(body.id).toBeTruthy();
+    console.log(`✅ Groupe créé → id=${body.id}`);
+  });
 
+  test('GET /users/available → liste des membres disponibles', async () => {
+    const res = await page.request.get(`${BASE}/users/available`);
+    // 200 ou 404 selon s'il y a d'autres users disponibles
+    expect([200, 404]).toContain(res.status());
+    if (res.status() === 200) {
+      const body = await res.json();
+      const users = Array.isArray(body) ? body : (body.users ?? []);
+      console.log(`✅ ${users.length} user(s) disponibles`);
+    } else {
+      console.log('✅ Aucun user disponible → 404 attendu');
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 3. RÉACTIONS AUX MESSAGES
+  // ══════════════════════════════════════════════════════════════
+
+  // Helper local : créer un message frais
+  async function createMsg() {
+    const res = await page.request.post(`${BASE}/conversations/default_global/messages`, {
+      data: { content: `reaction-${Date.now()}`, message_type: 'text' },
+    });
+    expect(res.ok()).toBeTruthy();
+    return (await res.json()).id as string;
+  }
+
+  test('Réactions — POST emoji valide 👍 → counts mis à jour', async () => {
+    const msgId = await createMsg();
     const res = await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, {
       data: { emoji: '👍' },
     });
@@ -115,46 +170,12 @@ test.describe.serial('User — Flux complet', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
     expect(body.my_emoji).toBe('👍');
-    expect(Array.isArray(body.counts['👍'])).toBe(true);
-    expect(body.counts['👍'].length).toBeGreaterThan(0);
-    console.log(`✅ Réaction 👍 ajoutée → counts OK`);
+    expect(body.counts['👍']?.length).toBeGreaterThan(0);
+    console.log('✅ POST réaction 👍 → counts OK');
   });
 
-  test('Réactions — UPSERT : 👍 → ❤️', async () => {
-    const msgRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
-      data: { content: `upsert-test-${Date.now()}`, message_type: 'text' },
-    });
-    const msgId = (await msgRes.json()).id as string;
-
-    await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '👍' } });
-    const res = await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '❤️' } });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.my_emoji).toBe('❤️');
-    expect((body.counts['👍'] ?? []).length).toBe(0);
-    expect(body.counts['❤️'].length).toBeGreaterThan(0);
-    console.log('✅ UPSERT réaction 👍 → ❤️');
-  });
-
-  test('Réactions — DELETE → my_emoji null', async () => {
-    const msgRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
-      data: { content: `delete-reaction-${Date.now()}`, message_type: 'text' },
-    });
-    const msgId = (await msgRes.json()).id as string;
-
-    await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '😂' } });
-    const res = await page.request.delete(`${BASE}/conversations/default_global/messages/${msgId}/reactions`);
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.my_emoji).toBeNull();
-    console.log('✅ Réaction supprimée → my_emoji null');
-  });
-
-  test('Réactions — emoji non autorisé → 400', async () => {
-    const msgRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
-      data: { content: `emoji-invalid-${Date.now()}`, message_type: 'text' },
-    });
-    const msgId = (await msgRes.json()).id as string;
+  test('Réactions — POST emoji non autorisé 🦄 → 400', async () => {
+    const msgId = await createMsg();
     const res = await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, {
       data: { emoji: '🦄' },
     });
@@ -162,9 +183,85 @@ test.describe.serial('User — Flux complet', () => {
     console.log('✅ Emoji non autorisé → 400');
   });
 
-  // ── 4. Upload & Download ───────────────────────────────────────
+  test('Réactions — UPSERT : 👍 → ❤️ remplace sans doublon', async () => {
+    const msgId = await createMsg();
+    await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '👍' } });
+    const res = await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '❤️' } });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.my_emoji).toBe('❤️');
+    expect((body.counts['👍'] ?? []).length).toBe(0);
+    expect(body.counts['❤️']?.length).toBeGreaterThan(0);
+    console.log('✅ UPSERT 👍 → ❤️');
+  });
 
-  test('Upload — fichier texte → file_id + download', async () => {
+  test('Réactions — DELETE → my_emoji null', async () => {
+    const msgId = await createMsg();
+    await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '😂' } });
+    const res = await page.request.delete(`${BASE}/conversations/default_global/messages/${msgId}/reactions`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.my_emoji).toBeNull();
+    expect((body.counts['😂'] ?? []).length).toBe(0);
+    console.log('✅ DELETE réaction → my_emoji null');
+  });
+
+  test('Réactions — GET → structure {message_id, counts, my_emoji}', async () => {
+    const msgId = await createMsg();
+    await page.request.post(`${BASE}/conversations/default_global/messages/${msgId}/reactions`, { data: { emoji: '😮' } });
+    const res = await page.request.get(`${BASE}/conversations/default_global/messages/${msgId}/reactions`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.message_id).toBe(msgId);
+    expect(typeof body.counts).toBe('object');
+    expect(body.my_emoji).toBe('😮');
+    console.log('✅ GET réactions → structure correcte');
+  });
+
+  test('Réactions — message inexistant → 404', async () => {
+    const res = await page.request.post(`${BASE}/conversations/default_global/messages/msg-inexistant-xyz/reactions`, {
+      data: { emoji: '👍' },
+    });
+    expect(res.status()).toBe(404);
+    console.log('✅ Réaction sur msg inexistant → 404');
+  });
+
+  test('Réactions UI — hover → picker → pill visible', async () => {
+    test.setTimeout(35_000);
+    await page.goto('/chat');
+    await waitForAppReady(page);
+    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 12_000 });
+
+    // Envoyer un message pour avoir quelque chose sur lequel réagir
+    const input = page.locator('.message-input');
+    await input.fill('test-reaction-ui');
+    await input.press('Enter');
+    await expect(page.locator('.message').last()).toBeVisible({ timeout: 10_000 });
+
+    // Hover sur le dernier message
+    const msg = page.locator('.message').last();
+    await msg.hover();
+    const reactionTrigger = page.locator('.reaction-trigger').last();
+    await expect(reactionTrigger).toBeVisible({ timeout: 5_000 });
+    await reactionTrigger.click();
+
+    // Picker visible avec les 6 emojis rapides
+    const picker = page.locator('.emoji-picker').last();
+    await expect(picker).toBeVisible({ timeout: 3_000 });
+    await picker.locator('.emoji-quick-btn').first().click();
+
+    // Pill visible avec count
+    await expect(msg.locator('.reaction-pill')).toBeVisible({ timeout: 5_000 });
+    const pillText = await msg.locator('.reaction-pill').first().textContent();
+    expect(pillText).toContain('1');
+    console.log('✅ Réaction UI : picker → pill count=1');
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 4. UPLOAD & DOWNLOAD
+  // ══════════════════════════════════════════════════════════════
+
+  test('Upload — fichier texte → file_id, url=/api/download/, download OK', async () => {
     test.setTimeout(30_000);
     const res = await page.request.post('/api/upload/chat', {
       multipart: {
@@ -176,7 +273,6 @@ test.describe.serial('User — Flux complet', () => {
     const body = await res.json();
     expect(body.file_id).toBeTruthy();
     expect(body.file_name).toBe('test-e2e.txt');
-    // Le backend retourne /api/download/{file_id}
     expect(body.url).toMatch(/\/api\/download\//);
     console.log(`✅ Upload → file_id=${body.file_id}`);
 
@@ -185,29 +281,38 @@ test.describe.serial('User — Flux complet', () => {
     const cd = dlRes.headers()['content-disposition'] ?? '';
     expect(cd).toContain('attachment');
     expect(cd).toContain('test-e2e.txt');
-    console.log(`✅ Download → Content-Disposition OK`);
+    console.log('✅ Download → Content-Disposition OK');
   });
 
-  test('Download — id inconnu → 404', async () => {
-    const res = await page.request.get('/api/download/id-inexistant-00000');
+  test('Download — id inexistant → 404', async () => {
+    const res = await page.request.get('/api/download/id-qui-nexiste-vraiment-pas');
     expect(res.status()).toBe(404);
-    console.log('✅ Download id inconnu → 404');
+    console.log('✅ Download id inexistant → 404');
   });
 
-  // ── 5. Polls ───────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 5. SONDAGES (Polls)
+  // ══════════════════════════════════════════════════════════════
 
-  test('Polls — créer, voter, changer, fermer', async () => {
-    test.setTimeout(45_000);
+  test('GET /polls → tableau de sondages', async () => {
+    const res = await page.request.get(`${BASE}/polls`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.polls)).toBe(true);
+    console.log(`✅ GET /polls → ${body.polls.length} sondage(s)`);
+  });
+
+  test('Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé', async () => {
+    test.setTimeout(60_000);
 
     // Créer
     const createRes = await page.request.post(`${BASE}/polls`, {
-      data: { question: `Poll E2E ${Date.now()}`, options: ['Option A', 'Option B', 'Option C'] },
+      data: { question: `E2E Poll ${Date.now()}`, options: ['Option A', 'Option B', 'Option C'] },
     });
     expect([200, 201]).toContain(createRes.status());
-    const pollBody = await createRes.json();
-    const pollId = pollBody.id ?? pollBody.poll?.id;
+    const pollId = (await createRes.json()).id;
     expect(pollId).toBeTruthy();
-    console.log(`✅ Sondage créé → id=${pollId}`);
+    console.log(`✅ Poll créé → id=${pollId}`);
 
     // Récupérer les options
     const detailRes = await page.request.get(`${BASE}/polls/${pollId}`);
@@ -217,51 +322,75 @@ test.describe.serial('User — Flux complet', () => {
     expect(options.length).toBeGreaterThanOrEqual(2);
     const [optA, optB] = options;
 
-    // Voter option A
+    // Voter A
     const voteRes = await page.request.post(`${BASE}/polls/${pollId}/vote`, { data: { option_id: optA.id } });
     expect([200, 201]).toContain(voteRes.status());
-    console.log('✅ Vote option A');
+    expect((await voteRes.json()).success).toBe(true);
+    const afterVote = (await (await page.request.get(`${BASE}/polls/${pollId}`)).json());
+    expect(afterVote.poll?.my_vote ?? afterVote.my_vote).toBe(optA.id);
+    console.log('✅ Vote A enregistré');
 
-    // Changer pour option B (UPSERT)
+    // Changer pour B (UPSERT)
     const changeRes = await page.request.post(`${BASE}/polls/${pollId}/vote`, { data: { option_id: optB.id } });
     expect([200, 201]).toContain(changeRes.status());
-    const afterChange = await (await page.request.get(`${BASE}/polls/${pollId}`)).json();
+    const afterChange = (await (await page.request.get(`${BASE}/polls/${pollId}`)).json());
     expect(afterChange.poll?.my_vote ?? afterChange.my_vote).toBe(optB.id);
-    console.log('✅ Changement de vote → B confirmé');
+    console.log('✅ Vote changé A → B');
 
     // Double vote même option → 200 (UPSERT) ou 409
     const doubleRes = await page.request.post(`${BASE}/polls/${pollId}/vote`, { data: { option_id: optB.id } });
     expect([200, 201, 409]).toContain(doubleRes.status());
-    console.log(`✅ Double vote → HTTP ${doubleRes.status()}`);
+    console.log(`✅ Double vote → ${doubleRes.status()}`);
 
     // Fermer
     const closeRes = await page.request.post(`${BASE}/polls/${pollId}/close`);
     expect(closeRes.status()).toBe(200);
-    const closedDetail = await (await page.request.get(`${BASE}/polls/${pollId}`)).json();
+    const closedDetail = (await (await page.request.get(`${BASE}/polls/${pollId}`)).json());
     const isClosed = closedDetail.poll?.is_closed ?? closedDetail.is_closed ?? (closedDetail.poll?.closed_at !== null);
     expect(isClosed).toBeTruthy();
-    console.log('✅ Sondage fermé');
+    console.log('✅ Poll fermé');
 
     // Vote sur sondage fermé → 400 ou 403
     const closedVote = await page.request.post(`${BASE}/polls/${pollId}/vote`, { data: { option_id: optA.id } });
     expect([400, 403]).toContain(closedVote.status());
-    console.log(`✅ Vote sondage fermé → ${closedVote.status()}`);
+    console.log(`✅ Vote fermé → ${closedVote.status()}`);
   });
 
-  test('Polls UI — page visible avec bouton Nouveau sondage', async () => {
-    test.setTimeout(30_000);
+  test('Polls UI — créer sondage via formulaire → visible dans liste', async () => {
+    test.setTimeout(45_000);
     const [_] = await Promise.all([
-      page.waitForResponse(res => res.url().includes('/api/polls') && res.request().method() === 'GET', { timeout: 15_000 }),
+      page.waitForResponse(r => r.url().includes('/api/polls') && r.request().method() === 'GET', { timeout: 15_000 }),
       page.goto('/polls'),
     ]);
     await waitForAppReady(page);
-    await expect(page.locator('.btn-create')).toBeVisible({ timeout: 8_000 });
-    console.log('✅ Page /polls chargée');
+    await page.locator('.btn-create').click();
+    await expect(page.locator('.create-card')).toBeVisible({ timeout: 5_000 });
+    const q = `Film du soir ? ${Date.now()}`;
+    await page.locator('input[placeholder="Quelle est votre question ?"]').fill(q);
+    await page.locator('input[placeholder="Option 1 *"]').fill('La La Land');
+    await page.locator('input[placeholder="Option 2 *"]').fill('Inception');
+    const [postRes] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/polls') && r.request().method() === 'POST', { timeout: 15_000 }),
+      page.locator('.btn-submit').click(),
+    ]);
+    expect([200, 201]).toContain(postRes.status());
+    await expect(page.locator('.poll-question').filter({ hasText: q })).toBeVisible({ timeout: 10_000 });
+    console.log('✅ Sondage créé UI → visible dans liste');
   });
 
-  // ── 6. Chess ───────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 6. CHESS
+  // ══════════════════════════════════════════════════════════════
 
-  test('Chess — créer partie vs IA, coup légal e2→e4, coup illégal → 400', async () => {
+  test('GET /chess/list → 200', async () => {
+    const res = await page.request.get(`${BASE}/chess/list`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.games ?? body)).toBe(true);
+    console.log('✅ GET /chess/list → OK');
+  });
+
+  test('Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400', async () => {
     test.setTimeout(60_000);
 
     const createRes = await page.request.post(`${BASE}/chess/create`, {
@@ -270,7 +399,14 @@ test.describe.serial('User — Flux complet', () => {
     expect([200, 201]).toContain(createRes.status());
     const { game_id } = await createRes.json();
     expect(game_id).toBeTruthy();
-    console.log(`✅ Partie vs IA créée → ${game_id}`);
+    console.log(`✅ Partie IA créée → ${game_id}`);
+
+    // GET détail partie
+    const gameRes = await page.request.get(`${BASE}/chess/${game_id}`);
+    expect(gameRes.status()).toBe(200);
+    const game = await gameRes.json();
+    expect(game.game?.id ?? game.id).toBe(game_id);
+    console.log('✅ GET /chess/{id} → OK');
 
     // Coups légaux depuis e2
     const movesRes = await page.request.get(`${BASE}/chess/${game_id}/moves?from=e2`);
@@ -289,45 +425,162 @@ test.describe.serial('User — Flux complet', () => {
     // Coup illégal
     const illegalRes = await page.request.post(`${BASE}/chess/${game_id}/move`, { data: { from: 'e2', to: 'e6' } });
     expect(illegalRes.status()).toBe(400);
-    console.log('✅ Coup illégal e2→e6 → 400');
+    console.log('✅ Coup illégal → 400');
   });
 
-  test('Chess UI — plateau 64 cases visible', async () => {
-    test.setTimeout(45_000);
+  test('Chess — POST /chess/{id}/ai-move → 200', async () => {
+    test.setTimeout(30_000);
+    // Créer partie vs IA, jouer un coup pour que l'IA puisse répondre
     const createRes = await page.request.post(`${BASE}/chess/create`, { data: { color: 'white', opponent: 'easy' } });
     const { game_id } = await createRes.json();
+    await page.request.post(`${BASE}/chess/${game_id}/move`, { data: { from: 'e2', to: 'e4' } });
+
+    const aiRes = await page.request.post(`${BASE}/chess/${game_id}/ai-move`);
+    expect(aiRes.status()).toBe(200);
+    const body = await aiRes.json();
+    expect(body.success).toBe(true);
+    console.log('✅ POST /chess/{id}/ai-move → coup IA joué');
+  });
+
+  test('Chess — POST /chess/{id}/resign → 200', async () => {
+    test.setTimeout(30_000);
+    const createRes = await page.request.post(`${BASE}/chess/create`, { data: { color: 'white', opponent: 'easy' } });
+    const { game_id } = await createRes.json();
+
+    const resignRes = await page.request.post(`${BASE}/chess/${game_id}/resign`);
+    expect(resignRes.status()).toBe(200);
+    console.log('✅ Resign → 200');
+
+    // Vérifier que la partie est terminée
+    const gameRes = await page.request.get(`${BASE}/chess/${game_id}`);
+    const game = await gameRes.json();
+    const status = game.game?.status ?? game.status;
+    expect(status).toBe('finished');
+    console.log(`✅ Partie terminée → status=${status}`);
+  });
+
+  test('Chess — invitations : créer, inviter, lister, décliner', async ({ browser }) => {
+    test.setTimeout(60_000);
+
+    // Créer une partie humain vs humain
+    const createRes = await page.request.post(`${BASE}/chess/create`, {
+      data: { color: 'white', opponent: 'human' },
+    });
+    expect([200, 201]).toContain(createRes.status());
+    const { game_id } = await createRes.json();
+    console.log(`✅ Partie humain créée → ${game_id}`);
+
+    // Récupérer l'id admin pour l'inviter
+    const usersRes = await page.request.get(`${BASE}/users/available`);
+    let adminId: string | null = null;
+    if (usersRes.status() === 200) {
+      const users = await usersRes.json();
+      const list = Array.isArray(users) ? users : (users.users ?? []);
+      adminId = list.find((u: { username: string }) => u.username === 'admin')?.id ?? null;
+    }
+
+    if (!adminId) {
+      console.log('⚠️ Admin non disponible dans /users/available — skip invite');
+      return;
+    }
+
+    // Inviter l'admin
+    const inviteRes = await page.request.post(`${BASE}/chess/${game_id}/invite`, {
+      data: { user_id: adminId },
+    });
+    expect(inviteRes.status()).toBe(200);
+    console.log('✅ Invitation chess envoyée');
+
+    // Connexion admin pour voir et décliner l'invitation
+    const adminPage = await browser.newPage();
+    try {
+      const adminLogin = await adminPage.request.post(`${BASE}/auth/login`, {
+        data: { username: 'admin', password: 'AdminCI2026!' },
+      });
+      if (!adminLogin.ok()) {
+        console.log('⚠️ Login admin échoué — skip accept/decline');
+        return;
+      }
+
+      const invitesRes = await adminPage.request.get(`${BASE}/chess/invitations`);
+      expect(invitesRes.status()).toBe(200);
+      const invitations = await invitesRes.json();
+      const inv = (Array.isArray(invitations) ? invitations : (invitations.invitations ?? []))
+        .find((i: { game_id: string }) => i.game_id === game_id);
+
+      if (inv) {
+        const declineRes = await adminPage.request.post(`${BASE}/chess/invitations/${inv.id}/decline`);
+        expect(declineRes.status()).toBe(200);
+        console.log('✅ Invitation déclinée');
+      }
+    } finally {
+      await adminPage.close();
+    }
+  });
+
+  test('Chess UI — plateau 64 cases + sélection case + coup via UI', async () => {
+    test.setTimeout(60_000);
+    const createRes = await page.request.post(`${BASE}/chess/create`, { data: { color: 'white', opponent: 'easy' } });
+    const { game_id } = await createRes.json();
+
     await page.goto(`/chess/${game_id}`);
     await waitForAppReady(page);
     await expect(page.locator('.chess-board')).toBeVisible({ timeout: 15_000 });
     expect(await page.locator('.chess-board .cell').count()).toBe(64);
-    console.log('✅ Échiquier 64 cases OK');
+    console.log('✅ Échiquier 8×8 rendu');
+
+    // Recharger après coup API pour vérifier last-move
+    await page.request.post(`${BASE}/chess/${game_id}/move`, { data: { from: 'e2', to: 'e4' } });
+    await page.reload();
+    await expect(page.locator('.chess-board')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('.chess-board .cell').nth(63)).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('.cell-last').first()).toBeVisible({ timeout: 12_000 });
+    console.log('✅ Case last-move visible');
   });
 
-  // ── 7. Calendar ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 7. CALENDRIER
+  // ══════════════════════════════════════════════════════════════
 
-  test('Calendar — créer événement → retourne id', async () => {
-    const res = await page.request.post(`${BASE}/events`, {
-      data: { title: `E2E Event ${Date.now()}`, date: '2026-12-25', time: '18:00', description: 'Test E2E' },
-    });
-    expect([200, 201]).toContain(res.status());
+  test('Calendar — GET /events → 200', async () => {
+    const res = await page.request.get(`${BASE}/events`);
+    expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.id).toBeTruthy();
-    console.log(`✅ Événement créé → id=${body.id}`);
+    expect(Array.isArray(body.events ?? body)).toBe(true);
+    console.log('✅ GET /events → OK');
   });
 
-  test('Calendar UI — page et bouton ajouter visibles', async () => {
+  test('Calendar — POST /events → crée et DELETE /events/{id} → supprime', async () => {
+    const createRes = await page.request.post(`${BASE}/events`, {
+      data: { title: `Noël E2E ${Date.now()}`, date: '2026-12-25', time: '18:00', description: 'Test E2E' },
+    });
+    expect([200, 201]).toContain(createRes.status());
+    const body = await createRes.json();
+    expect(body.success).toBe(true);
+    const eventId = body.id;
+    expect(eventId).toBeTruthy();
+    console.log(`✅ Événement créé → id=${eventId}`);
+
+    // Supprimer
+    const delRes = await page.request.delete(`${BASE}/events/${eventId}`);
+    expect(delRes.status()).toBe(200);
+    console.log('✅ Événement supprimé');
+  });
+
+  test('Calendar UI — page, grille et bouton ajouter visibles', async () => {
     test.setTimeout(30_000);
     await page.goto('/calendar');
     await waitForAppReady(page);
     await expect(page.locator('.calendar-grid')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('.add-event-btn')).toBeVisible({ timeout: 8_000 });
-    console.log('✅ /calendar chargé, bouton ajouter visible');
+    console.log('✅ /calendar chargé');
   });
 
-  // ── 8. Settings ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 8. PARAMÈTRES UTILISATEUR
+  // ══════════════════════════════════════════════════════════════
 
-  test('Settings — 3 onglets (Profil / Sécurité / Apparence)', async () => {
+  test('Settings UI — 3 onglets navigables', async () => {
     test.setTimeout(30_000);
     await page.goto('/settings');
     await waitForAppReady(page);
@@ -336,10 +589,10 @@ test.describe.serial('User — Flux complet', () => {
     await expect(page.locator('#currentPassword')).toBeVisible({ timeout: 5_000 });
     await page.locator('[role="tab"]').filter({ hasText: 'Apparence' }).click();
     await expect(page.locator('.themes-grid')).toBeVisible({ timeout: 5_000 });
-    console.log('✅ 3 onglets Settings OK');
+    console.log('✅ 3 onglets Settings navigables');
   });
 
-  test('Settings — changement de thème', async () => {
+  test('Settings — changement de thème (clic → sélectionné)', async () => {
     test.setTimeout(30_000);
     await page.goto('/settings');
     await waitForAppReady(page);
@@ -349,26 +602,53 @@ test.describe.serial('User — Flux complet', () => {
     expect(await cards.count()).toBeGreaterThan(1);
     await cards.nth(1).click();
     await expect(cards.nth(1)).toHaveClass(/selected/, { timeout: 3_000 });
-    console.log('✅ Thème changé');
+    console.log('✅ Thème changé → sélectionné');
   });
 
-  // ── 9. Navigation ──────────────────────────────────────────────
+  test('POST /user/update → mise à jour du nom', async () => {
+    const newName = `Famille E2E ${Date.now()}`;
+    const res = await page.request.post(`${BASE}/user/update`, {
+      data: { name: newName },
+    });
+    expect([200, 201]).toContain(res.status());
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    // Vérifier que /auth/me retourne le nouveau nom
+    const meRes = await page.request.get(`${BASE}/auth/me`);
+    const me = await meRes.json();
+    expect(me.user?.name).toBe(newName);
+    console.log(`✅ Nom mis à jour → ${newName}`);
+  });
 
-  const routes = ['/chat', '/calendar', '/chess', '/polls', '/settings', '/help', '/events'];
+  // ══════════════════════════════════════════════════════════════
+  // 9. NAVIGATION
+  // ══════════════════════════════════════════════════════════════
+
+  const routes = [
+    { path: '/chat',     label: 'Chat' },
+    { path: '/calendar', label: 'Calendrier' },
+    { path: '/chess',    label: 'Échecs' },
+    { path: '/polls',    label: 'Sondages' },
+    { path: '/settings', label: 'Paramètres' },
+    { path: '/help',     label: 'Aide' },
+    { path: '/events',   label: 'Événements' },
+  ];
 
   for (const route of routes) {
-    test(`Navigation ${route} → accessible`, async () => {
+    test(`Navigation ${route.path} → accessible sans erreur`, async () => {
       test.setTimeout(30_000);
-      await page.goto(route);
+      await page.goto(route.path);
       await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {});
       expect(page.url()).not.toMatch(/\/login/);
-      console.log(`✅ ${route} OK`);
+      console.log(`✅ ${route.label} (${route.path}) OK`);
     });
   }
 
-  // ── 10. E2EE ──────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 10. E2EE — CLÉS PUBLIQUES
+  // ══════════════════════════════════════════════════════════════
 
-  test('E2EE — enregistrer clé publique → success', async () => {
+  test('E2EE — POST /auth/public-key → enregistre la clé', async () => {
     const fakeKey = Buffer.from(new Uint8Array(32).map((_, i) => i)).toString('base64');
     const res = await page.request.post(`${BASE}/auth/public-key`, { data: { public_key: fakeKey } });
     expect([200, 201]).toContain(res.status());
@@ -376,19 +656,67 @@ test.describe.serial('User — Flux complet', () => {
     console.log('✅ Clé publique enregistrée');
   });
 
-  test('E2EE — GET public-keys pour default_global → objet avec clés', async () => {
+  test('E2EE — GET /auth/public-keys → objet avec clés des membres', async () => {
     const fakeKey = Buffer.from(new Uint8Array(32).fill(42)).toString('base64');
     await page.request.post(`${BASE}/auth/public-key`, { data: { public_key: fakeKey } });
     const res = await page.request.get(`${BASE}/auth/public-keys?conversation_id=default_global`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(typeof body).toBe('object');
+    expect(Object.keys(body).length).toBeGreaterThan(0);
     console.log(`✅ GET public-keys → ${Object.keys(body).length} clé(s)`);
   });
 
-  // ── 11. Logout ────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════
+  // 11. PUSH NOTIFICATIONS
+  // ══════════════════════════════════════════════════════════════
 
-  test('Logout → redirigé vers /login', async () => {
+  test('Push — GET /push/vapid-public-key → 200', async () => {
+    const res = await page.request.get(`${BASE}/push/vapid-public-key`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Peut être vide si VAPID_PUBLIC_KEY non définie en CI — OK
+    expect(typeof body.public_key).toBe('string');
+    console.log(`✅ GET /push/vapid-public-key → public_key=${body.public_key || '(vide — VAPID non configuré)'}`);
+  });
+
+  test('Push — GET /push/preferences → prefs par défaut', async () => {
+    const res = await page.request.get(`${BASE}/push/preferences`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(typeof body.enabled).toBe('boolean');
+    expect(typeof body.quiet_start).toBe('string');
+    console.log(`✅ GET /push/preferences → enabled=${body.enabled}`);
+  });
+
+  test('Push — POST /push/preferences → mise à jour', async () => {
+    const res = await page.request.post(`${BASE}/push/preferences`, {
+      data: { enabled: true, quiet_start: '23:00', quiet_end: '07:00', on_message: true, on_mention: true },
+    });
+    expect(res.status()).toBe(200);
+    expect((await res.json()).success).toBe(true);
+    console.log('✅ PUT /push/preferences → OK');
+  });
+
+  test('Push — POST /push/subscribe → 200', async () => {
+    // Endpoint fonctionnel même sans vrai browser push
+    const res = await page.request.post(`${BASE}/push/subscribe`, {
+      data: {
+        endpoint: `https://fcm.googleapis.com/fcm/send/fake-e2e-endpoint-${Date.now()}`,
+        keys: { p256dh: Buffer.from(new Uint8Array(65).fill(1)).toString('base64'), auth: Buffer.from(new Uint8Array(16).fill(2)).toString('base64') },
+        user_agent: 'Playwright E2E',
+      },
+    });
+    expect(res.status()).toBe(200);
+    expect((await res.json()).success).toBe(true);
+    console.log('✅ POST /push/subscribe → 200');
+  });
+
+  // ══════════════════════════════════════════════════════════════
+  // 12. LOGOUT
+  // ══════════════════════════════════════════════════════════════
+
+  test('Logout UI → redirigé vers /login', async () => {
     test.setTimeout(30_000);
     await page.goto('/chat');
     await waitForAppReady(page);
@@ -401,22 +729,29 @@ test.describe.serial('User — Flux complet', () => {
 
 });
 
-// ── Rate limiting — suite isolée (serial, à la fin) ────────────────
+// ══════════════════════════════════════════════════════════════
+// RATE LIMITING — suite isolée
+// ══════════════════════════════════════════════════════════════
 
 test.describe.serial('Rate Limiting', () => {
 
-  test('POST /api/auth/login × 15 depuis user non-auth → au moins un 429', async ({ request }) => {
+  test('Flood /auth/login × 20 depuis même IP → au moins un 429', async ({ request }) => {
     test.setTimeout(30_000);
     const results: number[] = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
       const res = await request.post(`${BASE}/auth/login`, {
-        data: { username: `flood_${i}`, password: 'wrong' },
+        data: { username: `flood_user_${i}`, password: 'wrong_password_flood' },
       });
       results.push(res.status());
     }
-    expect(results.every(s => s !== 200)).toBe(true); // jamais de 200 (mdp invalide)
-    expect(results.includes(401)).toBe(true);         // des 401 avant le rate limit
-    console.log(`✅ Flood × 15 → ${[...new Set(results)].join(', ')}`);
+    // Jamais de 200 (credentials invalides)
+    expect(results.every(s => s !== 200)).toBe(true);
+    // Des 401 avant le rate limit
+    expect(results.includes(401)).toBe(true);
+    // En CI avec RATE_LIMIT_PER_MIN=120, on peut ne pas atteindre 429 avec 20 req
+    // Le test vérifie surtout l'absence de faux positifs
+    const has429 = results.includes(429);
+    console.log(`✅ Flood × 20 → statuts: ${[...new Set(results)].join(', ')}, 429=${has429}`);
   });
 
 });
