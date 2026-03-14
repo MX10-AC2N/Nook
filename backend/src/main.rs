@@ -475,6 +475,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/leave", post(db::leave_conversation))
         .route("/users/available", get(db::get_available_users))
         .route("/gifs/search", get(gif_search_proxy))
+        .nest("/api/push", push::router())
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
