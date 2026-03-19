@@ -24,7 +24,7 @@
 - **SEC-06** : emergency.rs non connecté (informationnel — avant activation feature)
 
 ### 🔴 Bugs actifs
-*Aucun bug actif bloquant.*
+*Aucun bug actif bloquant — 113/115 tests passent, 2 tests UI en cours de stabilisation*
 
 ### 📋 Backlog priorisé
 1. **DT-02** : Chess temps réel via WebSocket (ARCHITECT + CHESS requis)
@@ -56,10 +56,26 @@
 | 36 | Rate limit IP, magic bytes, WS 64KB, CORS panic | Sécurité S36 ✅ |
 | 37 | waitForSodium() bloquait loading=false en CI | Sodium fire-and-forget ✅ |
 | 38 | MCP Svelte + Rust + Lightpanda dans .claude | Structure MCP ✅ |
+| 38 | Fix decrypt_file_from_storage (nonce double-préfixé → 500) | Download fichiers ✅ |
+| 38 | Fix serde(default) sur encrypted/is_group, isolatedPage admin tests | Tests E2E 75→113 ✅ |
 
 ---
 
-## Dernière session (38) — Points clés
+## Dernière session (38) — Points clés (mise à jour)
+
+### Bugs critiques résolus
+- **R_DECRYPT** : `decrypt_file_from_storage` re-préfixait le nonce → download 500
+  - `crypto_secretbox_easy` stocke `nonce||ciphertext` ensemble → `_nonce_base64` maintenant ignoré dans decrypt
+- **R_INVITE** : test `invite/validate` → token extrait depuis `invite_link` (backend retourne `{invite_link}` pas `{token}`)
+- **R_COOKIE** : `isolatedPage` pour tous les logins `testUser` dans admin.spec.ts
+- **R_SERDE** : `#[serde(default)]` sur `encrypted` et `is_group` dans `db.rs`
+
+### Pièges à retenir (agent 🦀 RUST)
+- `encrypt_file_for_storage` intègre TOUJOURS le nonce dans les premiers bytes du fichier stocké
+  → `decrypt_file_from_storage` doit appeler `crypto_secretbox_open_easy(ciphertext, key)` directement
+  → ne jamais re-préfixer le nonce depuis la DB dans decrypt
+
+## Dernière session (38) — Infrastructure MCP
 
 - **Intégration MCP Svelte** : `https://mcp.svelte.dev/mcp` — remote, 4 outils
   - `list-sections`, `get-documentation`, `svelte-autofixer`, `playground-link`
