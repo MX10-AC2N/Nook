@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-19 06:18 UTC**
+> Généré par `test-nook.yml` · **2026-03-19 06:37 UTC**
 
 ---
 
@@ -9,14 +9,14 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 55 |
-| **Tests échoués** | 1 |
-| **Tests ignorés** | 59 |
+| **Tests passés** | 64 |
+| **Tests échoués** | 2 |
+| **Tests ignorés** | 49 |
 | **Total** | 115 |
-| **Durée** | 6.0s |
+| **Durée** | 18.0s |
 | **Branche** | `develop` |
-| **Commit** | [`d461c0d`](https://github.com/MX10-AC2N/Nook/commit/d461c0d8c77cc361d196838c8b55a1158d3ee1e3) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23282294906) |
+| **Commit** | [`5008de0`](https://github.com/MX10-AC2N/Nook/commit/5008de02efd83748fe95e3b564190c06f3a4296f) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23282899844) |
 
 ---
 
@@ -108,19 +108,19 @@
 | ⏭️ | GET /users/pending avec user normal → 403 | N/A |
 | ⏭️ | Page /admin → non accessible pour user normal | N/A |
 
-### ✅ user.spec.ts — 0/49 passés
+### ❌ user.spec.ts — 9/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
-| ⏭️ | Login e2e_ci → redirigé vers /chat | N/A |
-| ⏭️ | GET /auth/me → username=e2e_ci | N/A |
-| ⏭️ | Login invalide → reste sur /login | N/A |
-| ⏭️ | GET /conversations → default_global présente | N/A |
-| ⏭️ | GET /conversations/default_global → détail de la conv | N/A |
-| ⏭️ | GET /conversations/default_global/participants → e2e_ci présent | N/A |
-| ⏭️ | Chat UI — sidebar et envoi message | N/A |
-| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A |
-| ⏭️ | POST /conversations → créer un groupe de test | N/A |
+| ✅ | Login e2e_ci → redirigé vers /chat | 0s |
+| ✅ | GET /auth/me → username=e2e_ci | 0s |
+| ✅ | Login invalide → reste sur /login | 6s |
+| ✅ | GET /conversations → default_global présente | 0s |
+| ✅ | GET /conversations/default_global → détail de la conv | 0s |
+| ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
+| ✅ | Chat UI — sidebar et envoi message | 0s |
+| ✅ | GET /conversations/default_global/messages → messages récupérés | 0s |
+| ❌ | POST /conversations → créer un groupe de test | 0s |
 | ⏭️ | GET /users/available → liste des membres disponibles | N/A |
 | ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A |
 | ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A |
@@ -160,13 +160,13 @@
 | ⏭️ | Push — POST /push/preferences → mise à jour | N/A |
 | ⏭️ | Push — POST /push/subscribe → 200 | N/A |
 | ⏭️ | Logout UI → redirigé vers /login | N/A |
-| ⏭️ | Flood /auth/login × 20 depuis même IP → au moins un 429 | N/A |
+| ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0s |
 
 ---
 
 ## ❌ Échecs détaillés
 
-> 1 test(s) en échec
+> 2 test(s) en échec
 
 ### Échec 1 — `POST /invites → génère un token valide`
 
@@ -174,36 +174,72 @@
 
 **Message :**
 ```
-Error: expect(received).toBe(expected) // Object.is equality
+Error: expect(received).toBeTruthy()
 
-Expected: 200
-Received: 403
+Received: undefined
 
-  150 |   test('POST /invites → génère un token valide', async () => {
-  151 |     const res = await adminPage.request.post(`${BASE}/invites`);
-> 152 |     expect(res.status()).toBe(200);
-      |                          ^
-  153 |     const body = await res.json();
-  154 |     expect(body.token).toBeTruthy();
-  155 |     expect(body.expires_at).toBeTruthy();
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:152:26
+  160 |     expect(res.status()).toBe(200);
+  161 |     const body = await res.json();
+> 162 |     expect(body.token).toBeTruthy();
+      |                        ^
+  163 |     expect(body.expires_at).toBeTruthy();
+  164 |     console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
+  165 |   });
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:162:24
 ```
 
 **Message :**
 ```
-Error: expect(received).toBe(expected) // Object.is equality
+Error: expect(received).toBeTruthy()
 
-Expected: 200
-Received: 403
+Received: undefined
 
-  150 |   test('POST /invites → génère un token valide', async () => {
-  151 |     const res = await adminPage.request.post(`${BASE}/invites`);
-> 152 |     expect(res.status()).toBe(200);
-      |                          ^
-  153 |     const body = await res.json();
-  154 |     expect(body.token).toBeTruthy();
-  155 |     expect(body.expires_at).toBeTruthy();
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:152:26
+  160 |     expect(res.status()).toBe(200);
+  161 |     const body = await res.json();
+> 162 |     expect(body.token).toBeTruthy();
+      |                        ^
+  163 |     expect(body.expires_at).toBeTruthy();
+  164 |     console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
+  165 |   });
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:162:24
+```
+
+### Échec 2 — `POST /conversations → créer un groupe de test`
+
+**Suite :** `user.spec.ts > User — Flux complet`
+
+**Message :**
+```
+Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 422
+Received array: [200, 201]
+
+  130 |       data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
+  131 |     });
+> 132 |     expect([200, 201]).toContain(res.status());
+      |                        ^
+  133 |     const body = await res.json();
+  134 |     expect(body.id).toBeTruthy();
+  135 |     console.log(`✅ Groupe créé → id=${body.id}`);
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:132:24
+```
+
+**Message :**
+```
+Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 422
+Received array: [200, 201]
+
+  130 |       data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
+  131 |     });
+> 132 |     expect([200, 201]).toContain(res.status());
+      |                        ^
+  133 |     const body = await res.json();
+  134 |     expect(body.id).toBeTruthy();
+  135 |     console.log(`✅ Groupe créé → id=${body.id}`);
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:132:24
 ```
 
 ---
@@ -212,8 +248,6 @@ Received: 403
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=792fcfd0-3bb4-440f-849f-29716af19882 username=testuser_1773901096730
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=d52159ef-61a9-46c4-b4fd-cfc3b169107f username=testuser_1773901098615
 ```
 
 ---
@@ -238,4 +272,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=d
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 06:18 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 06:37 UTC*
