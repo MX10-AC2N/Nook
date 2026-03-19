@@ -16,6 +16,15 @@ test.describe('Sanité — Serveur', () => {
     expect((await res.text()).trim()).toBe('OK');
   });
 
+  test('GET /push/vapid-public-key → 200 (route publique, pas d\'auth requise)', async ({ request }) => {
+    // La clé VAPID publique doit être accessible sans cookie :
+    // le browser en a besoin pour créer un PushSubscription avant même le login.
+    const res = await request.get(`${BASE}/push/vapid-public-key`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(typeof body.public_key).toBe('string');
+  });
+
 });
 
 test.describe('Sécurité — Routes non-auth → 401', () => {
@@ -67,7 +76,6 @@ test.describe('Sécurité — Routes non-auth → 401', () => {
     { method: 'POST',   path: '/user/update', body: { name: 'x' } },
     { method: 'GET',    path: '/users/available' },
     // Push
-    { method: 'GET',    path: '/push/vapid-public-key' },
     { method: 'GET',    path: '/push/preferences' },
   ];
 
