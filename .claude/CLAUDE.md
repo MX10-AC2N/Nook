@@ -1,7 +1,7 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.1** | Session courante : **37** | Mis à jour : **2026-03-13**
+> Version projet : **0.4.0-beta.1** | Session courante : **38** | Mis à jour : **2026-03-19**
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
@@ -23,6 +23,27 @@
 
 ---
 
+## 🔌 MCP SERVERS — Disponibles pour les agents
+
+> Depuis la session 38. Détails complets dans `rules/mcp-servers.md`.
+
+| MCP | URL / Commande | Agent | Quand |
+|-----|---------------|-------|-------|
+| **Svelte** | `https://mcp.svelte.dev/mcp` | 🎨 SVELTE | Tout fichier `.svelte`, `.svelte.ts`, `.svelte.js` |
+| **rust-mcp-server** | `cargo install rust-mcp-server` (local) | 🦀 RUST | Validation build, clippy, tests |
+| **mcp-language-server** | `mcp-language-server --lsp rust-analyzer` (local) | 🦀 RUST | Navigation sémantique codebase |
+| **Lightpanda** | Docker `lightpanda/browser:nightly` | 🧪 E2E | ⚠️ Beta — surveiller maturité |
+
+### Workflow Svelte MCP (obligatoire depuis S38)
+```
+1. list-sections            → identifier la doc Svelte 5 pertinente
+2. get-documentation(...)   → charger la doc exacte
+3. [coder]
+4. svelte-autofixer(code)   → valider, 0 issues avant livraison
+```
+
+---
+
 ## 🎭 AGENTS DISPONIBLES
 
 ### Agents de développement
@@ -30,7 +51,7 @@
 | Agent | Fichier | Domaine principal |
 |-------|---------|-------------------|
 | 🦀 **RUST** | `roles/rust-backend.md` | Axum 0.8, SQLx, SQLite, auth, upload, WebSocket, migrations |
-| 🎨 **SVELTE** | `roles/svelte-frontend.md` | SvelteKit 5 Runes, stores, composants, UX, responsive, thèmes |
+| 🎨 **SVELTE** | `roles/svelte-frontend.md` | SvelteKit 5 Runes, stores, composants, UX, responsive, thèmes + **MCP Svelte** |
 | 🚀 **DEVOPS** | `roles/ci-devops.md` | GitHub Actions, Docker, Zimaboard, GHCR, compose |
 | 🧪 **E2E** | `roles/e2e-testing.md` | Playwright, fixtures, debug timeout, sélecteurs, TEST_REPORT |
 | 🔐 **CRYPTO** | `roles/security-crypto.md` | E2EE, argon2, XChaCha20, WebRTC, cookies, sécurité |
@@ -45,7 +66,7 @@
 > Chacun a un skill dédié dans `.claude/skills/` à lire avant d'intervenir.
 
 | Agent | Fichier | Commande | Quand l'activer |
-|-------|---------|----------|-----------------|
+|-------|---------|----------|-----------------| 
 | 🏠 **FOUNDER** | `roles/founder.md` | `/plan-ceo` | Nouvelle feature → valider qu'on construit la bonne chose |
 | 🔎 **REVIEWER** | `roles/reviewer.md` | `/review` | Avant tout merge → trouver ce qui casse en prod |
 
@@ -60,7 +81,7 @@
 
 ```
 □ Fichiers .rs backend hors chess_engine/ ?              → 🦀 RUST
-□ Fichiers .svelte, .svelte.ts, .svelte.js ?             → 🎨 SVELTE
+□ Fichiers .svelte, .svelte.ts, .svelte.js ?             → 🎨 SVELTE  (+ MCP Svelte)
 □ Workflows .yml, Dockerfile*, docker-compose* ?         → 🚀 DEVOPS
 □ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?       → 🧪 E2E
 □ Auth, crypto, clés, cookies, WebRTC, E2EE ?            → 🔐 CRYPTO
@@ -84,7 +105,7 @@
 
 | Demande | Pipeline agents |
 |---------|----------------|
-| `"Corrige bug conversationStore"` | 🎨 SVELTE |
+| `"Corrige bug conversationStore"` | 🎨 SVELTE (+ MCP svelte-autofixer) |
 | `"Ajoute DELETE /messages/{id}"` | 🦀 RUST → 🧪 E2E |
 | `"Build arm64 échoue"` | 🚀 DEVOPS |
 | `"Test Login timeout"` | 🧪 E2E |
@@ -174,7 +195,7 @@ avec `view .claude/skills/<skill>/SKILL.md` **avant toute intervention**.
 | `nook-ship` | `skills/nook-ship/SKILL.md` | `/ship` | Pipeline CI/CD ordonné, bump version, déploiement Zimaboard |
 | `nook-retro` | `skills/nook-retro/SKILL.md` | `/retro` | Métriques, patterns récurrents, backlog priorisé |
 
-> Ces skills condensent **36 sessions** de patterns validés. Les lire évite de répéter
+> Ces skills condensent **37 sessions** de patterns validés. Les lire évite de répéter
 > les mêmes erreurs (rand::thread_rng, state_invalid_export, heredoc CI, waitFor E2E…).
 
 ---
@@ -210,12 +231,13 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 |---------|-----------|
 | `BUGS.md` | **Étape ① — toujours** |
 | `rules/memory-sessions.md` | **Étape ① — contexte rapide** |
+| `rules/mcp-servers.md` | **Étape ① pour 🎨 SVELTE et 🦀 RUST** — MCP disponibles |
 | `rules/architecture.md` | Schéma DB, API, structure fichiers |
 | `rules/coding-style.md` | Pièges Rust/Svelte (index vers les rôles) |
 | `rules/workflows.md` | Docker, CI, déploiement |
 | `rules/memory-decisions.md` | Avant tout changement architectural |
 | `rules/memory-preferences.md` | Format livraison, optimisations Android |
-| `SESSIONS.md` | Historique détaillé sessions 1–36 |
+| `SESSIONS.md` | Historique détaillé sessions 1–37 |
 
 ---
 
@@ -227,6 +249,7 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 4. **Chemin explicite** — `frontend/src/lib/chatStore.svelte.ts` en tête de chaque bloc
 5. **Effets de bord** — signaler ce que chaque changement impacte chez les autres agents
 6. **Apprentissage** — tout bug non trivial résolu → section `## 📚 Apprentissages` de l'agent
+7. **MCP Svelte** — `svelte-autofixer` obligatoire avant toute livraison de code Svelte (depuis S38)
 
 ---
 

@@ -1,7 +1,7 @@
 {
   "projectName": "Nook",
   "description": "Messagerie privée familiale self-hosted — Rust/Axum + SvelteKit 5 Runes",
-  "version": "0.3.0-beta.2",
+  "version": "0.4.0-beta.1",
 
   "contextFiles": [
     ".claude/CLAUDE.md",
@@ -11,8 +11,29 @@
     ".claude/rules/workflows.md",
     ".claude/rules/memory-decisions.md",
     ".claude/rules/memory-preferences.md",
-    ".claude/rules/memory-sessions.md"
+    ".claude/rules/memory-sessions.md",
+    ".claude/rules/mcp-servers.md"
   ],
+
+  "mcpServers": {
+    "svelte": {
+      "type": "remote",
+      "url": "https://mcp.svelte.dev/mcp",
+      "description": "Svelte 5 & SvelteKit official documentation + autofixer. Obligatoire pour 🎨 SVELTE."
+    },
+    "rust": {
+      "type": "local",
+      "command": "rust-mcp-server",
+      "args": ["--workspace", "./backend"],
+      "description": "Cargo tools (check, build, test, clippy, fmt). Requis : cargo install rust-mcp-server."
+    },
+    "rust-analyzer": {
+      "type": "local",
+      "command": "mcp-language-server",
+      "args": ["--workspace", "./backend", "--lsp", "rust-analyzer"],
+      "description": "rust-analyzer LSP (definitions, references, diagnostics). Requis : rustup component add rust-analyzer + go install github.com/isaacphi/mcp-language-server@latest."
+    }
+  },
 
   "git": {
     "coAuthoredBy": false,
@@ -32,7 +53,8 @@
     "alwaysFetchSourceBeforeEdit": true,
     "neverPartialDiff": true,
     "updateClaudeDocsAfterSession": true,
-    "readBugsBeforeIntervention": true
+    "readBugsBeforeIntervention": true,
+    "svelteAutoFixerBeforeDelivery": true
   },
 
   "environment": {
