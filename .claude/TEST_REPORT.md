@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-19 18:01 UTC**
+> Généré par `test-nook.yml` · **2026-03-19 19:20 UTC**
 
 ---
 
@@ -13,10 +13,10 @@
 | **Tests échoués** | 1 |
 | **Tests ignorés** | 27 |
 | **Total** | 115 |
-| **Durée** | 22.0s |
+| **Durée** | 24.0s |
 | **Branche** | `develop` |
-| **Commit** | [`4e8e38d`](https://github.com/MX10-AC2N/Nook/commit/4e8e38d81551433614133883e6535d9518b4fa2b) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23309218526) |
+| **Commit** | [`965a20e`](https://github.com/MX10-AC2N/Nook/commit/965a20e3d20d1570f9dbee91f1b1d43d5b4478f5) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23312521691) |
 
 ---
 
@@ -179,7 +179,7 @@ Error: expect(received).toBeTruthy()
 Received: undefined
 
   341 |     expect([200, 201]).toContain(createRes.status());
-  342 |     const pollId = (await createRes.json()).id;
+  342 |     const pollId = (await createRes.json()).pool?.id;
 > 343 |     expect(pollId).toBeTruthy();
       |                    ^
   344 |     console.log(`✅ Poll créé → id=${pollId}`);
@@ -195,7 +195,7 @@ Error: expect(received).toBeTruthy()
 Received: undefined
 
   341 |     expect([200, 201]).toContain(createRes.status());
-  342 |     const pollId = (await createRes.json()).id;
+  342 |     const pollId = (await createRes.json()).pool?.id;
 > 343 |     expect(pollId).toBeTruthy();
       |                    ^
   344 |     console.log(`✅ Poll créé → id=${pollId}`);
@@ -210,8 +210,8 @@ Received: undefined
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f290359a-e164-4056-b58a-0c98f148a751 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f290359a-e164-4056-b58a-0c98f148a751 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=7bbaf860-520b-433e-995e-155940a105d9 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=7bbaf860-520b-433e-995e-155940a105d9 username=e2e_ci
 ```
 
 ---
@@ -236,4 +236,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 18:01 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 19:20 UTC*
