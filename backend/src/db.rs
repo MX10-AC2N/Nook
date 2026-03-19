@@ -14,9 +14,9 @@ use crate::auth::CurrentUser;
 
 // === STRUCTURES DE DONNÉES ===
 
-#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 fn default_true() -> bool { true }
 
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: String,
     pub username: String,
