@@ -198,15 +198,13 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
 #[allow(dead_code)]
 pub fn decrypt_file_from_storage(
     ciphertext: &[u8],
-    nonce_base64: &str,
+    _nonce_base64: &str,  // non utilisé : le nonce est déjà intégré dans les premiers bytes du ciphertext
     key_base64: &str,
 ) -> Result<Vec<u8>, &'static str> {
-    let nonce = from_base64(nonce_base64)?;
+    // encrypt_file_for_storage stocke nonce||encrypted dans le fichier
+    // crypto_secretbox_open_easy sépare lui-même nonce[0..24] du reste
     let key = from_base64(key_base64)?;
-    let mut data = Vec::with_capacity(nonce.len() + ciphertext.len());
-    data.extend_from_slice(&nonce);
-    data.extend_from_slice(ciphertext);
-    crypto_secretbox_open_easy(&data, &key)
+    crypto_secretbox_open_easy(ciphertext, &key)
 }
 
 #[allow(dead_code)]
