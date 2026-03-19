@@ -2,13 +2,13 @@
 """
 scripts/generate-test-report.py
 Génère .claude/TEST_REPORT.md à partir :
-  - du JSON Playwright  (frontend/playwright-report/results.json)
+  - du JSON Playwright  (/tmp/playwright-results.json, défini dans playwright.config.ts)
   - des logs Docker     (stdin ou fichier)
   - des variables CI    (env : RUN_DATE, RUN_URL, COMMIT_SHA, BRANCH, PLAYWRIGHT_EXIT)
 
 Usage :
   python3 scripts/generate-test-report.py \
-      --json   frontend/playwright-report/results.json \
+      --json   /tmp/playwright-results.json \
       --docker /tmp/docker.log \
       --output .claude/TEST_REPORT.md
 """
@@ -18,7 +18,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -176,7 +176,7 @@ def build_report(pw: dict, docker_warnings: list[str], ctx: dict) -> str:
     status_icon = "✅" if status_ok else "❌"
     status_text = "SUCCÈS" if status_ok else "ÉCHEC"
 
-    run_date    = ctx.get("run_date",    datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
+    run_date    = ctx.get("run_date",    datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
     run_url     = ctx.get("run_url",     "#")
     commit_sha  = ctx.get("commit_sha",  "unknown")
     commit_short = commit_sha[:7]
@@ -352,7 +352,7 @@ def build_report(pw: dict, docker_warnings: list[str], ctx: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Génère TEST_REPORT.md depuis les artifacts Playwright")
-    parser.add_argument("--json",   default="frontend/playwright-report/results.json", help="Chemin vers results.json Playwright")
+    parser.add_argument("--json",   default="/tmp/playwright-results.json", help="Chemin vers results.json Playwright (généré par playwright.config.ts)")
     parser.add_argument("--docker", default="",  help="Chemin vers le fichier de logs Docker (optionnel)")
     parser.add_argument("--output", default=".claude/TEST_REPORT.md", help="Chemin du rapport MD à écrire")
     args = parser.parse_args()
@@ -360,7 +360,7 @@ def main():
     # Contexte CI depuis les variables d'environnement
     ctx = {
         "playwright_exit": os.environ.get("PLAYWRIGHT_EXIT", "1"),
-        "run_date":        os.environ.get("RUN_DATE",  datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")),
+        "run_date":        os.environ.get("RUN_DATE",  datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")),
         "run_url":         os.environ.get("RUN_URL",   "#"),
         "commit_sha":      os.environ.get("COMMIT_SHA", "unknown"),
         "repo":            os.environ.get("REPO",       "MX10-AC2N/Nook"),
