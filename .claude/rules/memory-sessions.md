@@ -4,28 +4,34 @@
 
 ---
 
-## État du projet (après session 24)
+## État du projet (après session 37)
 
-**Version** : 0.3.0-beta.2 | **Tests E2E** : 43 (fix session 23, à confirmer)
+**Version** : 0.4.0-beta.1 | **Tests E2E** : 75/75 (stable depuis S37)
 
 ### ✅ Fonctionnel et stable
 - Backend Rust compile sans erreur (axum 0.8, rand 0.9, sqlx 0.8.6)
 - Docker build sources + release, distroless arm64/amd64
 - Auth cookie HttpOnly, LAN + WAN (Nginx)
 - CI : 5 workflows manuels stables
-- E2E : infrastructure stable (sessions 21-23), résultat 43/43 attendu
+- E2E : 75/75 depuis S37 (fix sodium fire-and-forget)
+- Rate limit : KeyedRateLimiter par IP (30 req/min) — S36
+- Sécurité : DOMPurify XSS, magic bytes uploads, WS 64KB limit — S35/S36
+
+### 🟡 Dette technique (non bloquant)
+- **DT-01** : libsodium 938 kB → dynamic import (cosmétique, sodium est déjà fire-and-forget)
+- **DT-02** : Chess temps réel absent (DT-02 — coups visibles seulement au refresh)
+- **SEC-03** : Token session UUID (entropy ok, 256 bits optionnel — faible risque)
+- **SEC-06** : emergency.rs non connecté (informationnel — avant activation feature)
 
 ### 🔴 Bugs actifs
-- Bug #1 : state_invalid_export conversationStore (non bloquant)
-- Bug #3 : connectionError.set() (non bloquant)
+*Aucun bug actif bloquant.*
 
 ### 📋 Backlog priorisé
-1. **DT-01** : libsodium 938 kB → dynamic import (bloque E2EE)
-2. **DT-02** : Chess temps réel (décision ARCHITECT requise)
-3. **DT-03** : Polls — confirmer si backend opérationnel ou localStorage only
-4. **DT-04** : Rate limiting governor à configurer
-5. **DT-05** : E2EE activation complète (après DT-01)
-6. **DT-06** : Analytics enrichis (DATA agent)
+1. **DT-02** : Chess temps réel via WebSocket (ARCHITECT + CHESS requis)
+2. **DT-01** : libsodium dynamic import (SVELTE)
+3. **E2EE** : Activation complète (CRYPTO + RUST + SVELTE)
+4. **Notifications push** : à évaluer avec FOUNDER
+5. **Analytics enrichis** : DATA agent
 
 ---
 
@@ -38,22 +44,33 @@
 | 6-7 | CI Playwright infra, E2E_SETUP | CI infra stable ✅ |
 | 8-14 | Bugs prod : UUID, CORS, SameSite, prune | Prod stable ✅ |
 | 15-19 | E2E stabilisation (sélecteurs, admin, git) | 12/43 → progrès |
-| 20 | Race condition matrix CI amd64/arm64 | Build reports séparés ✅ |
+| 20 | Race condition matrix amd64/arm64 | Build reports séparés ✅ |
 | 21 | fullyParallel:true → localStorage partagé | fullyParallel:false ✅ |
 | 22 | clearSession goto('/') → init avec cookie | request.post(logout) ✅ |
 | 23 | fill() avant layout onMount | waitFor(visible) ✅ |
 | 24 | Refonte .claude/ v4 : orchestration + agents | Structure v4 ✅ |
+| 25-32 | Polls E2E, crypto dégradé, admin UI | 75 tests définis ✅ |
+| 33 | localStorage non vidé → 55 tests échouaient | localStorage.clear() ✅ |
+| 34 | [Voir SESSIONS.md] | — |
+| 35 | Audit sécurité (XSS, rate limit, magic bytes) | SEC-01/02/04/05 fixés ✅ |
+| 36 | Rate limit IP, magic bytes, WS 64KB, CORS panic | Sécurité S36 ✅ |
+| 37 | waitForSodium() bloquait loading=false en CI | Sodium fire-and-forget ✅ |
+| 38 | MCP Svelte + Rust + Lightpanda dans .claude | Structure MCP ✅ |
 
 ---
 
-## Dernière session (33) — Points clés
+## Dernière session (38) — Points clés
 
-- **CI : 55 tests échouaient** (20 passaient) — cause unique : localStorage non vidé entre tests
-- `clearSession()` révoquait cookie + `clearCookies()` mais pas `localStorage`
-- `authStore.constructor()` relit `nook_user` + `nook_session_id` → `isAuthenticated=true` immédiat
-- `$effect` layout → `goto('/chat')` avant `loading=false` → `#username` jamais visible
-- **Fix A** : `page.evaluate(() => localStorage.clear())` dans `clearSession()` (Bug R33)
-- **Fix B** : `loginAsAdmin()` attend `.admin-header` visible (15s) après `goto('/admin')`
-- Version : 0.4.0-beta.1 | Tests E2E : 75 total, 55 en échec → attendu 75/75 après fix
-- Livraison : `e2e.spec.ts.txt`
-
+- **Intégration MCP Svelte** : `https://mcp.svelte.dev/mcp` — remote, 4 outils
+  - `list-sections`, `get-documentation`, `svelte-autofixer`, `playground-link`
+  - `svelte-autofixer` obligatoire avant toute livraison de code Svelte
+- **Intégration MCP Rust** : `rust-mcp-server` (cargo tools) + `mcp-language-server` (LSP)
+  - Local uniquement, ne pas référencer dans GitHub Actions
+- **Lightpanda** : navigateur headless Zig, beta, noté pour monitoring futur
+- **Fichiers créés/mis à jour** :
+  - `.claude/CLAUDE.md` — section MCP ajoutée, session 38
+  - `.claude/settings.json` — version 0.4.0-beta.1, mcpServers, règle autofixer
+  - `.claude/rules/mcp-servers.md` — **NOUVEAU** — référence MCP complète
+  - `.claude/roles/svelte-frontend.md` — protocole MCP Svelte en tête
+  - `.claude/skills/nook-svelte-frontend/SKILL.md` — checklist + workflow MCP
+  - `.claude/rules/memory-sessions.md` — ce fichier, état S38
