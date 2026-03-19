@@ -101,67 +101,64 @@ test.describe.serial('Admin — Flux complet', () => {
     const testUser = `testuser_${Date.now()}`;
     const testPass = 'TestPass2026!';
 
-    // ⚠️  IMPORTANT : toutes les requêtes qui concernent testUser utilisent un
-    // contexte ISOLÉ (isolatedPage) pour ne PAS polluer le cookie store de adminPage.
-    // Si on fait adminPage.request.post('/auth/login', {username: testUser}),
-    // le Set-Cookie de la réponse remplace le cookie admin → tous les tests
-    // suivants de la suite .serial obtiendraient 403.
-    const isolatedPage = await browser.newPage();
-    try {
-      // 1. Inscription via le contexte isolé (route publique — pas de session requise)
-      const regRes = await isolatedPage.request.post(`${BASE}/auth/register`, {
-        data: { username: testUser, password: testPass, email: `${testUser}@test.nook`, name: 'Test User' },
-      });
-      expect([200, 201]).toContain(regRes.status());
-      expect((await regRes.json()).success).toBe(true);
-      console.log(`✅ Inscription ${testUser}`);
+    // 1. Inscription (route publique — pas de session)
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: testUser, password: testPass, email: `${testUser}@test.nook`, name: 'Test User' },
+    });
+    expect([200, 201]).toContain(regRes.status());
+    const regBody = await regRes.json();
+    expect(regBody.success).toBe(true);
+    console.log(`✅ Inscription ${testUser}`);
 
-      // 2. Login échoue avant approbation — via contexte isolé (pas de pollution admin)
-      const loginPending = await isolatedPage.request.post(`${BASE}/auth/login`, {
-        data: { username: testUser, password: testPass },
-      });
-      expect([401, 403]).toContain(loginPending.status());
-      console.log(`✅ Login refusé avant approbation → ${loginPending.status()}`);
+    // 2. Le compte est en attente — tentative de login échoue
+    const loginPending = await adminPage.request.post(`${BASE}/auth/login`, {
+      data: { username: testUser, password: testPass },
+    });
+    // 401 ou 403 : compte non approuvé
+    expect([401, 403]).toContain(loginPending.status());
+    console.log(`✅ Login refusé avant approbation → ${loginPending.status()}`);
 
-      // 3. Admin (adminPage) récupère les users en attente
-      const pendingRes = await adminPage.request.get(`${BASE}/users/pending`);
-      const pendingBody = await pendingRes.json();
-      const pendingList = Array.isArray(pendingBody) ? pendingBody : (pendingBody.users ?? []);
-      const newUser = pendingList.find((u: { username: string }) => u.username === testUser);
-      expect(newUser).toBeDefined();
-      console.log(`✅ ${testUser} visible dans /users/pending`);
+    // 3. Admin récupère les users en attente
+    const pendingRes = await adminPage.request.get(`${BASE}/users/pending`);
+    const pendingBody = await pendingRes.json();
+    const pendingList = Array.isArray(pendingBody) ? pendingBody : (pendingBody.users ?? []);
+    const newUser = pendingList.find((u: { username: string }) => u.username === testUser);
+    expect(newUser).toBeDefined();
+    console.log(`✅ ${testUser} visible dans /users/pending`);
 
-      // 4. Admin approuve (adminPage — session admin intacte)
-      const approveRes = await adminPage.request.post(`${BASE}/users/approve`, {
-        data: { user_id: newUser.id },
-      });
-      expect(approveRes.status()).toBe(200);
-      console.log(`✅ ${testUser} approuvé`);
+    // 4. Admin approuve
+    const approveRes = await adminPage.request.post(`${BASE}/users/approve`, {
+      data: { user_id: newUser.id },
+    });
+    expect(approveRes.status()).toBe(200);
+    console.log(`✅ ${testUser} approuvé`);
 
-      // 5. Login réussit après approbation — via contexte isolé
-      const loginApproved = await isolatedPage.request.post(`${BASE}/auth/login`, {
-        data: { username: testUser, password: testPass },
-      });
-      expect(loginApproved.status()).toBe(200);
-      console.log(`✅ Login réussi après approbation`);
+    // 5. Login réussit après approbation
+    const loginApproved = await adminPage.request.post(`${BASE}/auth/login`, {
+      data: { username: testUser, password: testPass },
+    });
+    expect(loginApproved.status()).toBe(200);
+    console.log(`✅ Login réussi après approbation`);
 
-    } finally {
-      // Fermer le contexte isolé — adminPage reste intact avec sa session admin
-      await isolatedPage.close();
-    }
+    // 6. Nettoyage : l'utilisateur existe en DB — pas de DELETE endpoint, on laisse
   });
 
   // ══════════════════════════════════════════════════════════════
   // 4. INVITATIONS
   // ══════════════════════════════════════════════════════════════
 
-  test('POST /invites → génère un token valide', async () => {
+  test('POST /invites → génère un invite_link valide', async () => {
     const res = await adminPage.request.post(`${BASE}/invites`);
     expect(res.status()).toBe(200);
     const body = await res.json();
-    expect(body.token).toBeTruthy();
-    expect(body.expires_at).toBeTruthy();
-    console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
+    // Le backend retourne { success, message, invite_link: '/invite?token=...' }
+    expect(body.success).toBe(true);
+    expect(body.invite_link).toBeTruthy();
+    expect(body.invite_link).toContain('/invite?token=');
+    // Extraire le token depuis invite_link pour les tests suivants
+    const token = new URLSearchParams(body.invite_link.split('?')[1]).get('token');
+    expect(token).toBeTruthy();
+    console.log(`✅ Invitation générée → token=${token?.substring(0, 8)}...`);
   });
 
   test('GET /invites → liste non vide', async () => {
