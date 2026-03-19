@@ -200,7 +200,11 @@ test.describe.serial('Admin — Flux complet', () => {
 
   test('GET /invite/validate?token=xxx → valide le token', async () => {
     const createRes = await adminPage.request.post(`${BASE}/invites`);
-    const { token } = await createRes.json();
+    expect(createRes.status()).toBe(200);
+    const inviteBody = await createRes.json();
+    // POST /invites retourne { success, message, invite_link: '/invite?token=...' }
+    const token = new URLSearchParams(inviteBody.invite_link.split('?')[1]).get('token');
+    expect(token).toBeTruthy();
     const res = await adminPage.request.get(`${BASE}/invite/validate?token=${token}`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -264,7 +268,7 @@ test.describe.serial('Admin — Flux complet', () => {
       data: { question: `Admin delete test ${Date.now()}`, options: ['A', 'B'] },
     });
     expect([200, 201]).toContain(createRes.status());
-    // POST /polls retourne { "poll": { id, ... } } — l'id est sous .poll.id
+    // POST /polls retourne { "poll": { id, ... } }
     const pollId = (await createRes.json()).poll?.id;
 
     const delRes = await adminPage.request.delete(`${BASE}/polls/${pollId}`);
