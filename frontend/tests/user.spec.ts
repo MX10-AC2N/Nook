@@ -127,7 +127,9 @@ test.describe.serial('User — Flux complet', () => {
 
   test('POST /conversations → créer un groupe de test', async () => {
     const res = await page.request.post(`${BASE}/conversations`, {
-      data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
+      // is_group est obligatoire dans CreateConversationRequest (bool sans default)
+      // → sans ce champ, Axum retourne 422 Unprocessable Entity
+      data: { name: `Groupe E2E ${Date.now()}`, is_group: true, participant_ids: [] },
     });
     expect([200, 201]).toContain(res.status());
     const body = await res.json();
