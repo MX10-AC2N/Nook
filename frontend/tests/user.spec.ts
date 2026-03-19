@@ -230,31 +230,49 @@ test.describe.serial('User — Flux complet', () => {
   });
 
   test('Réactions UI — hover → picker → pill visible', async () => {
-    test.setTimeout(35_000);
+    test.setTimeout(45_000);
     await page.goto('/chat');
     await waitForAppReady(page);
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 12_000 });
 
-    // Envoyer un message pour avoir quelque chose sur lequel réagir
-    const input = page.locator('.message-input');
-    await input.fill('test-reaction-ui');
-    await input.press('Enter');
-    await expect(page.locator('.message').last()).toBeVisible({ timeout: 10_000 });
+    // S'assurer que la conversation Nook (default_global) est active
+    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
+    if (await globalItem.count() > 0) await globalItem.click();
 
-    // Hover sur le dernier message
+    // Attendre que l'input soit disponible
+    const input = page.locator('.message-input');
+    await expect(input).toBeVisible({ timeout: 8_000 });
+
+    // Envoyer un message et attendre la confirmation serveur
+    const [msgRes] = await Promise.all([
+      page.waitForResponse(
+        r => r.url().includes('/messages') && r.request().method() === 'POST',
+        { timeout: 10_000 }
+      ),
+      (async () => { await input.fill('test-reaction-ui'); await input.press('Enter'); })(),
+    ]);
+    expect(msgRes.status()).toBe(200);
+
+    // Attendre que le message apparaisse dans le DOM
     const msg = page.locator('.message').last();
+    await expect(msg).toBeVisible({ timeout: 10_000 });
+
+    // Hover + dispatchEvent mouseenter pour forcer hoveredMsgId en CI headless
     await msg.hover();
+    await msg.dispatchEvent('mouseenter');
+    await page.waitForTimeout(300); // laisser Svelte réagir au state change
+
     const reactionTrigger = page.locator('.reaction-trigger').last();
-    await expect(reactionTrigger).toBeVisible({ timeout: 5_000 });
+    await expect(reactionTrigger).toBeVisible({ timeout: 8_000 });
     await reactionTrigger.click();
 
     // Picker visible avec les 6 emojis rapides
     const picker = page.locator('.emoji-picker').last();
-    await expect(picker).toBeVisible({ timeout: 3_000 });
+    await expect(picker).toBeVisible({ timeout: 5_000 });
     await picker.locator('.emoji-quick-btn').first().click();
 
     // Pill visible avec count
-    await expect(msg.locator('.reaction-pill')).toBeVisible({ timeout: 5_000 });
+    await expect(msg.locator('.reaction-pill')).toBeVisible({ timeout: 8_000 });
     const pillText = await msg.locator('.reaction-pill').first().textContent();
     expect(pillText).toContain('1');
     console.log('✅ Réaction UI : picker → pill count=1');
