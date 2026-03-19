@@ -408,6 +408,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
         .route("/health", get(|| async { "OK" }))
+        .nest("/push", push::public_router())
         .route_layer(middleware::from_fn(move |
             ConnectInfo(addr): ConnectInfo<SocketAddr>,
             req: Request<Body>,
@@ -480,7 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/leave", post(db::leave_conversation))
         .route("/users/available", get(db::get_available_users))
         .route("/gifs/search", get(gif_search_proxy))
-        .nest("/api/push", push::router())
+        .nest("/push", push::router())
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
