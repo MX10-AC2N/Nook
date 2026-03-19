@@ -200,7 +200,12 @@ test.describe.serial('Admin — Flux complet', () => {
 
   test('GET /invite/validate?token=xxx → valide le token', async () => {
     const createRes = await adminPage.request.post(`${BASE}/invites`);
-    const { token } = await createRes.json();
+    expect(createRes.status()).toBe(200);
+    const inviteBody = await createRes.json();
+    // POST /invites retourne { success, message, invite_link: '/invite?token=...' }
+    // Le token est dans invite_link, pas au niveau racine du JSON
+    const token = new URLSearchParams(inviteBody.invite_link.split('?')[1]).get('token');
+    expect(token).toBeTruthy();
     const res = await adminPage.request.get(`${BASE}/invite/validate?token=${token}`);
     expect(res.status()).toBe(200);
     const body = await res.json();
