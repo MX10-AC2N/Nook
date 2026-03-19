@@ -339,7 +339,7 @@ test.describe.serial('User — Flux complet', () => {
       data: { question: `E2E Poll ${Date.now()}`, options: ['Option A', 'Option B', 'Option C'] },
     });
     expect([200, 201]).toContain(createRes.status());
-    const pollId = (await createRes.json()).id;
+    const pollId = (await createRes.json()).pool?.id;
     expect(pollId).toBeTruthy();
     console.log(`✅ Poll créé → id=${pollId}`);
 
