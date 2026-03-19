@@ -71,12 +71,19 @@ pub struct PushPayload {
 // Routes
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Routes push protégées — montées sous /push dans protected_routes (require_auth)
 pub fn router() -> Router<Arc<SharedState>> {
     Router::new()
-        .route("/subscribe",         post(subscribe))
-        .route("/unsubscribe",       delete(unsubscribe))
-        .route("/preferences",       get(get_preferences).post(update_preferences))
-        .route("/vapid-public-key",  get(get_vapid_public_key))
+        .route("/subscribe",   post(subscribe))
+        .route("/unsubscribe", delete(unsubscribe))
+        .route("/preferences", get(get_preferences).post(update_preferences))
+}
+
+/// Route push publique — vapid-public-key accessible sans auth
+/// (le browser en a besoin pour s'abonner aux notifications avant même le login)
+pub fn public_router() -> Router<Arc<SharedState>> {
+    Router::new()
+        .route("/vapid-public-key", get(get_vapid_public_key))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
