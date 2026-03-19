@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-19 17:31 UTC**
+> Généré par `test-nook.yml` · **2026-03-19 18:01 UTC**
 
 ---
 
@@ -9,14 +9,14 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 82 |
-| **Tests échoués** | 2 |
-| **Tests ignorés** | 30 |
-| **Total** | 114 |
-| **Durée** | 29.0s |
+| **Tests passés** | 87 |
+| **Tests échoués** | 1 |
+| **Tests ignorés** | 27 |
+| **Total** | 115 |
+| **Durée** | 22.0s |
 | **Branche** | `develop` |
-| **Commit** | [`d902caa`](https://github.com/MX10-AC2N/Nook/commit/d902caab56c5af8bc28cd53692e0e2400762082d) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23307901776) |
+| **Commit** | [`4e8e38d`](https://github.com/MX10-AC2N/Nook/commit/4e8e38d81551433614133883e6535d9518b4fa2b) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23309218526) |
 
 ---
 
@@ -85,7 +85,7 @@
 | ✅ | POST /invites/delete → 401 | 0s |
 | ✅ | GET /analytics → 401 | 0s |
 
-### ❌ admin.spec.ts — 10/18 passés
+### ✅ admin.spec.ts — 18/18 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -99,16 +99,16 @@
 | ✅ | POST /invites → génère un invite_link valide | 0s |
 | ✅ | GET /invites → liste non vide | 0s |
 | ✅ | POST /invites/delete → supprime une invitation | 0s |
-| ❌ | GET /invite/validate?token=xxx → valide le token | 0s |
-| ⏭️ | Admin UI — invitation générée visible dans l'interface | N/A |
-| ⏭️ | GET /analytics → tous les champs requis | N/A |
-| ⏭️ | Page /admin/analytics → stat-cards + 2 charts | N/A |
-| ⏭️ | Admin — DELETE /polls/{id} → 200 | N/A |
-| ⏭️ | GET /analytics avec user normal → 403 | N/A |
-| ⏭️ | GET /users/pending avec user normal → 403 | N/A |
-| ⏭️ | Page /admin → non accessible pour user normal | N/A |
+| ✅ | GET /invite/validate?token=xxx → valide le token | 0s |
+| ✅ | Admin UI — invitation générée visible dans l'interface | 0s |
+| ✅ | GET /analytics → tous les champs requis | 0s |
+| ✅ | Page /admin/analytics → stat-cards + 2 charts | 0s |
+| ✅ | Admin — DELETE /polls/{id} → 200 | 0s |
+| ✅ | GET /analytics avec user normal → 403 | 0s |
+| ✅ | GET /users/pending avec user normal → 403 | 0s |
+| ✅ | Page /admin → non accessible pour user normal | 2s |
 
-### ❌ user.spec.ts — 24/49 passés
+### ❌ user.spec.ts — 21/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -128,15 +128,15 @@
 | ✅ | Réactions — DELETE → my_emoji null | 0s |
 | ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
 | ✅ | Réactions — message inexistant → 404 | 0s |
-| ⏭️ | Réactions UI — hover → picker → pill visible | 6s |
+| ✅ | Réactions UI — hover → picker → pill visible | 2s |
 | ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
 | ✅ | Download — id inexistant → 404 | 0s |
 | ✅ | GET /polls → tableau de sondages | 0s |
-| ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
-| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
-| ✅ | GET /chess/list → 200 | 0s |
-| ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
-| ❌ | Chess — POST /chess/{id}/ai-move → 200 | 0s |
+| ❌ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
+| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A |
+| ⏭️ | GET /chess/list → 200 | N/A |
+| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A |
+| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A |
 | ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A |
 | ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A |
 | ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A |
@@ -166,65 +166,42 @@
 
 ## ❌ Échecs détaillés
 
-> 2 test(s) en échec
+> 1 test(s) en échec
 
-### Échec 1 — `GET /invite/validate?token=xxx → valide le token`
-
-**Suite :** `admin.spec.ts > Admin — Flux complet`
-
-**Message :**
-```
-Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: 200
-Received: 400
-
-  203 |     const { token } = await createRes.json();
-  204 |     const res = await adminPage.request.get(`${BASE}/invite/validate?token=${token}`);
-> 205 |     expect(res.status()).toBe(200);
-      |                          ^
-  206 |     const body = await res.json();
-  207 |     expect(body.valid).toBe(true);
-  208 |     console.log(`✅ Token validé → valid=${body.valid}`);
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:205:26
-```
-
-**Message :**
-```
-Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: 200
-Received: 400
-
-  203 |     const { token } = await createRes.json();
-  204 |     const res = await adminPage.request.get(`${BASE}/invite/validate?token=${token}`);
-> 205 |     expect(res.status()).toBe(200);
-      |                          ^
-  206 |     const body = await res.json();
-  207 |     expect(body.valid).toBe(true);
-  208 |     console.log(`✅ Token validé → valid=${body.valid}`);
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:205:26
-```
-
-### Échec 2 — `Chess — POST /chess/{id}/ai-move → 200`
+### Échec 1 — `Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé`
 
 **Suite :** `user.spec.ts > User — Flux complet`
 
 **Message :**
 ```
-Error: expect(received).toBe(expected) // Object.is equality
+Error: expect(received).toBeTruthy()
 
-Expected: 200
-Received: 415
+Received: undefined
 
-  441 |
-  442 |     const aiRes = await page.request.post(`${BASE}/chess/${game_id}/ai-move`);
-> 443 |     expect(aiRes.status()).toBe(200);
-      |                            ^
-  444 |     const body = await aiRes.json();
-  445 |     expect(body.success).toBe(true);
-  446 |     console.log('✅ POST /chess/{id}/ai-move → coup IA joué');
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:443:28
+  341 |     expect([200, 201]).toContain(createRes.status());
+  342 |     const pollId = (await createRes.json()).id;
+> 343 |     expect(pollId).toBeTruthy();
+      |                    ^
+  344 |     console.log(`✅ Poll créé → id=${pollId}`);
+  345 |
+  346 |     // Récupérer les options
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:343:20
+```
+
+**Message :**
+```
+Error: expect(received).toBeTruthy()
+
+Received: undefined
+
+  341 |     expect([200, 201]).toContain(createRes.status());
+  342 |     const pollId = (await createRes.json()).id;
+> 343 |     expect(pollId).toBeTruthy();
+      |                    ^
+  344 |     console.log(`✅ Poll créé → id=${pollId}`);
+  345 |
+  346 |     // Récupérer les options
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:343:20
 ```
 
 ---
@@ -233,7 +210,8 @@ Received: 415
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=d3ff2f0c-0abc-4618-ae0b-8b9d2483e2f6 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f290359a-e164-4056-b58a-0c98f148a751 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f290359a-e164-4056-b58a-0c98f148a751 username=e2e_ci
 ```
 
 ---
@@ -258,4 +236,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=d
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 17:31 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 18:01 UTC*
