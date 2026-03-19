@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-13** (session 36)
+> Mis à jour : **2026-03-19** (session 38)
 
 ---
 
@@ -29,6 +29,10 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R_DECRYPT | 38 | `decrypt_file_from_storage` re-préfixait le nonce → download 500 | `_nonce_base64` ignoré, `ciphertext` contient déjà le nonce intégré par `encrypt_file_for_storage` |
+| R_INVITE | 38 | Test `invite/validate` extrayait `{ token }` d'un body qui retourne `{ invite_link }` | Token extrait depuis `invite_link.split('?')[1]` |
+| R_COOKIE | 38 | Test flux inscription polluait cookie admin via `adminPage.request.post(login)` | `isolatedPage` isolé pour tous les logins `testUser` |
+| R_SERDE | 38 | `encrypted` et `is_group` sans `#[serde(default)]` → 422 si champ absent | `#[serde(default)]` + `fn default_true()` avant les structs |
 | R37 | 37 | `waitForSodium()` bloquait `loading=false` → `#username` jamais visible en CI | Sodium lancé en fire-and-forget, `loading=false` après `authStore.init()` uniquement |
 | R36a | 36 | Page blanche Zimaboard — base_inject_middleware inutile | Supprimé de main.rs + app.html nettoyé |
 | R36b | 36 | Rate limit 429 en CI E2E — NotKeyed global épuisé par les tests | KeyedRateLimiter par IP, quota 30/min |
