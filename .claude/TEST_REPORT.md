@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-19 06:37 UTC**
+> Généré par `test-nook.yml` · **2026-03-19 09:21 UTC**
 
 ---
 
@@ -9,14 +9,14 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 64 |
+| **Tests passés** | 66 |
 | **Tests échoués** | 2 |
-| **Tests ignorés** | 49 |
+| **Tests ignorés** | 47 |
 | **Total** | 115 |
-| **Durée** | 18.0s |
+| **Durée** | 20.0s |
 | **Branche** | `develop` |
-| **Commit** | [`5008de0`](https://github.com/MX10-AC2N/Nook/commit/5008de02efd83748fe95e3b564190c06f3a4296f) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23282899844) |
+| **Commit** | [`4388c43`](https://github.com/MX10-AC2N/Nook/commit/4388c438a2ed9145c2c2dda5c9fb036c558a01ef) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23287916287) |
 
 ---
 
@@ -96,7 +96,7 @@
 | ✅ | GET /users/pending → 200 | 0s |
 | ✅ | Onglet "Membres" → users visibles dans UI | 0s |
 | ✅ | Flux inscription : register → pending → approve → connecté | 0s |
-| ❌ | POST /invites → génère un token valide | 0s |
+| ❌ | POST /invites → génère un invite_link valide | 0s |
 | ⏭️ | GET /invites → liste non vide | N/A |
 | ⏭️ | POST /invites/delete → supprime une invitation | N/A |
 | ⏭️ | GET /invite/validate?token=xxx → valide le token | N/A |
@@ -108,7 +108,7 @@
 | ⏭️ | GET /users/pending avec user normal → 403 | N/A |
 | ⏭️ | Page /admin → non accessible pour user normal | N/A |
 
-### ❌ user.spec.ts — 9/49 passés
+### ❌ user.spec.ts — 11/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -120,9 +120,9 @@
 | ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
 | ✅ | Chat UI — sidebar et envoi message | 0s |
 | ✅ | GET /conversations/default_global/messages → messages récupérés | 0s |
-| ❌ | POST /conversations → créer un groupe de test | 0s |
-| ⏭️ | GET /users/available → liste des membres disponibles | N/A |
-| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A |
+| ✅ | POST /conversations → créer un groupe de test | 0s |
+| ✅ | GET /users/available → liste des membres disponibles | 0s |
+| ❌ | Réactions — POST emoji valide 👍 → counts mis à jour | 0s |
 | ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A |
 | ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A |
 | ⏭️ | Réactions — DELETE → my_emoji null | N/A |
@@ -168,78 +168,80 @@
 
 > 2 test(s) en échec
 
-### Échec 1 — `POST /invites → génère un token valide`
+### Échec 1 — `POST /invites → génère un invite_link valide`
 
 **Suite :** `admin.spec.ts > Admin — Flux complet`
 
 **Message :**
 ```
-Error: expect(received).toBeTruthy()
+Error: expect(received).toBe(expected) // Object.is equality
 
-Received: undefined
+Expected: 200
+Received: 403
 
-  160 |     expect(res.status()).toBe(200);
-  161 |     const body = await res.json();
-> 162 |     expect(body.token).toBeTruthy();
-      |                        ^
-  163 |     expect(body.expires_at).toBeTruthy();
-  164 |     console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
-  165 |   });
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:162:24
+  150 |   test('POST /invites → génère un invite_link valide', async () => {
+  151 |     const res = await adminPage.request.post(`${BASE}/invites`);
+> 152 |     expect(res.status()).toBe(200);
+      |                          ^
+  153 |     const body = await res.json();
+  154 |     // Le backend retourne { success, message, invite_link: '/invite?token=...' }
+  155 |     expect(body.success).toBe(true);
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:152:26
 ```
 
 **Message :**
 ```
-Error: expect(received).toBeTruthy()
+Error: expect(received).toBe(expected) // Object.is equality
 
-Received: undefined
+Expected: 200
+Received: 403
 
-  160 |     expect(res.status()).toBe(200);
-  161 |     const body = await res.json();
-> 162 |     expect(body.token).toBeTruthy();
-      |                        ^
-  163 |     expect(body.expires_at).toBeTruthy();
-  164 |     console.log(`✅ Invitation générée → token=${body.token?.substring(0, 8)}...`);
-  165 |   });
-    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:162:24
+  150 |   test('POST /invites → génère un invite_link valide', async () => {
+  151 |     const res = await adminPage.request.post(`${BASE}/invites`);
+> 152 |     expect(res.status()).toBe(200);
+      |                          ^
+  153 |     const body = await res.json();
+  154 |     // Le backend retourne { success, message, invite_link: '/invite?token=...' }
+  155 |     expect(body.success).toBe(true);
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:152:26
 ```
 
-### Échec 2 — `POST /conversations → créer un groupe de test`
+### Échec 2 — `Réactions — POST emoji valide 👍 → counts mis à jour`
 
 **Suite :** `user.spec.ts > User — Flux complet`
 
 **Message :**
 ```
-Error: expect(received).toContain(expected) // indexOf
+Error: expect(received).toBeTruthy()
 
-Expected value: 422
-Received array: [200, 201]
+Received: false
 
-  130 |       data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
-  131 |     });
-> 132 |     expect([200, 201]).toContain(res.status());
-      |                        ^
-  133 |     const body = await res.json();
-  134 |     expect(body.id).toBeTruthy();
-  135 |     console.log(`✅ Groupe créé → id=${body.id}`);
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:132:24
+  160 |       data: { content: `reaction-${Date.now()}`, message_type: 'text' },
+  161 |     });
+> 162 |     expect(res.ok()).toBeTruthy();
+      |                      ^
+  163 |     return (await res.json()).id as string;
+  164 |   }
+  165 |
+    at createMsg (/home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:162:22)
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:167:19
 ```
 
 **Message :**
 ```
-Error: expect(received).toContain(expected) // indexOf
+Error: expect(received).toBeTruthy()
 
-Expected value: 422
-Received array: [200, 201]
+Received: false
 
-  130 |       data: { name: `Groupe E2E ${Date.now()}`, participant_ids: [] },
-  131 |     });
-> 132 |     expect([200, 201]).toContain(res.status());
-      |                        ^
-  133 |     const body = await res.json();
-  134 |     expect(body.id).toBeTruthy();
-  135 |     console.log(`✅ Groupe créé → id=${body.id}`);
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:132:24
+  160 |       data: { content: `reaction-${Date.now()}`, message_type: 'text' },
+  161 |     });
+> 162 |     expect(res.ok()).toBeTruthy();
+      |                      ^
+  163 |     return (await res.json()).id as string;
+  164 |   }
+  165 |
+    at createMsg (/home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:162:22)
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:167:19
 ```
 
 ---
@@ -248,6 +250,8 @@ Received array: [200, 201]
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=a08f05d3-58f1-4311-b0e3-9ead4dd72099 username=testuser_1773912069988
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=3014e46a-ccc6-45d9-9561-c6df32894940 username=testuser_1773912072150
 ```
 
 ---
@@ -272,4 +276,4 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 06:37 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 09:21 UTC*
