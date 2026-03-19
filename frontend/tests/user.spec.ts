@@ -157,7 +157,8 @@ test.describe.serial('User — Flux complet', () => {
   // Helper local : créer un message frais
   async function createMsg() {
     const res = await page.request.post(`${BASE}/conversations/default_global/messages`, {
-      data: { content: `reaction-${Date.now()}`, message_type: 'text' },
+      // encrypted requis par SendMessageRequest (bool) — false = message en clair
+      data: { content: `reaction-${Date.now()}`, message_type: 'text', encrypted: false },
     });
     expect(res.ok()).toBeTruthy();
     return (await res.json()).id as string;
