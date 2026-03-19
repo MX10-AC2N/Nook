@@ -15,6 +15,8 @@ use crate::auth::CurrentUser;
 // === STRUCTURES DE DONNÉES ===
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+fn default_true() -> bool { true }
+
 pub struct User {
     pub id: String,
     pub username: String,
@@ -94,6 +96,7 @@ pub struct Upload {
 #[derive(Debug, Deserialize)]
 pub struct CreateConversationRequest {
     pub name: Option<String>,
+    #[serde(default = "default_true")] // true si absent (groupe par défaut)
     pub is_group: bool,
     #[serde(default)]
     pub participant_ids: Vec<String>, // membres ajoutés à la création
@@ -102,6 +105,7 @@ pub struct CreateConversationRequest {
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
     pub content: String,
+    #[serde(default)] // false si absent (message non chiffré)
     pub encrypted: bool,
     /// Nonce XSalsa20 en base64 (24 bytes) — présent si encrypted=true
     #[serde(default)]
