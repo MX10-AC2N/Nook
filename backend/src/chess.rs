@@ -595,8 +595,10 @@ pub async fn ai_move(
     AxumState(state): AxumState<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
-    Json(req): Json<AiMoveRequest>,
+    body: Option<axum::extract::Json<AiMoveRequest>>,
 ) -> impl IntoResponse {
+    // Extraire la difficulté du body optionnel (le body peut être absent)
+    let req = body.map(|b| b.0).unwrap_or(AiMoveRequest { difficulty: None });
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
         .bind(&game_id)
         .fetch_optional(&state.db)
