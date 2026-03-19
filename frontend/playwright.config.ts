@@ -9,6 +9,8 @@
 // fullyParallel:false + workers:1 en CI :
 //   Les 3 projets s'exécutent en séquence pour partager la même DB Docker.
 //   Pas de race condition, pas de pollution entre suites.
+//   user-flow dépend de api-sanity (serveur up) mais PAS de admin-flow :
+//   une erreur admin ne doit pas skippper tous les tests user.
 
 import { defineConfig, devices } from '@playwright/test';
 
@@ -44,7 +46,7 @@ export default defineConfig({
       name: 'user-flow',
       testMatch: '**/user.spec.ts',
       use: { ...devices['Desktop Chrome'] },
-      dependencies: ['admin-flow'],
+      dependencies: ['api-sanity'],
     },
   ],
   webServer: {
