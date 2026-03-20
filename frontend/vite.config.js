@@ -39,10 +39,9 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: [
-      'libsodium-wrappers',
-      'libsodium-wrappers/dist/modules/libsodium-wrappers.js',
-    ],
+    // libsodium retiré de include — le dynamic import gère sa propre résolution.
+    // L'inclure ici forçait un pré-bundle statique incompatible avec import().
+    exclude: ['libsodium-wrappers'],
   },
 
   server: {
@@ -66,9 +65,6 @@ export default defineConfig({
   },
 
   resolve: {
-    alias: {
-      'libsodium-wrappers': 'libsodium-wrappers',
-    },
     extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.svelte'],
   },
 

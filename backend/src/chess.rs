@@ -595,8 +595,10 @@ pub async fn ai_move(
     AxumState(state): AxumState<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
-    Json(req): Json<AiMoveRequest>,
+    body: Option<axum::extract::Json<AiMoveRequest>>,
 ) -> impl IntoResponse {
+    // Extraire la difficulté du body optionnel (le body peut être absent)
+    let req = body.map(|b| b.0).unwrap_or(AiMoveRequest { difficulty: None });
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
         .bind(&game_id)
         .fetch_optional(&state.db)
@@ -760,11 +762,13 @@ pub async fn resign_game(
     let p2_id: Option<String> = row.get("player2_id");
     let ai_diff: Option<String> = row.get("ai_difficulty");
 
+    // winner_id = adversaire humain ou NULL pour les parties vs IA
+    // On n'utilise jamais "ai" (chaîne) : ce n'est pas un user_id valide en DB
     let winner_id: Option<String> = if p1_id.as_deref() == Some(&user.id) {
-        p2_id
-            .clone()
-            .or_else(|| ai_diff.as_ref().map(|_| "ai".to_string()))
+        // Le joueur 1 abandonne → le joueur 2 gagne (None si IA)
+        if ai_diff.is_some() { None } else { p2_id.clone() }
     } else if p2_id.as_deref() == Some(&user.id) {
+        // Le joueur 2 abandonne → le joueur 1 gagne
         p1_id.clone()
     } else {
         return (
@@ -775,7 +779,7 @@ pub async fn resign_game(
     };
 
     let now = Utc::now().timestamp();
-    sqlx::query(
+    if let Err(e) = sqlx::query(
         "UPDATE chess_games SET status = 'finished', winner_id = ?, updated_at = ? WHERE id = ?",
     )
     .bind(&winner_id)
@@ -783,7 +787,14 @@ pub async fn resign_game(
     .bind(&game_id)
     .execute(&state.db)
     .await
-    .ok();
+    {
+        tracing::error!(error = %e, game_id = %game_id, "Erreur UPDATE resign");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "success": false, "message": "Erreur serveur" })),
+        )
+            .into_response();
+    }
 
     tracing::info!(game_id = %game_id, user_id = %user.id, "Abandon");
     Json(json!({ "success": true, "status": "finished", "winner_id": winner_id })).into_response()
@@ -856,7 +867,7 @@ pub async fn legal_moves(
         })
         .collect();
 
-    Json(json!({ "success": true, "moves": moves_json })).into_response()
+    Json(moves_json).into_response()
 }
 
 // ════════════════════════════════════════════════════════════════

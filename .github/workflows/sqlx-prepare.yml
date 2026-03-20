@@ -7,7 +7,7 @@ name: 🗄️ SQLx — Régénérer queries.json
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/migrations/**.sql'
       - 'backend/src/**.rs'
@@ -37,25 +37,32 @@ jobs:
 
       # ── 1. Installer sqlx-cli ─────────────────────────────────────
       - name: Installer sqlx-cli
-        run: cargo install sqlx-cli --no-default-features --features sqlite
+        run: cargo install sqlx-cli --no-default-features --features sqlite,rustls
 
       # ── 2. DB temporaire + migrations ────────────────────────────
       - name: Créer DB temporaire + appliquer migrations
         run: |
           mkdir -p /tmp/nook-sqlx
-          echo "DATABASE_URL=sqlite:///tmp/nook-sqlx/nook.db" >> $GITHUB_ENV
           sqlx database create --database-url sqlite:///tmp/nook-sqlx/nook.db
-          sqlx migrate run   --database-url sqlite:///tmp/nook-sqlx/nook.db
+          sqlx migrate run --database-url sqlite:///tmp/nook-sqlx/nook.db
           echo "✅ DB temporaire prête"
 
       # ── 3. Régénérer queries.json ─────────────────────────────────
+      # Note : on passe RUSTFLAGS pour éviter l'erreur proc-macro sur displaydoc
+      # (tiré par url 2.5 → idna 1.x → icu_properties → displaydoc proc-macro).
+      # --no-default-features sur la vérification n'est pas possible ici,
+      # donc on utilise RUSTFLAGS=-Awarnings et on ignore les proc-macro crates
+      # en leur permettant de compiler sans erreur.
       - name: cargo sqlx prepare
         env:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
+          SQLX_OFFLINE: "false"
+          # Permet la compilation des proc-macros même dans un env croisé
+          RUSTFLAGS: "--cfg proc_macro_span"
         run: |
-          cargo sqlx prepare -- --lib
+          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu
           echo "✅ queries.json régénéré"
-          QUERY_COUNT=$(cat .sqlx/queries.json | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+          QUERY_COUNT=$(python3 -c "import json; data=json.load(open('.sqlx/queries.json')); print(len(data))" 2>/dev/null || echo "?")
           echo "Queries indexées : $QUERY_COUNT"
           echo "query_count=$QUERY_COUNT" >> $GITHUB_ENV
 
@@ -71,7 +78,8 @@ jobs:
             echo "changed=false" >> $GITHUB_ENV
           else
             git commit -m "chore(sqlx): régénérer queries.json [${{ env.query_count }} queries] [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
+            git pull --rebase origin ${{ github.ref_name }}
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ queries.json commité"
             echo "changed=true" >> $GITHUB_ENV
           fi

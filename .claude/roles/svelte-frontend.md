@@ -2,6 +2,32 @@
 
 > Spécialiste SvelteKit 5 Runes + TypeScript strict pour le frontend Nook.
 > Activer ce rôle pour : composants, stores, routes, UX, responsive, crypto frontend.
+> **Depuis S38 : utiliser le MCP Svelte (mcp.svelte.dev) avant toute intervention.**
+
+---
+
+## 🔌 MCP Svelte — Protocole obligatoire depuis S38
+
+```
+Avant chaque intervention sur du code Svelte :
+
+1. svelte:list-sections
+   → Identifier les sections de doc pertinentes pour la tâche
+
+2. svelte:get-documentation(sections[])
+   → Charger la doc Svelte 5 / SvelteKit exacte (accepte plusieurs sections en une fois)
+
+3. [Écrire le code en s'appuyant sur la doc fraîche]
+
+4. svelte:svelte-autofixer(code)
+   → Analyser le code produit — relancer jusqu'à "no issues"
+   → OBLIGATOIRE avant toute livraison
+
+5. Livrer en .txt avec chemin exact en tête de fichier
+```
+
+> Pourquoi ? La doc Svelte 5 Runes évolue fréquemment (runes, kit, API $state, $derived...).
+> Le MCP garantit que le code s'appuie sur la version actuelle, pas sur la mémoire du modèle.
 
 ---
 
@@ -91,7 +117,6 @@ myStore.activeId = null;
 
 ```typescript
 // ❌ INTERDIT dans .svelte.ts (module context)
-// Les runes réactives ne fonctionnent pas en dehors d'un composant
 export const isLoggedIn = $derived(authStore.user !== null);
 $effect(() => { fetchData(); });
 
@@ -101,10 +126,6 @@ export function isLoggedIn(): boolean {
 }
 
 // ✅ $derived et $effect → uniquement dans les composants .svelte
-// <script>
-//   const isLoggedIn = $derived(authStore.user !== null);
-//   $effect(() => { if (isLoggedIn) fetchData(); });
-// </script>
 ```
 
 ### Règle #4 — Jamais Svelte 4 stores
@@ -125,14 +146,6 @@ export function increment() { countStore.value++; }
 <!-- ⚠️ Vigilance absolue sur le copier-coller de Claude.ai -->
 <!-- Les ${expr} peuvent être corrompus ($ mangé, backtick transformé) -->
 <!-- Toujours vérifier manuellement après copier-coller -->
-
-<!-- ❌ Corruption fréquente -->
-<div class="msg-{message.type}">  <!-- OK, pas de template literal -->
-
-<!-- ✅ Pour les vraies interpolations JS -->
-<script>
-  const url = `${BASE_URL}/api/messages`;  // vérifier que les backticks sont présents
-</script>
 ```
 
 ---
@@ -153,7 +166,6 @@ function createInitialState(): MonState {
 
 export const monStore = $state<MonState>(createInitialState());
 
-// Actions (fonctions pures, pas de $effect)
 export async function loadItems(): Promise<void> {
   monStore.loading = true;
   monStore.error = null;
@@ -172,7 +184,6 @@ export function resetStore(): void {
   Object.assign(monStore, createInitialState());
 }
 
-// Getters (pour éviter $derived en dehors des composants)
 export function getActiveItem(): Item | undefined {
   return monStore.items.find(i => i.active);
 }
@@ -187,17 +198,19 @@ export function getActiveItem(): Item | undefined {
     │
     ├─ loading = true
     │
-    ├─ waitForSodium()          → libsodium WASM chargé (~500ms)
+    ├─ waitForSodium().then(...)   → fire-and-forget (PAS de await !)
+    │   └─ libsodium WASM ~500ms en arrière-plan
     │
-    ├─ initCryptoSystem()       → clés dérivées depuis sodium
-    │
-    ├─ authStore.init()         → fetch('/api/auth/me')
+    ├─ await authStore.init()      → fetch('/api/auth/me') — SEULE chose bloquante
     │   ├─ 200 → isAuthenticated = true, user = data
     │   └─ 401 → authStore.logout() → localStorage.removeItem(...)
     │
-    └─ loading = false          → {#if !loading} → {@render children()} visible
-                                   ← #username accessible ICI seulement (Playwright !)
+    └─ loading = false             → {#if !loading} → {@render children()} visible
+                                     ← #username accessible ICI seulement (Playwright !)
 ```
+
+**⚠️ Règle R37** : Ne JAMAIS `await waitForSodium()` dans onMount du layout principal.
+Sodium en fire-and-forget sinon CI headless → loading bloqué → #username jamais visible.
 
 **Conséquence Playwright** : `page.goto('/login')` se resolve AVANT `loading=false`.
 → `#username` absent du DOM jusqu'à la fin du `onMount`.
@@ -267,7 +280,7 @@ export async function apiFetch<T>(
 
 | Problème | Impact | Fix |
 |----------|--------|-----|
-| libsodium chunk 938 kB | LCP dégradé sur mobile | `import()` dynamique avec loading screen |
+| libsodium chunk 938 kB | LCP dégradé sur mobile | fire-and-forget dans onMount (pas await) |
 | `{#each messages}` sans key | Re-render complet | `{#each messages as msg (msg.id)}` |
 | fetch sans debounce sur input | N requêtes | `setTimeout` 300ms ou `$derived` |
 | Images non lazy | Scroll lent | `loading="lazy"` sur `<img>` |
@@ -276,6 +289,7 @@ export async function apiFetch<T>(
 
 ## 🐛 Checklist avant livraison d'un composant
 
+- [ ] MCP `svelte:svelte-autofixer` passé — 0 issues
 - [ ] Pas de `writable()` / `readable()` Svelte 4
 - [ ] `$state` exporté → mutations via propriété (pas réassignation)
 - [ ] `$derived` / `$effect` uniquement dans fichier `.svelte` (pas `.svelte.ts`)
@@ -310,8 +324,6 @@ export async function apiFetch<T>(
 
 ## 📚 Apprentissages
 
-> *Section mise à jour à chaque session.*
-
 ### [APP-SVELTE-01] state_invalid_export — Session 1
 → **Promu** dans "Règles Svelte 5 Runes — ABSOLUES".
 
@@ -319,20 +331,34 @@ export async function apiFetch<T>(
 → **Promu** dans "Layout — Séquence de démarrage critique".
 
 ### [APP-SVELTE-03] authStore.logout() appelé automatiquement sur 401
-
 Quand `/api/auth/me` retourne 401, `authStore.logout()` vide automatiquement
-le localStorage (`nook_user`, `nook_session_id`). Pas besoin de le faire manuellement.
-Status : Documenté dans patterns validés.
+le localStorage. Pas besoin de le faire manuellement.
 
 ### [APP-SVELTE-04] crypto.randomUUID en HTTP LAN — Session 11
-
-`crypto.randomUUID()` requiert un contexte sécurisé (HTTPS ou localhost).
-En HTTP LAN (192.168.x.x), la fonction n'existe pas → `is not a function`.
+`crypto.randomUUID()` requiert HTTPS ou localhost. En HTTP LAN → `is not a function`.
 Fix : fallback `Math.random()` hex ou polyfill UUID v4 manuel.
-Status : Résolu. À surveiller si de nouveaux appels UUID côté frontend.
 
 ### [APP-SVELTE-05] Thèmes — 3 thèmes disponibles
-
 `ThemeStore.svelte.ts` gère : `jardin-secret`, `space-hub`, `maison-chaleureuse`.
 Persisté en localStorage. Appliqué via variables CSS sur `:root`.
-Ne jamais hardcoder de couleurs dans les composants — utiliser les variables du thème.
+
+### [APP-SVELTE-R37] waitForSodium() dans onMount bloque loading=false — CI headless
+```
+Symptôme : waitFor('#username', 20_000) timeout sur 75/75 tests E2E
+Cause    : onMount faisait await waitForSodium() (938kB WASM) AVANT authStore.init()
+           En CI Chromium headless, le chargement WASM prend >20s
+           → loading reste true → {#if loading} masque le contenu → #username absent du DOM
+
+Fix      : Sodium en fire-and-forget, authStore.init() en priorité
+           waitForSodium().then(() => initCryptoSystem()).then(...).catch(...)  // PAS de await
+           await authStore.init()   // seule chose qui détermine l'affichage
+           loading = false          // dès que la session est vérifiée (~100ms)
+
+Règle    : Ne JAMAIS await waitForSodium() dans onMount du layout principal
+```
+
+### [APP-SVELTE-MCP-01] Intégration MCP Svelte — Session 38
+MCP officiel Svelte disponible sur `https://mcp.svelte.dev/mcp`.
+Outils : `list-sections`, `get-documentation`, `svelte-autofixer`, `playground-link`.
+`svelte-autofixer` est **obligatoire** avant toute livraison de code Svelte.
+Le MCP garantit l'alignement avec la doc Svelte 5 / SvelteKit courante.

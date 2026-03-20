@@ -1,49 +1,130 @@
-<script>
+<script lang="ts">
   import { onMount } from 'svelte';
-  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
+  import { goto } from '$app/navigation';
+  import { authStore } from '$lib/authStore.svelte.js';
   import Chart from 'chart.js/auto';
 
-  let analytics = $state({ user_count: 0, message_count: 0, active_sessions: 0 });
-  let error = $state(null);
-  let chart;
+  // ─── Types ────────────────────────────────────────────────────
+  interface DayCount { day: string; count: number; }
+  interface Analytics {
+    user_count:        number;
+    message_count:     number;
+    conversation_count: number;
+    poll_count:        number;
+    upload_count:      number;
+    active_users_7d:   number;
+    messages_7d:       number;
+    messages_per_day:  DayCount[];
+  }
 
-  const loadAnalytics = async () => {
+  // ─── État ─────────────────────────────────────────────────────
+  let analytics = $state<Analytics | null>(null);
+  let loading    = $state(true);
+  let error      = $state<string | null>(null);
+
+  let doughnutCanvas = $state<HTMLCanvasElement | undefined>(undefined);
+  let barCanvas      = $state<HTMLCanvasElement | undefined>(undefined);
+  let doughnutChart: Chart | undefined;
+  let barChart: Chart | undefined;
+
+  // ─── Chargement ───────────────────────────────────────────────
+  async function loadAnalytics() {
+    loading = true;
+    error   = null;
     try {
-      error = null;
-      const res = await fetch('/api/analytics');
-      
-      if (!res.ok) throw new Error(`Erreur HTTP: ${res.status}`);
-      
+      const res = await fetch('/api/analytics', { credentials: 'include' });
+      if (res.status === 401) { goto('/login'); return; }
+      if (res.status === 403) { goto('/chat');  return; }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       analytics = await res.json();
-      renderChart();
-    } catch (err) {
-      error = `Erreur chargement analytics : ${err.message}`;
+      // Charts rendus au prochain tick (après mise à jour DOM)
+      setTimeout(renderCharts, 0);
+    } catch (e: any) {
+      error = `Impossible de charger les statistiques : ${e.message}`;
+    } finally {
+      loading = false;
     }
-  };
+  }
 
-  const renderChart = () => {
-    const ctx = document.getElementById('analyticsChart');
-    if (chart) chart.destroy();
+  // ─── Charts ───────────────────────────────────────────────────
+  function renderCharts() {
+    if (!analytics) return;
+    renderDoughnut();
+    renderBar();
+  }
 
-    chart = new Chart(ctx, {
+  function renderDoughnut() {
+    if (!doughnutCanvas || !analytics) return;
+    doughnutChart?.destroy();
+    doughnutChart = new Chart(doughnutCanvas, {
       type: 'doughnut',
       data: {
-        labels: ['Utilisateurs', 'Messages', 'Sessions actives'],
+        labels: ['Utilisateurs', 'Messages', 'Conversations', 'Sondages', 'Fichiers'],
         datasets: [{
-          data: [analytics.user_count, analytics.message_count, analytics.active_sessions],
-          backgroundColor: ['#4a90e2', '#ff6b35', '#a8e6cf'],
-          borderWidth: 0
-        }]
+          data: [
+            analytics.user_count,
+            analytics.message_count,
+            analytics.conversation_count,
+            analytics.poll_count,
+            analytics.upload_count,
+          ],
+          backgroundColor: ['#4ade80', '#60a5fa', '#f59e0b', '#a78bfa', '#fb7185'],
+          borderWidth: 2,
+          borderColor: '#ffffff22',
+        }],
       },
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom' },
-          tooltip: { enabled: true }
-        }
-      }
+          legend: { position: 'bottom', labels: { color: '#64748b', padding: 16 } },
+          tooltip: { enabled: true },
+        },
+        cutout: '60%',
+      },
     });
-  };
+  }
+
+  function renderBar() {
+    if (!barCanvas || !analytics) return;
+    barChart?.destroy();
+
+    // Remplir les jours manquants avec 0 pour un affichage continu
+    const last7: DayCount[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const found = analytics.messages_per_day.find(r => r.day === key);
+      last7.push({ day: key.slice(5), count: found?.count ?? 0 }); // MM-DD
+    }
+
+    barChart = new Chart(barCanvas, {
+      type: 'bar',
+      data: {
+        labels: last7.map(r => r.day),
+        datasets: [{
+          label: 'Messages',
+          data: last7.map(r => r.count),
+          backgroundColor: '#60a5fa99',
+          borderColor: '#60a5fa',
+          borderWidth: 1,
+          borderRadius: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#64748b', stepSize: 1 },
+            grid: { color: '#e2e8f033' },
+          },
+          x: { ticks: { color: '#64748b' }, grid: { display: false } },
+        },
+        plugins: { legend: { display: false } },
+      },
+    });
+  }
 
   onMount(loadAnalytics);
 </script>
@@ -52,52 +133,194 @@
   <title>Analytics Admin — Nook</title>
 </svelte:head>
 
-<div class="min-h-screen flex items-center justify-center p-6 relative">
-  <div class="max-w-lg w-full backdrop-blur-2xl bg-white/20 dark:bg-black/20 border border-white/30 dark:border-white/20 rounded-3xl shadow-2xl p-10 text-center transition-all duration-1000 animate-fade-in">
-    
-    <div class="text-7xl mb-6 animate-bounce-slow">
-      {#if getCurrentTheme === 'space-hub'}
-        📊
-      {:else}
-        📈
-      {/if}
-    </div>
+<div class="analytics-page">
+  <h1>📊 Analytics</h1>
+  <p class="subtitle">Tableau de bord — {new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' })}</p>
 
-    <h1 class="text-5xl font-extrabold mb-3 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-dark, var(--accent))] bg-clip-text text-transparent">
-      Analytics Admin
-    </h1>
-    
-    <p class="text-lg text-[var(--text-secondary)] mb-10">Statistiques de votre espace familial</p>
+  {#if loading}
+    <div class="loading">Chargement des statistiques…</div>
 
-    {#if error}
-      <div class="mb-6 p-4 bg-red-500/20 text-red-600 dark:text-red-400 rounded-2xl border border-red-500/30">
-        {error}
+  {:else if error}
+    <div class="error-box">{error}</div>
+
+  {:else if analytics}
+    <!-- Compteurs globaux -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-icon">👥</span>
+        <span class="stat-value">{analytics.user_count}</span>
+        <span class="stat-label">Utilisateurs</span>
       </div>
-    {/if}
+      <div class="stat-card">
+        <span class="stat-icon">💬</span>
+        <span class="stat-value">{analytics.message_count}</span>
+        <span class="stat-label">Messages</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🗂️</span>
+        <span class="stat-value">{analytics.conversation_count}</span>
+        <span class="stat-label">Conversations</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">📊</span>
+        <span class="stat-value">{analytics.poll_count}</span>
+        <span class="stat-label">Sondages</span>
+      </div>
+      <div class="stat-card highlight">
+        <span class="stat-icon">🟢</span>
+        <span class="stat-value">{analytics.active_users_7d}</span>
+        <span class="stat-label">Actifs (7j)</span>
+      </div>
+      <div class="stat-card highlight">
+        <span class="stat-icon">📨</span>
+        <span class="stat-value">{analytics.messages_7d}</span>
+        <span class="stat-label">Messages (7j)</span>
+      </div>
+    </section>
 
-    <canvas id="analyticsChart" class="w-full h-64"></canvas>
+    <!-- Charts -->
+    <section class="charts-grid">
+      <div class="chart-card">
+        <h2>Répartition globale</h2>
+        <canvas bind:this={doughnutCanvas}></canvas>
+      </div>
+      <div class="chart-card">
+        <h2>Messages — 7 derniers jours</h2>
+        <canvas bind:this={barCanvas}></canvas>
+      </div>
+    </section>
 
-    <div class="mt-8 text-left">
-      <p class="mb-2">Utilisateurs : {analytics.user_count}</p>
-      <p class="mb-2">Messages : {analytics.message_count}</p>
-      <p>Sessions actives : {analytics.active_sessions}</p>
+    <div class="refresh-row">
+      <button onclick={loadAnalytics} class="refresh-btn">🔄 Actualiser</button>
     </div>
-
-  </div>
+  {/if}
 </div>
 
 <style>
-  @keyframes bounce-slow {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
+  .analytics-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1.5rem;
   }
-  .animate-bounce-slow { animation: bounce-slow 4s infinite ease-in-out; }
 
-  /* Responsive optimisations */
-  @media (max-width: 767px) {
-    h1 { font-size: 3rem; }
-    p { font-size: 1rem; }
-    .p-10 { padding: 1.5rem; }
-    .h-64 { height: 12rem; } /* Chart plus petit sur mobile */
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 0.25rem 0;
+    color: #1e293b;
+  }
+
+  .subtitle {
+    color: #64748b;
+    margin: 0 0 2rem 0;
+    font-size: 0.9rem;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 3rem;
+    color: #64748b;
+  }
+
+  .error-box {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  /* Grille de compteurs */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.15s;
+  }
+
+  .stat-card:hover { transform: translateY(-2px); }
+
+  .stat-card.highlight {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    border-color: #bbf7d0;
+  }
+
+  .stat-icon { font-size: 1.5rem; }
+
+  .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: #1e293b;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    text-align: center;
+  }
+
+  /* Grille de charts */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .chart-card {
+    background: white;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border: 1px solid #e2e8f0;
+  }
+
+  .chart-card h2 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #475569;
+    margin: 0 0 1rem 0;
+  }
+
+  .refresh-row {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .refresh-btn {
+    padding: 0.6rem 1.25rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    color: #475569;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .refresh-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+
+  @media (max-width: 640px) {
+    .charts-grid { grid-template-columns: 1fr; }
+    .stats-grid  { grid-template-columns: repeat(3, 1fr); }
+    .stat-value  { font-size: 1.5rem; }
   }
 </style>

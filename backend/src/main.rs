@@ -1,28 +1,37 @@
 // main.rs – Axum 0.8 + rand 0.9 compatible
 // CORS dynamique : origines lues depuis .env (ALLOWED_ORIGINS + PUBLIC_SITE_URL)
 // Cookie adaptatif : SameSite=None;Secure (HTTPS/WAN) ou SameSite=Lax (HTTP/LAN)
-// Session 15 — FIX: insérer admin + e2e_ci comme conversation_participants de default_global
+// Session 36 — SEC-02: rate limiter keyed par IP (KeyedRateLimiter)
+// Session 38 — SEC-02: quota configurable via RATE_LIMIT_PER_MIN (défaut 60)
+//            — Suppression base_inject_middleware (inutile avec SvelteKit adapter-static)
 
 use axum::{
-    body::{to_bytes, Body},
+    body::Body,
+    extract::ConnectInfo,
     http::{
-        header::{CONTENT_LENGTH, CONTENT_TYPE},
-        HeaderMap, HeaderValue, Request,
+        header::CONTENT_TYPE,
+        Request,
     },
     middleware::{self, Next},
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     routing::{delete, get, post},
     Router,
 };
-use bytes::Bytes;
-use chrono::Utc;
+use governor::{
+    clock::DefaultClock,
+    middleware::NoOpMiddleware,
+    state::keyed::DefaultKeyedStateStore,
+    Quota, RateLimiter,
+};
+use std::num::NonZeroU32;
 use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
-use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
+use chrono::Utc;
 
 mod admin;
 mod auth;
@@ -30,103 +39,106 @@ mod chess;
 mod chess_engine;
 mod config;
 mod db;
+mod e2ee;
 mod invites;
 mod polls;
+mod reactions;
+mod push;
 mod prune;
 mod upload;
 mod webrtc;
+
+// ─── Proxy GIF (Tenor v2) — évite CORS + clé demo ───────────────────────────
+async fn gif_search_proxy(
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> impl IntoResponse {
+    let query = params.get("q").cloned().unwrap_or_default();
+    let limit  = params.get("limit").and_then(|l| l.parse::<u32>().ok()).unwrap_or(12).min(24);
+
+    if query.trim().is_empty() {
+        return axum::Json(serde_json::json!({ "results": [] })).into_response();
+    }
+
+    let api_key = std::env::var("TENOR_API_KEY")
+        .unwrap_or_else(|_| "AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCDs".to_string());
+
+    let url = format!(
+        "https://tenor.googleapis.com/v2/search?q={}&key={}&client_key=nook&limit={}&media_filter=tinygif,gif",
+        urlencoding::encode(&query),
+        api_key,
+        limit
+    );
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build();
+
+    let client = match client {
+        Ok(c) => c,
+        Err(_) => return axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    match client.get(&url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<serde_json::Value>().await {
+                Ok(data) => {
+                    let results: Vec<serde_json::Value> = data["results"]
+                        .as_array()
+                        .cloned()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .filter_map(|r| {
+                            let preview = r["media_formats"]["tinygif"]["url"]
+                                .as_str()
+                                .or_else(|| r["media_formats"]["gif"]["url"].as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let full = r["media_formats"]["gif"]["url"]
+                                .as_str()
+                                .or_else(|| r["media_formats"]["tinygif"]["url"].as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            if preview.is_empty() { return None; }
+                            Some(serde_json::json!({
+                                "id":         r["id"].as_str().unwrap_or(""),
+                                "title":      r["title"].as_str().unwrap_or("GIF"),
+                                "previewUrl": preview,
+                                "fullUrl":    full,
+                            }))
+                        })
+                        .collect();
+                    axum::Json(serde_json::json!({ "results": results })).into_response()
+                }
+                Err(_) => axum::http::StatusCode::BAD_GATEWAY.into_response(),
+            }
+        }
+        Ok(resp) => {
+            tracing::warn!(status = %resp.status(), "Tenor API erreur");
+            axum::http::StatusCode::BAD_GATEWAY.into_response()
+        }
+        Err(e) => {
+            tracing::error!(err = %e, "Tenor API inaccessible");
+            axum::http::StatusCode::BAD_GATEWAY.into_response()
+        }
+    }
+}
 
 use crate::config::Config;
 use crate::prune::prune_old_data;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// SharedState
+// SEC-02 : Rate limiter KEYED par IP (30 req / 60s par adresse)
+// Remplace le NotKeyed global qui causait des faux-positifs en CI
+// et ne protégeait pas correctement contre le brute-force par IP unique.
 // ---------------------------------------------------------------------
+type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
+
 #[derive(Clone)]
 pub struct SharedState {
     pub db: SqlitePool,
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
-}
-
-// ---------------------------------------------------------------------
-// Middleware base inject — injecte <base href> dynamiquement
-// Fonctionne aussi bien en LAN (http://192.168.x.x) qu'en WAN (https://...)
-// ---------------------------------------------------------------------
-async fn base_inject_middleware(
-    headers: HeaderMap,
-    req: Request<Body>,
-    next: Next,
-) -> Result<Response, axum::http::StatusCode> {
-    let start_time = std::time::Instant::now();
-
-    // Nginx Proxy Manager injecte X-Forwarded-Proto = "https"
-    let scheme = headers
-        .get("x-forwarded-proto")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("http");
-
-    let host_str = headers
-        .get("host")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("localhost:3000")
-        .to_string();
-
-    let base_url = format!("{}://{}/", scheme, host_str);
-    let replacement = format!("<base href=\"{}\" />", base_url);
-
-    tracing::debug!(
-        method = %req.method(),
-        uri = %req.uri(),
-        scheme = %scheme,
-        host = %host_str,
-        base_url = %base_url,
-        "→ Traitement de la requête HTTP"
-    );
-
-    let resp = next.run(req).await;
-    let elapsed = start_time.elapsed();
-
-    if let Some(ct) = resp.headers().get(CONTENT_TYPE) {
-        if ct.to_str().is_ok_and(|s| s.starts_with("text/html")) {
-            tracing::debug!(content_type = %ct.to_str().unwrap_or("unknown"), "Injection du base href dans le HTML");
-
-            let (parts, body) = resp.into_parts();
-            let bytes = to_bytes(body, 10_000_000).await.map_err(|e| {
-                tracing::error!(error = %e, "Erreur lors de la lecture du corps de la réponse");
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR
-            })?;
-            let mut body_str = String::from_utf8_lossy(&bytes).into_owned();
-            if body_str.contains("<base-placeholder/>") {
-                body_str = body_str.replace("<base-placeholder/>", &replacement);
-                tracing::debug!(base_href = %replacement, "Base href injecté avec succès");
-            } else {
-                tracing::trace!("Aucun placeholder <base-placeholder/> trouvé dans le HTML");
-            }
-            let body_bytes = Bytes::from(body_str);
-            let content_length = body_bytes.len();
-            let mut new_resp = Response::from_parts(parts, Body::from(body_bytes));
-            if let Ok(len) = HeaderValue::from_str(&content_length.to_string()) {
-                new_resp.headers_mut().insert(CONTENT_LENGTH, len);
-            }
-
-            tracing::debug!(
-                content_length = content_length,
-                elapsed_ms = elapsed.as_millis(),
-                "← Réponse HTML avec base href servie"
-            );
-
-            return Ok(new_resp.into_response());
-        }
-    }
-
-    tracing::trace!(
-        elapsed_ms = elapsed.as_millis(),
-        "← Réponse statique servie (non-HTML)"
-    );
-
-    Ok(resp)
 }
 
 // ---------------------------------------------------------------------
@@ -143,7 +155,6 @@ async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     let pool = SqlitePool::connect_with(opts).await?;
 
     tracing::info!("✓ Connexion SQLite établie avec succès");
-
     tracing::info!("Application des migrations de base de données...");
     migrate!("./migrations").run(&pool).await?;
     tracing::info!("✓ Migrations appliquées avec succès");
@@ -221,7 +232,6 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     // ============================================================
     // 👥 Inscrire TOUS les utilisateurs approuvés à default_global
     // (INSERT OR IGNORE → idempotent, safe à chaque redémarrage)
-    // Cause session 15 : e2e_ci n'était pas participant → GET /conversations retournait []
     // ============================================================
     let now = Utc::now().timestamp();
     sqlx::query(
@@ -258,7 +268,6 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .execute(pool)
             .await?;
 
-            // FIX session 15 : ajouter e2e_ci comme participant à default_global
             sqlx::query(
                 "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
                  VALUES ('default_global', ?, ?)",
@@ -271,12 +280,10 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             tracing::info!(
                 username = "e2e_ci",
                 email = "e2e@nook.local",
-                role = "user",
                 "✓ Utilisateur E2E créé et ajouté à default_global"
             );
             eprintln!("[E2E] Utilisateur e2e_ci créé et inscrit à default_global");
         } else {
-            // e2e_ci existe déjà — s'assurer qu'il est participant (re-run CI)
             let e2e_row: (String,) =
                 sqlx::query_as("SELECT id FROM users WHERE username = 'e2e_ci'")
                     .fetch_one(pool)
@@ -290,9 +297,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .bind(now)
             .execute(pool)
             .await?;
-            tracing::debug!(
-                "Utilisateur E2E déjà existant — participation default_global vérifiée"
-            );
+            tracing::debug!("Utilisateur E2E déjà existant — participation default_global vérifiée");
         }
     }
 
@@ -369,9 +374,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let result = prune_old_data(&pool_clone).await;
             match result {
                 Ok(_) => tracing::debug!("Nettoyage des anciennes données terminé"),
-                Err(e) => {
-                    tracing::error!(error = %e, "Erreur lors du nettoyage des anciennes données")
-                }
+                Err(e) => tracing::error!(error = %e, "Erreur lors du nettoyage des anciennes données"),
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(24 * 3600)).await;
         }
@@ -385,16 +388,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // ============================================================
-    // 🛣️ Routes publiques (aucune authentification)
+    // 🛣️ Routes publiques — SEC-02 : rate limiter par IP
+    // Quota configurable via RATE_LIMIT_PER_MIN (défaut : 60)
+    // En prod : 60/min bloque le brute-force sans gêner l'usage normal
+    // En CI   : 60/min suffit pour 3 suites × retries sans 429
     // ============================================================
+    let rate_limit: u32 = std::env::var("RATE_LIMIT_PER_MIN")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(60);
+    let ip_limiter: Arc<IpRateLimiter> = Arc::new(
+        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(rate_limit).unwrap()))
+    );
+
+    let limiter_clone = ip_limiter.clone();
     let public_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
-        .route("/health", get(|| async { "OK" }));
+        .route("/health", get(|| async { "OK" }))
+        .nest("/push", push::public_router())
+        .route_layer(middleware::from_fn(move |
+            ConnectInfo(addr): ConnectInfo<SocketAddr>,
+            req: Request<Body>,
+            next: Next,
+        | {
+            let lim = limiter_clone.clone();
+            async move {
+                match lim.check_key(&addr.ip()) {
+                    Ok(_) => next.run(req).await,
+                    Err(_) => {
+                        tracing::warn!(
+                            ip = %addr.ip(),
+                            path = %req.uri().path(),
+                            "Rate limit dépassé (429) — IP bloquée temporairement"
+                        );
+                        axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
+                    }
+                }
+            }
+        }));
 
-    tracing::info!("Routes publiques configurées:");
+    tracing::info!("Routes publiques configurées (rate limit: {}/min par IP):", rate_limit);
     tracing::info!("  • POST   /auth/register");
     tracing::info!("  • POST   /auth/login");
     tracing::info!("  • POST   /join");
@@ -411,6 +447,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites", get(admin::list_invites))
         .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
+        .route("/analytics", get(admin::get_analytics))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
@@ -424,43 +461,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations", get(db::get_user_conversations))
         .route("/conversations", post(db::create_conversation))
         .route("/conversations/{id}", get(db::get_conversation))
+        .route("/conversations/{id}/rename", axum::routing::patch(db::rename_conversation))
         .route("/conversations/{id}/join", post(db::join_conversation))
-        .route(
-            "/conversations/{id}/messages",
-            get(db::get_conversation_messages),
-        )
+        .route("/conversations/{id}/messages", get(db::get_conversation_messages))
         .route("/conversations/{id}/messages", post(db::send_message))
+        .route(
+            "/conversations/{conv_id}/messages/{msg_id}",
+            axum::routing::patch(db::edit_message).delete(db::delete_message),
+        )
         .route("/upload", post(upload::upload_handler))
         .route("/upload/chat", post(upload::upload_chat_file))
+        .route("/download/{file_id}", get(upload::download_file))
         .route("/user/update", post(db::update_user_profile))
         .route("/events", get(db::get_events))
         .route("/events", post(db::create_event))
         .route("/events/{id}", delete(db::delete_event))
-        .route(
-            "/conversations/{id}/participants",
-            get(db::get_conversation_participants),
-        )
-        .route(
-            "/conversations/{id}/participants",
-            post(db::add_conversation_participant),
-        )
+        .route("/conversations/{id}/participants", get(db::get_conversation_participants))
+        .route("/conversations/{id}/participants", post(db::add_conversation_participant))
         .route("/conversations/{id}/leave", post(db::leave_conversation))
         .route("/users/available", get(db::get_available_users))
+        .route("/gifs/search", get(gif_search_proxy))
+        .nest("/push", push::router())
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
+        .merge(e2ee::e2ee_routes())
+        .merge(reactions::reactions_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
         ));
 
     tracing::info!("✓ Routes protégées + admin configurées");
-    tracing::info!("Routes admin disponibles :");
-    tracing::info!("  • GET    /users/pending");
-    tracing::info!("  • GET    /users");
-    tracing::info!("  • POST   /users/approve");
-    tracing::info!("  • GET    /invites");
-    tracing::info!("  • POST   /invites");
-    tracing::info!("  • POST   /invites/delete");
 
     let api_router = Router::new()
         .merge(public_routes)
@@ -477,6 +508,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("✓ Routeur API configuré");
 
+    // SvelteKit adapter-static génère des assets avec paths absolus (/_app/...)
+    // → aucun <base href> nécessaire — base_inject_middleware supprimé (session 36)
     let static_service = ServeDir::new(&config.static_dir)
         .append_index_html_on_directories(true)
         .fallback(ServeFile::new(format!("{}/index.html", config.static_dir)));
@@ -508,24 +541,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::Method::OPTIONS,
         ])
         .allow_headers([
-            axum::http::header::CONTENT_TYPE,
+            CONTENT_TYPE,
             axum::http::header::AUTHORIZATION,
             axum::http::header::ACCEPT,
             axum::http::header::COOKIE,
         ])
         .allow_credentials(true);
 
+    // ConnectInfo requis pour extraire l'IP dans le rate limiter par IP (SEC-02)
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
         .merge(webrtc::webrtc_routes())
         .fallback_service(static_service)
-        .layer(middleware::from_fn(base_inject_middleware))
         .layer(CompressionLayer::new())
         .layer(cors_layer)
-        .with_state(shared_state);
+        .with_state(shared_state)
+        .into_make_service_with_connect_info::<SocketAddr>();
 
-    tracing::info!("✓ Application Axum construite avec tous les layers");
+    tracing::info!("✓ Application Axum construite (base_inject supprimé, rate limit IP actif)");
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 

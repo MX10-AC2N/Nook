@@ -211,6 +211,8 @@ class ChessStore {
   // WebSocket
   private ws: WebSocket | null = null;
   private wsGameId: string | null = null;
+  private _wsRetries = 0;
+  private _wsTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ════════════════════════════════════════════════════════════════
   // API
@@ -266,6 +268,16 @@ class ChessStore {
       this.currentGame = data.game;
       this.selected    = null;
       this.legalTargets = [];
+
+      // Restaurer le dernier coup pour l'affichage .cell-last après reload
+      // Les coups humains ont { from, to } dans move_history ; les coups IA n'ont pas from/to
+      const history: Array<{ from?: string; to?: string }> =
+        data.game?.move_history ?? [];
+      const lastWithCoords = [...history].reverse().find((m) => m.from && m.to);
+      this.lastMove = lastWithCoords
+        ? { from: lastWithCoords.from!, to: lastWithCoords.to! }
+        : null;
+
       this.connectWebSocket(gameId);
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
@@ -437,36 +449,60 @@ class ChessStore {
     if (this.wsGameId === gameId && this.ws?.readyState === WebSocket.OPEN) return;
     this.disconnectWebSocket();
     this.wsGameId = gameId;
+    this._wsConnect();
+  }
 
+  private _wsConnect(): void {
+    if (!browser || !this.wsGameId) return;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    this.ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+    const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+    this.ws = ws;
 
-    this.ws.onmessage = (ev) => {
+    ws.onopen = () => {
+      this._wsRetries = 0;
+      if (this._wsTimer) { clearTimeout(this._wsTimer); this._wsTimer = null; }
+    };
+
+    ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(ev.data);
-        if (msg.type === 'chess_move' && msg.game_id === gameId) {
+        const gameId = this.wsGameId!;
+        if (msg.game_id !== gameId) return; // autre partie ou autre type
+        if (msg.type === 'chess_move' || msg.type === 'chess_ai_move') {
+          this.refreshGame(gameId).catch(console.error);
+        }
+        if (msg.type === 'chess_player_joined') {
           this.refreshGame(gameId).catch(console.error);
         }
       } catch { /* non-JSON ok */ }
     };
-    this.ws.onerror = (e) => console.error('[ChessStore] WS error', e);
-    this.ws.onclose = () => console.log('[ChessStore] WS fermé');
+
+    ws.onerror = () => {};
+
+    ws.onclose = () => {
+      if (this._wsRetries < 8) {
+        const delay = Math.min(1000 * 2 ** this._wsRetries, 30_000);
+        this._wsRetries++;
+        this._wsTimer = setTimeout(() => this._wsConnect(), delay);
+      }
+    };
   }
 
   disconnectWebSocket(): void {
-    this.ws?.close();
-    this.ws = null;
+    if (this._wsTimer) { clearTimeout(this._wsTimer); this._wsTimer = null; }
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
     this.wsGameId = null;
+    this._wsRetries = 0;
   }
 
   reset(): void {
     this.disconnectWebSocket();
-    this.currentGame     = null;
-    this.selected        = null;
-    this.legalTargets    = [];
-    this.lastMove        = null;
-    this.error           = null;
-    this.aiThinking      = false;
+    this.currentGame      = null;
+    this.selected         = null;
+    this.legalTargets     = [];
+    this.lastMove         = null;
+    this.error            = null;
+    this.aiThinking       = false;
     this.pendingPromotion = null;
   }
 }
