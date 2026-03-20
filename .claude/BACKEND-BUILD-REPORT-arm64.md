@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `aarch64-unknown-linux-gnu`
-> **2026-03-19 17:54 UTC**
+> **2026-03-20 06:47 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `arm64` (`aarch64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`f67fff4`](https://github.com/MX10-AC2N/Nook/commit/f67fff43bf9460ea4dc40cb657f107433f5da8b9) |
+| **Commit** | [`6d9a277`](https://github.com/MX10-AC2N/Nook/commit/6d9a2778bcc5e71f0b14d94620a908612c6884aa) |
 | **Rust** | `rustc 1.94.0 (4a4ef493e 2026-03-02)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23309036660) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23332164129) |
 
 ---
 
@@ -60,7 +60,7 @@
 ## Résumé compilation
 
 ```
-    Finished `release` profile [optimized] target(s) in 1m 00s
+    Finished `release` profile [optimized] target(s) in 59.37s
 ```
 
 ---
