@@ -1,6 +1,6 @@
 # 📡 API & DB — Référence complète Nook
 
-> Source de vérité extraite du code source (sessions 1-24).
+> Source de vérité extraite du code source (sessions 1-39).
 > Ce fichier évite de fetcher `main.rs` + modules pour chaque intervention.
 
 ---
@@ -84,6 +84,23 @@ id TEXT PK | game_id TEXT FK→chess_games ON DELETE CASCADE
 invited_user_id TEXT FK | slot INTEGER | status TEXT DEFAULT 'pending'
 -- status: 'pending'|'accepted'|'declined'
 created_at INTEGER
+```
+
+### push_subscriptions (migration 006)
+```sql
+id TEXT PK | user_id TEXT FK→users ON DELETE CASCADE
+endpoint TEXT UNIQUE         -- URL push unique par device
+p256dh TEXT | auth TEXT       -- clés browser (base64url)
+user_agent TEXT | created_at INTEGER | last_used INTEGER
+```
+
+### push_preferences (migration 006)
+```sql
+user_id TEXT PK FK→users ON DELETE CASCADE
+enabled INTEGER DEFAULT 1    -- 1 = notifs actives
+quiet_start TEXT DEFAULT '22:00' | quiet_end TEXT DEFAULT '07:00'
+on_message INTEGER DEFAULT 1 | on_mention INTEGER DEFAULT 1
+updated_at INTEGER
 ```
 
 ### message_keys (E2EE — migration 003)
@@ -196,6 +213,13 @@ POST /api/invites             → { } → { token, expires_at }
 POST /api/invites/delete      → { invite_id }
 ```
 
+# Push notifications
+GET  /push/vapid-public-key          → { public_key } (route PUBLIQUE — sans auth)
+GET  /push/preferences               → préférences notifs
+POST /push/preferences               → { enabled?, quiet_start?, quiet_end?, on_message?, on_mention? }
+POST /push/subscribe                 → { endpoint, keys: {p256dh, auth}, user_agent? }
+DELETE /push/unsubscribe             → { endpoint }
+
 ### 🔌 WebSocket
 ```
 WS   /ws                      → Signaling (chess + appels WebRTC + chat temps réel)
@@ -228,5 +252,8 @@ Messages WS reçus par le client :
 | `RUST_BACKTRACE` | `1` | Backtrace Rust en erreur |
 | `TZ` | `Europe/Paris` | Fuseau horaire |
 | `E2E_SETUP` | `0` | `1` = crée user `e2e_ci` (CI uniquement, jamais en prod) |
+| `VAPID_PRIVATE_KEY` | *(vide)* | Clé privée P-256 base64url pour notifications push (optionnel) |
+| `VAPID_PUBLIC_KEY` | *(vide)* | Clé publique P-256 base64url non-compressée (optionnel) |
+| `VAPID_SUBJECT` | `mailto:admin@nook.local` | Contact pour les serveurs push (RFC 8292) |
 
 > **Zimaboard** : `DATA_DIR=/media/ac2n-cloud/volume_docker_Nook/nook-data` | `LOGS_DIR=.../nook-logs`

@@ -1,6 +1,6 @@
 # 📱 Instruction personnalisée Android — Nook
 
-> Générée le : **2026-03-19** | Version : **0.4.0-beta.1** | Session : **38**
+> Générée le : **2026-03-20** | Version : **0.4.0-beta.2** | Session : **39**
 > Taille : **1031 / 1500 chars** ✅ OK
 
 ---
@@ -9,7 +9,7 @@
 
 > Paramètres → Instructions personnalisées → coller le texte ci-dessous
 
-Tu es l'assistant principal du projet Nook (v0.4.0-beta.1, session 38).
+Tu es l'assistant principal du projet Nook (v0.4.0-beta.2, session 39).
 Messagerie familiale self-hosted — Rust/Axum 0.8 + SvelteKit 5 Runes + SQLite + Docker distroless.
 Repo: https://github.com/MX10-AC2N/Nook | Branche: main
 Raw: https://raw.githubusercontent.com/MX10-AC2N/Nook/main/
@@ -49,5 +49,5 @@ Pour forcer une régénération : lancer le workflow manuellement depuis GitHub 
 |---|---|
 | Taille instruction | 1031 chars / 1500 max |
 | Bugs actifs | 0 |
-| Version projet | 0.4.0-beta.1 |
-| Session | 38 |
+| Version projet | 0.4.0-beta.2 |
+| Session | 39 |

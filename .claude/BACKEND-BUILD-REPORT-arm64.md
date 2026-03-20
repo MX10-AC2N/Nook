@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `aarch64-unknown-linux-gnu`
-> **2026-03-20 06:47 UTC**
+> **2026-03-20 08:52 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `arm64` (`aarch64-unknown-linux-gnu`) |
 | **Branche** | `develop` |
-| **Commit** | [`6d9a277`](https://github.com/MX10-AC2N/Nook/commit/6d9a2778bcc5e71f0b14d94620a908612c6884aa) |
+| **Commit** | [`e8235ba`](https://github.com/MX10-AC2N/Nook/commit/e8235ba3fce42596c6ce5f0c5fbbda92a95517d5) |
 | **Rust** | `rustc 1.94.0 (4a4ef493e 2026-03-02)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23332164129) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23335544086) |
 
 ---
 
@@ -23,7 +23,7 @@
 |-------|--------|--------|
 | **cargo check** | ✅ | exit 0 |
 | **cargo clippy** | ✅ | exit 0 (-D warnings) |
-| **cargo build --release** | ✅ | binaire 8.5M stripped |
+| **cargo build --release** | ✅ | binaire 8.8M stripped |
 
 ---
 
@@ -60,7 +60,7 @@
 ## Résumé compilation
 
 ```
-    Finished `release` profile [optimized] target(s) in 59.37s
+    Finished `release` profile [optimized] target(s) in 1m 47s
 ```
 
 ---

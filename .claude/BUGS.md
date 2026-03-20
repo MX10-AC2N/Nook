@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-19** (session 38)
+> Mis à jour : **2026-03-20** (session 39)
 
 ---
 
@@ -29,6 +29,10 @@ store.prop = newValue;  // ✅
 
 | ID | Session | Titre | Fix |
 |----|---------|-------|-----|
+| R_RESIGN | 39 | `resign_game` stockait `winner_id="ai"` → UPDATE silencieusement ignoré → status "playing" | `winner_id = None` pour parties IA + propagation erreur UPDATE |
+| R_POLLS_ID | 39 | Tests polls lisaient `(await createRes.json()).id` → `undefined` (body = `{poll:{id}}`) | Accès via `.poll?.id` |
+| R_POLL_SERDE | 39 | `encrypted`/`is_group` sans `#[serde(default)]` dans db.rs → 422 | `#[serde(default)]` + `fn default_true()` placée AVANT le `#[derive]` de `User` |
+| R_AI_MOVE | 39 | POST `/chess/{id}/ai-move` sans body → 415 (Axum exige Json body) | `Option<Json<AiMoveRequest>>` dans le handler |
 | R_DECRYPT | 38 | `decrypt_file_from_storage` re-préfixait le nonce → download 500 | `_nonce_base64` ignoré, `ciphertext` contient déjà le nonce intégré par `encrypt_file_for_storage` |
 | R_INVITE | 38 | Test `invite/validate` extrayait `{ token }` d'un body qui retourne `{ invite_link }` | Token extrait depuis `invite_link.split('?')[1]` |
 | R_COOKIE | 38 | Test flux inscription polluait cookie admin via `adminPage.request.post(login)` | `isolatedPage` isolé pour tous les logins `testUser` |
