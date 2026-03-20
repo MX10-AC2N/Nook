@@ -1,7 +1,7 @@
 name: 🎬 Fetch GIFs — Mise à jour collection locale
 
 # Workflow MANUEL uniquement — ne tourne jamais automatiquement.
-# Nécessite le secret KLIPY_API_KEY dans GitHub → Settings → Secrets → Actions.
+# Nécessite le secret GIFS_API_KEY dans GitHub → Settings → Secrets → Actions.
 # Clé gratuite sur https://klipy.com/migrate (ex-employés Tenor, même structure API)
 #
 # Quand lancer :
@@ -46,7 +46,7 @@ jobs:
       # ── 2. Lancer le script ───────────────────────────────────────
       - name: Télécharger les GIFs
         env:
-          KLIPY_API_KEY: ${{ secrets.KLIPY_API_KEY }}
+          GIFS_API_KEY: ${{ secrets.GIFS_API_KEY }}
         run: |
           DRY_FLAG=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then
