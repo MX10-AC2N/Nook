@@ -2,7 +2,7 @@
 """
 scripts/fetch-gifs.py — Télécharge les GIFs curatés pour Nook
 Usage  : python3 scripts/fetch-gifs.py --key YOUR_KLIPY_KEY
-Secrets: KLIPY_API_KEY (GitHub Actions) ou --key en CLI
+Secrets: GIFS_API_KEY (GitHub Actions) ou --key en CLI
 Clé    : gratuite sur https://klipy.com/migrate
          (Tenor API fermée aux nouveaux clients depuis janvier 2026)
 Output : frontend/static/gifs/*.gif + frontend/static/gifs/index.json
@@ -178,8 +178,8 @@ def download_file(url: str, dest: Path) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch curated GIFs for Nook")
-    parser.add_argument("--key", default=os.environ.get("KLIPY_API_KEY", os.environ.get("TENOR_API_KEY", "")),
-                        help="Clé API Klipy (ou var KLIPY_API_KEY)")
+    parser.add_argument("--key", default=os.environ.get("GIFS_API_KEY", os.environ.get("KLIPY_API_KEY", os.environ.get("TENOR_API_KEY", ""))),
+                        help="Clé API Klipy (ou var GIFS_API_KEY)")
     parser.add_argument("--output", default="frontend/static/gifs",
                         help="Dossier de sortie (défaut: frontend/static/gifs)")
     parser.add_argument("--dry-run", action="store_true",
@@ -187,7 +187,7 @@ def main():
     args = parser.parse_args()
 
     if not args.key:
-        print("❌ KLIPY_API_KEY manquante — passer --key ou définir la variable d'env",
+        print("❌ GIFS_API_KEY manquante — passer --key ou définir la variable d'env",
               file=sys.stderr)
         print("   Clé gratuite sur https://klipy.com/migrate", file=sys.stderr)
         sys.exit(1)
