@@ -1,16 +1,11 @@
-<!-- frontend/src/routes/settings/+page.svelte — Session 34
-     Corrections :
-       - Toutes les couleurs hardcodées (#2d5a27, white, #f1f5f9…)
-         remplacées par les variables CSS du système de thèmes
-       - Les thèmes (jardin/space/maison) sont maintenant VISIBLES
-         car les composants de la page utilisent var(--accent) etc.
-       - Ajout d'un vrai aperçu live du thème dans les cartes
-       - Note explicative : username = identifiant connexion (non modifiable)
+<!-- frontend/src/routes/settings/+page.svelte — Session 39
+     Ajout : section notifications push dans l'onglet Sécurité
 -->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { getPushState, subscribeToPush, unsubscribePush, type PushState } from '$lib/push';
 
   let userName         = $state('');
   let currentPassword  = $state('');
@@ -22,6 +17,12 @@
   let activeTab        = $state<'profile' | 'security' | 'appearance'>('profile');
   let selectedTheme    = $state('jardin-secret');
   let darkMode         = $state(false);
+
+  // ── Push notifications ────────────────────────────────────────────────────
+  let pushState        = $state<PushState | null>(null);
+  let pushLoading      = $state(false);
+  let pushMessage      = $state('');
+  let pushError        = $state('');
 
   const themes = [
     {
@@ -47,10 +48,11 @@
     },
   ];
 
-  onMount(() => {
+  onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     if (authStore.user) userName = authStore.user.name ?? '';
     loadTheme();
+    pushState = await getPushState();
   });
 
   function loadTheme() {
@@ -113,6 +115,25 @@
     } catch (e) { error = e instanceof Error ? e.message : 'Erreur de connexion'; }
     finally { saving = false; }
   }
+
+  // ── Push handlers ─────────────────────────────────────────────────────────
+  async function handlePushToggle() {
+    pushLoading = true; pushMessage = ''; pushError = '';
+    try {
+      if (pushState?.subscribed) {
+        const res = await unsubscribePush();
+        if (res.success) { pushMessage = 'Notifications désactivées'; }
+        else             { pushError = res.error ?? 'Erreur désabonnement'; }
+      } else {
+        const res = await subscribeToPush();
+        if (res.success) { pushMessage = 'Notifications activées 🔔'; }
+        else             { pushError = res.error ?? 'Erreur activation'; }
+      }
+      pushState = await getPushState();
+    } finally {
+      pushLoading = false;
+    }
+  }
 </script>
 
 <svelte:head><title>Paramètres - Nook</title></svelte:head>
@@ -173,6 +194,68 @@
       </form>
     </div>
 
+    <!-- ── Notifications push ────────────────────────────────────────── -->
+    <div class="settings-section push-section">
+      <h2>🔔 Notifications push</h2>
+      <p class="section-desc">
+        Recevez une notification sur cet appareil quand un message est envoyé dans Nook,
+        même quand l'application est en arrière-plan.
+      </p>
+
+      {#if pushState === null}
+        <p class="push-loading">Chargement…</p>
+
+      {:else if !pushState.supported}
+        <div class="push-unsupported">
+          <span class="push-icon">🚫</span>
+          <p>Les notifications push ne sont pas supportées par ce navigateur.</p>
+          <p class="help-text">Essayez Chrome, Firefox ou Safari (iOS 16.4+).</p>
+        </div>
+
+      {:else if pushState.permission === 'denied'}
+        <div class="push-blocked">
+          <span class="push-icon">🔕</span>
+          <p>Les notifications sont bloquées dans les paramètres du navigateur.</p>
+          <p class="help-text">Pour les réactiver : cliquez sur l'icône 🔒 dans la barre d'adresse → Notifications → Autoriser.</p>
+        </div>
+
+      {:else}
+        <div class="push-toggle-row">
+          <div class="push-info">
+            <span class="push-icon">{pushState.subscribed ? '🔔' : '🔕'}</span>
+            <div>
+              <p class="push-status">
+                {pushState.subscribed ? 'Notifications activées sur cet appareil' : 'Notifications désactivées'}
+              </p>
+              <p class="help-text">
+                {pushState.subscribed
+                  ? 'Vous recevrez une notification pour chaque nouveau message.'
+                  : 'Activez pour être notifié même quand Nook est fermé.'}
+              </p>
+            </div>
+          </div>
+          <button
+            class="btn {pushState.subscribed ? 'btn-danger' : 'btn-primary'}"
+            onclick={handlePushToggle}
+            disabled={pushLoading}
+          >
+            {#if pushLoading}
+              {pushState.subscribed ? 'Désactivation…' : 'Activation…'}
+            {:else}
+              {pushState.subscribed ? 'Désactiver' : 'Activer les notifications'}
+            {/if}
+          </button>
+        </div>
+
+        {#if pushMessage}
+          <div role="alert" class="alert alert-success">{pushMessage}</div>
+        {/if}
+        {#if pushError}
+          <div role="alert" class="alert alert-error">❌ {pushError}</div>
+        {/if}
+      {/if}
+    </div>
+
   <!-- APPARENCE -->
   {:else if activeTab === 'appearance'}
     <div class="settings-section">
@@ -180,7 +263,6 @@
       <p class="section-desc">Choisissez l'ambiance visuelle de Nook. Le changement est immédiat sur toutes les pages.</p>
       <div class="themes-grid">
         {#each themes as theme}
-          <!-- Aperçu live avec les couleurs réelles du thème -->
           <button
             class="theme-card"
             class:selected={selectedTheme === theme.id}
@@ -188,7 +270,6 @@
             aria-pressed={selectedTheme === theme.id}
             style="--preview-bg:{theme.preview.bg}; --preview-accent:{theme.preview.accent}; --preview-text:{theme.preview.text}; --preview-bubble:{theme.preview.bubble};"
           >
-            <!-- Mini aperçu du thème -->
             <div class="theme-preview">
               <div class="preview-header">
                 <span class="preview-dot" style="background:{theme.preview.accent}"></span>
@@ -224,7 +305,7 @@
     </div>
   {/if}
 
-  <!-- FEEDBACK -->
+  <!-- FEEDBACK global -->
   {#if message}
     <div role="alert" class="alert alert-success">✅ {message}</div>
   {/if}
@@ -304,7 +385,41 @@
   .btn-primary:hover:not(:disabled) {
     background: var(--button-hover); transform: translateY(-1px); box-shadow: var(--shadow-lg);
   }
-  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+  .btn-danger {
+    background: #ef4444; color: #fff; box-shadow: var(--shadow-md);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #dc2626; transform: translateY(-1px);
+  }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+
+  /* ── Push notifications ── */
+  .push-section { margin-top: 1.5rem; }
+
+  .push-loading { color: var(--text-secondary); font-style: italic; }
+
+  .push-unsupported,
+  .push-blocked {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    padding: 1.5rem; background: var(--bg-secondary);
+    border-radius: var(--radius-lg); text-align: center;
+    border: 1px solid var(--border);
+  }
+
+  .push-toggle-row {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 1rem; padding: 1rem 1.25rem;
+    background: var(--bg-secondary); border-radius: var(--radius-xl);
+    border: 2px solid var(--border); flex-wrap: wrap;
+  }
+
+  .push-info {
+    display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0;
+  }
+
+  .push-icon { font-size: 2rem; flex-shrink: 0; }
+
+  .push-status { font-weight: 600; color: var(--text-primary); margin: 0 0 0.2rem 0; }
 
   /* ─── Grille de thèmes avec aperçu live ─── */
   .themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
@@ -322,7 +437,6 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--preview-accent, var(--accent)) 30%, transparent);
   }
 
-  /* Mini aperçu visuel du thème dans la carte */
   .theme-preview {
     width: 100%; background: var(--preview-bg); border-radius: var(--radius-lg);
     padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;
@@ -390,7 +504,6 @@
     color: var(--text-primary);
   }
 
-  /* ─── Mode sombre overlay ─── */
   :global(.dark-mode) .settings-section,
   :global(.dark-mode) .tabs {
     filter: brightness(0.85);
@@ -401,6 +514,7 @@
     .tab  { text-align: center; }
     .settings-section { padding: 1.25rem; }
     .themes-grid { grid-template-columns: 1fr 1fr; }
+    .push-toggle-row { flex-direction: column; align-items: flex-start; }
   }
   @media (max-width: 480px) {
     .themes-grid { grid-template-columns: 1fr; }
