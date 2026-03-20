@@ -46,6 +46,7 @@ mod reactions;
 mod push;
 mod prune;
 mod upload;
+mod emergency;
 mod webrtc;
 
 use crate::config::Config;
@@ -405,6 +406,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/participants", post(db::add_conversation_participant))
         .route("/conversations/{id}/leave", post(db::leave_conversation))
         .route("/users/available", get(db::get_available_users))
+        .route("/emergency", post(emergency::handle_emergency))
         .nest("/push", push::router())
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
