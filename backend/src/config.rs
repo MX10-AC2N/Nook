@@ -7,6 +7,7 @@ pub struct Config {
     pub database_url: String,
     pub static_dir: String,
     pub uploads_dir: String,
+    pub gifs_dir: String,
     #[allow(dead_code)]
     pub public_site_url: String,
     /// Liste des origines CORS autorisées, séparées par des virgules.
@@ -55,6 +56,10 @@ impl Config {
 
             uploads_dir: env::var("UPLOADS_DIR")
                 .unwrap_or_else(|_| "/app/data/uploads".to_string()),
+
+            // GIFs dans le volume de données — mis à jour par update-gifs.sh sans rebuild
+            gifs_dir: env::var("GIFS_DIR")
+                .unwrap_or_else(|_| "/app/data/gifs".to_string()),
 
             public_site_url,
             allowed_origins: origins,
