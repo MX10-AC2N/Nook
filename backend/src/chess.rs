@@ -584,9 +584,26 @@ pub async fn make_move(
         }
     }
 
+    // Reconstruire GameState complet pour le frontend (interface GameState)
+    let move_history_val: serde_json::Value = serde_json::from_str(&new_history).unwrap_or(json!([]));
     Json(json!({
-        "success": true, "san": san, "fen": new_fen,
-        "status": game_status.as_str(), "winner_id": winner_id, "engine": engine,
+        "success": true,
+        "game": {
+            "id":            game_id,
+            "created_by":    row.get::<String, _>("created_by"),
+            "player1_id":    row.get::<Option<String>, _>("player1_id"),
+            "player2_id":    row.get::<Option<String>, _>("player2_id"),
+            "player1_color": row.get::<String, _>("player1_color"),
+            "player2_color": row.get::<String, _>("player2_color"),
+            "status":        db_status,
+            "winner_id":     winner_id,
+            "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
+            "fen":           new_fen,
+            "move_history":  move_history_val,
+            "engine":        engine,
+            "created_at":    row.get::<i64, _>("created_at"),
+            "updated_at":    now,
+        }
     }))
     .into_response()
 }
@@ -725,9 +742,26 @@ pub async fn ai_move(
         }
     }
 
+        // Reconstruire GameState complet pour le frontend (interface GameState)
+    let move_history_val: serde_json::Value = serde_json::from_str(&new_history).unwrap_or(json!([]));
     Json(json!({
-        "success": true, "san": san, "fen": new_fen,
-        "status": game_status.as_str(), "winner_id": winner_id, "engine": engine,
+        "success": true,
+        "game": {
+            "id":            game_id,
+            "created_by":    row.get::<String, _>("created_by"),
+            "player1_id":    row.get::<Option<String>, _>("player1_id"),
+            "player2_id":    null,
+            "player1_color": row.get::<String, _>("player1_color"),
+            "player2_color": row.get::<String, _>("player2_color"),
+            "status":        db_status,
+            "winner_id":     winner_id,
+            "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
+            "fen":           new_fen,
+            "move_history":  move_history_val,
+            "engine":        engine,
+            "created_at":    row.get::<i64, _>("created_at"),
+            "updated_at":    now,
+        }
     }))
     .into_response()
 }
