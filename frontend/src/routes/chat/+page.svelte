@@ -9,9 +9,8 @@
     sendMessage,
     editMessage,
     deleteMessage,
-    sendGif,
-    searchGifs,
-    toggleGifs,
+    sendEmoji,
+    toggleEmojiPicker,
     formatTimestamp,
     setActiveConv,
     disconnectWs,
@@ -66,7 +65,6 @@
   // Envoi message
   let newMessage     = $state('');
   let chatContainer  = $state<HTMLElement | undefined>(undefined);
-  let gifSearchQuery = $state('');
   let fileInput      = $state<HTMLInputElement | undefined>(undefined);
   let sending        = $state(false);
 
@@ -140,6 +138,47 @@
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
+  let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
+  let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
+  let localGifs   = $state<{id:string;category:string;cat_label:string;file:string;title:string}[]>([]);
+  let gifCat      = $state('');      // catégorie GIF active
+  let gifCats     = $state<string[]>([]);
+  let gifsLoaded  = $state(false);
+  let gifsError   = $state(false);
+
+  async function loadLocalGifs() {
+    if (gifsLoaded) return;
+    try {
+      const res = await fetch('/gifs/index.json');
+      if (!res.ok) throw new Error('index.json introuvable');
+      const data = await res.json();
+      localGifs = data.gifs ?? [];
+      // Construire la liste des catégories dans l'ordre d'apparition
+      const seen = new Set<string>();
+      const cats: string[] = [];
+      for (const g of localGifs) {
+        if (!seen.has(g.cat_label)) { seen.add(g.cat_label); cats.push(g.cat_label); }
+      }
+      gifCats  = cats;
+      gifCat   = cats[0] ?? '';
+      gifsLoaded = true;
+    } catch {
+      gifsError = true;
+      gifsLoaded = true;
+    }
+  }
+
+  function handleToggleEmojiPicker() {
+    toggleEmojiPicker();
+    if (!chatStore.showEmojiPicker) return;
+    if (pickerTab === 'gif') loadLocalGifs();
+  }
+
+  function handleSelectGif(filename: string) {
+    const url = `/gifs/${filename}`;
+    sendEmoji(`<img src="${url}" alt="gif" class="chat-gif" loading="lazy" />`, activeConvId);
+    chatStore.showEmojiPicker = false;
+  }
   // tous les emojis disponibles (picker étendu)
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
 
@@ -387,17 +426,15 @@
 
   function handleSubmit(e: Event) { e.preventDefault(); handleSendMessage(); }
 
-  async function handleSearchGifs() {
-    if (gifSearchQuery.trim()) await searchGifs(gifSearchQuery);
-  }
-
-  function handleGifKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); handleSearchGifs(); }
-  }
-
-  function handleSelectGif(url: string) {
-    sendGif(url, activeConvId, [], new Uint8Array());
-    toggleGifs();
+  function handleSelectEmoji(emoji: string) {
+    // Si l'input a le focus et qu'il y a du texte en cours → insérer l'emoji
+    // Sinon → envoyer l'emoji comme message standalone
+    if (newMessage.trim()) {
+      newMessage = newMessage + emoji;
+    } else {
+      sendEmoji(emoji, activeConvId);
+    }
+    chatStore.showEmojiPicker = false;
   }
 
   async function handleFileUpload(event: Event) {
@@ -689,7 +726,6 @@
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
-            role="none"
             onmouseenter={() => hoveredMsgId = msg.id}
             onmouseleave={() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }}
           >
@@ -729,7 +765,6 @@
                     controls
                     preload="none"
                     class="voice-video"
-                    aria-label="Message vidéo"><track kind="captions" />
                   ></video>
                 </div>
               {:else}
@@ -817,28 +852,66 @@
       {/if}
     </div>
 
-    {#if chatStore.showGifs}
-      <div class="gif-panel">
-        <div class="gif-search">
-          <input type="text" placeholder="Rechercher des GIFs…"
-            bind:value={gifSearchQuery} onkeydown={handleGifKeydown} class="gif-input" />
-          <button onclick={handleSearchGifs} class="search-btn">🔍</button>
-          <button onclick={toggleGifs} class="close-btn">✕</button>
+    {#if chatStore.showEmojiPicker}
+      <div class="emoji-panel" role="dialog" aria-label="Picker emoji ou GIF" tabindex="-1">
+        <div class="ep-tabs">
+          <button class="ep-tab" class:active={pickerTab === 'emoji'}
+            onclick={() => { pickerTab = 'emoji'; }}>😊 Emoji</button>
+          <button class="ep-tab" class:active={pickerTab === 'gif'}
+            onclick={() => { pickerTab = 'gif'; loadLocalGifs(); }}>🎬 GIF</button>
+          <div class="ep-tab-spacer"></div>
+          <button class="ep-close" onclick={toggleEmojiPicker} aria-label="Fermer">✕</button>
         </div>
-        {#if chatStore.gifLoading}
-          <div class="gif-status">Chargement…</div>
-        {:else if chatStore.gifResults.length > 0}
-          <div class="gif-grid">
-            {#each chatStore.gifResults as gif}
-              <button class="gif-item"
-                onclick={() => handleSelectGif(gif.fullUrl)}>
-                <img src={gif.previewUrl} alt={gif.title} loading="lazy" />
-              </button>
-            {/each}
-          </div>
-        {:else}
-          <div class="gif-status">Tapez un mot pour chercher des GIFs</div>
+
+        {#if pickerTab === 'emoji'}
+        <div class="ep-header">
+          <div class="ep-cats"><button class="ep-cat-btn" class:active={emojiCat === '😊' } onclick={() => emojiCat = '😊'}>😊</button><button class="ep-cat-btn" class:active={emojiCat === '👋' } onclick={() => emojiCat = '👋'}>👋</button><button class="ep-cat-btn" class:active={emojiCat === '❤️' } onclick={() => emojiCat = '❤️'}>❤️</button><button class="ep-cat-btn" class:active={emojiCat === '🎉' } onclick={() => emojiCat = '🎉'}>🎉</button><button class="ep-cat-btn" class:active={emojiCat === '🐶' } onclick={() => emojiCat = '🐶'}>🐶</button><button class="ep-cat-btn" class:active={emojiCat === '🍕' } onclick={() => emojiCat = '🍕'}>🍕</button><button class="ep-cat-btn" class:active={emojiCat === '⚽' } onclick={() => emojiCat = '⚽'}>⚽</button><button class="ep-cat-btn" class:active={emojiCat === '🌍' } onclick={() => emojiCat = '🌍'}>🌍</button></div>
+          <button class="ep-close" onclick={toggleEmojiPicker} aria-label="Fermer">✕</button>
+        </div>
+        <div class="ep-body">
+            {#if emojiCat === '😊'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('😀')} title="😀">😀</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😁')} title="😁">😁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😂')} title="😂">😂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤣')} title="🤣">🤣</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😃')} title="😃">😃</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😄')} title="😄">😄</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😅')} title="😅">😅</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😆')} title="😆">😆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😊')} title="😊">😊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😋')} title="😋">😋</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😎')} title="😎">😎</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥳')} title="🥳">🥳</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤩')} title="🤩">🤩</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😍')} title="😍">😍</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥰')} title="🥰">🥰</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😘')} title="😘">😘</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😗')} title="😗">😗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😙')} title="😙">😙</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😚')} title="😚">😚</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤗')} title="🤗">🤗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤭')} title="🤭">🤭</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤫')} title="🤫">🤫</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤔')} title="🤔">🤔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😐')} title="😐">😐</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😑')} title="😑">😑</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😶')} title="😶">😶</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🙄')} title="🙄">🙄</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😏')} title="😏">😏</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😒')} title="😒">😒</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😞')} title="😞">😞</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😔')} title="😔">😔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😟')} title="😟">😟</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😕')} title="😕">😕</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🙁')} title="🙁">🙁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☹️')} title="☹️">☹️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😣')} title="😣">😣</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😖')} title="😖">😖</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😫')} title="😫">😫</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😩')} title="😩">😩</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥺')} title="🥺">🥺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😢')} title="😢">😢</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😭')} title="😭">😭</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😤')} title="😤">😤</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😠')} title="😠">😠</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😡')} title="😡">😡</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤬')} title="🤬">🤬</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😱')} title="😱">😱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😨')} title="😨">😨</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😰')} title="😰">😰</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😥')} title="😥">😥</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😓')} title="😓">😓</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤯')} title="🤯">🤯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😬')} title="😬">😬</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥴')} title="🥴">🥴</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😵')} title="😵">😵</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤪')} title="🤪">🤪</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😜')} title="😜">😜</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😝')} title="😝">😝</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😛')} title="😛">😛</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤑')} title="🤑">🤑</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('😈')} title="😈">😈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👿')} title="👿">👿</button></div>{/if}
+            {#if emojiCat === '👋'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('👍')} title="👍">👍</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👎')} title="👎">👎</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👌')} title="👌">👌</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤌')} title="🤌">🤌</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤏')} title="🤏">🤏</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✌️')} title="✌️">✌️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤞')} title="🤞">🤞</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤟')} title="🤟">🤟</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤘')} title="🤘">🤘</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤙')} title="🤙">🤙</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👈')} title="👈">👈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👉')} title="👉">👉</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👆')} title="👆">👆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👇')} title="👇">👇</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☝️')} title="☝️">☝️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👋')} title="👋">👋</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤚')} title="🤚">🤚</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🖐️')} title="🖐️">🖐️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✋')} title="✋">✋</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🖖')} title="🖖">🖖</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤜')} title="🤜">🤜</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤛')} title="🤛">🤛</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👊')} title="👊">👊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✊')} title="✊">✊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤝')} title="🤝">🤝</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🙌')} title="🙌">🙌</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('👏')} title="👏">👏</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤲')} title="🤲">🤲</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🙏')} title="🙏">🙏</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✍️')} title="✍️">✍️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💪')} title="💪">💪</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦾')} title="🦾">🦾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🫶')} title="🫶">🫶</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('❤️‍🔥')} title="❤️‍🔥">❤️‍🔥</button></div>{/if}
+            {#if emojiCat === '❤️'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('❤️')} title="❤️">❤️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧡')} title="🧡">🧡</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💛')} title="💛">💛</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💚')} title="💚">💚</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💙')} title="💙">💙</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💜')} title="💜">💜</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🖤')} title="🖤">🖤</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤍')} title="🤍">🤍</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤎')} title="🤎">🤎</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💔')} title="💔">💔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('❣️')} title="❣️">❣️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💕')} title="💕">💕</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💞')} title="💞">💞</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💓')} title="💓">💓</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💗')} title="💗">💗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💖')} title="💖">💖</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💘')} title="💘">💘</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💝')} title="💝">💝</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💟')} title="💟">💟</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☮️')} title="☮️">☮️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💯')} title="💯">💯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✨')} title="✨">✨</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⭐')} title="⭐">⭐</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌟')} title="🌟">🌟</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💫')} title="💫">💫</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🔥')} title="🔥">🔥</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💥')} title="💥">💥</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('❄️')} title="❄️">❄️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌈')} title="🌈">🌈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☀️')} title="☀️">☀️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌙')} title="🌙">🌙</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⚡')} title="⚡">⚡</button></div>{/if}
+            {#if emojiCat === '🎉'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎉')} title="🎉">🎉</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎊')} title="🎊">🎊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎈')} title="🎈">🎈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎁')} title="🎁">🎁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎂')} title="🎂">🎂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍰')} title="🍰">🍰</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥂')} title="🥂">🥂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍾')} title="🍾">🍾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎆')} title="🎆">🎆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎇')} title="🎇">🎇</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('✨')} title="✨">✨</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥳')} title="🥳">🥳</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎤')} title="🎤">🎤</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎵')} title="🎵">🎵</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎶')} title="🎶">🎶</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎸')} title="🎸">🎸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎹')} title="🎹">🎹</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎺')} title="🎺">🎺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎻')} title="🎻">🎻</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥁')} title="🥁">🥁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎮')} title="🎮">🎮</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🕹️')} title="🕹️">🕹️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎯')} title="🎯">🎯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎱')} title="🎱">🎱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏆')} title="🏆">🏆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥇')} title="🥇">🥇</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥈')} title="🥈">🥈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥉')} title="🥉">🥉</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎖️')} title="🎖️">🎖️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏅')} title="🏅">🏅</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎗️')} title="🎗️">🎗️</button></div>{/if}
+            {#if emojiCat === '🐶'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐶')} title="🐶">🐶</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐱')} title="🐱">🐱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐭')} title="🐭">🐭</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐹')} title="🐹">🐹</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐰')} title="🐰">🐰</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦊')} title="🦊">🦊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐻')} title="🐻">🐻</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐼')} title="🐼">🐼</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐨')} title="🐨">🐨</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐯')} title="🐯">🐯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦁')} title="🦁">🦁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐮')} title="🐮">🐮</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐷')} title="🐷">🐷</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐸')} title="🐸">🐸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐵')} title="🐵">🐵</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐔')} title="🐔">🐔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐧')} title="🐧">🐧</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐦')} title="🐦">🐦</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦆')} title="🦆">🦆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦅')} title="🦅">🦅</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦉')} title="🦉">🦉</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦇')} title="🦇">🦇</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐺')} title="🐺">🐺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐗')} title="🐗">🐗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦝')} title="🦝">🦝</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦨')} title="🦨">🦨</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦡')} title="🦡">🦡</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦦')} title="🦦">🦦</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦥')} title="🦥">🦥</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐿️')} title="🐿️">🐿️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🦔')} title="🦔">🦔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐾')} title="🐾">🐾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🐲')} title="🐲">🐲</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌸')} title="🌸">🌸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌺')} title="🌺">🌺</button></div>{/if}
+            {#if emojiCat === '🍕'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍕')} title="🍕">🍕</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍔')} title="🍔">🍔</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌮')} title="🌮">🌮</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌯')} title="🌯">🌯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥗')} title="🥗">🥗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍜')} title="🍜">🍜</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍱')} title="🍱">🍱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍣')} title="🍣">🍣</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍩')} title="🍩">🍩</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍪')} title="🍪">🍪</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍫')} title="🍫">🍫</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍬')} title="🍬">🍬</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍭')} title="🍭">🍭</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☕')} title="☕">☕</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍵')} title="🍵">🍵</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧃')} title="🧃">🧃</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥤')} title="🥤">🥤</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍺')} title="🍺">🍺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍻')} title="🍻">🍻</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥂')} title="🥂">🥂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍷')} title="🍷">🍷</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍸')} title="🍸">🍸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍹')} title="🍹">🍹</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧁')} title="🧁">🧁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎂')} title="🎂">🎂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍰')} title="🍰">🍰</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥧')} title="🥧">🥧</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍮')} title="🍮">🍮</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍯')} title="🍯">🍯</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧆')} title="🧆">🧆</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥘')} title="🥘">🥘</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🫕')} title="🫕">🫕</button></div>{/if}
+            {#if emojiCat === '⚽'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('⚽')} title="⚽">⚽</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏀')} title="🏀">🏀</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏈')} title="🏈">🏈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⚾')} title="⚾">⚾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎾')} title="🎾">🎾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏐')} title="🏐">🏐</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏉')} title="🏉">🏉</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥏')} title="🥏">🥏</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎱')} title="🎱">🎱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏓')} title="🏓">🏓</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏸')} title="🏸">🏸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥊')} title="🥊">🥊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⛷️')} title="⛷️">⛷️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏂')} title="🏂">🏂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏋️')} title="🏋️">🏋️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤸')} title="🤸">🤸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⛹️')} title="⛹️">⛹️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤺')} title="🤺">🤺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏇')} title="🏇">🏇</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧘')} title="🧘">🧘</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏄')} title="🏄">🏄</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🚴')} title="🚴">🚴</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🧗')} title="🧗">🧗</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤾')} title="🤾">🤾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏌️')} title="🏌️">🏌️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏊')} title="🏊">🏊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🤽')} title="🤽">🤽</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥋')} title="🥋">🥋</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🥅')} title="🥅">🥅</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⛳')} title="⛳">⛳</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🎣')} title="🎣">🎣</button></div>{/if}
+            {#if emojiCat === '🌍'}<div class="ep-grid"><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌍')} title="🌍">🌍</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌲')} title="🌲">🌲</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌳')} title="🌳">🌳</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌴')} title="🌴">🌴</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌵')} title="🌵">🌵</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌿')} title="🌿">🌿</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('☘️')} title="☘️">☘️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍀')} title="🍀">🍀</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍁')} title="🍁">🍁</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍂')} title="🍂">🍂</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍃')} title="🍃">🍃</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌸')} title="🌸">🌸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌹')} title="🌹">🌹</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌺')} title="🌺">🌺</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌻')} title="🌻">🌻</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌼')} title="🌼">🌼</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('💐')} title="💐">💐</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🍄')} title="🍄">🍄</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌾')} title="🌾">🌾</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌱')} title="🌱">🌱</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🪴')} title="🪴">🪴</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🪸')} title="🪸">🪸</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⛰️')} title="⛰️">⛰️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏔️')} title="🏔️">🏔️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌋')} title="🌋">🌋</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏝️')} title="🏝️">🏝️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🏖️')} title="🏖️">🏖️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌊')} title="🌊">🌊</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌅')} title="🌅">🌅</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌄')} title="🌄">🌄</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌠')} title="🌠">🌠</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌌')} title="🌌">🌌</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌪️')} title="🌪️">🌪️</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('🌈')} title="🌈">🌈</button><button class="ep-emoji" onclick={()=>handleSelectEmoji('⛅')} title="⛅">⛅</button></div>{/if}
+        </div>
         {/if}
+
+        {#if pickerTab === 'gif'}
+          <div class="ep-body gif-body">
+            {#if !gifsLoaded}
+              <div class="gif-loading">Chargement…</div>
+            {:else if gifsError}
+              <div class="gif-loading">
+                ⚠️ GIFs non disponibles<br>
+                <span class="gif-hint">Lance le workflow <code>fetch-gifs.yml</code> pour peupler la collection.</span>
+              </div>
+            {:else if localGifs.length === 0}
+              <div class="gif-loading">
+                Aucun GIF — lance <code>fetch-gifs.yml</code>
+              </div>
+            {:else}
+              <div class="gif-cats">
+                {#each gifCats as cat}
+                  <button class="ep-cat-btn" class:active={gifCat === cat}
+                    onclick={() => gifCat = cat}>{cat}</button>
+                {/each}
+              </div>
+              <div class="gif-grid">
+                {#each localGifs.filter(g => g.cat_label === gifCat) as gif}
+                  <button class="gif-thumb" onclick={() => handleSelectGif(gif.file)}
+                    title={gif.title}>
+                    <img src="/gifs/{gif.file}" alt={gif.title} loading="lazy" />
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
+
       </div>
     {/if}
 
@@ -871,7 +944,7 @@
     <form class="input-area" onsubmit={handleSubmit}>
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
-      <button type="button" class="icon-btn gif-btn" onclick={toggleGifs} title="GIF">GIF</button>
+      <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
       <!-- Bouton message vocal -->
       <button
         type="button"
@@ -905,7 +978,6 @@
     role="dialog"
     aria-modal="true"
     aria-label="Nouvelle conversation"
-    tabindex="-1"
     onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}
     onkeydown={(e) => { if (e.key === 'Escape') showNewConv = false; }}
   >
@@ -1292,35 +1364,42 @@
 
   @keyframes pop { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 
-  /* ─── GIF ─── */
-  .gif-panel {
+  /* ─── Picker emoji natif (remplace GIF Tenor — S39) ─── */
+  .emoji-panel {
     flex-shrink: 0; border-top: 1px solid var(--border, #e2e8f0);
-    padding: .75rem 1rem; background: var(--bg-secondary, #f8fafc);
-    max-height: 220px; overflow-y: auto;
+    background: var(--bg-secondary, #f8fafc);
+    max-height: 260px; display: flex; flex-direction: column;
   }
-  .gif-search { display: flex; gap: .4rem; margin-bottom: .6rem; }
-  .gif-input {
-    flex: 1; padding: .4rem .7rem;
-    border: 1.5px solid var(--border, #e2e8f0); border-radius: .45rem;
-    font-size: .88rem; outline: none;
-    background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
+  .ep-header {
+    display: flex; align-items: center; gap: .3rem;
+    padding: .4rem .6rem; border-bottom: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-primary, #fff);
   }
-  .gif-input:focus { border-color: var(--accent, #4ade80); }
-  .search-btn, .close-btn {
-    padding: .4rem .7rem; border: none; border-radius: .45rem;
-    cursor: pointer; font-size: .88rem;
+  .ep-cats { display: flex; gap: .2rem; flex: 1; overflow-x: auto; scrollbar-width: none; }
+  .ep-cats::-webkit-scrollbar { display: none; }
+  .ep-cat-btn {
+    flex-shrink: 0; padding: .3rem .4rem; border: none; border-radius: .4rem;
+    font-size: 1.1rem; cursor: pointer; background: transparent;
+    transition: background .15s; opacity: .6;
   }
-  .search-btn { background: var(--accent, #4ade80); color: #fff; }
-  .close-btn  { background: var(--bg-tertiary, #e2e8f0); color: var(--text-secondary, #64748b); }
-  .gif-status { text-align: center; padding: .75rem; color: var(--text-secondary, #94a3b8); font-size: .83rem; }
-  .gif-grid { display: flex; flex-wrap: wrap; gap: .35rem; }
-  .gif-item {
-    width: 85px; height: 85px;
-    border: none; border-radius: .4rem; overflow: hidden;
-    cursor: pointer; padding: 0; transition: transform .15s;
+  .ep-cat-btn:hover, .ep-cat-btn.active { background: var(--bg-secondary, #f1f5f9); opacity: 1; }
+  .ep-close {
+    flex-shrink: 0; padding: .3rem .5rem; border: none; border-radius: .4rem;
+    cursor: pointer; background: var(--bg-tertiary, #e2e8f0);
+    color: var(--text-secondary, #64748b); font-size: .85rem;
   }
-  .gif-item:hover { transform: scale(1.05); }
-  .gif-item img { width: 100%; height: 100%; object-fit: cover; }
+  .ep-body { flex: 1; overflow-y: auto; padding: .4rem .5rem; }
+  .ep-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr));
+    gap: .15rem;
+  }
+  .ep-emoji {
+    padding: .25rem; border: none; background: transparent;
+    font-size: 1.35rem; cursor: pointer; border-radius: .3rem;
+    transition: background .1s, transform .1s; line-height: 1;
+  }
+  .ep-emoji:hover { background: var(--bg-primary, #fff); transform: scale(1.2); }
 
   /* ─── Saisie ─── */
   .input-area {
@@ -1336,14 +1415,54 @@
     transition: background .15s; flex-shrink: 0;
   }
   .icon-btn:hover { background: var(--bg-secondary, #f1f5f9); }
-  .gif-btn {
-    font-size: .7rem; font-weight: 700; letter-spacing: .04em;
-    border-radius: .35rem !important;
-    padding: .3rem .45rem !important;
-    border: 1.5px solid var(--border, #e2e8f0) !important;
-    color: var(--text-secondary, #64748b);
+  .emoji-open-btn {
+    font-size: 1.2rem !important;
+    transition: transform .15s;
   }
-  .gif-btn:hover { background: var(--accent, #4ade80) !important; color: #fff; border-color: transparent !important; }
+  .emoji-open-btn:hover { transform: scale(1.15); background: var(--bg-secondary, #f1f5f9) !important; }
+
+  /* ─── Onglets Emoji / GIF ─── */
+  .ep-tabs {
+    display: flex; align-items: center; gap: .2rem;
+    padding: .35rem .5rem; border-bottom: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-primary, #fff);
+  }
+  .ep-tab {
+    padding: .3rem .65rem; border: none; border-radius: .4rem;
+    font-size: .82rem; font-weight: 600; cursor: pointer;
+    background: transparent; color: var(--text-secondary, #64748b);
+    transition: all .15s;
+  }
+  .ep-tab:hover  { background: var(--bg-secondary, #f1f5f9); color: var(--text-primary); }
+  .ep-tab.active { background: var(--accent, #4ade80); color: #fff; }
+  .ep-tab-spacer { flex: 1; }
+
+  /* ─── GIFs locaux ─── */
+  .gif-body { padding: .4rem .5rem; overflow-y: auto; flex: 1; }
+  .gif-cats {
+    display: flex; gap: .25rem; flex-wrap: wrap;
+    margin-bottom: .5rem;
+  }
+  .gif-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+    gap: .35rem;
+  }
+  .gif-thumb {
+    border: none; border-radius: .4rem; overflow: hidden;
+    cursor: pointer; padding: 0; aspect-ratio: 1;
+    background: var(--bg-tertiary, #e2e8f0);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .gif-thumb:hover { transform: scale(1.04); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .gif-thumb img   { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gif-loading {
+    text-align: center; padding: 1.5rem; color: var(--text-secondary, #94a3b8);
+    font-size: .85rem; line-height: 1.6;
+  }
+  .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
+  .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
+  :global(.chat-gif) { max-width: 200px; max-height: 200px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
