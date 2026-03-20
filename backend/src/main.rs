@@ -272,6 +272,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::fs::create_dir_all("/app/data").await?;
     tokio::fs::create_dir_all(&config.uploads_dir).await?;
+    tokio::fs::create_dir_all(&config.gifs_dir).await?;
     tracing::info!("✓ Répertoires de travail créés/vérifiés");
 
     tracing::info!("Connexion à la base de données SQLite...");
@@ -478,6 +479,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .nest("/api", api_router)
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
+        // GIFs : volume de données en priorité, fallback sur les GIFs de l'image Docker
+        .nest_service("/gifs",
+            ServeDir::new(&config.gifs_dir)
+                .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
+        )
         .merge(webrtc::webrtc_routes())
         .fallback_service(static_service)
         .layer(CompressionLayer::new())
