@@ -1,6 +1,6 @@
 # 📱 Instruction personnalisée Android — Nook
 
-> Générée le : **2026-03-19** | Version : **0.4.0-beta.1** | Session : **38**
+> Générée le : **2026-03-20** | Version : **0.4.0-beta.1** | Session : **38**
 > Taille : **1031 / 1500 chars** ✅ OK
 
 ---
