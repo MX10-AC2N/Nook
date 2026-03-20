@@ -29,7 +29,7 @@ GIPHY_API_KEY="${GIPHY_API_KEY:-}"
 GIFS_DIR="${GIFS_DIR:-/app/data/gifs}"
 RATING="g"          # g = tous publics
 LANG="fr"
-LIMIT=10            # 10 GIFs par thème
+LIMIT=12            # 12 GIFs par thème
 TIMEOUT=15          # secondes par requête curl
 DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
