@@ -390,6 +390,41 @@ pub async fn send_message(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // ── Notifications push aux autres membres de la conversation ──────────
+    // Fire-and-forget : on ne bloque pas la réponse HTTP pour les push
+    {
+        let pool = state.db.clone();
+        let sender_id = user.id.clone();
+        let sender_name = user.username.clone();
+        let msg_preview = req.content.chars().take(80).collect::<String>();
+        let conv_id = conversation_id.clone();
+        tokio::task::spawn(async move {
+            // Récupérer tous les membres sauf l'expéditeur
+            let members: Vec<(String,)> = sqlx::query_as(
+                "SELECT user_id FROM conversation_participants WHERE conversation_id = ? AND user_id != ?",
+            )
+            .bind(&conv_id)
+            .bind(&sender_id)
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
+
+            let payload = crate::push::PushPayload {
+                title: format!("Nook · {}", sender_name),
+                body: msg_preview,
+                icon: Some("/icon-192.png".to_string()),
+                url: Some("/chat".to_string()),
+                tag: Some(format!("nook-msg-{}", conv_id)),
+            };
+
+            for (member_id,) in members {
+                if let Err(e) = crate::push::send_push_notification(&pool, &member_id, &payload).await {
+                    tracing::debug!(error = %e, member_id = %member_id, "Push non envoyé");
+                }
+            }
+        });
+    }
+
     // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
     if req.encrypted && !req.encrypted_keys.is_empty() {
         if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys).await {

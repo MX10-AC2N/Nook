@@ -257,6 +257,33 @@ logout-button       → bouton déconnexion
 ### [APP-E2E-05] loginAsAdmin via API — Session 19
 → **Promu** dans Helpers validés.
 
+### [APP-E2E-13] Cookie admin pollué par loginAs testUser — Sessions 38-39
+
+Utiliser `adminPage.request.post('/auth/login', testUser)` dans une suite `.serial`
+remplace le cookie `auth_token` de `adminPage` → tous les tests suivants obtiennent 403.
+Fix : `isolatedPage = await browser.newPage()` pour tous les appels login/register du testUser,
+fermé dans `finally`. Le `adminPage` conserve sa session admin intacte du début à la fin.
+
+### [APP-E2E-14] Serde fields obligatoires → 422 — Session 39
+
+Les champs Rust `bool` sans `#[serde(default)]` sont obligatoires dans le JSON body.
+Tests qui oublient `encrypted: false` ou `is_group: true` → Axum retourne 422.
+Règle : toujours inclure les champs requis, ou ajouter `#[serde(default)]` au backend.
+
+### [APP-E2E-15] Réponse JSON imbriquée — vérifier le niveau — Session 39
+
+`POST /polls` retourne `{ "poll": { "id": ..., ... } }` pas `{ "id": ... }`.
+`POST /invites` retourne `{ "invite_link": "/invite?token=..." }` pas `{ "token": ... }`.
+Règle : toujours vérifier avec un `console.log(await res.json())` ou les logs CI
+avant d'écrire les assertions sur la structure de réponse.
+
+### [APP-E2E-16] Hover CI headless + state Svelte — Session 39
+
+`onmouseenter` Svelte (qui déclenche `hoveredMsgId = msg.id`) peut ne pas se déclencher
+avec `page.hover()` seul en CI headless.
+Fix validé : `await msg.hover()` + `await msg.dispatchEvent('mouseenter')` + `await page.waitForTimeout(300)`.
+Pour les actions qui déclenchent un appel réseau : utiliser `Promise.all([waitForResponse(...), click()])`.
+
 ### [APP-E2E-06] addInitScript sur Page = about:blank — Session 18
 
 `page.addInitScript()` s'exécute dans le contexte `about:blank` (avant la navigation).

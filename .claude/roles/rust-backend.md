@@ -288,6 +288,30 @@ Status : Archivé dans **memory-decisions.md D10**.
 Fix : exclure les conversations système du nettoyage.
 Status : Résolu. Surveiller si de nouvelles conversations système sont ajoutées.
 
+### [APP-RUST-06] winner_id FK users — jamais de valeur arbitraire — Session 39
+
+`chess_games.winner_id` a une FOREIGN KEY vers `users(id)`.
+Stocker une valeur arbitraire comme `"ai"` :
+- SQLite sans PRAGMA foreign_keys → pas d'erreur mais comportement non garanti
+- Peut silencieusement échouer dans des contextes strict FK
+Fix : utiliser `None` (NULL) pour les parties vs IA où il n'y a pas de gagnant "humain".
+Règle : winner_id = None si IA, Some(user_id) si humain.
+
+### [APP-RUST-07] #[derive(...)] doit être adjacent au struct — Session 39
+
+`fn default_true()` insérée entre `#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]`
+et `pub struct User { ... }` → le derive s'applique à la fonction → erreur E0774 en cascade.
+Règle : toute fonction helper libre doit être placée AVANT son premier `#[derive]`, jamais entre.
+
+### [APP-RUST-08] VAPID sans dépendance externe — ring + reqwest — Session 39
+
+web-push 0.10 tire async-trait → interdit (D10).
+VAPID implémentable manuellement avec ring (déjà disponible via rustls transitif) :
+- JWT ES256 : `ring::signature::EcdsaKeyPair::from_pkcs8` + signer
+- Base64url : `base64ct` déjà en dep directe
+- Envoi : `reqwest` déjà en dep directe, `Content-Type: application/octet-stream`
+Pas de nouvelle dépendance requise.
+
 ### [APP-RUST-05] sqlx macros nécessitent queries.json à jour — Sessions multiples
 
 Les macros `sqlx::query!` et `sqlx::query_as!` nécessitent que `.sqlx/queries.json`

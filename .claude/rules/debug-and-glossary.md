@@ -1,6 +1,6 @@
 # 🔍 Debug, CI & Glossaire — Nook
 
-> Patterns de debug validés sur 24 sessions. Ce fichier évite de répéter
+> Patterns de debug validés sur 39 sessions. Ce fichier évite de répéter
 > les mêmes diagnostics. Lire avant d'analyser un rapport CI ou des logs.
 
 ---
@@ -82,6 +82,27 @@ Cause   : allow_any_origin() + allow_credentials(true) interdit
 Fix     : ALLOWED_ORIGINS= liste explicite dans .env
 ```
 
+### Pattern 8 — winner_id chess FK violation silencieuse
+```
+Cause   : chess_games.winner_id est une FK vers users(id)
+          Stocker "ai" → pas un user valide → UPDATE .ok() absorbe l'erreur
+Fix     : winner_id = None pour les parties IA, Some(user_id) pour humain
+```
+
+### Pattern 9 — #[derive] séparé de son struct par une fn
+```
+Cause   : fn default_true() insérée entre #[derive(...)] et pub struct User { }
+          Le derive s'applique à la fonction → E0774 + cascade FromRow
+Fix     : toujours placer les fn helpers AVANT leur premier #[derive]
+```
+
+### Pattern 10 — mot réservé Rust utilisé comme binding
+```
+Cause   : priv, pub, crate, super, type... sont des mots réservés
+          Utilisés dans un pattern match → erreur de compilation
+Fix     : renommer en private_key, public_key, etc.
+```
+
 ### Pattern 7 — prune.rs supprime default_global
 ```
 Cause   : conversation sans participants → supprimée par prune
@@ -137,6 +158,11 @@ Fix     : exclure conversations système du nettoyage
 □ Cookie CORS : ALLOWED_ORIGINS listées, pas de wildcard
 □ $state Svelte 5 : mutation via propriété, pas réassignation
 □ BUGS.md consulté → ne pas réintroduire les bugs résolus
+□ #[derive(...)] adjacent au struct — jamais de fn libre entre les deux
+□ chess_games.winner_id → None pour IA, jamais "ai" (FK users)
+□ priv / pub / crate / super → mots réservés Rust, ne pas utiliser comme identifiants
+□ apiFetch n'existe pas dans api.ts → utiliser fetch() avec credentials:'include'
+□ POST /polls → { "poll": { id } }, pas { id } au niveau racine
 ```
 
 ---
@@ -191,3 +217,9 @@ Workflows utilitaires (indépendants) :
 | `Zimaboard 832` | Homeserver de production — ARM64, 8Go RAM, SSD 32Go |
 | `GHCR` | GitHub Container Registry — stockage images Docker du projet |
 | `dawidd6` | Action `dawidd6/action-download-artifact@v6` — seule qui supporte les artifacts cross-workflow (nécessaire pour Docker.yml) |
+| `VAPID` | Voluntary Application Server Identification — protocole JWT ES256 pour authentifier les push notifications (RFC 8292) |
+| `push_subscriptions` | Table stockant les abonnements push par device (endpoint URL + clés p256dh/auth) |
+| `unlockCrypto()` | Fonction `cryptoStore.svelte.ts` — déchiffre ou génère les clés E2EE après login |
+| `cryptoStore.ready` | `true` si les clés X25519 sont chargées en mémoire → messages chiffrés |
+| `DT-01` | libsodium-wrappers 938 kB — cosmétique (fire-and-forget depuis S37, non bloquant) |
+| `DT-02` | Chess temps réel — **résolu S39** (WS broadcast serveur + refreshGame client) |

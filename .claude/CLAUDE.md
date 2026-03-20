@@ -1,7 +1,7 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.1** | Session courante : **38** | Mis à jour : **2026-03-19**
+> Version projet : **0.4.0-beta.2** | Session courante : **39** | Mis à jour : **2026-03-20**
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
