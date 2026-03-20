@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 scripts/fetch-gifs.py — Télécharge les GIFs curatés pour Nook
-Usage  : python3 scripts/fetch-gifs.py --key YOUR_KLIPY_KEY
+Usage  : python3 scripts/fetch-gifs.py --key YOUR_GIPHY_KEY
 Secrets: GIFS_API_KEY (GitHub Actions) ou --key en CLI
-Clé    : gratuite sur https://klipy.com/migrate
-         (Tenor API fermée aux nouveaux clients depuis janvier 2026)
+Clé    : gratuite sur https://developers.giphy.com → "Create App" → SDK key
+         (Tenor fermé jan 2026, Klipy endpoint instable)
 Output : frontend/static/gifs/*.gif + frontend/static/gifs/index.json
 
 80 GIFs répartis en 4 catégories :
@@ -128,18 +128,21 @@ CATEGORY_LABELS = {
 
 def tenor_search(query: str, api_key: str, pos: int = 0) -> dict | None:
     """Cherche un GIF sur Tenor et retourne le résultat à l'index `pos`."""
-    # Klipy : même logique que Tenor, URL différente
-    # GET https://api.klipy.com/api/v1/{API_KEY}/gifs/search?q=...&limit=N
+    # Giphy API v1 — endpoint stable, clé gratuite SDK
+    # GET https://api.giphy.com/v1/gifs/search?api_key=KEY&q=QUERY&limit=N
     params = urllib.parse.urlencode({
-        "q":     query,
-        "limit": max(pos + 1, 3),
+        "api_key": api_key,
+        "q":       query,
+        "limit":   max(pos + 1, 3),
+        "rating":  "g",
+        "lang":    "fr",
     })
-    url = f"https://api.klipy.com/api/v1/{api_key}/gifs/search?{params}"
+    url = f"https://api.giphy.com/v1/gifs/search?{params}"
     try:
         with urllib.request.urlopen(url, timeout=10) as resp:
             data = json.loads(resp.read())
-            # Klipy retourne { data: [...] }, Tenor retournait { results: [...] }
-            results = data.get("data", data.get("results", []))
+            # Giphy retourne { data: [...] }
+            results = data.get("data", [])
             if not results:
                 return None
             idx = min(pos, len(results) - 1)
@@ -150,18 +153,12 @@ def tenor_search(query: str, api_key: str, pos: int = 0) -> dict | None:
 
 
 def best_gif_url(result: dict) -> tuple[str, str]:
-    """Retourne (url_preview, url_full) depuis un résultat Klipy ou Tenor."""
-    # Klipy  : result["files"]["gif"]["url"] / result["files"]["tinygif"]["url"]
-    # Tenor  : result["media_formats"]["gif"]["url"] (fallback pour compatibilité)
-    files = result.get("files", result.get("media_formats", {}))
-    preview = (
-        (files.get("tinygif") or {}).get("url") or
-        (files.get("gif")     or {}).get("url") or ""
-    )
-    full = (
-        (files.get("gif")     or {}).get("url") or
-        (files.get("tinygif") or {}).get("url") or ""
-    )
+    """Retourne (url_preview, url_full) depuis un résultat Giphy."""
+    # Giphy : result["images"]["fixed_width"]["url"]  (preview ~240px)
+    #         result["images"]["original"]["url"]      (full size)
+    images = result.get("images", {})
+    preview = (images.get("fixed_width_small") or images.get("fixed_width") or {}).get("url", "")
+    full    = (images.get("fixed_width")       or images.get("original")    or {}).get("url", "")
     return preview, full
 
 
@@ -178,7 +175,7 @@ def download_file(url: str, dest: Path) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch curated GIFs for Nook")
-    parser.add_argument("--key", default=os.environ.get("GIFS_API_KEY", os.environ.get("KLIPY_API_KEY", os.environ.get("TENOR_API_KEY", ""))),
+    parser.add_argument("--key", default=os.environ.get("GIFS_API_KEY", ""),
                         help="Clé API Klipy (ou var GIFS_API_KEY)")
     parser.add_argument("--output", default="frontend/static/gifs",
                         help="Dossier de sortie (défaut: frontend/static/gifs)")
@@ -189,7 +186,7 @@ def main():
     if not args.key:
         print("❌ GIFS_API_KEY manquante — passer --key ou définir la variable d'env",
               file=sys.stderr)
-        print("   Clé gratuite sur https://klipy.com/migrate", file=sys.stderr)
+        print("   Clé gratuite sur https://developers.giphy.com → Create App → SDK key", file=sys.stderr)
         sys.exit(1)
 
     out_dir = Path(args.output)
