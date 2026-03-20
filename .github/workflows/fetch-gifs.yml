@@ -1,15 +1,24 @@
-name: 🎬 Fetch GIFs — Mise à jour collection locale
+name: 🎬 Fetch GIFs — Collection de base (image Docker)
 
-# Workflow MANUEL uniquement — ne tourne jamais automatiquement.
-# Nécessite le secret GIFS_API_KEY dans GitHub → Settings → Secrets → Actions.
-# Clé gratuite sur https://klipy.com/migrate (ex-employés Tenor, même structure API)
+# Workflow MANUEL — à lancer UNE FOIS pour peupler frontend/static/gifs/
+# Ces GIFs sont intégrés dans l'image Docker comme collection de secours.
 #
 # Quand lancer :
-#   - Première fois pour peupler frontend/static/gifs/
-#   - Si des GIFs sont manquants ou corrompus
-#   - Pour rafraîchir la collection (nouveaux GIFs Tenor)
+#   - À la première mise en place des GIFs dans le projet
+#   - Pour rafraîchir la collection de base (ex: après un an)
+#   - Si un utilisateur déploie SANS GIPHY_API_KEY, ces GIFs seront affichés
 #
-# Après le run : commit automatique → déclenche le pipeline CI normal.
+# ┌─────────────────────────────────────────────────────────────────┐
+# │  Utilisateurs avec GIPHY_API_KEY dans leur .env :              │
+# │  → gifs_updater.rs met à jour /app/data/gifs/ automatiquement  │
+# │    toutes les semaines, sans rebuild de l'image.               │
+# │                                                                 │
+# │  Utilisateurs SANS clé Giphy :                                  │
+# │  → Axum sert le fallback frontend/static/gifs/ (ce workflow)   │
+# └─────────────────────────────────────────────────────────────────┘
+#
+# Nécessite le secret GIFS_API_KEY dans GitHub → Settings → Secrets → Actions.
+# Clé SDK gratuite : https://developers.giphy.com → Create App → SDK
 
 on:
   workflow_dispatch:
@@ -26,7 +35,7 @@ permissions:
 
 jobs:
   fetch-gifs:
-    name: 🎬 Télécharger les GIFs curatés
+    name: 🎬 Collection de base — frontend/static/gifs/
     runs-on: ubuntu-latest
 
     steps:
@@ -39,11 +48,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      # ── 1. Créer le dossier de destination ───────────────────────
-      - name: Préparer le dossier GIFs
+      - name: Préparer le dossier
         run: mkdir -p frontend/static/gifs
 
-      # ── 2. Lancer le script ───────────────────────────────────────
       - name: Télécharger les GIFs
         env:
           GIFS_API_KEY: ${{ secrets.GIFS_API_KEY }}
@@ -51,15 +58,13 @@ jobs:
           DRY_FLAG=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             DRY_FLAG="--dry-run"
-            echo "ℹ️  Mode dry-run activé — aucun fichier téléchargé"
+            echo "ℹ️  Mode dry-run — aucun fichier téléchargé"
           fi
           python3 scripts/fetch-gifs.py $DRY_FLAG
           echo "=== Contenu frontend/static/gifs/ ==="
           ls -lh frontend/static/gifs/ | head -20
-          echo "=== Total ==="
           find frontend/static/gifs -name "*.gif" | wc -l
 
-      # ── 3. Vérification du catalogue ─────────────────────────────
       - name: Vérifier index.json
         run: |
           if [ -f frontend/static/gifs/index.json ]; then
@@ -69,34 +74,33 @@ jobs:
             echo "⚠️  index.json absent (dry-run ?)"
           fi
 
-      # ── 4. Commit si des fichiers ont changé ─────────────────────
-      - name: Commit GIFs
+      - name: Commit dans le repo
         if: inputs.dry_run != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add frontend/static/gifs/
           if git diff --staged --quiet; then
-            echo "ℹ️  Aucun changement — GIFs déjà à jour"
+            echo "ℹ️  Aucun changement"
           else
             ADDED=$(git diff --staged --name-only | grep '\.gif$' | wc -l)
-            git commit -m "feat(gifs): mise à jour collection locale — ${ADDED} GIFs [skip ci]"
+            git commit -m "feat(gifs): collection de base — ${ADDED} GIFs [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
-            echo "✅ $ADDED GIFs commités"
+            echo "✅ $ADDED GIFs commités dans frontend/static/gifs/"
           fi
 
-      # ── 5. Résumé GitHub ─────────────────────────────────────────
       - name: Résumé
         run: |
-          echo "## 🎬 Fetch GIFs" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎬 Collection GIFs de base" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Ces GIFs sont dans l'image Docker — fallback pour les déploiements sans \`GIPHY_API_KEY\`." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f frontend/static/gifs/index.json ]; then
             TOTAL=$(python3 -c "import json; d=json.load(open('frontend/static/gifs/index.json')); print(d['total'])")
-            SIZE=$(du -sh frontend/static/gifs/*.gif 2>/dev/null | tail -1 | cut -f1 || echo "0")
-            echo "| GIFs téléchargés | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| GIFs dans l'image | $TOTAL |" >> $GITHUB_STEP_SUMMARY
             echo "| Dossier | \`frontend/static/gifs/\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Mise à jour auto (avec clé) | \`gifs_updater.rs\` — toutes les 7 jours |" >> $GITHUB_STEP_SUMMARY
           fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> ℹ️ Dry-run — aucun fichier téléchargé ni commité." >> $GITHUB_STEP_SUMMARY
+            echo "> ℹ️ Dry-run — aucun fichier téléchargé." >> $GITHUB_STEP_SUMMARY
           fi
