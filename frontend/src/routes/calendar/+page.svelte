@@ -212,13 +212,15 @@
 
     <!-- CALENDAR GRID -->
     <div class="calendar-grid">
-      <div class="day-header">Lun</div>
-      <div class="day-header">Mar</div>
-      <div class="day-header">Mer</div>
-      <div class="day-header">Jeu</div>
-      <div class="day-header">Ven</div>
-      <div class="day-header">Sam</div>
-      <div class="day-header">Dim</div>
+      {#each [
+        {full:'Lun',short:'L'}, {full:'Mar',short:'M'}, {full:'Mer',short:'M'},
+        {full:'Jeu',short:'J'}, {full:'Ven',short:'V'}, {full:'Sam',short:'S'}, {full:'Dim',short:'D'}
+      ] as day}
+        <div class="day-header">
+          <span class="day-full">{day.full}</span>
+          <span class="day-short">{day.short}</span>
+        </div>
+      {/each}
 
       <!-- Jours vides du début du mois -->
       {#each Array.from({ length: getFirstDayOfMonth(currentDate) }) as _, i}
@@ -235,6 +237,9 @@
             {#each dayEvents.slice(0, 2) as event}
               <div class="event-badge">{event.title}</div>
             {/each}
+          {#if dayEvents.length > 0}
+            <span class="event-dot"></span>
+          {/if}
             {#if dayEvents.length > 2}
               <div class="event-more">+{dayEvents.length - 2}</div>
             {/if}
@@ -770,15 +775,43 @@
   @media (max-width: 480px) {
     .calendar-grid {
       grid-template-columns: repeat(7, 1fr);
+      gap: 0.15rem;
+    }
+
+    .day-header {
+      padding: 0.4rem 0.1rem;
+      font-size: 0.7rem;
     }
 
     .calendar-day {
-      min-height: 60px;
-      padding: 0.25rem;
+      min-height: 44px;
+      padding: 0.2rem 0.1rem;
+      border-radius: 6px;
+      aspect-ratio: auto;
     }
 
     .day-number {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
+    }
+
+    .event-badge {
+      display: none; /* masquer les badges texte sur très petit écran */
+    }
+
+    .event-dot {
+      display: block !important;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent, #4ade80);
+      margin: 1px auto 0;
+    }
+
+    .calendar-container {
+      padding: 0.75rem 0.5rem;
+    }
+
+    .month-title {
+      font-size: 1.1rem;
     }
 
     .form-actions {
@@ -789,5 +822,14 @@
     .submit-btn {
       width: 100%;
     }
+  }
+
+  /* Affichage conditionnel des noms de jours */
+  .day-short { display: none; }
+  .day-full  { display: inline; }
+
+  @media (max-width: 480px) {
+    .day-short { display: inline; }
+    .day-full  { display: none; }
   }
 </style>
