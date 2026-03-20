@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 scripts/fetch-gifs.py — Télécharge les GIFs curatés pour Nook
-Usage  : python3 scripts/fetch-gifs.py --key YOUR_TENOR_KEY
-Secrets: TENOR_API_KEY (GitHub Actions) ou --key en CLI
+Usage  : python3 scripts/fetch-gifs.py --key YOUR_KLIPY_KEY
+Secrets: KLIPY_API_KEY (GitHub Actions) ou --key en CLI
+Clé    : gratuite sur https://klipy.com/migrate
+         (Tenor API fermée aux nouveaux clients depuis janvier 2026)
 Output : frontend/static/gifs/*.gif + frontend/static/gifs/index.json
 
 80 GIFs répartis en 4 catégories :
@@ -126,19 +128,18 @@ CATEGORY_LABELS = {
 
 def tenor_search(query: str, api_key: str, pos: int = 0) -> dict | None:
     """Cherche un GIF sur Tenor et retourne le résultat à l'index `pos`."""
+    # Klipy : même logique que Tenor, URL différente
+    # GET https://api.klipy.com/api/v1/{API_KEY}/gifs/search?q=...&limit=N
     params = urllib.parse.urlencode({
-        "q":            query,
-        "key":          api_key,
-        "client_key":   "nook_fetch",
-        "limit":        max(pos + 1, 3),
-        "media_filter": "gif,tinygif",
-        "contentfilter":"medium",
+        "q":     query,
+        "limit": max(pos + 1, 3),
     })
-    url = f"https://tenor.googleapis.com/v2/search?{params}"
+    url = f"https://api.klipy.com/api/v1/{api_key}/gifs/search?{params}"
     try:
         with urllib.request.urlopen(url, timeout=10) as resp:
             data = json.loads(resp.read())
-            results = data.get("results", [])
+            # Klipy retourne { data: [...] }, Tenor retournait { results: [...] }
+            results = data.get("data", data.get("results", []))
             if not results:
                 return None
             idx = min(pos, len(results) - 1)
@@ -149,15 +150,17 @@ def tenor_search(query: str, api_key: str, pos: int = 0) -> dict | None:
 
 
 def best_gif_url(result: dict) -> tuple[str, str]:
-    """Retourne (url_preview_tinygif, url_full_gif) depuis un résultat Tenor."""
-    fmt = result.get("media_formats", {})
+    """Retourne (url_preview, url_full) depuis un résultat Klipy ou Tenor."""
+    # Klipy  : result["files"]["gif"]["url"] / result["files"]["tinygif"]["url"]
+    # Tenor  : result["media_formats"]["gif"]["url"] (fallback pour compatibilité)
+    files = result.get("files", result.get("media_formats", {}))
     preview = (
-        fmt.get("tinygif", {}).get("url") or
-        fmt.get("gif",     {}).get("url") or ""
+        (files.get("tinygif") or {}).get("url") or
+        (files.get("gif")     or {}).get("url") or ""
     )
     full = (
-        fmt.get("gif",     {}).get("url") or
-        fmt.get("tinygif", {}).get("url") or ""
+        (files.get("gif")     or {}).get("url") or
+        (files.get("tinygif") or {}).get("url") or ""
     )
     return preview, full
 
@@ -175,8 +178,8 @@ def download_file(url: str, dest: Path) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Fetch curated GIFs for Nook")
-    parser.add_argument("--key", default=os.environ.get("TENOR_API_KEY", ""),
-                        help="Clé API Tenor (ou var TENOR_API_KEY)")
+    parser.add_argument("--key", default=os.environ.get("KLIPY_API_KEY", os.environ.get("TENOR_API_KEY", "")),
+                        help="Clé API Klipy (ou var KLIPY_API_KEY)")
     parser.add_argument("--output", default="frontend/static/gifs",
                         help="Dossier de sortie (défaut: frontend/static/gifs)")
     parser.add_argument("--dry-run", action="store_true",
@@ -184,8 +187,9 @@ def main():
     args = parser.parse_args()
 
     if not args.key:
-        print("❌ TENOR_API_KEY manquante — passer --key ou définir la variable d'env",
+        print("❌ KLIPY_API_KEY manquante — passer --key ou définir la variable d'env",
               file=sys.stderr)
+        print("   Clé gratuite sur https://klipy.com/migrate", file=sys.stderr)
         sys.exit(1)
 
     out_dir = Path(args.output)
