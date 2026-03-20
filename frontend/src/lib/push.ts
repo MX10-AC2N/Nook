@@ -10,7 +10,7 @@
 // Usage dans settings/+page.svelte :
 //   import { subscribeToPush, unsubscribePush, getPushState } from '$lib/push';
 
-import { apiFetch } from '$lib/api';
+// Fetch authentifié — credentials:'include' pour envoyer le cookie auth_token
 
 export interface PushState {
   supported:    boolean; // navigateur supporte Push + ServiceWorker
@@ -62,7 +62,7 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
   // 2. Récupérer la clé VAPID publique depuis le backend
   let vapidKey: string;
   try {
-    const res = await apiFetch('/push/vapid-public-key');
+    const res = await fetch('/api/push/vapid-public-key', { credentials: 'include' });
     const body = await res.json();
     vapidKey = body.public_key;
     if (!vapidKey) {
@@ -91,8 +91,10 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
       keys: { p256dh: string; auth: string };
     };
 
-    const res = await apiFetch('/push/subscribe', {
+    const res = await fetch('/api/push/subscribe', {
       method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         endpoint,
         keys: { p256dh: keys.p256dh, auth: keys.auth },
@@ -128,8 +130,10 @@ export async function unsubscribePush(): Promise<{ success: boolean; error?: str
 
       // Informer le backend (best-effort, pas bloquant)
       try {
-        await apiFetch('/push/unsubscribe', {
+        await fetch('/api/push/unsubscribe', {
           method: 'DELETE',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ endpoint: sub.endpoint }),
         });
       } catch { /* no-op */ }
