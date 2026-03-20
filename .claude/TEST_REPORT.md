@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-19 20:09 UTC**
+> Généré par `test-nook.yml` · **2026-03-20 06:53 UTC**
 
 ---
 
@@ -8,15 +8,15 @@
 
 | Indicateur | Valeur |
 |-----------|--------|
-| **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 92 |
-| **Tests échoués** | 1 |
-| **Tests ignorés** | 22 |
+| **Statut** | ✅ **SUCCÈS** |
+| **Tests passés** | 115 |
+| **Tests échoués** | 0 |
+| **Tests ignorés** | 0 |
 | **Total** | 115 |
-| **Durée** | 27.0s |
+| **Durée** | 19.0s |
 | **Branche** | `develop` |
-| **Commit** | [`d506869`](https://github.com/MX10-AC2N/Nook/commit/d506869111ac7d1be86790306b2df52670d2ce29) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23314475043) |
+| **Commit** | [`66df8cc`](https://github.com/MX10-AC2N/Nook/commit/66df8cc32ce173f6cf9c8fea6a6d4fde149f861d) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23332230522) |
 
 ---
 
@@ -108,13 +108,13 @@
 | ✅ | GET /users/pending avec user normal → 403 | 0s |
 | ✅ | Page /admin → non accessible pour user normal | 2s |
 
-### ❌ user.spec.ts — 26/49 passés
+### ✅ user.spec.ts — 49/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
 | ✅ | Login e2e_ci → redirigé vers /chat | 0s |
 | ✅ | GET /auth/me → username=e2e_ci | 0s |
-| ✅ | Login invalide → reste sur /login | 6s |
+| ✅ | Login invalide → reste sur /login | 3s |
 | ✅ | GET /conversations → default_global présente | 0s |
 | ✅ | GET /conversations/default_global → détail de la conv | 0s |
 | ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
@@ -128,83 +128,45 @@
 | ✅ | Réactions — DELETE → my_emoji null | 0s |
 | ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
 | ✅ | Réactions — message inexistant → 404 | 0s |
-| ✅ | Réactions UI — hover → picker → pill visible | 2s |
+| ✅ | Réactions UI — hover → picker → pill visible | 1s |
 | ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
 | ✅ | Download — id inexistant → 404 | 0s |
 | ✅ | GET /polls → tableau de sondages | 0s |
 | ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
-| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 1s |
+| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
 | ✅ | GET /chess/list → 200 | 0s |
 | ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
 | ✅ | Chess — POST /chess/{id}/ai-move → 200 | 0s |
-| ❌ | Chess — POST /chess/{id}/resign → 200 | 0s |
-| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A |
-| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A |
-| ⏭️ | Calendar — GET /events → 200 | N/A |
-| ⏭️ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | N/A |
-| ⏭️ | Calendar UI — page, grille et bouton ajouter visibles | N/A |
-| ⏭️ | Settings UI — 3 onglets navigables | N/A |
-| ⏭️ | Settings — changement de thème (clic → sélectionné) | N/A |
-| ⏭️ | POST /user/update → mise à jour du nom | N/A |
-| ⏭️ | Navigation /chat → accessible sans erreur | N/A |
-| ⏭️ | Navigation /calendar → accessible sans erreur | N/A |
-| ⏭️ | Navigation /chess → accessible sans erreur | N/A |
-| ⏭️ | Navigation /polls → accessible sans erreur | N/A |
-| ⏭️ | Navigation /settings → accessible sans erreur | N/A |
-| ⏭️ | Navigation /help → accessible sans erreur | N/A |
-| ⏭️ | Navigation /events → accessible sans erreur | N/A |
-| ⏭️ | E2EE — POST /auth/public-key → enregistre la clé | N/A |
-| ⏭️ | E2EE — GET /auth/public-keys → objet avec clés des membres | N/A |
-| ⏭️ | Push — GET /push/vapid-public-key → 200 | N/A |
-| ⏭️ | Push — GET /push/preferences → prefs par défaut | N/A |
-| ⏭️ | Push — POST /push/preferences → mise à jour | N/A |
-| ⏭️ | Push — POST /push/subscribe → 200 | N/A |
-| ⏭️ | Logout UI → redirigé vers /login | N/A |
+| ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
+| ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
+| ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 0s |
+| ✅ | Calendar — GET /events → 200 | 0s |
+| ✅ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | 0s |
+| ✅ | Calendar UI — page, grille et bouton ajouter visibles | 0s |
+| ✅ | Settings UI — 3 onglets navigables | 0s |
+| ✅ | Settings — changement de thème (clic → sélectionné) | 0s |
+| ✅ | POST /user/update → mise à jour du nom | 0s |
+| ✅ | Navigation /chat → accessible sans erreur | 0s |
+| ✅ | Navigation /calendar → accessible sans erreur | 0s |
+| ✅ | Navigation /chess → accessible sans erreur | 0s |
+| ✅ | Navigation /polls → accessible sans erreur | 0s |
+| ✅ | Navigation /settings → accessible sans erreur | 0s |
+| ✅ | Navigation /help → accessible sans erreur | 0s |
+| ✅ | Navigation /events → accessible sans erreur | 0s |
+| ✅ | E2EE — POST /auth/public-key → enregistre la clé | 0s |
+| ✅ | E2EE — GET /auth/public-keys → objet avec clés des membres | 0s |
+| ✅ | Push — GET /push/vapid-public-key → 200 | 0s |
+| ✅ | Push — GET /push/preferences → prefs par défaut | 0s |
+| ✅ | Push — POST /push/preferences → mise à jour | 0s |
+| ✅ | Push — POST /push/subscribe → 200 | 0s |
+| ✅ | Logout UI → redirigé vers /login | 0s |
 | ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0s |
 
 ---
 
-## ❌ Échecs détaillés
+## ✅ Aucun échec
 
-> 1 test(s) en échec
-
-### Échec 1 — `Chess — POST /chess/{id}/resign → 200`
-
-**Suite :** `user.spec.ts > User — Flux complet`
-
-**Message :**
-```
-Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: "finished"
-Received: "playing"
-
-  487 |     const game = await gameRes.json();
-  488 |     const status = game.game?.status ?? game.status;
-> 489 |     expect(status).toBe('finished');
-      |                    ^
-  490 |     console.log(`✅ Partie terminée → status=${status}`);
-  491 |   });
-  492 |
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:489:20
-```
-
-**Message :**
-```
-Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: "finished"
-Received: "playing"
-
-  487 |     const game = await gameRes.json();
-  488 |     const status = game.game?.status ?? game.status;
-> 489 |     expect(status).toBe('finished');
-      |                    ^
-  490 |     console.log(`✅ Partie terminée → status=${status}`);
-  491 |   });
-  492 |
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:489:20
-```
+Tous les tests ont passé.
 
 ---
 
@@ -212,10 +174,10 @@ Received: "playing"
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f84521d2-abbf-402e-951e-b19a4a4e669f username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f84521d2-abbf-402e-951e-b19a4a4e669f username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f84521d2-abbf-402e-951e-b19a4a4e669f username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f84521d2-abbf-402e-951e-b19a4a4e669f username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9b757c9f-2644-4dd5-8a7a-4faaf2f52bcc username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9b757c9f-2644-4dd5-8a7a-4faaf2f52bcc username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9b757c9f-2644-4dd5-8a7a-4faaf2f52bcc username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9b757c9f-2644-4dd5-8a7a-4faaf2f52bcc username=e2e_ci
 ```
 
 ---
@@ -240,4 +202,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-19 20:09 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-20 06:53 UTC*
