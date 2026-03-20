@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-20 12:04 UTC**
+> Généré par `test-nook.yml` · **2026-03-20 18:25 UTC**
 
 ---
 
@@ -13,10 +13,10 @@
 | **Tests échoués** | 0 |
 | **Tests ignorés** | 0 |
 | **Total** | 115 |
-| **Durée** | 19.0s |
-| **Branche** | `main` |
-| **Commit** | [`8bd7866`](https://github.com/MX10-AC2N/Nook/commit/8bd78669c584ad7b627260367b99207d1a2f4228) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23341774412) |
+| **Durée** | 20.0s |
+| **Branche** | `develop` |
+| **Commit** | [`abd89d2`](https://github.com/MX10-AC2N/Nook/commit/abd89d2166040d0d3e0f5b5ef90008f438cc9281) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23356742384) |
 
 ---
 
@@ -174,10 +174,10 @@ Tous les tests ont passé.
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=50cc4b3f-c330-4509-8706-142417689900 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=50cc4b3f-c330-4509-8706-142417689900 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=50cc4b3f-c330-4509-8706-142417689900 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=50cc4b3f-c330-4509-8706-142417689900 username=e2e_ci
 ```
 
 ---
@@ -202,4 +202,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-20 12:04 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-20 18:25 UTC*
