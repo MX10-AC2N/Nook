@@ -1,0 +1,102 @@
+name: 🎬 Fetch GIFs — Mise à jour collection locale
+
+# Workflow MANUEL uniquement — ne tourne jamais automatiquement.
+# Nécessite le secret KLIPY_API_KEY dans GitHub → Settings → Secrets → Actions.
+# Clé gratuite sur https://klipy.com/migrate (ex-employés Tenor, même structure API)
+#
+# Quand lancer :
+#   - Première fois pour peupler frontend/static/gifs/
+#   - Si des GIFs sont manquants ou corrompus
+#   - Pour rafraîchir la collection (nouveaux GIFs Tenor)
+#
+# Après le run : commit automatique → déclenche le pipeline CI normal.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry-run (afficher sans télécharger)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+permissions:
+  contents: write
+
+jobs:
+  fetch-gifs:
+    name: 🎬 Télécharger les GIFs curatés
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── 1. Créer le dossier de destination ───────────────────────
+      - name: Préparer le dossier GIFs
+        run: mkdir -p frontend/static/gifs
+
+      # ── 2. Lancer le script ───────────────────────────────────────
+      - name: Télécharger les GIFs
+        env:
+          KLIPY_API_KEY: ${{ secrets.KLIPY_API_KEY }}
+        run: |
+          DRY_FLAG=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            DRY_FLAG="--dry-run"
+            echo "ℹ️  Mode dry-run activé — aucun fichier téléchargé"
+          fi
+          python3 scripts/fetch-gifs.py $DRY_FLAG
+          echo "=== Contenu frontend/static/gifs/ ==="
+          ls -lh frontend/static/gifs/ | head -20
+          echo "=== Total ==="
+          find frontend/static/gifs -name "*.gif" | wc -l
+
+      # ── 3. Vérification du catalogue ─────────────────────────────
+      - name: Vérifier index.json
+        run: |
+          if [ -f frontend/static/gifs/index.json ]; then
+            TOTAL=$(python3 -c "import json; d=json.load(open('frontend/static/gifs/index.json')); print(d['total'])")
+            echo "✅ index.json : $TOTAL GIFs indexés"
+          else
+            echo "⚠️  index.json absent (dry-run ?)"
+          fi
+
+      # ── 4. Commit si des fichiers ont changé ─────────────────────
+      - name: Commit GIFs
+        if: inputs.dry_run != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/static/gifs/
+          if git diff --staged --quiet; then
+            echo "ℹ️  Aucun changement — GIFs déjà à jour"
+          else
+            ADDED=$(git diff --staged --name-only | grep '\.gif$' | wc -l)
+            git commit -m "feat(gifs): mise à jour collection locale — ${ADDED} GIFs [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "✅ $ADDED GIFs commités"
+          fi
+
+      # ── 5. Résumé GitHub ─────────────────────────────────────────
+      - name: Résumé
+        run: |
+          echo "## 🎬 Fetch GIFs" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f frontend/static/gifs/index.json ]; then
+            TOTAL=$(python3 -c "import json; d=json.load(open('frontend/static/gifs/index.json')); print(d['total'])")
+            SIZE=$(du -sh frontend/static/gifs/*.gif 2>/dev/null | tail -1 | cut -f1 || echo "0")
+            echo "| GIFs téléchargés | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| Dossier | \`frontend/static/gifs/\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "> ℹ️ Dry-run — aucun fichier téléchargé ni commité." >> $GITHUB_STEP_SUMMARY
+          fi

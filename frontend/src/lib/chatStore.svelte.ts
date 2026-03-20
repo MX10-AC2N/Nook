@@ -33,22 +33,13 @@ export interface ChatMessage {
 export interface ChatState {
   messages: ChatMessage[];
   connectionError: string | null;
-  gifResults: GifResult[];
-  showGifs: boolean;
-  gifLoading: boolean;
+  showEmojiPicker: boolean; // picker emoji natif (remplace GIF Tenor S39)
   hasMore: boolean;
   loadingMore: boolean;
   unreadCounts: Record<string, number>;
   wsConnected: boolean;
   /** Signal WS pour les mises à jour de réactions — { messageId, conversationId, ts } */
   lastReactionUpdate: { messageId: string; conversationId: string; ts: number } | null;
-}
-
-export interface GifResult {
-  id: string;
-  title: string;
-  previewUrl: string;
-  fullUrl: string;
 }
 
 // -----------------------------------------------------------------
@@ -58,9 +49,7 @@ export interface GifResult {
 export const chatStore = $state<ChatState>({
   messages: [],
   connectionError: null,
-  gifResults: [],
-  showGifs: false,
-  gifLoading: false,
+  showEmojiPicker: false,
   hasMore: false,
   loadingMore: false,
   unreadCounts: {},
@@ -216,9 +205,8 @@ function _sendBrowserNotification(sender: string, content: string): void {
 // 5️⃣ Helpers
 // -----------------------------------------------------------------
 
-export function toggleGifs(): void {
-  chatStore.showGifs = !chatStore.showGifs;
-  if (!chatStore.showGifs) chatStore.gifResults = [];
+export function toggleEmojiPicker(): void {
+  chatStore.showEmojiPicker = !chatStore.showEmojiPicker;
 }
 
 export function setConnectionError(err: string | null): void {
@@ -228,9 +216,9 @@ export function setConnectionError(err: string | null): void {
 export function resetChat(): void {
   chatStore.messages = [];
   chatStore.connectionError = null;
-  chatStore.showGifs = false;
-  chatStore.gifResults = [];
-  chatStore.gifLoading = false;
+  chatStore.showEmojiPicker = false;
+  
+  
   chatStore.hasMore = false;
   chatStore.loadingMore = false;
 }
@@ -390,38 +378,9 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
 }
 
 // -----------------------------------------------------------------
-// 1️⃣1️⃣ API — sendGif
+// 1️⃣1️⃣ API — sendEmoji (envoie un emoji comme message standalone)
 // -----------------------------------------------------------------
 
-export async function sendGif(gifUrl: string, conversationId: string): Promise<void> {
-  const content = `<img src="${gifUrl}" alt="GIF" class="chat-gif" loading="lazy" />`;
-  await sendMessage(content, conversationId);
-}
-
-// -----------------------------------------------------------------
-// 1️⃣2️⃣ API — searchGifs (Tenor v2)
-// -----------------------------------------------------------------
-
-export async function searchGifs(query: string): Promise<void> {
-  if (!query.trim()) return;
-  try {
-    chatStore.gifLoading = true;
-    chatStore.gifResults = [];
-    const res = await fetch(
-      `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&client_key=nook&limit=12&media_filter=tinygif,gif`
-    );
-    if (!res.ok) throw new Error(`Tenor ${res.status}`);
-    const data = await res.json();
-    chatStore.gifResults = (data.results ?? []).map((r: Record<string, unknown>): GifResult => ({
-      id:         r.id as string,
-      title:      (r.title as string) ?? 'GIF',
-      previewUrl: (r as any).media_formats?.tinygif?.url ?? (r as any).media_formats?.gif?.url ?? '',
-      fullUrl:    (r as any).media_formats?.gif?.url     ?? (r as any).media_formats?.tinygif?.url ?? '',
-    })).filter((g: GifResult) => g.previewUrl);
-  } catch (err) {
-    console.error('[Chat] searchGifs:', err);
-    chatStore.connectionError = 'Impossible de charger les GIFs';
-  } finally {
-    chatStore.gifLoading = false;
-  }
+export async function sendEmoji(emoji: string, conversationId: string): Promise<void> {
+  await sendMessage(emoji, conversationId);
 }
