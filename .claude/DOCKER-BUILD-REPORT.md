@@ -1,7 +1,7 @@
 # 🐳 Docker Build Report — Nook
 
 > Généré automatiquement par `Docker.yml`
-> **2026-03-20 10:34 UTC**
+> **2026-03-20 11:46 UTC**
 
 ---
 
@@ -10,12 +10,12 @@
 | Champ | Valeur |
 |-------|--------|
 | **Push GHCR** | ✅ OK |
-| **Version** | `v0.4.0-beta.1` |
+| **Version** | `v0.4.0-beta.2` |
 | **Image** | `ghcr.io/MX10-AC2N/Nook` |
-| **Digest** | `sha256:55ad1478c9c3c0514b2adaaa32b7bf653c65a1235c0fbd744fef1e905ac14cfe` |
+| **Digest** | `sha256:4112de41f4d53af67c33ec80b6fec7540f8fdfa7228a9295710191856bac2c39` |
 | **Branche** | `develop` |
-| **Commit** | [`9ffa02f`](https://github.com/MX10-AC2N/Nook/commit/9ffa02f9bc19a9e2978dec3ee6ea4ff97465c678) |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23339015004) |
+| **Commit** | [`9ac552c`](https://github.com/MX10-AC2N/Nook/commit/9ac552c29864438972a0dc9e5baab04002dc5c32) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23341420112) |
 
 ---
 
@@ -32,7 +32,7 @@
 ## Tags publiés
 
 ```
-ghcr.io/mx10-ac2n/nook:v0.4.0-beta.1
+ghcr.io/mx10-ac2n/nook:v0.4.0-beta.2
 ```
 
 ---
@@ -48,7 +48,7 @@ ghcr.io/mx10-ac2n/nook:v0.4.0-beta.1
 
 ```bash
 # Mettre à jour le homeserver Zimaboard
-docker pull ghcr.io/MX10-AC2N/Nook:v0.4.0-beta.1
+docker pull ghcr.io/MX10-AC2N/Nook:v0.4.0-beta.2
 # ou
 docker pull ghcr.io/MX10-AC2N/Nook:latest
 ```
