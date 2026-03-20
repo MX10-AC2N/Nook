@@ -31,6 +31,9 @@ use uuid::Uuid;
 use crate::auth::CurrentUser;
 use crate::SharedState;
 
+// VAPID helpers (ring + base64ct — pas de dépendance web-push D10)
+use base64ct::{Base64UrlUnpadded, Encoding as _};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,21 +245,102 @@ async fn update_preferences(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Envoi — stub reqwest (envoi VAPID réel : session 38)
+// ─────────────────────────────────────────────────────────────────────────────
+// VAPID — Envoi réel via ring + reqwest (session 39)
+// RFC 8292 : JWT ES256, pas de dépendance web-push (D10 interdit async-trait)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Encode en base64url sans padding (RFC 4648 §5)
+fn b64url(data: &[u8]) -> String {
+    Base64UrlUnpadded::encode_string(data)
+}
+
+/// Construit et signe le JWT VAPID (ES256)
+fn build_vapid_jwt(endpoint: &str, subject: &str, private_key_b64url: &str) -> Result<String, String> {
+    use ring::rand::SystemRandom;
+    use ring::signature::{EcdsaKeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
+
+    let origin = endpoint.split('/').take(3).collect::<Vec<_>>().join("/");
+    let now = chrono::Utc::now().timestamp();
+    let exp = now + 43_200; // 12h max (RFC 8292 §2)
+
+    let header = b64url(br#"{"typ":"JWT","alg":"ES256"}"#);
+    let claims = b64url(format!(
+        r#"{{"aud":"{}","exp":{},"sub":"{}"}}"#,
+        origin, exp, subject
+    ).as_bytes());
+    let signing_input = format!("{}.{}", header, claims);
+
+    let pkcs8_der = Base64UrlUnpadded::decode_vec(private_key_b64url)
+        .map_err(|_| "Clé VAPID_PRIVATE_KEY invalide (base64url)")?;
+
+    let rng = SystemRandom::new();
+    let key_pair = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &pkcs8_der, &rng)
+        .map_err(|e| format!("Clé VAPID PKCS8 invalide : {:?}", e))?;
+
+    let sig = key_pair.sign(&rng, signing_input.as_bytes())
+        .map_err(|e| format!("Signature VAPID échouée : {:?}", e))?;
+
+    Ok(format!("{}.{}", signing_input, b64url(sig.as_ref())))
+}
+
+/// Envoie une notification push Web Push VAPID vers un endpoint unique.
+/// Payload en JSON texte — pas de chiffrement ECE (homeserver familial LAN/WAN).
+async fn send_web_push(
+    client: &reqwest::Client,
+    endpoint: &str,
+    payload_json: &str,
+    jwt: &str,
+    public_key_b64url: &str,
+) -> Result<(), String> {
+    let auth_header = format!("vapid t={},k={}", jwt, public_key_b64url);
+    let res = client
+        .post(endpoint)
+        .header("Authorization", auth_header)
+        .header("Content-Type", "application/json")
+        .header("TTL", "86400")
+        .body(payload_json.to_string())
+        .send()
+        .await
+        .map_err(|e| format!("Erreur réseau push : {}", e))?;
+
+    match res.status().as_u16() {
+        200 | 201 => Ok(()),
+        410 => Err(format!("ENDPOINT_GONE:{}", endpoint)), // endpoint expiré → supprimer
+        s   => Err(format!("Push HTTP {}", s)),
+    }
+}
+
 /// Envoie une notification push à tous les devices d'un utilisateur.
-///
-/// ⚠️ Stub S37 — stocke + vérifie les prefs, log les notifs à envoyer.
-///    L'envoi VAPID réel (reqwest POST vers endpoint) sera implémenté en S38
-///    sans dépendance externe (web-push tire async-trait → interdit, voir D10).
-#[allow(dead_code)] // S38 : appelé depuis db.rs après send_message
+/// Sans clés VAPID configurées → no-op silencieux.
 pub async fn send_push_notification(
     pool: &sqlx::SqlitePool,
     recipient_user_id: &str,
     payload: &PushPayload,
 ) -> Result<(), String> {
-    let subs = sqlx::query_as::<_, (String, String)>(
+    // Vérifier que VAPID est configuré — sinon no-op silencieux
+    let (priv_key, pub_key) = match (
+        std::env::var("VAPID_PRIVATE_KEY").ok().filter(|s| !s.is_empty()),
+        std::env::var("VAPID_PUBLIC_KEY").ok().filter(|s| !s.is_empty()),
+    ) {
+        (Some(priv), Some(pub_k)) => (priv, pub_k),
+        _ => {
+            tracing::debug!(user_id = %recipient_user_id, "Push ignoré — VAPID_PRIVATE_KEY/PUBLIC_KEY non configurés");
+            return Ok(());
+        }
+    };
+    let subject = std::env::var("VAPID_SUBJECT")
+        .unwrap_or_else(|_| "mailto:admin@nook.local".to_string());
+
+    if !should_notify(pool, recipient_user_id).await {
+        tracing::debug!(user_id = %recipient_user_id, "Push skippé — période silencieuse ou désactivé");
+        return Ok(());
+    }
+
+    // Récupérer les abonnements de l'utilisateur
+    #[derive(sqlx::FromRow)]
+    struct Sub { id: String, endpoint: String }
+    let subs = sqlx::query_as::<_, Sub>(
         "SELECT id, endpoint FROM push_subscriptions WHERE user_id = ?",
     )
     .bind(recipient_user_id)
@@ -268,18 +352,44 @@ pub async fn send_push_notification(
         return Ok(());
     }
 
-    if !should_notify(pool, recipient_user_id).await {
-        tracing::debug!(user_id = %recipient_user_id, "Push skippé — période silencieuse");
-        return Ok(());
+    let payload_json = serde_json::to_string(payload).unwrap_or_default();
+    let client = reqwest::Client::new();
+    let mut expired: Vec<String> = Vec::new();
+
+    for sub in &subs {
+        match build_vapid_jwt(&sub.endpoint, &subject, &priv_key) {
+            Err(e) => {
+                tracing::warn!(sub_id = %sub.id, error = %e, "JWT VAPID invalide");
+                continue;
+            }
+            Ok(jwt) => {
+                match send_web_push(&client, &sub.endpoint, &payload_json, &jwt, &pub_key).await {
+                    Ok(_) => {
+                        tracing::info!(
+                            user_id = %recipient_user_id,
+                            endpoint = %&sub.endpoint[..sub.endpoint.len().min(50)],
+                            title = %payload.title,
+                            "Push envoyé ✓"
+                        );
+                    }
+                    Err(e) if e.starts_with("ENDPOINT_GONE:") => {
+                        expired.push(sub.id.clone());
+                        tracing::info!(sub_id = %sub.id, "Endpoint push expiré — suppression");
+                    }
+                    Err(e) => {
+                        tracing::warn!(sub_id = %sub.id, error = %e, "Push échoué");
+                    }
+                }
+            }
+        }
     }
 
-    for (sub_id, endpoint) in &subs {
-        tracing::info!(
-            sub_id = %sub_id,
-            endpoint = %&endpoint[..endpoint.len().min(50)],
-            title = %payload.title,
-            "PUSH stub → S38 implémentera l'envoi VAPID via reqwest"
-        );
+    // Nettoyer les endpoints expirés
+    for sub_id in expired {
+        let _ = sqlx::query("DELETE FROM push_subscriptions WHERE id = ?")
+            .bind(&sub_id)
+            .execute(pool)
+            .await;
     }
 
     Ok(())
