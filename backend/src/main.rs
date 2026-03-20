@@ -47,6 +47,7 @@ mod push;
 mod prune;
 mod upload;
 mod emergency;
+mod gifs_updater;
 mod webrtc;
 
 use crate::config::Config;
@@ -307,6 +308,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     tracing::info!("✓ Tâche de suppression planifiée (toutes les 24 heures)");
+
+    // Mise à jour hebdomadaire des GIFs (GIPHY_API_KEY dans .env)
+    // No-op silencieux si la clé est absente
+    gifs_updater::start(config.gifs_dir.clone());
+    tracing::info!("✓ Tâche de mise à jour GIFs planifiée (toutes les 7 jours)");
 
     let shared_state = Arc::new(SharedState {
         db: pool,
