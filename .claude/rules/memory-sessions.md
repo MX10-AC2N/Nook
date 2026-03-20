@@ -4,34 +4,35 @@
 
 ---
 
-## État du projet (après session 37)
+## État du projet (après session 39)
 
-**Version** : 0.4.0-beta.1 | **Tests E2E** : 75/75 (stable depuis S37)
+**Version** : 0.4.0-beta.2 | **Tests E2E** : 115/115 ✅ (100% depuis S39)
 
 ### ✅ Fonctionnel et stable
-- Backend Rust compile sans erreur (axum 0.8, rand 0.9, sqlx 0.8.6)
+- Backend Rust : axum 0.8, rand 0.9, sqlx 0.8.6, ring (VAPID)
 - Docker build sources + release, distroless arm64/amd64
-- Auth cookie HttpOnly, LAN + WAN (Nginx)
-- CI : 5 workflows manuels stables
-- E2E : 75/75 depuis S37 (fix sodium fire-and-forget)
-- Rate limit : KeyedRateLimiter par IP (30 req/min) — S36
+- Auth cookie HttpOnly, LAN + WAN (Nginx), E2EE X25519 actif
+- CI : 115/115 tests E2E verts, rapport MD auto, Docker multi-arch
+- E2EE : unlockCrypto au login → chiffrement/déchiffrement transparent dans le chat
+- Push notifications : VAPID réel via ring + reqwest, SW frontend complet
+- Rate limit : KeyedRateLimiter par IP (60 req/min) — S36/S38
 - Sécurité : DOMPurify XSS, magic bytes uploads, WS 64KB limit — S35/S36
+- Chess temps réel : WS broadcast côté serveur + refreshGame côté client (DT-02 résolu)
 
 ### 🟡 Dette technique (non bloquant)
-- **DT-01** : libsodium 938 kB → dynamic import (cosmétique, sodium est déjà fire-and-forget)
-- **DT-02** : Chess temps réel absent (DT-02 — coups visibles seulement au refresh)
+- **DT-01** : libsodium 938 kB — cosmétique (sodium est déjà fire-and-forget depuis S37)
 - **SEC-03** : Token session UUID (entropy ok, 256 bits optionnel — faible risque)
 - **SEC-06** : emergency.rs non connecté (informationnel — avant activation feature)
 
 ### 🔴 Bugs actifs
-*Aucun bug actif bloquant — 113/115 tests passent, 2 tests UI en cours de stabilisation*
+*Aucun bug actif bloquant — 115/115 tests verts*
 
-### 📋 Backlog priorisé
-1. **DT-02** : Chess temps réel via WebSocket (ARCHITECT + CHESS requis)
-2. **DT-01** : libsodium dynamic import (SVELTE)
-3. **E2EE** : Activation complète (CRYPTO + RUST + SVELTE)
-4. **Notifications push** : à évaluer avec FOUNDER
-5. **Analytics enrichis** : DATA agent
+### 📋 Backlog priorisé (post S39)
+1. **Analytics enrichis** : graphiques détaillés par membre, exports — DATA agent
+2. **DT-01** : libsodium chunk size (cosmétique)
+3. **SEC-03** : Token 256 bits (faible risque)
+4. **Tests IRL Zimaboard** : valider push sur device réel, E2EE multi-device
+5. **Version 0.4.0** : retirer le tag beta après validation prod
 
 ---
 
@@ -58,6 +59,9 @@
 | 38 | MCP Svelte + Rust + Lightpanda dans .claude | Structure MCP ✅ |
 | 38 | Fix decrypt_file_from_storage (nonce double-préfixé → 500) | Download fichiers ✅ |
 | 38 | Fix serde(default) sur encrypted/is_group, isolatedPage admin tests | Tests E2E 75→113 ✅ |
+| 39 | Fix resign winner_id IA, polls id, ai-move 415, react UI hover | 115/115 tests ✅ |
+| 39 | Activation Push VAPID (ring + reqwest), frontend SW + settings | Push actif ✅ |
+| 39 | Mise à jour documentation complète (.claude/) | Docs à jour ✅ |
 
 ---
 
@@ -75,7 +79,35 @@
   → `decrypt_file_from_storage` doit appeler `crypto_secretbox_open_easy(ciphertext, key)` directement
   → ne jamais re-préfixer le nonce depuis la DB dans decrypt
 
-## Dernière session (38) — Infrastructure MCP
+## Dernière session (39) — 115/115 + Push VAPID
+
+### Bugs corrigés S39
+- **R_RESIGN** : `resign_game` → `winner_id="ai"` violait la FK users → `None` pour IA + propagation erreur
+- **R_POLLS_ID** : `(await createRes.json()).id` → `undefined` → `.poll?.id`
+- **R_AI_MOVE** : POST `/chess/{id}/ai-move` → 415 → `Option<Json<AiMoveRequest>>`
+- **R_REACT_UI** : hover CI headless → `dispatchEvent('mouseenter')` + `waitForResponse('/reactions')`
+
+### Push VAPID S39
+- `push.rs` : envoi VAPID réel (ring ECDSA P-256 + reqwest POST)
+- `frontend/src/lib/push.ts` : `subscribeToPush()` / `unsubscribePush()`
+- `frontend/src/routes/settings/+page.svelte` : bouton activation notifications
+- `.env.example` : `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_SUBJECT`
+- `db.rs` : appel `send_push_notification()` après `send_message()`
+
+### E2EE — état réel S39
+L'E2EE était déjà fonctionnel depuis S37-38 :
+- `login/+page.svelte` → `unlockCrypto(userId, password)` après chaque login
+- `change-password/+page.svelte` → `unlockCrypto(userId, newPassword)` au changement initial
+- `chatStore.svelte.ts` → chiffre si `cs.ready`, déchiffre à la réception
+- Backend → retourne `sender_public_key` avec chaque message
+- Mode dégradé automatique si clé absente (message envoyé en clair sans erreur)
+
+### Pièges à retenir S39
+- `winner_id` dans chess_games a une FK vers users → ne jamais stocker de valeur arbitraire ("ai")
+- `#[derive(...)]` doit être immédiatement suivi du `struct` qu'il annote — une fonction libre entre les deux casse la compilation
+- VAPID JWT : algorithme ES256, audience = origin de l'endpoint, expiry < 12h
+
+## Session 38 — Infrastructure MCP
 
 - **Intégration MCP Svelte** : `https://mcp.svelte.dev/mcp` — remote, 4 outils
   - `list-sections`, `get-documentation`, `svelte-autofixer`, `playground-link`
