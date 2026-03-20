@@ -1,6 +1,6 @@
 # 🎨 Frontend Stores & Règles métier — Nook
 
-> Ce fichier documente les 15 stores/modules de `frontend/src/lib/`
+> Ce fichier documente les 16 stores/modules de `frontend/src/lib/`
 > et les contraintes métier qui ne sont pas dans le code.
 
 ---
@@ -10,22 +10,23 @@
 | Fichier | Type | Expose | État |
 |---------|------|--------|------|
 | `authStore.svelte.js` | Store $state | `authStore.user`, `.isAuthenticated`, `.isAdmin`, `.loading`, `.init()`, `.logout()` | ✅ Stable |
-| `chatStore.svelte.ts` | Store $state | `chatStore.messages[]`, `.conversations[]`, `.currentConv`, `.send()`, `.loadMessages()` | ⚠️ Bug #1 voisin |
-| `conversationStore.svelte.ts` | Store $state | Export $state — **Bug #1 actif** (`state_invalid_export`) | 🔴 Bug actif |
+| `chatStore.svelte.ts` | Store $state | `chatStore.messages[]`, `.conversations[]`, `.currentConv`, `.send()`, `.loadMessages()` | ✅ Stable |
+| `conversationStore.svelte.ts` | Store $state | Export $state — objet encapsulant | ✅ Stable |
 | `chessStore.svelte.ts` | Store $state | `chessStore.game`, `.board`, `.myColor`, `.makeMove()`, `.loadGame()` | ✅ Stable |
-| `cryptoStore.svelte.ts` | Store $state | Clés E2EE en mémoire + IndexedDB | ⚠️ E2EE désactivé |
+| `cryptoStore.svelte.ts` | Store $state | Clés E2EE en mémoire + IndexedDB, `unlockCrypto()`, `encryptMessage()` | ✅ Actif S39 |
 | `mediaStore.svelte.js` | Store $state | Enregistrement audio/vidéo, upload progress | ✅ |
 | `webrtc-calls.svelte.ts` | Store $state | `callStore.isInCall`, `.isMuted`, `.localStream`, `.peerConnections` | ⚠️ WAN instable |
-| `sodium.svelte.js` | Module | `waitForSodium()` — initialise libsodium-wrappers (938 kB) | ⚠️ DT-01 bloquant |
-| `e2ee.ts` | Module | Fonctions crypto E2EE (libsodium) — non activées dans les composants | 🔴 Désactivé |
+| `sodium.svelte.js` | Module | `waitForSodium()` — fire-and-forget depuis S37 (938 kB WASM) | ✅ Non-bloquant |
+| `e2ee.ts` | Module | Fonctions crypto E2EE legacy (libsodium) — remplacé par `crypto.ts` + `cryptoStore` | ✅ Remplacé |
 | `crypto.ts` | Module | Wrap XChaCha20-Poly1305 pour fichiers | ✅ |
-| `api.ts` | Module | `apiFetch(url, options)` — fetch avec `credentials:'include'` | ✅ |
+| `api.ts` | Module | Helpers auth (`changePassword`, `getUserInfo`, `logout`, `validateInviteToken`…) — pas d'`apiFetch` | ✅ |
 | `auth.js` | Module | Helpers auth legacy | ✅ |
 | `types.ts` | Types | Interfaces TS : User, Conversation, Message, Poll, ChessGame... | ✅ |
 | `device.ts` | Module | Détection mobile/desktop | ✅ |
 | `storage.ts` | Module | LocalStorage helpers | ✅ |
 | `backup.ts` | Module | Export données utilisateur | ✅ |
 | `emergency.ts` | Module | Mode urgence (panic button) | ✅ |
+| `push.ts` | Module | `subscribeToPush()`, `unsubscribePush()`, `getPushState()` — S39 | ✅ S39 |
 | `ui/` | Composants | ThemeStore, composants partagés | ✅ |
 
 ### Pattern $state — Règle absolue
@@ -98,6 +99,8 @@ type Theme = 'jardin-secret' | 'space-hub' | 'maison-chaleureuse'
 ### Utilisateurs & Auth
 - Cookie `auth_token` : `Max-Age=86400` (24h)
 - Argon2id pour les mots de passe (via `rand_core::OsRng`, **pas** `rand::rng()`)
+- E2EE : `unlockCrypto(userId, password)` appelée au login + change-password → `cryptoStore.ready = true`
+- Messages chiffrés si `cryptoStore.ready`, en clair sinon (mode dégradé transparent)
 - `approved=0` à l'inscription → l'admin doit approuver manuellement
 - `needs_password_change=1` → redirect forcé vers `/change-password`
 - Seul l'admin peut approuver/rejeter des membres
@@ -198,7 +201,7 @@ tower-http = "0.6.8" + fs, cors, compression-br
 
 ### Frontend (package.json)
 ```
-svelte: ^5.46.3 | @sveltejs/kit: ^2.49.4 | typescript: ^5.9.3
+svelte: ^5.46.3 | @sveltejs/kit: ^2.49.4 | typescript: ^5.9.3  ← vérifier package.json
 tailwindcss: ^4.1.18 | vite: ^7.3.1
 libsodium-wrappers: ^0.8.0  ← 938 kB WASM (DT-01)
 chart.js: ^4.5.1 | simple-peer: ^9.11.1
