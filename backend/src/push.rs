@@ -323,7 +323,7 @@ pub async fn send_push_notification(
         std::env::var("VAPID_PRIVATE_KEY").ok().filter(|s| !s.is_empty()),
         std::env::var("VAPID_PUBLIC_KEY").ok().filter(|s| !s.is_empty()),
     ) {
-        (Some(priv), Some(pub_k)) => (priv, pub_k),
+        (Some(private_key), Some(public_key)) => (private_key, public_key),
         _ => {
             tracing::debug!(user_id = %recipient_user_id, "Push ignoré — VAPID_PRIVATE_KEY/PUBLIC_KEY non configurés");
             return Ok(());
