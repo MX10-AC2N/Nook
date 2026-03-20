@@ -29,7 +29,7 @@ const THEMES: &[(&str, &str, &str)] = &[
     ("facepalm",     "🤦 Facepalm",     "facepalm"),
 ];
 
-const GIFS_PER_THEME: usize  = 10;
+const GIFS_PER_THEME: usize  = 12;
 const GIPHY_BASE:      &str  = "https://api.giphy.com/v1/gifs/search";
 const INTERVAL_SECS:   u64   = 7 * 24 * 3600; // 7 jours
 const STARTUP_DELAY:   u64   = 30;             // attendre 30s après boot
