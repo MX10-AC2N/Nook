@@ -48,6 +48,27 @@ mod prune;
 mod upload;
 mod webrtc;
 
+use crate::config::Config;
+use crate::prune::prune_old_data;
+use webrtc::{FileManager, WebRtcState};
+
+// ---------------------------------------------------------------------
+// SEC-02 : Rate limiter KEYED par IP (30 req / 60s par adresse)
+// Remplace le NotKeyed global qui causait des faux-positifs en CI
+// et ne protégeait pas correctement contre le brute-force par IP unique.
+// ---------------------------------------------------------------------
+type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
+
+#[derive(Clone)]
+pub struct SharedState {
+    pub db: SqlitePool,
+    pub webrtc_state: WebRtcState,
+    pub file_manager: Arc<FileManager>,
+}
+
+// ---------------------------------------------------------------------
+// DB + Initial admin
+// ---------------------------------------------------------------------
 async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     tracing::info!(database_url = %url, "Initialisation de la connexion SQLite");
 
