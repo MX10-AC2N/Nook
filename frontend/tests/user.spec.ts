@@ -480,14 +480,17 @@ test.describe.serial('User — Flux complet', () => {
 
     const resignRes = await page.request.post(`${BASE}/chess/${game_id}/resign`);
     expect(resignRes.status()).toBe(200);
-    console.log('✅ Resign → 200');
+    const resignBody = await resignRes.json();
+    // La réponse de resign contient déjà le status final — plus fiable qu'un GET séparé
+    expect(resignBody.status).toBe('finished');
+    console.log(`✅ Resign → status=${resignBody.status}`);
 
-    // Vérifier que la partie est terminée
+    // Double vérification via GET (la DB doit aussi être à jour)
     const gameRes = await page.request.get(`${BASE}/chess/${game_id}`);
     const game = await gameRes.json();
-    const status = game.game?.status ?? game.status;
-    expect(status).toBe('finished');
-    console.log(`✅ Partie terminée → status=${status}`);
+    const dbStatus = game.game?.status ?? game.status;
+    expect(dbStatus).toBe('finished');
+    console.log(`✅ Partie terminée en DB → status=${dbStatus}`);
   });
 
   test('Chess — invitations : créer, inviter, lister, décliner', async ({ browser }) => {
