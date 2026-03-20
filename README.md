@@ -95,6 +95,7 @@ Les essentielles :
 | `DATA_DIR` | Où stocker la base de données et les fichiers uploadés (utilise un chemin absolu sur un vrai serveur) |
 | `VAPID_PRIVATE_KEY` | Pour les notifications push — générer avec `npx web-push generate-vapid-keys` |
 | `VAPID_PUBLIC_KEY` | Idem — les deux vont ensemble |
+| `GIPHY_API_KEY` | Pour les GIFs — clé SDK gratuite sur [developers.giphy.com](https://developers.giphy.com) |
 
 > Le fichier `.env` reste sur ton serveur. Ne le committe jamais dans git.
 
@@ -123,6 +124,29 @@ Deux choses importantes :
 3. Génère un lien — il expire dans 48h et ne fonctionne qu'une fois
 4. Envoie ce lien à la personne par SMS, email, ou en main propre
 5. Elle crée son compte → tu l'approuves dans l'onglet **Membres en attente**
+
+---
+
+## GIFs — Mise à jour hebdomadaire automatique
+
+Les GIFs sont stockés dans le volume de données (`DATA_DIR/gifs/`) et servis directement par Nook — aucune requête externe n'est envoyée quand un membre envoie un GIF.
+
+**Première installation** : le dossier est vide. Lance le script une première fois pour peupler la collection :
+
+```bash
+# Sur la Zimaboard (dans le dossier Nook)
+GIPHY_API_KEY=ta_clé bash scripts/update-gifs.sh
+```
+
+**Mise à jour automatique** — ajoute un cron sur la Zimaboard :
+
+```bash
+crontab -e
+# Ajouter cette ligne (lundi à 3h du matin) :
+0 3 * * 1 cd /chemin/vers/Nook && bash scripts/update-gifs.sh >> logs/gifs-update.log 2>&1
+```
+
+Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires Giphy (réactions, humour, animaux, fête, anniversaire…). Aucun rebuild Docker nécessaire — les GIFs sont servis directement depuis le volume.
 
 ---
 
