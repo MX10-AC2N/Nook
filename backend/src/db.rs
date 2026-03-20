@@ -14,6 +14,8 @@ use crate::auth::CurrentUser;
 
 // === STRUCTURES DE DONNÉES ===
 
+fn default_true() -> bool { true }
+
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct User {
     pub id: String,
@@ -62,10 +64,12 @@ pub struct MessageWithSender {
     pub conversation_id: String,
     pub sender_id: String,
     pub sender_name: String, // COALESCE(users.name, users.username)
+    pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
     pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
+    pub nonce: Option<String>, // Nonce XSalsa20 base64 si encrypted=true
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
@@ -92,6 +96,7 @@ pub struct Upload {
 #[derive(Debug, Deserialize)]
 pub struct CreateConversationRequest {
     pub name: Option<String>,
+    #[serde(default = "default_true")] // true si absent (groupe par défaut)
     pub is_group: bool,
     #[serde(default)]
     pub participant_ids: Vec<String>, // membres ajoutés à la création
@@ -100,7 +105,14 @@ pub struct CreateConversationRequest {
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
     pub content: String,
+    #[serde(default)] // false si absent (message non chiffré)
     pub encrypted: bool,
+    /// Nonce XSalsa20 en base64 (24 bytes) — présent si encrypted=true
+    #[serde(default)]
+    pub nonce: Option<String>,
+    /// Clé de session chiffrée pour chaque destinataire : user_id → base64
+    #[serde(default)]
+    pub encrypted_keys: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -220,6 +232,66 @@ pub async fn get_conversation(
     Ok(Json(conv))
 }
 
+// PATCH /api/conversations/{id}/rename
+// Autorisé : créateur du groupe ou admin. Interdit sur default_global.
+#[derive(Debug, serde::Deserialize)]
+pub struct RenameConversationRequest {
+    pub name: String,
+}
+
+pub async fn rename_conversation(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(crate::auth::CurrentUser(user)): Extension<crate::auth::CurrentUser>,
+    Path(id): Path<String>,
+    Json(req): Json<RenameConversationRequest>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    // default_global est intouchable
+    if id == "default_global" {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Impossible de renommer le groupe Nook"}))));
+    }
+
+    let name = req.name.trim().to_string();
+    if name.is_empty() || name.len() > 60 {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"error": "Nom invalide (1-60 caractères)"}))));
+    }
+
+    // Vérifier que la conv existe et que l'utilisateur est le créateur ou admin
+    #[derive(sqlx::FromRow)]
+    struct ConvMeta { created_by: String, is_group: bool }
+
+    let meta = sqlx::query_as::<_, ConvMeta>(
+        "SELECT created_by, is_group FROM conversations WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))))?
+    .ok_or((StatusCode::NOT_FOUND, Json(json!({"error": "Conversation introuvable"}))))?;
+
+    if !meta.is_group {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Impossible de renommer un DM"}))));
+    }
+
+    if meta.created_by != user.id && user.role != "admin" {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Seul le créateur ou l'admin peut renommer"}))));
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    sqlx::query("UPDATE conversations SET name = ?, updated_at = ? WHERE id = ?")
+        .bind(&name)
+        .bind(now)
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))))?;
+
+    tracing::info!(conv_id = %id, new_name = %name, "Groupe renommé");
+    Ok(Json(json!({"success": true, "name": name})))
+}
+
 pub async fn get_user_conversations(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
@@ -292,14 +364,15 @@ pub async fn send_message(
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
     .bind(&user.id)
     .bind(&req.content)
     .bind(req.encrypted)
+    .bind(&req.nonce)
     .bind(now)
     .bind(now)
     .bind("text")
@@ -317,6 +390,13 @@ pub async fn send_message(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
+    if req.encrypted && !req.encrypted_keys.is_empty() {
+        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys).await {
+            tracing::warn!(error = %e, msg_id = %id, "E2EE: échec store_message_keys (non bloquant)");
+        }
+    }
+
     // Retourner le message enrichi (avec sender_name) pour cohérence frontend
     let sender_name: String =
         sqlx::query_as::<_, (String,)>("SELECT COALESCE(name, username) FROM users WHERE id = ?")
@@ -328,19 +408,133 @@ pub async fn send_message(
             .map(|(n,)| n)
             .unwrap_or_else(|| user.username.clone());
 
-    Ok(Json(serde_json::json!({
+    let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
         "sender_id": user.id,
         "sender_name": sender_name,
+        "sender_public_key": null,
         "content": req.content,
         "message_type": "text",
         "file_id": null,
         "encrypted": req.encrypted,
+        "nonce": req.nonce,
         "timestamp": now,
         "created_at": now,
         "edited_at": null
-    })))
+    });
+
+    // ── Broadcast WS → tous les clients (filtrés côté client par conversation_id) ──
+    {
+        let ws_payload = serde_json::json!({
+            "type": "new_message",
+            "conversation_id": conversation_id,
+            "message": msg_json.clone(),
+        });
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() {
+            let _ = tx.send(ws_payload.to_string());
+        }
+    }
+
+    Ok(Json(msg_json))
+}
+
+// ── PATCH /api/conversations/{conv_id}/messages/{msg_id} ────────────────────
+// Seul l'expéditeur peut éditer son propre message (max 4000 chars).
+#[derive(Debug, serde::Deserialize)]
+pub struct EditMessageRequest {
+    pub content: String,
+}
+
+pub async fn edit_message(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path((conv_id, msg_id)): Path<(String, String)>,
+    Json(req): Json<EditMessageRequest>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    let content = req.content.trim().to_string();
+    if content.is_empty() || content.len() > 4000 {
+        return (StatusCode::BAD_REQUEST, Json(json!({"error": "Contenu invalide (1-4000 chars)"}))).into_response();
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct MsgMeta { sender_id: String }
+
+    let meta = match sqlx::query_as::<_, MsgMeta>(
+        "SELECT sender_id FROM messages WHERE id = ? AND conversation_id = ?"
+    )
+    .bind(&msg_id).bind(&conv_id)
+    .fetch_optional(&state.db).await {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "Message introuvable"}))).into_response(),
+        Err(_)    => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response(),
+    };
+
+    if meta.sender_id != user.id {
+        return (StatusCode::FORBIDDEN, Json(json!({"error": "Seul l'auteur peut modifier"}))).into_response();
+    }
+
+    let now = chrono::Utc::now().timestamp();
+    if sqlx::query("UPDATE messages SET content = ?, edited_at = ? WHERE id = ?")
+        .bind(&content).bind(now).bind(&msg_id)
+        .execute(&state.db).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
+    }
+
+    {
+        let ws = serde_json::json!({"type": "message_edited", "conversation_id": conv_id, "message_id": msg_id, "content": content, "edited_at": now});
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+    }
+
+    tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message édité");
+    Json(json!({"success": true, "edited_at": now})).into_response()
+}
+
+// ── DELETE /api/conversations/{conv_id}/messages/{msg_id} ──────────────────
+// Autorisé : expéditeur ou admin.
+pub async fn delete_message(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path((conv_id, msg_id)): Path<(String, String)>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    #[derive(sqlx::FromRow)]
+    struct MsgMeta { sender_id: String }
+
+    let meta = match sqlx::query_as::<_, MsgMeta>(
+        "SELECT sender_id FROM messages WHERE id = ? AND conversation_id = ?"
+    )
+    .bind(&msg_id).bind(&conv_id)
+    .fetch_optional(&state.db).await {
+        Ok(Some(m)) => m,
+        Ok(None) => return (StatusCode::NOT_FOUND, Json(json!({"error": "Message introuvable"}))).into_response(),
+        Err(_)    => return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response(),
+    };
+
+    if meta.sender_id != user.id && user.role != "admin" {
+        return (StatusCode::FORBIDDEN, Json(json!({"error": "Seul l'auteur ou l'admin peut supprimer"}))).into_response();
+    }
+
+    if sqlx::query("DELETE FROM messages WHERE id = ?")
+        .bind(&msg_id).execute(&state.db).await.is_err() {
+        return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
+    }
+
+    {
+        let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
+        let guard = state.webrtc_state.broadcasts.lock().await;
+        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+    }
+
+    tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message supprimé");
+    StatusCode::NO_CONTENT.into_response()
 }
 
 pub async fn get_conversation_messages(
@@ -357,8 +551,9 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ? AND m.created_at < ?
@@ -375,8 +570,9 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?

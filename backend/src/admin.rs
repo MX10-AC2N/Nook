@@ -214,3 +214,113 @@ pub async fn delete_invite(
         )),
     }
 }
+
+// ═════════════════════════════════════════════════════════════════
+// GET /api/analytics — Tableau de bord admin enrichi
+// ═════════════════════════════════════════════════════════════════
+
+#[derive(Serialize)]
+pub struct DayCount {
+    pub day: String,
+    pub count: i64,
+}
+
+#[derive(Serialize)]
+pub struct AnalyticsResponse {
+    // Compteurs globaux
+    pub user_count: i64,
+    pub message_count: i64,
+    pub conversation_count: i64,
+    pub poll_count: i64,
+    pub upload_count: i64,
+    // 7 derniers jours
+    pub active_users_7d: i64,
+    pub messages_7d: i64,
+    pub messages_per_day: Vec<DayCount>,
+}
+
+pub async fn get_analytics(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> Result<Json<AnalyticsResponse>, (StatusCode, Json<serde_json::Value>)> {
+    if user.role != "admin" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"success": false, "message": "Accès admin requis"})),
+        ));
+    }
+
+    let cutoff_7d = chrono::Utc::now().timestamp() - 7 * 86400;
+
+    // Compteurs globaux — une requête par table (sqlx sans macros)
+    let (user_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM users WHERE approved = 1")
+            .fetch_one(&state.db).await
+            .unwrap_or((0,));
+
+    let (message_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM messages")
+            .fetch_one(&state.db).await
+            .unwrap_or((0,));
+
+    let (conversation_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM conversations")
+            .fetch_one(&state.db).await
+            .unwrap_or((0,));
+
+    let (poll_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM polls")
+            .fetch_one(&state.db).await
+            .unwrap_or((0,));
+
+    let (upload_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM uploads")
+            .fetch_one(&state.db).await
+            .unwrap_or((0,));
+
+    // Utilisateurs actifs 7j (ont envoyé au moins un message)
+    let (active_users_7d,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(DISTINCT sender_id) FROM messages WHERE created_at > ?",
+    )
+    .bind(cutoff_7d)
+    .fetch_one(&state.db).await
+    .unwrap_or((0,));
+
+    // Messages total 7j
+    let (messages_7d,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM messages WHERE created_at > ?",
+    )
+    .bind(cutoff_7d)
+    .fetch_one(&state.db).await
+    .unwrap_or((0,));
+
+    // Messages par jour (7j) — date ISO YYYY-MM-DD
+    #[derive(sqlx::FromRow)]
+    struct DayRow { day: String, count: i64 }
+
+    let rows: Vec<DayRow> = sqlx::query_as::<_, DayRow>(
+        "SELECT date(created_at, 'unixepoch') AS day, COUNT(*) AS count
+         FROM messages
+         WHERE created_at > ?
+         GROUP BY day
+         ORDER BY day ASC",
+    )
+    .bind(cutoff_7d)
+    .fetch_all(&state.db).await
+    .unwrap_or_default();
+
+    let messages_per_day = rows.into_iter()
+        .map(|r| DayCount { day: r.day, count: r.count })
+        .collect();
+
+    Ok(Json(AnalyticsResponse {
+        user_count,
+        message_count,
+        conversation_count,
+        poll_count,
+        upload_count,
+        active_users_7d,
+        messages_7d,
+        messages_per_day,
+    }))
+}

@@ -1,11 +1,17 @@
+<!-- frontend/src/routes/settings/+page.svelte — Session 34
+     Corrections :
+       - Toutes les couleurs hardcodées (#2d5a27, white, #f1f5f9…)
+         remplacées par les variables CSS du système de thèmes
+       - Les thèmes (jardin/space/maison) sont maintenant VISIBLES
+         car les composants de la page utilisent var(--accent) etc.
+       - Ajout d'un vrai aperçu live du thème dans les cartes
+       - Note explicative : username = identifiant connexion (non modifiable)
+-->
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
 
-  // -----------------------------------------------------------------
-  // États locaux
-  // -----------------------------------------------------------------
   let userName         = $state('');
   let currentPassword  = $state('');
   let newPassword      = $state('');
@@ -17,26 +23,33 @@
   let selectedTheme    = $state('jardin-secret');
   let darkMode         = $state(false);
 
-  // -----------------------------------------------------------------
-  // Thèmes disponibles
-  // -----------------------------------------------------------------
   const themes = [
-    { id: 'jardin-secret',      name: '🌿 Jardin Secret',      description: 'Doux, naturel, aquarelle' },
-    { id: 'space-hub',          name: '🚀 Space Hub',          description: 'Futuriste, néon, épuré' },
-    { id: 'maison-chaleureuse', name: '🏠 Maison Chaleureuse', description: 'Feutre, crayon, bois' },
+    {
+      id: 'jardin-secret',
+      name: 'Jardin Secret',
+      icon: '🌿',
+      description: 'Doux, naturel, aquarelle',
+      preview: { bg: '#f0fdf4', accent: '#4ade80', text: '#1e293b', bubble: '#dcfce7' },
+    },
+    {
+      id: 'space-hub',
+      name: 'Space Hub',
+      icon: '🌌',
+      description: 'Sombre, futuriste, cosmique',
+      preview: { bg: '#0f172a', accent: '#8b5cf6', text: '#f1f5f3', bubble: '#334155' },
+    },
+    {
+      id: 'maison-chaleureuse',
+      name: 'Maison Chaleureuse',
+      icon: '🏠',
+      description: 'Chaleureux, ambre, feu',
+      preview: { bg: '#fdf2e9', accent: '#ea580c', text: '#7c2d12', bubble: '#ffedd5' },
+    },
   ];
 
-  // -----------------------------------------------------------------
-  // Initialisation
-  // -----------------------------------------------------------------
   onMount(() => {
-    if (!authStore.isAuthenticated) {
-      goto('/login');
-      return;
-    }
-    if (authStore.user) {
-      userName = authStore.user.name ?? '';
-    }
+    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    if (authStore.user) userName = authStore.user.name ?? '';
     loadTheme();
   });
 
@@ -51,13 +64,9 @@
   function applyTheme() {
     if (typeof document !== 'undefined') {
       const body = document.body;
-      // Retirer toutes les classes de thème existantes
       body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse');
-      // Appliquer le nouveau thème (classe CSS)
       body.classList.add(`theme-${selectedTheme}`);
-      // Mode sombre
       body.classList.toggle('dark-mode', darkMode);
-      // Conserver aussi data-theme pour compatibilité future
       document.documentElement.setAttribute('data-theme', selectedTheme);
       document.documentElement.setAttribute('data-dark',  darkMode.toString());
       localStorage.setItem('nook-theme',     selectedTheme);
@@ -65,151 +74,74 @@
     }
   }
 
-  function setTheme(themeId: string) {
-    selectedTheme = themeId;
-    applyTheme();
-  }
+  function setTheme(themeId: string) { selectedTheme = themeId; applyTheme(); }
+  function toggleDarkMode()          { darkMode = !darkMode; applyTheme(); }
 
-  function toggleDarkMode() {
-    darkMode = !darkMode;
-    applyTheme();
-  }
-
-  // -----------------------------------------------------------------
-  // Mise à jour du profil
-  // -----------------------------------------------------------------
   async function updateProfile() {
-    if (!userName.trim()) {
-      error = 'Le nom ne peut pas être vide';
-      return;
-    }
-
-    saving  = true;
-    error   = '';
-    message = '';
-
+    if (!userName.trim()) { error = 'Le nom ne peut pas être vide'; return; }
+    saving = true; error = ''; message = '';
     try {
       const response = await fetch('/api/user/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: userName }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ name: userName }),
       });
-
       const raw = await response.text();
       let data: any = {};
-      if (raw.trim()) {
-        try { data = JSON.parse(raw); } catch { /* ignore */ }
-      }
-
-      if (response.ok) {
-        authStore.updateUser({ name: userName });
-        message = 'Profil mis à jour avec succès';
-      } else {
-        error = data?.message ?? `Erreur ${response.status}`;
-      }
-    } catch (e) {
-      console.error('Erreur mise à jour profil :', e);
-      error = e instanceof Error ? e.message : 'Erreur de connexion';
-    } finally {
-      saving = false;
-    }
+      if (raw.trim()) { try { data = JSON.parse(raw); } catch {} }
+      if (response.ok) { authStore.updateUser({ name: userName }); message = 'Profil mis à jour avec succès'; }
+      else error = data?.message ?? `Erreur ${response.status}`;
+    } catch (e) { error = e instanceof Error ? e.message : 'Erreur de connexion'; }
+    finally { saving = false; }
   }
 
-  // -----------------------------------------------------------------
-  // Changement de mot de passe
-  // -----------------------------------------------------------------
   async function changePassword() {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      error = 'Veuillez remplir tous les champs';
-      return;
-    }
-    if (newPassword.length < 8) {
-      error = 'Le nouveau mot de passe doit contenir au moins 8 caractères';
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      error = 'Les mots de passe ne correspondent pas';
-      return;
-    }
-
-    saving  = true;
-    error   = '';
-    message = '';
-
+    if (!currentPassword || !newPassword || !confirmPassword) { error = 'Veuillez remplir tous les champs'; return; }
+    if (newPassword.length < 8) { error = 'Au moins 8 caractères requis'; return; }
+    if (newPassword !== confirmPassword) { error = 'Les mots de passe ne correspondent pas'; return; }
+    saving = true; error = ''; message = '';
     try {
       const response = await fetch('/api/auth/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          current_password: currentPassword,
-          new_password:     newPassword,
-        }),
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
       });
-
       const raw = await response.text();
       let data: any = {};
-      if (raw.trim()) {
-        try { data = JSON.parse(raw); } catch { /* ignore */ }
-      }
-
-      if (response.ok) {
-        message         = 'Mot de passe modifié avec succès';
-        currentPassword = '';
-        newPassword     = '';
-        confirmPassword = '';
-      } else {
-        error = data?.message ?? `Erreur ${response.status}`;
-      }
-    } catch (e) {
-      console.error('Erreur changement mdp :', e);
-      error = e instanceof Error ? e.message : 'Erreur de connexion';
-    } finally {
-      saving = false;
-    }
+      if (raw.trim()) { try { data = JSON.parse(raw); } catch {} }
+      if (response.ok) { message = 'Mot de passe modifié avec succès'; currentPassword = ''; newPassword = ''; confirmPassword = ''; }
+      else error = data?.message ?? `Erreur ${response.status}`;
+    } catch (e) { error = e instanceof Error ? e.message : 'Erreur de connexion'; }
+    finally { saving = false; }
   }
 </script>
 
-<svelte:head>
-  <title>Paramètres - Nook</title>
-</svelte:head>
+<svelte:head><title>Paramètres - Nook</title></svelte:head>
 
 <div class="settings-container">
   <header class="page-header">
     <h1>⚙️ Paramètres</h1>
   </header>
 
-  <!-- TABS -->
-  <div class="tabs" role="tablist" aria-label="Sections des paramètres">
-    <button role="tab" class="tab" class:active={activeTab === 'profile'}
-      aria-selected={activeTab === 'profile'} onclick={() => (activeTab = 'profile')}>
-      Profil
-    </button>
-    <button role="tab" class="tab" class:active={activeTab === 'security'}
-      aria-selected={activeTab === 'security'} onclick={() => (activeTab = 'security')}>
-      Sécurité
-    </button>
-    <button role="tab" class="tab" class:active={activeTab === 'appearance'}
-      aria-selected={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>
-      Apparence
-    </button>
+  <div class="tabs" role="tablist">
+    <button role="tab" class="tab" class:active={activeTab === 'profile'}    onclick={() => (activeTab = 'profile')}>👤 Profil</button>
+    <button role="tab" class="tab" class:active={activeTab === 'security'}   onclick={() => (activeTab = 'security')}>🔒 Sécurité</button>
+    <button role="tab" class="tab" class:active={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>🎨 Apparence</button>
   </div>
 
   <!-- PROFIL -->
   {#if activeTab === 'profile'}
-    <div class="settings-section" role="tabpanel">
+    <div class="settings-section">
       <h2>Informations du profil</h2>
       <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
         <div class="form-group">
-          <label for="userName">Prénom</label>
+          <label for="userName">Prénom / Nom affiché</label>
           <input type="text" id="userName" bind:value={userName} placeholder="Votre prénom" />
+          <p class="help-text">Ce nom sera visible par les autres membres</p>
         </div>
         <div class="form-group">
-          <label for="userId">Identifiant</label>
-          <input type="text" id="userId" value={authStore.user?.id ?? ''} disabled
-            aria-describedby="userId-hint" />
-          <p id="userId-hint" class="help-text">L'identifiant ne peut pas être modifié</p>
+          <label for="userUsername">Identifiant de connexion</label>
+          <input type="text" id="userUsername" value={authStore.user?.username ?? ''} disabled />
+          <p class="help-text">⚠️ L'identifiant de connexion ne peut pas être modifié. Vous devez toujours utiliser <strong>{authStore.user?.username ?? 'admin'}</strong> pour vous connecter, même si vous avez changé votre nom affiché.</p>
         </div>
         <button type="submit" class="btn btn-primary" disabled={saving}>
           {saving ? 'Enregistrement…' : 'Enregistrer'}
@@ -219,24 +151,21 @@
 
   <!-- SÉCURITÉ -->
   {:else if activeTab === 'security'}
-    <div class="settings-section" role="tabpanel">
+    <div class="settings-section">
       <h2>Changer le mot de passe</h2>
       <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
         <div class="form-group">
           <label for="currentPassword">Mot de passe actuel</label>
-          <input type="password" id="currentPassword" bind:value={currentPassword}
-            autocomplete="current-password" />
+          <input type="password" id="currentPassword" bind:value={currentPassword} autocomplete="current-password" />
         </div>
         <div class="form-group">
           <label for="newPassword">Nouveau mot de passe</label>
-          <input type="password" id="newPassword" bind:value={newPassword}
-            autocomplete="new-password" />
+          <input type="password" id="newPassword" bind:value={newPassword} autocomplete="new-password" />
           <p class="help-text">Au moins 8 caractères</p>
         </div>
         <div class="form-group">
           <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
-          <input type="password" id="confirmPassword" bind:value={confirmPassword}
-            autocomplete="new-password" />
+          <input type="password" id="confirmPassword" bind:value={confirmPassword} autocomplete="new-password" />
         </div>
         <button type="submit" class="btn btn-primary" disabled={saving}>
           {saving ? 'Modification…' : 'Changer le mot de passe'}
@@ -246,23 +175,46 @@
 
   <!-- APPARENCE -->
   {:else if activeTab === 'appearance'}
-    <div class="settings-section" role="tabpanel">
-      <h2>Thème</h2>
+    <div class="settings-section">
+      <h2>Thème de l'application</h2>
+      <p class="section-desc">Choisissez l'ambiance visuelle de Nook. Le changement est immédiat sur toutes les pages.</p>
       <div class="themes-grid">
         {#each themes as theme}
-          <button class="theme-card" class:selected={selectedTheme === theme.id}
-            onclick={() => setTheme(theme.id)} aria-pressed={selectedTheme === theme.id}>
-            <span class="theme-icon">
-              {theme.id === 'jardin-secret' ? '🌿' : theme.id === 'space-hub' ? '🚀' : '🏠'}
-            </span>
-            <span class="theme-name">{theme.name}</span>
-            <span class="theme-description">{theme.description}</span>
+          <!-- Aperçu live avec les couleurs réelles du thème -->
+          <button
+            class="theme-card"
+            class:selected={selectedTheme === theme.id}
+            onclick={() => setTheme(theme.id)}
+            aria-pressed={selectedTheme === theme.id}
+            style="--preview-bg:{theme.preview.bg}; --preview-accent:{theme.preview.accent}; --preview-text:{theme.preview.text}; --preview-bubble:{theme.preview.bubble};"
+          >
+            <!-- Mini aperçu du thème -->
+            <div class="theme-preview">
+              <div class="preview-header">
+                <span class="preview-dot" style="background:{theme.preview.accent}"></span>
+                <span class="preview-title" style="color:{theme.preview.text}">Nook</span>
+              </div>
+              <div class="preview-bubble" style="background:{theme.preview.bubble}; color:{theme.preview.text}">Bonjour !</div>
+              <div class="preview-btn" style="background:{theme.preview.accent}">→</div>
+            </div>
+            <div class="theme-info">
+              <span class="theme-icon">{theme.icon}</span>
+              <span class="theme-name">{theme.name}</span>
+              <span class="theme-description">{theme.description}</span>
+            </div>
+            {#if selectedTheme === theme.id}
+              <span class="selected-badge">✓ Actif</span>
+            {/if}
           </button>
         {/each}
       </div>
+
       <div class="form-group">
         <label class="toggle-label" for="darkModeToggle">
-          <span>Mode sombre</span>
+          <div>
+            <span class="toggle-title">🌙 Mode sombre</span>
+            <p class="help-text">Superpose un filtre sombre sur le thème actuel</p>
+          </div>
           <div class="toggle-switch">
             <input type="checkbox" id="darkModeToggle" checked={darkMode} onchange={toggleDarkMode} />
             <span class="toggle-slider"></span>
@@ -274,25 +226,10 @@
 
   <!-- FEEDBACK -->
   {#if message}
-    <div role="alert" class="alert alert-success">
-      <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <span>{message}</span>
-    </div>
+    <div role="alert" class="alert alert-success">✅ {message}</div>
   {/if}
-
   {#if error}
-    <div role="alert" class="alert alert-error">
-      <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor" aria-hidden="true">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <span>{error}</span>
-    </div>
+    <div role="alert" class="alert alert-error">❌ {error}</div>
   {/if}
 </div>
 
@@ -300,119 +237,175 @@
   * { box-sizing: border-box; }
 
   .settings-container {
-    min-height: 100vh; padding: 1.5rem 1rem;
-    max-width: 800px; margin: 0 auto;
+    min-height: 100vh;
+    padding: 1.5rem 1rem;
+    max-width: 800px;
+    margin: 0 auto;
+    color: var(--text-primary);
   }
 
   .page-header { text-align: center; margin-bottom: 2rem; }
-  .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem 0; color: #1e293b; }
+  .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.5rem 0; color: var(--text-primary); }
 
   .tabs {
     display: flex; gap: 0.5rem; margin-bottom: 2rem;
-    background: white; padding: 0.5rem; border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: var(--bg-secondary); padding: 0.5rem;
+    border-radius: var(--radius-xl); border: 1px solid var(--border);
+    box-shadow: var(--depth);
   }
 
   .tab {
     flex: 1; padding: 0.85rem 1rem; border: none; background: transparent;
-    color: #64748b; font-size: 0.95rem; font-weight: 600; cursor: pointer;
-    transition: all 0.2s; border-radius: 8px;
+    color: var(--text-secondary); font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; border-radius: var(--radius-lg);
   }
-  .tab:hover { color: #1e293b; background: #f8fafc; }
-  .tab.active { color: white; background: #2d5a27; box-shadow: 0 2px 8px rgba(45, 90, 39, 0.2); }
+  .tab:hover  { background: var(--bg-tertiary); color: var(--text-primary); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: var(--shadow-md); }
 
   .settings-section {
-    background: white; padding: 2rem; border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); margin-bottom: 1.5rem;
-    animation: fadeIn 0.3s ease-out;
+    background: var(--bg-primary); padding: 2rem;
+    border-radius: var(--radius-xl); border: 1px solid var(--border);
+    box-shadow: var(--depth); margin-bottom: 1.5rem;
+    animation: var(--fade-in);
   }
-
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .settings-section h2 {
-    font-size: 1.25rem; font-weight: 600; margin: 0 0 1.5rem 0; color: #1e293b;
-    padding-bottom: 0.75rem; border-bottom: 2px solid #f1f5f9;
+    font-size: 1.2rem; font-weight: 700; margin: 0 0 0.5rem 0;
+    color: var(--text-primary); padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border);
   }
 
-  .form-group { margin-bottom: 1.5rem; text-align: left; }
-  .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #374151; font-size: 0.95rem; }
+  .section-desc { color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 1.5rem 0; }
+
+  .form-group { margin-bottom: 1.5rem; }
+  .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-primary); font-size: 0.95rem; }
 
   .form-group input[type='text'],
   .form-group input[type='password'] {
-    width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0;
-    border-radius: 8px; font-size: 1rem; transition: border-color 0.2s; background: #f8fafc;
+    width: 100%; padding: 0.75rem; border: 2px solid var(--border);
+    border-radius: var(--radius-lg); font-size: 1rem; background: var(--input-bg);
+    color: var(--text-primary); transition: border-color 0.2s, box-shadow 0.2s; outline: none;
   }
-
   .form-group input[type='text']:focus,
   .form-group input[type='password']:focus {
-    border-color: #2d5a27; box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
-    background: white; outline: none;
+    border-color: var(--accent); box-shadow: var(--glow-sm);
   }
+  .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
+  .help-text { margin: 0.4rem 0 0 0; font-size: 0.82rem; color: var(--text-secondary); }
+  .help-text strong { color: var(--accent-dark, var(--accent)); }
 
-  .form-group input[type='text']:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
-  .help-text { margin: 0.5rem 0 0 0; font-size: 0.85rem; color: #64748b; }
+  .btn {
+    padding: 0.75rem 1.5rem; border: none; border-radius: var(--radius-lg);
+    font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff; box-shadow: var(--shadow-md);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--button-hover); transform: translateY(-1px); box-shadow: var(--shadow-lg);
+  }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
 
-  .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.75rem; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-  .btn-primary { background: #2d5a27; color: white; box-shadow: 0 2px 8px rgba(45, 90, 39, 0.2); }
-  .btn-primary:hover:not(:disabled) { background: #3d7a37; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(45, 90, 39, 0.3); }
-  .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none !important; }
-
-  .themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  /* ─── Grille de thèmes avec aperçu live ─── */
+  .themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
 
   .theme-card {
+    position: relative;
     display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
-    padding: 1.5rem 1rem; background: #f8fafc; border: 2px solid #e2e8f0;
-    border-radius: 12px; cursor: pointer; transition: all 0.2s;
+    padding: 1rem; background: var(--preview-bg, var(--bg-secondary));
+    border: 2px solid var(--border); border-radius: var(--radius-xl);
+    cursor: pointer; transition: all 0.25s; overflow: hidden;
   }
-  .theme-card:hover { background: #f1f5f9; border-color: #cbd5e1; transform: translateY(-2px); }
-  .theme-card.selected { background: #e8f5e8; border-color: #2d5a27; box-shadow: 0 4px 12px rgba(45, 90, 39, 0.15); }
+  .theme-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+  .theme-card.selected {
+    border-color: var(--preview-accent, var(--accent));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--preview-accent, var(--accent)) 30%, transparent);
+  }
 
-  .theme-icon { font-size: 2rem; }
-  .theme-name { font-weight: 600; color: #1e293b; font-size: 1rem; }
-  .theme-description { font-size: 0.85rem; color: #64748b; text-align: center; }
+  /* Mini aperçu visuel du thème dans la carte */
+  .theme-preview {
+    width: 100%; background: var(--preview-bg); border-radius: var(--radius-lg);
+    padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--preview-text) 15%, transparent);
+  }
+  .preview-header { display: flex; align-items: center; gap: 0.4rem; }
+  .preview-dot    { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .preview-title  { font-size: 0.7rem; font-weight: 700; }
+  .preview-bubble {
+    align-self: flex-end; font-size: 0.65rem; padding: 0.25rem 0.5rem;
+    border-radius: 8px 8px 0 8px; max-width: 80%;
+  }
+  .preview-btn {
+    align-self: flex-end; font-size: 0.6rem; color: #fff; width: 20px; height: 20px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  }
 
+  .theme-info { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+  .theme-icon        { font-size: 1.5rem; }
+  .theme-name        { font-weight: 700; font-size: 0.9rem; color: var(--preview-text); }
+  .theme-description { font-size: 0.75rem; color: color-mix(in srgb, var(--preview-text) 70%, transparent); text-align: center; }
+
+  .selected-badge {
+    position: absolute; top: 0.5rem; right: 0.5rem;
+    background: var(--preview-accent, var(--accent)); color: #fff;
+    font-size: 0.65rem; font-weight: 700; padding: 0.15rem 0.4rem;
+    border-radius: var(--radius-full);
+  }
+
+  /* ─── Toggle mode sombre ─── */
   .toggle-label {
     display: flex; justify-content: space-between; align-items: center;
-    cursor: pointer; margin: 0; padding: 1rem; background: #f8fafc;
-    border-radius: 12px; border: 2px solid #e2e8f0;
+    cursor: pointer; margin: 0; padding: 1rem 1.25rem;
+    background: var(--bg-secondary); border-radius: var(--radius-xl);
+    border: 2px solid var(--border); transition: border-color 0.2s;
   }
-  .toggle-label span:first-child { font-weight: 600; color: #1e293b; }
-  .toggle-switch { position: relative; display: inline-block; width: 52px; height: 28px; }
+  .toggle-label:hover { border-color: var(--accent); }
+  .toggle-title { font-weight: 600; color: var(--text-primary); }
+  .toggle-switch { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; }
   .toggle-switch input { opacity: 0; width: 0; height: 0; }
-
   .toggle-slider {
     position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-    background: #cbd5e1; border-radius: 34px; transition: .4s;
+    background: var(--text-muted); border-radius: 34px; transition: .4s;
   }
   .toggle-slider:before {
     position: absolute; content: ""; height: 20px; width: 20px;
     left: 4px; bottom: 4px; background: white; border-radius: 50%; transition: .4s;
   }
-  input:checked + .toggle-slider { background: #2d5a27; }
+  input:checked + .toggle-slider { background: var(--accent); }
   input:checked + .toggle-slider:before { transform: translateX(24px); }
 
+  /* ─── Alertes feedback ─── */
   .alert {
-    display: flex; align-items: center; gap: 0.75rem;
-    padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem;
-    text-align: left; font-size: 0.9rem; animation: fadeIn 0.3s ease-out;
+    padding: 1rem 1.25rem; border-radius: var(--radius-lg); margin-bottom: 1.5rem;
+    font-size: 0.9rem; animation: var(--fade-in);
   }
-  .alert-success { background: rgba(72, 187, 120, 0.1); border: 2px solid rgba(72, 187, 120, 0.3); color: #2d5a27; }
-  .alert-error   { background: rgba(239, 68, 68, 0.1);  border: 2px solid rgba(239, 68, 68, 0.3);  color: #dc2626; }
-  .alert .icon { width: 20px; height: 20px; flex-shrink: 0; }
+  .alert-success {
+    background: color-mix(in srgb, #4ade80 15%, transparent);
+    border: 1px solid color-mix(in srgb, #4ade80 40%, transparent);
+    color: var(--text-primary);
+  }
+  .alert-error {
+    background: color-mix(in srgb, #f87171 15%, transparent);
+    border: 1px solid color-mix(in srgb, #f87171 40%, transparent);
+    color: var(--text-primary);
+  }
+
+  /* ─── Mode sombre overlay ─── */
+  :global(.dark-mode) .settings-section,
+  :global(.dark-mode) .tabs {
+    filter: brightness(0.85);
+  }
 
   @media (max-width: 768px) {
     .tabs { flex-direction: column; }
-    .tab { width: 100%; text-align: center; }
-    .settings-section { padding: 1.5rem; }
-    .themes-grid { grid-template-columns: 1fr; }
-  }
-
-  @media (max-width: 480px) {
-    .settings-container { padding: 1rem 0.75rem; }
+    .tab  { text-align: center; }
     .settings-section { padding: 1.25rem; }
-    .toggle-label { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
-    .form-group input[type='text'],
-    .form-group input[type='password'] { padding: 0.65rem; }
+    .themes-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .themes-grid { grid-template-columns: 1fr; }
+    .settings-container { padding: 1rem 0.75rem; }
     .btn { width: 100%; }
+    .toggle-label { flex-direction: row; }
   }
 </style>

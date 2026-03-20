@@ -11,13 +11,13 @@
  * des vérifications `typeof indexedDB !== 'undefined'`.
  */
 
-import sodium from 'libsodium-wrappers'; // <-- default export (ready, crypto_*, …)
+// DT-01: dynamic import — sodium chargé à la demande, pas au démarrage
 
 // -----------------------------------------------------------------
 // 1️⃣ Initialisation de libsodium (à appeler une fois au démarrage)
 // -----------------------------------------------------------------
 export async function initStorage(): Promise<void> {
-  await sodium.ready;
+  const sodium = await getSodium();
 }
 
 // -----------------------------------------------------------------
@@ -34,7 +34,7 @@ export async function encryptStorage(
   data: unknown,
   secretKeyB64: string
 ): Promise<string> {
-  await sodium.ready;
+  const sodium = await getSodium();
 
   const key = sodium.from_base64(secretKeyB64, sodium.base64_variants.ORIGINAL);
   if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
@@ -64,7 +64,7 @@ export async function decryptStorage<T = unknown>(
   encrypted: string,
   secretKeyB64: string
 ): Promise<T> {
-  await sodium.ready;
+  const sodium = await getSodium();
 
   const key = sodium.from_base64(secretKeyB64, sodium.base64_variants.ORIGINAL);
   if (key.length !== sodium.crypto_secretbox_KEYBYTES) {
