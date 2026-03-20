@@ -689,6 +689,7 @@
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
+            role="none"
             onmouseenter={() => hoveredMsgId = msg.id}
             onmouseleave={() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }}
           >
@@ -728,6 +729,7 @@
                     controls
                     preload="none"
                     class="voice-video"
+                    aria-label="Message vidéo"><track kind="captions" />
                   ></video>
                 </div>
               {:else}
@@ -903,6 +905,7 @@
     role="dialog"
     aria-modal="true"
     aria-label="Nouvelle conversation"
+    tabindex="-1"
     onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}
     onkeydown={(e) => { if (e.key === 'Escape') showNewConv = false; }}
   >
