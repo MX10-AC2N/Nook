@@ -634,16 +634,27 @@ fn has_non_pawn_material(pos: &Position) -> bool {
 pub struct MinimaxAi {
     /// Optional time limit per search (if None, depth alone limits search).
     time_limit: Option<Duration>,
+    /// Transposition table size in entries (default: 64K = ~2.5MB).
+    tt_size: usize,
 }
 
 impl MinimaxAi {
     pub fn new() -> Self {
-        Self { time_limit: None }
+        Self { time_limit: None, tt_size: 1 << 16 }
     }
 
     pub fn with_time_limit(time_limit: Duration) -> Self {
         Self {
             time_limit: Some(time_limit),
+            tt_size: 1 << 16,
+        }
+    }
+
+    /// Créer l'IA avec time limit ET taille TT personnalisée.
+    pub fn with_time_limit_and_tt(time_limit: Duration, tt_size: usize) -> Self {
+        Self {
+            time_limit: Some(time_limit),
+            tt_size,
         }
     }
 
@@ -651,7 +662,7 @@ impl MinimaxAi {
     /// Returns (best_move, stats) from the deepest fully completed iteration.
     pub fn search(&self, pos: &mut Position, max_depth: u32) -> (Option<Move>, SearchStats) {
         let start = Instant::now();
-        let tt = TranspositionTable::default_size();
+        let tt = TranspositionTable::new(self.tt_size);
         let mut ctx = SearchContext::new(max_depth, self.time_limit, tt);
 
         let mut moves = legal_moves(pos);
