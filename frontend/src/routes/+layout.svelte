@@ -68,7 +68,27 @@
     }
   });
 
+  // ─── Thème global — persisté sur toutes les pages ────────────────────────
+  // Appelé immédiatement dans onMount pour appliquer le thème AVANT tout rendu.
+  // Sans ça, le thème ne s'applique qu'à settings/+page.svelte et disparaît
+  // à la navigation.
+  function initThemeGlobal(): void {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('nook-theme');
+    const dark  = localStorage.getItem('nook-dark-mode') === 'true';
+    const theme = saved ?? 'jardin-secret';
+    document.body.classList.remove(
+      'theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse'
+    );
+    document.body.classList.add(`theme-${theme}`);
+    document.body.classList.toggle('dark-mode', dark);
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
   onMount(async () => {
+    // Thème appliqué EN PREMIER — avant tout le reste
+    initThemeGlobal();
+
     // ─────────────────────────────────────────────────────────────────────
     // ARCHITECTURE : sodium en fire-and-forget, authStore.init() en priorité
     //
