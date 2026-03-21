@@ -420,6 +420,12 @@ class ChessStore {
   private async triggerAiMove(): Promise<void> {
     if (!this.currentGame || this.isGameOver) return;
     this.aiThinking = true;
+
+    // Démarrer le timer du camp adverse (IA) PENDANT qu'il réfléchit
+    const myColor = this.myColor();
+    const aiColor = myColor === 'white' ? 'black' : 'white';
+    this.switchTimer(aiColor);
+
     try {
       const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
         method:      'POST',
@@ -430,15 +436,15 @@ class ChessStore {
       const data = await res.json();
       if (data.success && data.game) {
         this.currentGame = data.game;
-        // Mettre à jour lastMove depuis le dernier coup IA (qui a now from/to)
+        // Mettre à jour lastMove depuis le dernier coup IA (from/to maintenant disponibles)
         const history: Array<{ from?: string; to?: string; by?: string }> =
           data.game.move_history ?? [];
         const lastAi = [...history].reverse().find(m => m.by === 'ai' && m.from && m.to);
         if (lastAi?.from && lastAi?.to) {
           this.lastMove = { from: lastAi.from, to: lastAi.to };
         }
-        // Basculer le minuteur
-        this.switchTimer(data.game.engine?.side_to_move ?? null);
+        // Rebascule vers le joueur humain après le coup IA
+        this.switchTimer(myColor ?? 'white');
       }
     } catch {
       // Silencieux — le joueur peut retenter
