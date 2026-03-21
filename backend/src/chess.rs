@@ -547,10 +547,8 @@ pub async fn make_move(
         }
     };
 
-    let new_fen = new_fen_ai;
-    // game_status reconstruit depuis la string retournée par play_ai
-    // (game a été move dans spawn_blocking)
-    let game_status_str = new_status_ai;
+    let new_fen = game.to_fen();
+    let game_status = game.status().clone();
     let now = Utc::now().timestamp();
 
     let color_str = match player_color {
@@ -701,7 +699,7 @@ pub async fn ai_move(
         .unwrap_or(Difficulty::Medium);
 
     let fen: String = row.get("board_state");
-    let mut game = match Game::from_fen(&fen) {
+    let game = match Game::from_fen(&fen) {
         Ok(g) => g,
         Err(_) => {
             return (
@@ -778,7 +776,11 @@ pub async fn ai_move(
     .await
     .ok();
 
-    let engine = game_json(&game);
+    // game a été moved dans spawn_blocking — reconstruire depuis new_fen pour game_json
+    let engine = match Game::from_fen(&new_fen) {
+        Ok(rebuilt) => game_json(&rebuilt),
+        Err(_) => serde_json::json!(null),
+    };
     let ws = json!({
         "type": "chess_ai_move", "game_id": game_id,
         "move": { "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str },
