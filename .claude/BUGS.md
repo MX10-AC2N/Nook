@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-20** (session 39)
+> Mis à jour : **2026-03-21** (session 40)
 
 ---
 
@@ -9,6 +9,16 @@
 *Aucun bug actif bloquant.*
 
 ---
+
+## 📋 Pièges critiques S40
+
+```
+chess.rs  : play_ai moved dans spawn_blocking → reconstruire Game depuis new_fen pour game_json()
+chess.rs  : ai_move retourne game_status_str (String), make_move retourne game_status (enum) — ne pas mélanger
+layout    : initThemeGlobal() DOIT être dans +layout.svelte onMount — pas seulement dans settings
+timer IA  : bascule vers aiColor AVANT fetch IA, pas après data.game
+TT chess  : 1M entrées = 40MB réalloués chaque coup → limiter à 64K par défaut (Zimaboard ARM64)
+```
 
 ## 📋 Règles Svelte 5 (éviter régressions)
 
@@ -61,6 +71,12 @@ store.prop = newValue;  // ✅
 | R03 | 3 | proc-macro async-trait crash | Retirer tower_governor |
 | R02 | 2 | rand_core diamond dep | `rand_core = "0.6"` explicite |
 | R01 | 2 | axum 0.8 breaking changes | Routes {param}, Message::Text .into() |
+| R_THEME | 40 | Thèmes appliqués seulement sur /settings, disparaissent à la navigation | `initThemeGlobal()` dans `+layout.svelte` onMount + CSS via `var(--xxx)` |
+| R_CHESS_GAME | 40 | `make_move` et `ai_move` retournaient `{success, fen}` → `data.game` undefined → plateau vide | Réponses wrappées dans `{success, game: GameState}` |
+| R_CHESS_IA_TIMER | 40 | Timer décompte joueur mais pas IA — `switchTimer` appelé après `data.game` (side_to_move déjà "white") | Bascule vers `aiColor` avant le fetch, rebascule après |
+| R_CHESS_IA_FREEZE | 40 | IA bloquée après ~10 coups — TT 1M entrées (~40MB) allouée à chaque coup sur Zimaboard ARM64 | `spawn_blocking` + `time_limit` par difficulté + TT adaptative (16K→1M selon niveau) |
+| R_CHESS_LASTMOVE | 40 | `lastMove` non mis à jour après coup IA (highlight adversaire absent) | `play_ai` retourne `(san, from, to)` ; `triggerAiMove` extrait `from/to` depuis `move_history` |
+| R_MAIN_SHARED | 40 | Suppression proxy GIF emportait `SharedState` + `use crate::config` (lignes 51-145) | Suppression chirurgicale lignes 51-124 uniquement (juste la fn `gif_search_proxy`) |
 | R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé (objet $state encapsulé) |
 | R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` |
 
@@ -75,7 +91,7 @@ store.prop = newValue;  // ✅
 | SEC-04 | Magic bytes uploads non validés | ✅ Résolu | **S36** (validate_magic_bytes) |
 | SEC-05 | Pas de limite taille messages WS | ✅ Résolu | **S36** (64KB limit) |
 | SEC-03 | Token session UUID (entropy ok, 256 bits optionnel) | 🟡 Faible risque | S37 optionnel |
-| SEC-06 | emergency.rs non connecté | 🟡 Informationnel | Avant activation |
+| SEC-06 | emergency.rs non connecté | ✅ Résolu | **S40** (route POST /emergency + push VAPID à tous les membres) |
 
 ---
 
