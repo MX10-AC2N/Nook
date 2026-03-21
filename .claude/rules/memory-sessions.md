@@ -122,3 +122,113 @@ L'E2EE était déjà fonctionnel depuis S37-38 :
   - `.claude/roles/svelte-frontend.md` — protocole MCP Svelte en tête
   - `.claude/skills/nook-svelte-frontend/SKILL.md` — checklist + workflow MCP
   - `.claude/rules/memory-sessions.md` — ce fichier, état S38
+
+---
+
+## Session 40 — 2026-03-21 — Thèmes, Chess IA, Minuteur, GIFs locaux
+
+### Contexte
+Session de consolidation post-déploiement Zimaboard. Retours d'expérience IRL
+sur plusieurs bugs UI/UX constatés en production + refactoring GIFs.
+
+### Bugs corrigés
+
+**🎨 Thèmes — R_THEME**
+- Cause : `applyTheme()` uniquement dans `onMount` de `settings/+page.svelte`
+  → démontage de la page = perte du thème
+- Fix : `initThemeGlobal()` dans `+layout.svelte` onMount (premier appel, avant authStore.init)
+  + CSS du layout via `var(--bg-primary)` etc. (22 remplacements, plus de couleurs hardcodées)
+
+**♟️ Chess data.game — R_CHESS_GAME**
+- Cause : `make_move` et `ai_move` retournaient `{success, san, fen}` mais le store attendait `data.game`
+- Fix : les deux handlers retournent `{success, game: GameState}` complet
+
+**♟️ IA bloquée — R_CHESS_IA_FREEZE**
+- Cause : `TranspositionTable::default_size()` = 1M entrées (~40MB) allouée + zeroed à chaque coup
+  → sur Zimaboard ARM64, latence croissante → timeout après ~10 coups
+- Fix en 3 parties :
+  1. `ai_engine.rs` : `MinimaxAi` avec `tt_size` configurable + `with_time_limit_and_tt()`
+  2. `chess.rs` : `play_ai` avec `time_limit` + `tt_size` par difficulté (Easy 500ms/16K → Godlike 8s/1M)
+  3. `chess.rs` : `play_ai` dans `tokio::task::spawn_blocking` (CPU-bound → ne pas bloquer tokio)
+
+**♟️ Timer IA — R_CHESS_IA_TIMER**
+- Cause : `switchTimer(data.game.engine.side_to_move)` appelé APRÈS le coup IA
+  → side_to_move = "white" (tour joueur) → les noirs ne décomptaient jamais
+- Fix : bascule vers `aiColor` AVANT le fetch IA, rebascule vers myColor après
+
+**♟️ LastMove IA — R_CHESS_LASTMOVE**
+- Cause : `play_ai` ne retournait pas `from`/`to` → highlight adversaire absent
+- Fix : `play_ai` retourne `(san, from_alg, to_alg)` via `mv.from.to_algebraic()`
+  + `triggerAiMove` extrait le dernier coup IA depuis `move_history` (filtre `by === 'ai'`)
+
+**🔐 Emergency.rs — SEC-06**
+- `emergency.rs` réimplémenté : log `tracing::warn!` + push VAPID à tous les membres approuvés
+- Route `POST /emergency` ajoutée dans `protected_routes` de `main.rs`
+
+### Nouvelles fonctionnalités
+
+**🎬 GIFs locaux + mise à jour automatique**
+- `gifs_updater.rs` : tâche tokio hebdomadaire (7 jours, 30s délai boot)
+  12 thèmes × 10 GIFs, appelle Giphy API (GIPHY_API_KEY), écrit dans `/app/data/gifs/`
+- `main.rs` : `ServeDir("/gifs")` avec fallback `/app/static/gifs/` (collection de base dans l'image)
+- `config.rs` : `gifs_dir` ajouté
+- Zéro rebuild Docker — les GIFs sont dans le volume de données
+
+**♟️ Minuteur d'échecs**
+- `chessStore.svelte.ts` : `whiteTime`, `blackTime`, `timerLimit`, `initTimer()`, `switchTimer()`
+- `chess/+page.svelte` : choix durée à la création (∞/5/10/15/30 min)
+- Affichage dans mobile-bar et sidebar, clignote rouge sous 30s
+
+**♟️ Mise en échec visible**
+- `kingInCheckSquare()` : scanne le plateau pour le roi du camp à jouer
+  quand `engine.status` contient "check" ou "checkmate"
+- CSS `cell-check` : fond rouge pulsant `@keyframes pulse-check`
+
+**🗑️ Suppressions**
+- `gif_search_proxy` (proxy Tenor) supprimé de `main.rs` — clé API révoquée
+- `fetch-gifs.py` migré vers Giphy (Tenor fermé jan 2026)
+- `fetch-gifs.yml` conservé comme collection de base pour l'image Docker (fallback)
+
+### Fichiers modifiés session 40
+
+Backend :
+- `backend/src/main.rs` — emergency branché, gifs_updater, ServeDir /gifs, proxy GIF supprimé
+- `backend/src/chess.rs` — play_ai(san,from,to), spawn_blocking, time_limit, game_status fixes
+- `backend/src/chess_engine/ai_engine.rs` — tt_size configurable, with_time_limit_and_tt()
+- `backend/src/emergency.rs` — implémentation réelle (log + push VAPID membres)
+- `backend/src/gifs_updater.rs` — NOUVEAU : tâche hebdomadaire Giphy
+- `backend/src/config.rs` — gifs_dir ajouté
+
+Frontend :
+- `frontend/src/routes/+layout.svelte` — initThemeGlobal() + CSS variables thème
+- `frontend/src/lib/chessStore.svelte.ts` — minuteur + lastMove IA + isVsAI robuste
+- `frontend/src/routes/chess/[game_id]/+page.svelte` — minuteur UI + cell-check
+- `frontend/src/routes/chess/+page.svelte` — choix durée création
+- `frontend/src/routes/calendar/+page.svelte` — jours L/M/M/J/V/S/D mobile
+- `frontend/src/routes/chat/+page.svelte` — picker emoji natif + onglet GIF local
+- `frontend/src/lib/chatStore.svelte.ts` — GIF Tenor supprimé → sendEmoji + toggleEmojiPicker
+
+Docs / CI :
+- `scripts/fetch-gifs.py` — migré vers Giphy
+- `.github/workflows/fetch-gifs.yml` — rôle clarifié (collection de base)
+- `.github/workflows/bundle-analysis.yml` — fix find build/ → find frontend/build/
+- `.env.example` — GIPHY_API_KEY, GIFS_DIR documentés
+- `README.md`, `user_guide.md` — mis à jour
+
+### État attendu après session 40
+- Thèmes persistants sur toutes les pages ✓
+- Chess IA répond en temps borné (Easy 500ms, Medium 1.5s) ✓
+- Timer décompte pour les deux camps (joueur + IA) ✓
+- Dernier coup IA highlighté ✓
+- Mise en échec visible (roi rouge pulsant) ✓
+- GIFs locaux mis à jour hebdomadairement sans rebuild ✓
+- Emergency.rs fonctionnel (log + push) ✓
+
+### Ce qui reste à faire
+- [ ] Tester chess IA sur Zimaboard avec nouveau chess.rs (spawn_blocking + time_limit)
+- [ ] Obtenir clé Giphy → `GIPHY_API_KEY` dans `.env` Zimaboard → premier run `gifs_updater`
+- [ ] Lancer `fetch-gifs.yml` pour peupler `frontend/static/gifs/` (fallback image)
+- [ ] Révoquer clé Tenor `AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCDs` sur Google Cloud Console
+- [ ] Fermer alerte GitHub Security #1 après révocation (Close as revoked)
+- [ ] Tester le minuteur échecs IRL
+- [ ] Tester la mise en échec highlight IRL
