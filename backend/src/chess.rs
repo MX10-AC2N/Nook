@@ -137,10 +137,13 @@ fn game_json(game: &Game) -> Value {
     })
 }
 
-fn play_ai(game: &mut Game, difficulty: Difficulty) -> Result<String, ChessError> {
+fn play_ai(game: &mut Game, difficulty: Difficulty) -> Result<(String, String, String), ChessError> {
     let ai = MinimaxAi::new();
     let mv = ai.best_move(game, difficulty)?;
-    game.make_move(mv)
+    let from_alg = mv.from.to_algebraic();
+    let to_alg   = mv.to.to_algebraic();
+    let san = game.make_move(mv)?;
+    Ok((san, from_alg, to_alg))
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -171,9 +174,9 @@ pub async fn create_game(
         let mut game = Game::new();
         let difficulty = parse_difficulty(opponent);
         match play_ai(&mut game, difficulty) {
-            Ok(san) => (
+            Ok((san, from_alg, to_alg)) => (
                 game.to_fen(),
-                json!([{"san": san, "by": "ai", "color": "white"}]).to_string(),
+                json!([{"san": san, "from": from_alg, "to": to_alg, "by": "ai", "color": "white"}]).to_string(),
             ),
             Err(_) => (starting_fen.to_string(), "[]".to_string()),
         }
@@ -678,8 +681,8 @@ pub async fn ai_move(
     };
 
     let ai_color = game.side_to_move(); // l'IA joue le côté à jouer maintenant
-    let san = match play_ai(&mut game, difficulty) {
-        Ok(s) => s,
+    let (san, ai_from, ai_to) = match play_ai(&mut game, difficulty) {
+        Ok(t) => t,
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
@@ -707,7 +710,7 @@ pub async fn ai_move(
         let raw: String = row.get("move_history");
         serde_json::from_str(&raw).unwrap_or_default()
     };
-    history.push(json!({ "san": san, "by": "ai", "color": ai_color_str }));
+    history.push(json!({ "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str }));
     let new_history = serde_json::to_string(&history).unwrap();
     let next_turn = if game_status.is_game_over() { 0 } else { 1 };
 
@@ -731,7 +734,7 @@ pub async fn ai_move(
     let engine = game_json(&game);
     let ws = json!({
         "type": "chess_ai_move", "game_id": game_id,
-        "move": { "san": san, "by": "ai", "color": ai_color_str },
+        "move": { "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str },
         "fen": new_fen, "status": game_status.as_str(),
         "winner_id": winner_id, "engine": engine, "timestamp": now,
     });
