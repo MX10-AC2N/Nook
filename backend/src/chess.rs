@@ -201,7 +201,7 @@ pub async fn create_game(
     // Si IA joue blanc, elle joue immédiatement le premier coup
     let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let (initial_fen, initial_history) = if is_ai && creator_color == "black" {
-        let mut game = Game::new();
+        let game = Game::new();
         let difficulty = parse_difficulty(opponent);
         match play_ai(game, difficulty) {
             Ok((san, from_alg, to_alg, new_fen_init, _)) => (
