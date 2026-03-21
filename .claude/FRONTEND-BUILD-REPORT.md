@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-03-20 17:34 UTC**
+> **2026-03-21 07:29 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | `develop` |
-| **Commit** | [`db461cc`](https://github.com/MX10-AC2N/Nook/commit/db461cc1a5dd3b192c685c75838b8c30b8196ab5) |
+| **Commit** | [`af2cacd`](https://github.com/MX10-AC2N/Nook/commit/af2cacd5765f4bbbae8d95b6b24cba52d30f151d) |
 | **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23354956106) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23374826820) |
 
  ---
 
@@ -43,7 +43,7 @@ rendering chunks...
 vite v7.3.1 building client environment for production...
 ✓ 227 modules transformed.
 rendering chunks...
-✓ built in 5.13s
+✓ built in 5.19s
 vite v7.3.1 building client environment for production...
 ✓ 1 modules transformed.
 rendering chunks...
@@ -64,9 +64,9 @@ rendering chunks...
 .svelte-kit/output/server/entries/pages/join/_page.svelte.js               3.97 kB
 .svelte-kit/output/server/entries/pages/calendar/_page.svelte.js           6.10 kB
 .svelte-kit/output/server/entries/pages/help/_page.svelte.js              10.41 kB
-.svelte-kit/output/server/chunks/chessStore.svelte.js                     11.24 kB
 .svelte-kit/output/server/entries/pages/chat/_page.svelte.js              11.99 kB
-.svelte-kit/output/server/entries/pages/chess/_game_id_/_page.svelte.js   16.58 kB
+.svelte-kit/output/server/chunks/chessStore.svelte.js                     13.66 kB
+.svelte-kit/output/server/entries/pages/chess/_game_id_/_page.svelte.js   19.34 kB
 .svelte-kit/output/server/chunks/svelte.js                               298.42 kB
 ```
 
