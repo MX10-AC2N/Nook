@@ -137,13 +137,43 @@ fn game_json(game: &Game) -> Value {
     })
 }
 
-fn play_ai(game: &mut Game, difficulty: Difficulty) -> Result<(String, String, String), ChessError> {
-    let ai = MinimaxAi::new();
-    let mv = ai.best_move(game, difficulty)?;
+// Limites de temps par difficulté — garantit une réponse rapide
+// même sur Zimaboard ARM64 (CPU modeste)
+fn ai_time_limit(difficulty: Difficulty) -> std::time::Duration {
+    match difficulty {
+        Difficulty::Harmless => std::time::Duration::from_millis(50),
+        Difficulty::Easy     => std::time::Duration::from_millis(500),
+        Difficulty::Medium   => std::time::Duration::from_millis(1500),
+        Difficulty::Hard     => std::time::Duration::from_millis(3000),
+        Difficulty::Expert   => std::time::Duration::from_millis(5000),
+        Difficulty::Godlike  => std::time::Duration::from_millis(8000),
+    }
+}
+
+// TT size par difficulté — évite d'allouer 40MB à chaque coup sur ARM64
+fn ai_tt_size(difficulty: Difficulty) -> usize {
+    match difficulty {
+        Difficulty::Harmless => 1 << 10,   //   1K entries  (~40KB)
+        Difficulty::Easy     => 1 << 14,   //  16K entries  (~640KB)
+        Difficulty::Medium   => 1 << 16,   //  64K entries  (~2.5MB)
+        Difficulty::Hard     => 1 << 18,   // 256K entries  (~10MB)
+        Difficulty::Expert   => 1 << 19,   // 512K entries  (~20MB)
+        Difficulty::Godlike  => 1 << 20,   //   1M entries  (~40MB)
+    }
+}
+
+// Retourne (san, from_alg, to_alg, new_fen, game_status_str)
+fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, String, String, String), ChessError> {
+    let time_limit = ai_time_limit(difficulty);
+    let tt_size    = ai_tt_size(difficulty);
+    let ai = MinimaxAi::with_time_limit_and_tt(time_limit, tt_size);
+    let mv = ai.best_move(&game, difficulty)?;
     let from_alg = mv.from.to_algebraic();
     let to_alg   = mv.to.to_algebraic();
     let san = game.make_move(mv)?;
-    Ok((san, from_alg, to_alg))
+    let new_fen    = game.to_fen();
+    let status_str = game.status().as_str().to_string();
+    Ok((san, from_alg, to_alg, new_fen, status_str))
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -173,9 +203,9 @@ pub async fn create_game(
     let (initial_fen, initial_history) = if is_ai && creator_color == "black" {
         let mut game = Game::new();
         let difficulty = parse_difficulty(opponent);
-        match play_ai(&mut game, difficulty) {
-            Ok((san, from_alg, to_alg)) => (
-                game.to_fen(),
+        match play_ai(game, difficulty) {
+            Ok((san, from_alg, to_alg, new_fen_init, _)) => (
+                new_fen_init,
                 json!([{"san": san, "from": from_alg, "to": to_alg, "by": "ai", "color": "white"}]).to_string(),
             ),
             Err(_) => (starting_fen.to_string(), "[]".to_string()),
@@ -517,8 +547,10 @@ pub async fn make_move(
         }
     };
 
-    let new_fen = game.to_fen();
-    let game_status = game.status().clone();
+    let new_fen = new_fen_ai;
+    // game_status reconstruit depuis la string retournée par play_ai
+    // (game a été move dans spawn_blocking)
+    let game_status_str = new_status_ai;
     let now = Utc::now().timestamp();
 
     let color_str = match player_color {
@@ -681,28 +713,43 @@ pub async fn ai_move(
     };
 
     let ai_color = game.side_to_move(); // l'IA joue le côté à jouer maintenant
-    let (san, ai_from, ai_to) = match play_ai(&mut game, difficulty) {
-        Ok(t) => t,
-        Err(e) => {
+    // Exécuter l'IA dans spawn_blocking pour ne pas bloquer le runtime tokio
+    // (MinimaxAi est CPU-bound, peut prendre plusieurs secondes)
+    let ai_result = tokio::task::spawn_blocking(move || {
+        play_ai(game, difficulty)
+    }).await;
+
+    let (san, ai_from, ai_to, new_fen_ai, new_status_ai) = match ai_result {
+        Ok(Ok(t)) => t,
+        Ok(Err(e)) => {
             return (
                 StatusCode::BAD_REQUEST,
                 Json(json!({ "success": false, "message": e.to_string() })),
             )
                 .into_response()
         }
+        Err(_) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "IA indisponible" })),
+            )
+                .into_response()
+        }
     };
 
-    let new_fen = game.to_fen();
-    let game_status = game.status().clone();
+    let new_fen = new_fen_ai;
+    // game_status reconstruit depuis la string retournée par play_ai
+    // (game a été move dans spawn_blocking)
+    let game_status_str = new_status_ai;
     let now = Utc::now().timestamp();
     let ai_color_str = match ai_color {
         Color::White => "white",
         Color::Black => "black",
     };
 
-    let (winner_id, db_status): (Option<String>, &str) = match &game_status {
-        GameStatus::Checkmate => (Some("ai".to_string()), "finished"),
-        GameStatus::Stalemate | GameStatus::Draw(_) => (None, "finished"),
+    let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
+        "checkmate" => (None, "finished"),  // winner_id = None pour IA (FK safety — Pattern 8)
+        "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
         _ => (None, "playing"),
     };
 
@@ -712,7 +759,7 @@ pub async fn ai_move(
     };
     history.push(json!({ "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str }));
     let new_history = serde_json::to_string(&history).unwrap();
-    let next_turn = if game_status.is_game_over() { 0 } else { 1 };
+    let next_turn = if db_status == "finished" { 0 } else { 1 };
 
     sqlx::query(
         r#"UPDATE chess_games
@@ -735,7 +782,7 @@ pub async fn ai_move(
     let ws = json!({
         "type": "chess_ai_move", "game_id": game_id,
         "move": { "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str },
-        "fen": new_fen, "status": game_status.as_str(),
+        "fen": new_fen, "status": game_status_str.as_str(),
         "winner_id": winner_id, "engine": engine, "timestamp": now,
     });
     {
@@ -756,7 +803,7 @@ pub async fn ai_move(
             "player2_id":    null,
             "player1_color": row.get::<String, _>("player1_color"),
             "player2_color": row.get::<String, _>("player2_color"),
-            "status":        db_status,
+            "status":        game_status_str.as_str(),
             "winner_id":     winner_id,
             "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
             "fen":           new_fen,
