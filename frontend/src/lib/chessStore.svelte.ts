@@ -42,16 +42,19 @@ export interface Cell {
 
 /** État d'une partie retourné par l'API */
 export interface GameState {
-  id:           string;
-  created_by:   string;
-  player1_id:   string | null;
-  player2_id:   string | null;
-  player1_color: string;  // "white" | "black"
-  player2_color: string;
-  status:        string;  // GameStatus élargi
-  winner_id:     string | null;
-  ai_difficulty: string | null;
-  fen:           string;
+  id:              string;
+  created_by:      string;
+  player1_id:      string | null;
+  player2_id:      string | null;
+  player1_name:    string | null;
+  player2_name:    string | null;
+  player1_color:   string;  // "white" | "black"
+  player2_color:   string;
+  status:          string;  // GameStatus élargi
+  winner_id:       string | null;
+  ai_difficulty:   string | null;
+  time_limit_secs: number;
+  fen:             string;
   move_history:  MoveRecord[];
   engine: {
     board:        string[][];   // 8×8
@@ -241,8 +244,9 @@ class ChessStore {
   }
 
   async createGame(params: {
-    opponent: string;   // "human" | Difficulty
-    color: 'white' | 'black';
+    opponent:        string;   // "human" | Difficulty
+    color:           'white' | 'black';
+    time_limit_secs?: number;
   }): Promise<string | null> {
     this.loading = true;
     this.error = null;
@@ -251,7 +255,7 @@ class ChessStore {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({ opponent: params.opponent, color: params.color }),
+        body:        JSON.stringify({ opponent: params.opponent, color: params.color, time_limit_secs: params.time_limit_secs ?? 0 }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -285,6 +289,11 @@ class ChessStore {
         ? { from: lastWithCoords.from!, to: lastWithCoords.to! }
         : null;
 
+      // Init minuteur depuis la config serveur (tous les joueurs voient le même timer)
+      const tl = data.game?.time_limit_secs ?? 0;
+      if (tl > 0 && this.timerLimit === 0) {
+        this.initTimer(tl);
+      }
       this.connectWebSocket(gameId);
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
