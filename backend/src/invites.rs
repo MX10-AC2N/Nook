@@ -27,6 +27,15 @@ pub struct JoinPayload {
     pub public_key: String, // Clé publique pour E2EE
 }
 
+
+#[derive(Deserialize)]
+pub struct AcceptInvitePayload {
+    pub token:    String,
+    pub username: String,
+    pub name:     String,
+    pub password: String,
+}
+
 #[derive(Serialize)]
 pub struct JoinResponse {
     pub success: bool,
@@ -369,5 +378,117 @@ pub async fn join(
         .headers_mut()
         .insert(SET_COOKIE, cookie.parse().unwrap());
 
+    response
+}
+
+/// Accepter une invitation avec username + mot de passe choisi
+/// POST /api/invite/accept  { token, username, name, password }
+pub async fn accept_invite(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    headers: HeaderMap,
+    Json(payload): Json<AcceptInvitePayload>,
+) -> impl IntoResponse {
+    let now = Utc::now().timestamp();
+
+    // Valider le token
+    let invite: Option<(String, bool, i64)> =
+        sqlx::query_as("SELECT id, used, expires_at FROM invites WHERE token = ?")
+            .bind(&payload.token)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
+    let (invite_id, used, expires_at) = match invite {
+        Some(row) => row,
+        None => return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Token invalide" }))).into_response(),
+    };
+    if used {
+        return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Token déjà utilisé" }))).into_response();
+    }
+    if now > expires_at {
+        return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Token expiré" }))).into_response();
+    }
+
+    // Valider username
+    let username = payload.username.trim().to_lowercase().replace(' ', "_");
+    if username.is_empty() || username.len() < 2 {
+        return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Identifiant trop court" }))).into_response();
+    }
+
+    // Valider mot de passe
+    if payload.password.len() < 8 {
+        return (StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Mot de passe trop court (8 caractères min)" }))).into_response();
+    }
+
+    let user_id    = Uuid::new_v4().to_string();
+    let hashed     = hash_password(&payload.password);
+    let public_key: Option<String> = None; // sera définie par le client au premier unlockCrypto()
+
+    let result = sqlx::query(r#"INSERT INTO users (
+        id, username, email, password_hash, name, role, approved,
+        needs_password_change, created_at, public_key
+    ) VALUES (?, ?, ?, ?, ?, 'user', 1, 0, ?, ?)"#)
+        .bind(&user_id)
+        .bind(&username)
+        .bind(format!("{}@nook.local", username))
+        .bind(&hashed)
+        .bind(payload.name.trim())
+        .bind(now)
+        .bind(&public_key)
+        .execute(&state.db)
+        .await;
+
+    if let Err(e) = result {
+        tracing::warn!(error = %e, username = %username, "accept_invite: username pris");
+        return (StatusCode::CONFLICT,
+            Json(json!({ "success": false, "message": "Cet identifiant est déjà pris" }))).into_response();
+    }
+
+    // Marquer l'invite utilisée
+    sqlx::query("UPDATE invites SET used = 1, used_by = ?, used_at = ? WHERE id = ?")
+        .bind(&user_id).bind(now).bind(&invite_id)
+        .execute(&state.db).await.ok();
+
+    // Ajouter dans default_global
+    sqlx::query(
+        "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+         VALUES ('default_global', ?, ?)"
+    ).bind(&user_id).bind(now).execute(&state.db).await.ok();
+
+    // Créer session
+    let session_token = Uuid::new_v4().to_string();
+    sqlx::query("UPDATE users SET token = ? WHERE id = ?")
+        .bind(&session_token).bind(&user_id)
+        .execute(&state.db).await.ok();
+
+    let user_info = UserInfo {
+        id: user_id.clone(),
+        username: username.clone(),
+        name: payload.name.trim().to_string(),
+        role: "user".to_string(),
+        approved: true,
+        needs_password_change: false,
+    };
+
+    tracing::info!(user_id = %user_id, username = %username, "Nouvel utilisateur via accept_invite");
+
+    let cookie = build_set_cookie(&user_id, &session_token, is_https(&headers), 86400);
+    let mut response = Json(json!({
+        "success": true,
+        "message": "Compte créé ! Bienvenue sur Nook.",
+        "user": {
+            "id": user_info.id,
+            "username": user_info.username,
+            "name": user_info.name,
+            "role": user_info.role,
+        }
+    })).into_response();
+    response.headers_mut().insert(SET_COOKIE, cookie.parse().unwrap());
     response
 }
