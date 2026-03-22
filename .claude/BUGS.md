@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-03-21** (session 40)
+> Mis à jour : **2026-03-22** (session 41)
 
 ---
 
@@ -10,7 +10,19 @@
 
 ---
 
+## 📋 Pièges critiques S41
+
+```
+invites.rs  : accept_invite ≠ join — accept_invite prend {token, username, name, password}
+              needs_password_change = 0 (le mdp est choisi à l'inscription, pas généré)
+chess.rs    : time_limit_secs dans INSERT chess_games → migration 007 requise avant déploiement
+admin.rs    : delete_user protège contre auto-suppression et suppression d'un admin
+layout      : app-main padding:0 → toutes les pages qui avaient padding doivent le gérer elles-mêmes
+chat        : _hoverTimer doit être déclaré en let (pas $state) — c'est un timer JS, pas réactif
+```
+
 ## 📋 Pièges critiques S40
+
 
 ```
 chess.rs  : play_ai moved dans spawn_blocking → reconstruire Game depuis new_fen pour game_json()
@@ -77,6 +89,13 @@ store.prop = newValue;  // ✅
 | R_CHESS_IA_FREEZE | 40 | IA bloquée après ~10 coups — TT 1M entrées (~40MB) allouée à chaque coup sur Zimaboard ARM64 | `spawn_blocking` + `time_limit` par difficulté + TT adaptative (16K→1M selon niveau) |
 | R_CHESS_LASTMOVE | 40 | `lastMove` non mis à jour après coup IA (highlight adversaire absent) | `play_ai` retourne `(san, from, to)` ; `triggerAiMove` extrait `from/to` depuis `move_history` |
 | R_MAIN_SHARED | 40 | Suppression proxy GIF emportait `SharedState` + `use crate::config` (lignes 51-145) | Suppression chirurgicale lignes 51-124 uniquement (juste la fn `gif_search_proxy`) |
+| R_INVITE_ACCEPT | 41 | `/invite/+page.svelte` appelait `/api/invite/accept` inexistant → redirection login | Nouveau handler `accept_invite` dans `invites.rs` + route dans `main.rs` |
+| R_MENU_SIDE | 41 | Menu burger à gauche mais panel s'ouvrait à droite | `right:0` → `left:0` + animation `translateX(-100%→0)` |
+| R_CHAT_INPUT | 41 | Zone saisie chat coupée par padding app-main | `app-main` padding:0, pages gèrent leur propre hauteur |
+| R_CHESS_NAMES | 41 | IDs joueurs affichés au lieu des noms | `get_game` JOIN users → `player1_name`/`player2_name` |
+| R_CHESS_TIMER_P2 | 41 | Timer absent pour le joueur qui rejoint | `time_limit_secs` stocké en DB (migration 007), `loadGame` init le timer depuis le serveur |
+| R_CHESS_IA_DELAY | 41 | IA jouait instantanément | Délai minimum par difficulté (Easy 700ms … Godlike 4s) avec `std::thread::sleep` |
+| R_HOVER_REACTION | 41 | Picker réaction disparaît avant clic souris | `onmouseleave` → 400ms délai avant `hoveredMsgId = null` |
 | R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé (objet $state encapsulé) |
 | R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` |
 
