@@ -340,6 +340,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/login", post(auth::login))
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
+        .route("/invite/accept", axum::routing::post(invites::accept_invite))
         .route("/health", get(|| async { "OK" }))
         .nest("/push", push::public_router())
         .route_layer(middleware::from_fn(move |
@@ -381,6 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
         .route("/analytics", get(admin::get_analytics))
+        .route("/users/{id}", axum::routing::delete(admin::delete_user))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
