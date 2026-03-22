@@ -141,13 +141,15 @@ fn game_json(game: &Game) -> Value {
 // Limites de temps par difficulté — garantit une réponse rapide
 // même sur Zimaboard ARM64 (CPU modeste)
 fn ai_time_limit(difficulty: Difficulty) -> std::time::Duration {
+    // Limiter le temps de RECHERCHE IA (distinct du délai d'affichage)
+    // Easy/Medium délibérément faibles pour jouer moins bien
     match difficulty {
-        Difficulty::Harmless => std::time::Duration::from_millis(50),
-        Difficulty::Easy     => std::time::Duration::from_millis(500),
-        Difficulty::Medium   => std::time::Duration::from_millis(1500),
-        Difficulty::Hard     => std::time::Duration::from_millis(3000),
-        Difficulty::Expert   => std::time::Duration::from_millis(5000),
-        Difficulty::Godlike  => std::time::Duration::from_millis(8000),
+        Difficulty::Harmless => std::time::Duration::from_millis(30),
+        Difficulty::Easy     => std::time::Duration::from_millis(100),
+        Difficulty::Medium   => std::time::Duration::from_millis(400),
+        Difficulty::Hard     => std::time::Duration::from_millis(1500),
+        Difficulty::Expert   => std::time::Duration::from_millis(3000),
+        Difficulty::Godlike  => std::time::Duration::from_millis(6000),
     }
 }
 
@@ -173,13 +175,15 @@ fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, St
     let from_alg = mv.from.to_algebraic();
     let to_alg   = mv.to.to_algebraic();
     let elapsed = start.elapsed();
+    // Délais minimum pour simuler un comportement humain
+    // Un humain prend au moins 1-2 secondes pour jouer même un coup évident
     let min_delay = match difficulty {
-        Difficulty::Harmless => std::time::Duration::from_millis(300),
-        Difficulty::Easy     => std::time::Duration::from_millis(700),
-        Difficulty::Medium   => std::time::Duration::from_millis(1200),
-        Difficulty::Hard     => std::time::Duration::from_millis(2000),
-        Difficulty::Expert   => std::time::Duration::from_millis(3000),
-        Difficulty::Godlike  => std::time::Duration::from_millis(4000),
+        Difficulty::Harmless => std::time::Duration::from_millis(800),
+        Difficulty::Easy     => std::time::Duration::from_millis(1500),
+        Difficulty::Medium   => std::time::Duration::from_millis(2500),
+        Difficulty::Hard     => std::time::Duration::from_millis(4000),
+        Difficulty::Expert   => std::time::Duration::from_millis(6000),
+        Difficulty::Godlike  => std::time::Duration::from_millis(8000),
     };
     if elapsed < min_delay {
         std::thread::sleep(min_delay - elapsed);
