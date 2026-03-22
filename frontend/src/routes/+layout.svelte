@@ -252,10 +252,13 @@
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary, #f5f7fa);
-    height: 100vh;
+    height: 100%;
+  }
+  /* Le wrapper Svelte doit occuper toute la hauteur en flex column */
+  :global(#svelte) {
+    height: 100%;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
   }
 
   .loading-screen {
@@ -387,7 +390,7 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-    .app-main { flex: 1; overflow: hidden; padding: 0; max-width: 100%; margin: 0; background: var(--bg-primary, #f5f7fa); }
+      .app-main { flex: 1; overflow: auto; padding: 0; max-width: 100%; margin: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
@@ -400,7 +403,7 @@
   @media (max-width: 640px) {
     .app-header { padding: 0.85rem 1rem; }
     .app-header h1 { font-size: 1.1rem; }
-    .app-main { padding: 1rem; }
+    /* app-main padding géré par chaque page */
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
   }
