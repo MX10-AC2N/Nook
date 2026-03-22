@@ -164,12 +164,25 @@ fn ai_tt_size(difficulty: Difficulty) -> usize {
 
 // Retourne (san, from_alg, to_alg, new_fen, game_status_str)
 fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, String, String, String), ChessError> {
+    let start      = std::time::Instant::now();
     let time_limit = ai_time_limit(difficulty);
     let tt_size    = ai_tt_size(difficulty);
     let ai = MinimaxAi::with_time_limit_and_tt(time_limit, tt_size);
     let mv = ai.best_move(&game, difficulty)?;
     let from_alg = mv.from.to_algebraic();
     let to_alg   = mv.to.to_algebraic();
+    let elapsed = start.elapsed();
+    let min_delay = match difficulty {
+        Difficulty::Harmless => std::time::Duration::from_millis(300),
+        Difficulty::Easy     => std::time::Duration::from_millis(700),
+        Difficulty::Medium   => std::time::Duration::from_millis(1200),
+        Difficulty::Hard     => std::time::Duration::from_millis(2000),
+        Difficulty::Expert   => std::time::Duration::from_millis(3000),
+        Difficulty::Godlike  => std::time::Duration::from_millis(4000),
+    };
+    if elapsed < min_delay {
+        std::thread::sleep(min_delay - elapsed);
+    }
     let san = game.make_move(mv)?;
     let new_fen    = game.to_fen();
     let status_str = game.status().as_str().to_string();
@@ -223,8 +236,8 @@ pub async fn create_game(
             id, created_by, player_count,
             player1_id, player1_color, player2_color,
             status, board_state, move_history, eliminated,
-            current_turn, ai_difficulty, created_at, updated_at
-        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?)"#,
+            current_turn, ai_difficulty, time_limit_secs, created_at, updated_at
+        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?, ?)"#,
     )
     .bind(&game_id)
     .bind(&user.id)
@@ -235,6 +248,7 @@ pub async fn create_game(
     .bind(&initial_fen)
     .bind(&initial_history)
     .bind(ai_diff)
+    .bind(time_limit)
     .bind(now)
     .bind(now)
     .execute(&state.db)
@@ -302,7 +316,15 @@ pub async fn get_game(
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
-    let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
+    let row = sqlx::query(
+        r#"SELECT g.*,
+            u1.username AS p1_username, u1.name AS p1_name,
+            u2.username AS p2_username, u2.name AS p2_name
+           FROM chess_games g
+           LEFT JOIN users u1 ON g.player1_id = u1.id
+           LEFT JOIN users u2 ON g.player2_id = u2.id
+           WHERE g.id = ?"#
+    )
         .bind(&game_id)
         .fetch_optional(&state.db)
         .await;
@@ -318,21 +340,29 @@ pub async fn get_game(
                 .map(|g| game_json(&g))
                 .unwrap_or(json!(null));
 
+            let p1_display: Option<String> = row.get::<Option<String>, _>("p1_name")
+                .or_else(|| row.get::<Option<String>, _>("p1_username"));
+            let p2_display: Option<String> = row.get::<Option<String>, _>("p2_name")
+                .or_else(|| row.get::<Option<String>, _>("p2_username"));
+
             Json(json!({ "success": true, "game": {
-                "id":            row.get::<String, _>("id"),
-                "created_by":    row.get::<String, _>("created_by"),
-                "player1_id":    row.get::<Option<String>, _>("player1_id"),
-                "player2_id":    row.get::<Option<String>, _>("player2_id"),
-                "player1_color": row.get::<String, _>("player1_color"),
-                "player2_color": row.get::<String, _>("player2_color"),
-                "status":        row.get::<String, _>("status"),
-                "winner_id":     row.get::<Option<String>, _>("winner_id"),
-                "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
-                "fen":           fen,
-                "move_history":  history,
-                "engine":        engine,
-                "created_at":    row.get::<i64, _>("created_at"),
-                "updated_at":    row.get::<i64, _>("updated_at"),
+                "id":              row.get::<String, _>("id"),
+                "created_by":      row.get::<String, _>("created_by"),
+                "player1_id":      row.get::<Option<String>, _>("player1_id"),
+                "player2_id":      row.get::<Option<String>, _>("player2_id"),
+                "player1_name":    p1_display,
+                "player2_name":    p2_display,
+                "player1_color":   row.get::<String, _>("player1_color"),
+                "player2_color":   row.get::<String, _>("player2_color"),
+                "status":          row.get::<String, _>("status"),
+                "winner_id":       row.get::<Option<String>, _>("winner_id"),
+                "ai_difficulty":   row.get::<Option<String>, _>("ai_difficulty"),
+                "time_limit_secs": row.get::<i64, _>("time_limit_secs"),
+                "fen":             fen,
+                "move_history":    history,
+                "engine":          engine,
+                "created_at":      row.get::<i64, _>("created_at"),
+                "updated_at":      row.get::<i64, _>("updated_at"),
             }}))
             .into_response()
         }
