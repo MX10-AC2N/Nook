@@ -42,8 +42,9 @@ use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct CreateGameRequest {
-    pub opponent: Option<String>, // "human"|"easy"|"medium"|"hard"|"expert"|"godlike"
-    pub color: Option<String>,    // "white"|"black"
+    pub opponent:        Option<String>, // "human"|"easy"|"medium"|"hard"|"expert"|"godlike"
+    pub color:           Option<String>, // "white"|"black"
+    pub time_limit_secs: Option<i64>,    // 0 ou None = illimité
 }
 
 #[derive(Deserialize)]
