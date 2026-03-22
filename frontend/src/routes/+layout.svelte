@@ -337,15 +337,15 @@
   }
 
   .menu {
-    position: fixed; top: 0; right: 0; bottom: 0; width: 300px;
+    position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
     max-width: 85vw; background: var(--bg-secondary, white); z-index: 201;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
     display: flex; flex-direction: column;
     animation: slideIn 0.25s ease-out;
   }
 
   @keyframes slideIn {
-    from { transform: translateX(100%); }
+    from { transform: translateX(-100%); }
     to   { transform: translateX(0); }
   }
 
@@ -384,7 +384,7 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-  .app-main { min-height: calc(100vh - 140px); padding: 1.5rem; max-width: 1200px; margin: 0 auto; background: var(--bg-primary, #f5f7fa); }
+  .app-main { min-height: calc(100vh - 140px); padding: 0; max-width: 100%; margin: 0 auto; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
@@ -397,7 +397,7 @@
     .app-header { padding: 0.85rem 1rem; }
     .app-header h1 { font-size: 1.1rem; }
     .app-main { padding: 1rem; }
-    .menu { width: 100%; max-width: none; }
+    .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
   }
 </style>
