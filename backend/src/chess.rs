@@ -229,6 +229,7 @@ pub async fn create_game(
 
     let initial_status = if is_ai { "playing" } else { "waiting" };
     let ai_diff: Option<&str> = if is_ai { Some(opponent) } else { None };
+    let time_limit = req.time_limit_secs.unwrap_or(0).max(0);
 
     let result = sqlx::query(
         r#"
