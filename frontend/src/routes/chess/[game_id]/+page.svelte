@@ -139,13 +139,13 @@
       <div class="mobile-players">
         <span class="mp" class:mp-active={engine?.side_to_move === game?.player2_color && (game?.status ?? '') === 'playing'}>
           {game?.player2_id
-            ? (slot === 2 ? 'Vous' : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : 'Adv.'))
+            ? (slot === 2 ? 'Vous' : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : (game?.player2_name ?? 'Adv.')))
             : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : '…')}
           <span class="mp-dot" class:dot-w={game?.player2_color === 'white'} class:dot-b={game?.player2_color === 'black'}></span>
         </span>
         <span class="mp-sep">vs</span>
         <span class="mp" class:mp-active={engine?.side_to_move === game?.player1_color && (game?.status ?? '') === 'playing'}>
-          {slot === 1 ? 'Vous' : (game?.player1_id ? 'Adv.' : '…')}
+          {slot === 1 ? 'Vous' : (game?.player1_id ? (game?.player1_name ?? 'Adv.') : '…')}
           <span class="mp-dot" class:dot-w={game?.player1_color === 'white'} class:dot-b={game?.player1_color === 'black'}></span>
         </span>
       </div>
@@ -194,7 +194,7 @@
             <div class="player-info">
               <span class="player-name">
                 {game?.player2_id
-                  ? (slot === 2 ? 'Vous' : (game?.player2_id.slice(0,10) + '…'))
+                  ? (slot === 2 ? 'Vous' : (game?.player2_name ?? game?.player2_id?.slice(0,10) ?? '?'))
                   : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : 'En attente…')}
               </span>
               <span class="player-color">{game?.player2_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
@@ -210,7 +210,7 @@
             <div class="color-dot" class:dot-white={game?.player1_color === 'white'} class:dot-black={game?.player1_color === 'black'}></div>
             <div class="player-info">
               <span class="player-name">
-                {game?.player1_id ? (slot === 1 ? 'Vous' : (game?.player1_id.slice(0,10) + '…')) : 'En attente…'}
+                {game?.player1_id ? (slot === 1 ? 'Vous' : (game?.player1_name ?? game?.player1_id?.slice(0,10) ?? '?')) : 'En attente…'}
               </span>
               <span class="player-color">{game?.player1_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
             </div>
