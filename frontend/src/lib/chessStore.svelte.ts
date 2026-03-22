@@ -176,6 +176,13 @@ class ChessStore {
   /** Modal promotion en attente */
   pendingPromotion = $state<{ from: string; to: string } | null>(null);
 
+  // ── Minuteur ─────────────────────────────────────────────────
+  /** Temps restant en secondes — 0 = pas de limite */
+  whiteTime   = $state(0);
+  blackTime   = $state(0);
+  timerLimit  = $state(0);  // durée initiale (0 = illimité)
+  private _timerInterval: ReturnType<typeof setInterval> | null = null;
+
   // ── Dérivés ───────────────────────────────────────────────────
   myColor = $derived((): SideToMove | null => {
     const g = this.currentGame;
@@ -192,7 +199,7 @@ class ChessStore {
     this.myColor() !== null
   );
 
-  isVsAI = $derived(this.currentGame?.ai_difficulty !== null);
+  isVsAI = $derived(!!this.currentGame?.ai_difficulty); // true seulement si chaîne non vide
 
   isGameOver = $derived(
     this.currentGame !== null &&
@@ -381,6 +388,9 @@ class ChessStore {
       this.legalTargets = [];
       this.pendingPromotion = null;
 
+      // Basculer le minuteur après coup humain
+      this.switchTimer(data.game?.engine?.side_to_move ?? null);
+
       // Si partie vs IA et ce n'est plus mon tour → déclencher l'IA
       if (this.isVsAI && !this.isGameOver && !this.isMyTurn) {
         await this.triggerAiMove();
@@ -410,6 +420,12 @@ class ChessStore {
   private async triggerAiMove(): Promise<void> {
     if (!this.currentGame || this.isGameOver) return;
     this.aiThinking = true;
+
+    // Démarrer le timer du camp adverse (IA) PENDANT qu'il réfléchit
+    const myColor = this.myColor();
+    const aiColor = myColor === 'white' ? 'black' : 'white';
+    this.switchTimer(aiColor);
+
     try {
       const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
         method:      'POST',
@@ -418,8 +434,17 @@ class ChessStore {
         body:        JSON.stringify({ difficulty: this.currentGame.ai_difficulty }),
       });
       const data = await res.json();
-      if (data.success) {
+      if (data.success && data.game) {
         this.currentGame = data.game;
+        // Mettre à jour lastMove depuis le dernier coup IA (from/to maintenant disponibles)
+        const history: Array<{ from?: string; to?: string; by?: string }> =
+          data.game.move_history ?? [];
+        const lastAi = [...history].reverse().find(m => m.by === 'ai' && m.from && m.to);
+        if (lastAi?.from && lastAi?.to) {
+          this.lastMove = { from: lastAi.from, to: lastAi.to };
+        }
+        // Rebascule vers le joueur humain après le coup IA
+        this.switchTimer(myColor ?? 'white');
       }
     } catch {
       // Silencieux — le joueur peut retenter
@@ -427,6 +452,51 @@ class ChessStore {
       this.aiThinking = false;
     }
   }
+
+  // ── Minuteur ─────────────────────────────────────────────────
+  initTimer(seconds: number): void {
+    this.timerLimit = seconds;
+    this.whiteTime  = seconds;
+    this.blackTime  = seconds;
+    if (seconds > 0) this.startTimer('white');
+  }
+
+  startTimer(side: 'white' | 'black'): void {
+    this.stopTimer();
+    if (this.timerLimit === 0) return;
+    this._timerInterval = setInterval(() => {
+      const game = this.currentGame;
+      if (!game || game.status !== 'playing') { this.stopTimer(); return; }
+      if (side === 'white') {
+        this.whiteTime = Math.max(0, this.whiteTime - 1);
+        if (this.whiteTime === 0) { this.stopTimer(); this.onTimerExpired('white'); }
+      } else {
+        this.blackTime = Math.max(0, this.blackTime - 1);
+        if (this.blackTime === 0) { this.stopTimer(); this.onTimerExpired('black'); }
+      }
+    }, 1000);
+  }
+
+  switchTimer(sideToMove: string | null): void {
+    if (this.timerLimit === 0 || !sideToMove) return;
+    this.startTimer(sideToMove as 'white' | 'black');
+  }
+
+  stopTimer(): void {
+    if (this._timerInterval) { clearInterval(this._timerInterval); this._timerInterval = null; }
+  }
+
+  private onTimerExpired(side: 'white' | 'black'): void {
+    // Afficher l'info — resign automatique géré par le composant via isTimerExpired
+    console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
+  }
+
+  isTimerExpired = $derived(
+    this.timerLimit > 0 && (
+      (this.currentGame?.engine?.side_to_move === 'white' && this.whiteTime === 0) ||
+      (this.currentGame?.engine?.side_to_move === 'black' && this.blackTime === 0)
+    )
+  );
 
   // ── Abandon ───────────────────────────────────────────────────
   async resign(): Promise<void> {
@@ -497,6 +567,7 @@ class ChessStore {
 
   reset(): void {
     this.disconnectWebSocket();
+    this.stopTimer();
     this.currentGame      = null;
     this.selected         = null;
     this.legalTargets     = [];
@@ -504,6 +575,9 @@ class ChessStore {
     this.error            = null;
     this.aiThinking       = false;
     this.pendingPromotion = null;
+    this.whiteTime        = 0;
+    this.blackTime        = 0;
+    this.timerLimit       = 0;
   }
 }
 

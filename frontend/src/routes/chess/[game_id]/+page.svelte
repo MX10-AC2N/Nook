@@ -11,8 +11,39 @@
     PIECE_NAMES,
     statusLabel,
   } from '$lib/chessStore.svelte.ts';
+  import { onMount as _onMount } from 'svelte';
 
   const gameId = $derived($page.params.game_id);
+
+  // ── Minuteur — formater MM:SS ──────────────────────────────────
+  function formatTime(secs: number): string {
+    if (secs <= 0) return '0:00';
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // ── Trouver la case du roi en échec ───────────────────────────
+  function findKingSquare(color: 'w' | 'b'): string | null {
+    const board = chessStore.board();
+    const king  = color + 'K';
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        if (board[r]?.[c] === king) return toAlgebraic(r, c);
+      }
+    }
+    return null;
+  }
+
+  // La case du roi est en échec si engine.status contient "check" ou "checkmate"
+  const kingInCheckSquare = $derived((): string | null => {
+    const engine = chessStore.currentGame?.engine;
+    if (!engine) return null;
+    const st = engine.status ?? '';
+    if (!st.includes('check') && st !== 'checkmate') return null;
+    const side = engine.side_to_move;
+    return findKingSquare(side === 'white' ? 'w' : 'b');
+  });
 
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
@@ -29,6 +60,7 @@
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
+    if (kingInCheckSquare() === alg) cls += ' cell-check';
     return cls;
   }
 
@@ -118,6 +150,21 @@
         </span>
       </div>
 
+      <!-- Minuteur mobile -->
+      {#if chessStore.timerLimit > 0 && (game?.status ?? '') === 'playing'}
+        <div class="mobile-timer">
+          <span class="mt-side" class:mt-active={engine?.side_to_move === 'white'}
+                class:mt-low={chessStore.whiteTime <= 30 && chessStore.whiteTime > 0}>
+            ♙ {formatTime(chessStore.whiteTime)}
+          </span>
+          <span class="mt-sep">|</span>
+          <span class="mt-side" class:mt-active={engine?.side_to_move === 'black'}
+                class:mt-low={chessStore.blackTime <= 30 && chessStore.blackTime > 0}>
+            ♟ {formatTime(chessStore.blackTime)}
+          </span>
+        </div>
+      {/if}
+
       <!-- Abandon compact -->
       {#if (game?.status ?? '') === 'playing' && slot !== null}
         {#if !showResign}
@@ -174,6 +221,20 @@
         </div>
 
         <div class="panel status-panel">
+          {#if chessStore.timerLimit > 0 && (game?.status ?? '') === 'playing'}
+            <div class="timer-panel">
+              <div class="timer-row" class:timer-active={engine?.side_to_move === 'white'}
+                   class:timer-low={chessStore.whiteTime <= 30 && chessStore.whiteTime > 0}>
+                <span class="timer-label">♙ Blancs</span>
+                <span class="timer-val">{formatTime(chessStore.whiteTime)}</span>
+              </div>
+              <div class="timer-row" class:timer-active={engine?.side_to_move === 'black'}
+                   class:timer-low={chessStore.blackTime <= 30 && chessStore.blackTime > 0}>
+                <span class="timer-label">♟ Noirs</span>
+                <span class="timer-val">{formatTime(chessStore.blackTime)}</span>
+              </div>
+            </div>
+          {/if}
           {#if (game?.status ?? '') === 'waiting'}
             <div class="banner waiting">🟡 En attente d'un adversaire</div>
           {:else if (game?.status ?? '') === 'playing'}
@@ -464,6 +525,44 @@
   .promo-piece { font-size: 2rem; line-height: 1; }
   .promo-name  { font-size: .8rem; font-weight: 600; color: #374151; }
   .promo-cancel { padding: .4rem 1.2rem; background: #f1f5f9; color: #475569; border: none; border-radius: .45rem; cursor: pointer; font-size: .85rem; }
+
+  /* ── Mise en échec ── */
+  .cell-check {
+    background: rgba(220, 38, 38, 0.65) !important;
+    animation: pulse-check 0.8s ease-in-out infinite alternate;
+    z-index: 1;
+  }
+  @keyframes pulse-check {
+    from { background: rgba(220, 38, 38, 0.55); box-shadow: inset 0 0 0 3px rgba(220,38,38,0.8); }
+    to   { background: rgba(220, 38, 38, 0.80); box-shadow: inset 0 0 0 3px rgba(220,38,38,1); }
+  }
+
+  /* ── Minuteur sidebar ── */
+  .timer-panel { margin-bottom: .5rem; }
+  .timer-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: .35rem .5rem; border-radius: .4rem; margin-bottom: .2rem;
+    border: 1.5px solid transparent; transition: all .2s;
+  }
+  .timer-row.timer-active { background: #f0fdf4; border-color: #86efac; }
+  .timer-row.timer-low    { background: #fef2f2; border-color: #fecaca; animation: blink-low 1s infinite; }
+  .timer-label { font-size: .78rem; font-weight: 600; color: #475569; }
+  .timer-val   { font-family: monospace; font-size: 1rem; font-weight: 700; color: #1e293b; }
+  .timer-row.timer-active .timer-val { color: #166534; }
+  .timer-row.timer-low    .timer-val { color: #dc2626; }
+  @keyframes blink-low { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
+
+  /* ── Minuteur mobile ── */
+  .mobile-timer {
+    display: flex; align-items: center; gap: .3rem;
+    font-size: .72rem; font-family: monospace; font-weight: 700;
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    padding: .2rem .45rem; border-radius: .4rem; flex-shrink: 0;
+  }
+  .mt-sep  { color: #94a3b8; }
+  .mt-side { color: #475569; transition: color .2s; }
+  .mt-side.mt-active { color: #166534; }
+  .mt-side.mt-low    { color: #dc2626; animation: blink-low 1s infinite; }
 
   /* ══════════════════════════════════════════
      RESPONSIVE MOBILE

@@ -14,6 +14,7 @@
   let creating    = $state(false);
   let opponent    = $state<'human' | Difficulty>('human');
   let myColor     = $state<'white' | 'black'>('white');
+  let timerChoice = $state(0); // 0=illimité, 300=5min, 600=10min, 900=15min, 1800=30min
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
@@ -25,7 +26,10 @@
     creating = true;
     const gameId = await chessStore.createGame({ opponent, color: myColor });
     creating = false;
-    if (gameId) goto(`/chess/${gameId}`);
+    if (gameId) {
+      chessStore.initTimer(timerChoice);
+      goto(`/chess/${gameId}`);
+    }
   }
 
   async function handleJoin(id: string) {
@@ -104,6 +108,25 @@
                 <small>L'IA commence</small>
               {/if}
             </label>
+          </div>
+        </fieldset>
+
+        <!-- Durée de la partie -->
+        <fieldset class="fieldset">
+          <legend>⏱ Durée par joueur</legend>
+          <div class="radio-row">
+            {#each [
+              {val:0,     label:'∞ Illimitée'},
+              {val:300,   label:'5 min'},
+              {val:600,   label:'10 min'},
+              {val:900,   label:'15 min'},
+              {val:1800,  label:'30 min'},
+            ] as t}
+              <label class="radio-opt" class:active={timerChoice === t.val}>
+                <input type="radio" bind:group={timerChoice} value={t.val} />
+                {t.label}
+              </label>
+            {/each}
           </div>
         </fieldset>
 
@@ -344,4 +367,16 @@
     h1 { font-size: 1.7rem; }
     .radio-row { gap: .3rem; }
   }
+  .radio-opt {
+    display: flex; align-items: center; gap: .35rem;
+    padding: .35rem .65rem; border: 1.5px solid var(--border, #e2e8f0);
+    border-radius: .45rem; cursor: pointer; font-size: .82rem;
+    font-weight: 600; color: var(--text-secondary, #64748b);
+    transition: all .15s; user-select: none;
+  }
+  .radio-opt.active {
+    background: #f0fdf4; border-color: #86efac; color: #166534;
+  }
+  .radio-opt input[type=radio] { display: none; }
+
 </style>
