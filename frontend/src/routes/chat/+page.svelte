@@ -138,6 +138,7 @@
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
+  let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
   let localGifs   = $state<{id:string;category:string;cat_label:string;file:string;title:string}[]>([]);
@@ -726,8 +727,8 @@
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
-            onmouseenter={() => hoveredMsgId = msg.id}
-            onmouseleave={() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }}
+            onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
+            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
             {#if !isMyMessage(msg.sender_id)}
               <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
@@ -768,7 +769,11 @@
                   ></video>
                 </div>
               {:else}
-                <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                {#if isSingleEmoji(msg.content)}
+                  <div class="message-content emoji-only">{msg.content}</div>
+                {:else}
+                  <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                {/if}
               {/if}
             {/if}
 
@@ -1063,6 +1068,7 @@
     display: flex;
     height: calc(100vh - 60px);
     overflow: hidden;
+    max-width: 100%;
   }
 
   /* ─── Sidebar ─── */
@@ -1402,6 +1408,14 @@
   .ep-emoji:hover { background: var(--bg-primary, #fff); transform: scale(1.2); }
 
   /* ─── Saisie ─── */
+  .emoji-only {
+    font-size: 2.5rem !important;
+    line-height: 1.2;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
   .input-area {
     flex-shrink: 0;
     display: flex; align-items: center; gap: .4rem;
