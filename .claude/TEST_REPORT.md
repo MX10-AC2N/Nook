@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-21 09:15 UTC**
+> Généré par `test-nook.yml` · **2026-03-22 08:02 UTC**
 
 ---
 
@@ -8,15 +8,15 @@
 
 | Indicateur | Valeur |
 |-----------|--------|
-| **Statut** | ✅ **SUCCÈS** |
-| **Tests passés** | 115 |
-| **Tests échoués** | 0 |
-| **Tests ignorés** | 0 |
+| **Statut** | ❌ **ÉCHEC** |
+| **Tests passés** | 73 |
+| **Tests échoués** | 1 |
+| **Tests ignorés** | 41 |
 | **Total** | 115 |
-| **Durée** | 19.0s |
+| **Durée** | 51.0s |
 | **Branche** | `develop` |
-| **Commit** | [`6159d10`](https://github.com/MX10-AC2N/Nook/commit/6159d10f9f9d99eed655f082e3b0309899781169) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23376416564) |
+| **Commit** | [`3f19dbc`](https://github.com/MX10-AC2N/Nook/commit/3f19dbc0386935ba52d626618354b6d3f6629b13) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23398663856) |
 
 ---
 
@@ -108,65 +108,117 @@
 | ✅ | GET /users/pending avec user normal → 403 | 0s |
 | ✅ | Page /admin → non accessible pour user normal | 2s |
 
-### ✅ user.spec.ts — 49/49 passés
+### ❌ user.spec.ts — 7/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
 | ✅ | Login e2e_ci → redirigé vers /chat | 0s |
 | ✅ | GET /auth/me → username=e2e_ci | 0s |
-| ✅ | Login invalide → reste sur /login | 3s |
+| ✅ | Login invalide → reste sur /login | 6s |
 | ✅ | GET /conversations → default_global présente | 0s |
 | ✅ | GET /conversations/default_global → détail de la conv | 0s |
 | ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
-| ✅ | Chat UI — sidebar et envoi message | 0s |
-| ✅ | GET /conversations/default_global/messages → messages récupérés | 0s |
-| ✅ | POST /conversations → créer un groupe de test | 0s |
-| ✅ | GET /users/available → liste des membres disponibles | 0s |
-| ✅ | Réactions — POST emoji valide 👍 → counts mis à jour | 0s |
-| ✅ | Réactions — POST emoji non autorisé 🦄 → 400 | 0s |
-| ✅ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | 0s |
-| ✅ | Réactions — DELETE → my_emoji null | 0s |
-| ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
-| ✅ | Réactions — message inexistant → 404 | 0s |
-| ✅ | Réactions UI — hover → picker → pill visible | 1s |
-| ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
-| ✅ | Download — id inexistant → 404 | 0s |
-| ✅ | GET /polls → tableau de sondages | 0s |
-| ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
-| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
-| ✅ | GET /chess/list → 200 | 0s |
-| ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
-| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 0s |
-| ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
-| ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
-| ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 0s |
-| ✅ | Calendar — GET /events → 200 | 0s |
-| ✅ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | 0s |
-| ✅ | Calendar UI — page, grille et bouton ajouter visibles | 0s |
-| ✅ | Settings UI — 3 onglets navigables | 0s |
-| ✅ | Settings — changement de thème (clic → sélectionné) | 0s |
-| ✅ | POST /user/update → mise à jour du nom | 0s |
-| ✅ | Navigation /chat → accessible sans erreur | 0s |
-| ✅ | Navigation /calendar → accessible sans erreur | 0s |
-| ✅ | Navigation /chess → accessible sans erreur | 0s |
-| ✅ | Navigation /polls → accessible sans erreur | 0s |
-| ✅ | Navigation /settings → accessible sans erreur | 0s |
-| ✅ | Navigation /help → accessible sans erreur | 0s |
-| ✅ | Navigation /events → accessible sans erreur | 0s |
-| ✅ | E2EE — POST /auth/public-key → enregistre la clé | 0s |
-| ✅ | E2EE — GET /auth/public-keys → objet avec clés des membres | 0s |
-| ✅ | Push — GET /push/vapid-public-key → 200 | 0s |
-| ✅ | Push — GET /push/preferences → prefs par défaut | 0s |
-| ✅ | Push — POST /push/preferences → mise à jour | 0s |
-| ✅ | Push — POST /push/subscribe → 200 | 0s |
-| ✅ | Logout UI → redirigé vers /login | 0s |
+| ❌ | Chat UI — sidebar et envoi message | 30s |
+| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A |
+| ⏭️ | POST /conversations → créer un groupe de test | N/A |
+| ⏭️ | GET /users/available → liste des membres disponibles | N/A |
+| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A |
+| ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A |
+| ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A |
+| ⏭️ | Réactions — DELETE → my_emoji null | N/A |
+| ⏭️ | Réactions — GET → structure {message_id, counts, my_emoji} | N/A |
+| ⏭️ | Réactions — message inexistant → 404 | N/A |
+| ⏭️ | Réactions UI — hover → picker → pill visible | N/A |
+| ⏭️ | Upload — fichier texte → file_id, url=/api/download/, download OK | N/A |
+| ⏭️ | Download — id inexistant → 404 | N/A |
+| ⏭️ | GET /polls → tableau de sondages | N/A |
+| ⏭️ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | N/A |
+| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A |
+| ⏭️ | GET /chess/list → 200 | N/A |
+| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A |
+| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A |
+| ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A |
+| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A |
+| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A |
+| ⏭️ | Calendar — GET /events → 200 | N/A |
+| ⏭️ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | N/A |
+| ⏭️ | Calendar UI — page, grille et bouton ajouter visibles | N/A |
+| ⏭️ | Settings UI — 3 onglets navigables | N/A |
+| ⏭️ | Settings — changement de thème (clic → sélectionné) | N/A |
+| ⏭️ | POST /user/update → mise à jour du nom | N/A |
+| ⏭️ | Navigation /chat → accessible sans erreur | N/A |
+| ⏭️ | Navigation /calendar → accessible sans erreur | N/A |
+| ⏭️ | Navigation /chess → accessible sans erreur | N/A |
+| ⏭️ | Navigation /polls → accessible sans erreur | N/A |
+| ⏭️ | Navigation /settings → accessible sans erreur | N/A |
+| ⏭️ | Navigation /help → accessible sans erreur | N/A |
+| ⏭️ | Navigation /events → accessible sans erreur | N/A |
+| ⏭️ | E2EE — POST /auth/public-key → enregistre la clé | N/A |
+| ⏭️ | E2EE — GET /auth/public-keys → objet avec clés des membres | N/A |
+| ⏭️ | Push — GET /push/vapid-public-key → 200 | N/A |
+| ⏭️ | Push — GET /push/preferences → prefs par défaut | N/A |
+| ⏭️ | Push — POST /push/preferences → mise à jour | N/A |
+| ⏭️ | Push — POST /push/subscribe → 200 | N/A |
+| ⏭️ | Logout UI → redirigé vers /login | N/A |
 | ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0s |
 
 ---
 
-## ✅ Aucun échec
+## ❌ Échecs détaillés
 
-Tous les tests ont passé.
+> 1 test(s) en échec
+
+### Échec 1 — `Chat UI — sidebar et envoi message`
+
+**Suite :** `user.spec.ts > User — Flux complet`
+
+**Message :**
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1774166514234' })
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774166514234' })
+
+
+  113 |     ]);
+  114 |     expect(res.status()).toBe(200);
+> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
+      |                                                                                 ^
+  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
+  117 |   });
+  118 |
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+```
+
+**Message :**
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1774166535087' })
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774166535087' })
+
+
+  113 |     ]);
+  114 |     expect(res.status()).toBe(200);
+> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
+      |                                                                                 ^
+  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
+  117 |   });
+  118 |
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+```
 
 ---
 
@@ -174,10 +226,8 @@ Tous les tests ont passé.
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=8611879b-fc3b-4373-b4bb-8d46ca0613b9 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=8611879b-fc3b-4373-b4bb-8d46ca0613b9 username=e2e_ci
 ```
 
 ---
@@ -202,4 +252,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-21 09:15 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-22 08:02 UTC*
