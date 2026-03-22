@@ -232,3 +232,75 @@ Docs / CI :
 - [ ] Fermer alerte GitHub Security #1 après révocation (Close as revoked)
 - [ ] Tester le minuteur échecs IRL
 - [ ] Tester la mise en échec highlight IRL
+
+---
+
+## Session 41 — 2026-03-22 — Corrections IRL post-déploiement (lot 1)
+
+### Contexte
+Retours d'expérience Zimaboard après déploiement S40. 19 bugs identifiés,
+lot prioritaire traité : critiques (invitation, menu, zone saisie) + chess (noms, timer,
+délai IA) + chat (réactions hover, emoji gros).
+
+### Bugs corrigés
+
+**🔴 R_INVITE_ACCEPT** — `/invite/+page.svelte` appelait `/api/invite/accept` inexistant
+- Backend avait POST /api/join (body `{name, public_key}`) mais frontend envoyait `{token, username, name, password}`
+- Fix : nouveau `accept_invite` dans `invites.rs` — prend {token, username, name, password},
+  crée user avec mot de passe choisi (`needs_password_change = 0`), ajoute dans default_global,
+  crée session, retourne cookie auth
+
+**🔴 R_MENU_SIDE** — Menu s'ouvrait à droite (bouton à gauche)
+- `position: fixed; right: 0` → `left: 0`
+- Animation `translateX(100%→0)` → `translateX(-100%→0)`
+
+**🔴 R_CHAT_INPUT** — Zone saisie chat coupée sous le viewport
+- `.app-main` avait `padding: 1.5rem` qui s'ajoutait à `height: calc(100vh - 60px)` du chat
+- Fix : `app-main { padding: 0 }` — les pages plein-écran gèrent leur propre hauteur
+
+**♟️ R_CHESS_NAMES** — IDs joueurs affichés
+- `get_game` faisait `SELECT *` sans JOIN → retournait les UUIDs
+- Fix : LEFT JOIN users u1/u2 → `player1_name`, `player2_name` dans GameState
+
+**♟️ R_CHESS_TIMER_P2** — Timer absent pour le joueur qui rejoint
+- `timerChoice` était un state local de `chess/+page.svelte` → invisible au joueur 2
+- Fix : migration 007 ajoute `time_limit_secs INTEGER DEFAULT 0` sur chess_games
+  `createGame` stocke la valeur, `loadGame` init le timer depuis `data.game.time_limit_secs`
+
+**♟️ R_CHESS_IA_DELAY** — IA jouait instantanément (mauvais ressenti)
+- `play_ai` calcule `elapsed` avant make_move, `std::thread::sleep(min_delay - elapsed)`
+- Easy 700ms, Medium 1.2s, Hard 2s, Expert 3s, Godlike 4s
+
+**💬 R_HOVER_REACTION** — Picker réaction fermé avant clic
+- `onmouseleave` immédiat → le pointeur ne pouvait pas atteindre le picker
+- Fix : `setTimeout(..., 400)` avant `hoveredMsgId = null`, `clearTimeout` sur mouseenter
+
+**✨ Nouvelles features**
+- Emoji seul dans message → 2.5rem (`emoji-only` CSS)
+- Admin : `DELETE /api/users/{id}` → `delete_user` dans `admin.rs`
+
+### Fichiers modifiés session 41
+
+- `backend/src/invites.rs` — `accept_invite` + `AcceptInvitePayload`
+- `backend/migrations/007_chess_timer.sql` — NOUVEAU : `time_limit_secs`
+- `backend/src/main.rs` — routes `/invite/accept` + `DELETE /users/{id}`
+- `backend/src/chess.rs` — `time_limit_secs` dans INSERT/get_game, JOIN users, délai IA
+- `backend/src/admin.rs` — `delete_user`
+- `frontend/src/routes/+layout.svelte` — menu left + app-main padding:0
+- `frontend/src/lib/chessStore.svelte.ts` — GameState player_names + time_limit_secs + initTimer auto
+- `frontend/src/routes/chess/[game_id]/+page.svelte` — noms joueurs
+- `frontend/src/routes/chess/+page.svelte` — time_limit_secs transmis
+- `frontend/src/routes/chat/+page.svelte` — hover délai + emoji-only
+
+### Ce qui reste (lot 2 — session 42)
+- [ ] Calendrier : thème full-page + click événement + suppression/modification + mise en avant
+- [ ] Sondages : destinataires ciblés + nb options + date fin + post auto chat + badge + WS
+- [ ] Messages audio/vidéo non fonctionnels
+- [ ] Appels audio/vidéo non fonctionnels
+- [ ] Upload 7Mo → "failed to read"
+- [ ] GIFs : dossier vide post-déploiement (GIPHY_API_KEY non configurée)
+- [ ] Chess : prise en passant (movegen.rs)
+- [ ] Mode sombre non global
+- [ ] Badge notifications menu (nouvelles features)
+- [ ] Scroll → dernier message (chat)
+- [ ] Badge non-lu sur conversations
