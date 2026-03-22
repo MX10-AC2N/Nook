@@ -467,7 +467,11 @@ class ChessStore {
     this.timerLimit = seconds;
     this.whiteTime  = seconds;
     this.blackTime  = seconds;
-    if (seconds > 0) this.startTimer('white');
+    if (seconds > 0) {
+      // Démarrer sur le bon camp selon l'état actuel du jeu
+      const side = this.currentGame?.engine?.side_to_move ?? 'white';
+      this.startTimer(side as 'white' | 'black');
+    }
   }
 
   startTimer(side: 'white' | 'black'): void {
@@ -496,8 +500,16 @@ class ChessStore {
   }
 
   private onTimerExpired(side: 'white' | 'black'): void {
-    // Afficher l'info — resign automatique géré par le composant via isTimerExpired
-    console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
+    const game = this.currentGame;
+    if (!game || game.status !== 'playing') return;
+    tracing: console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
+    // Si c'est notre tour qui expire → on abandonne automatiquement
+    const myColor = this.myColor();
+    if (myColor === side) {
+      this.resign().catch(() => {});
+    }
+    // Sinon : l'adversaire a perdu son temps → l'admin/arbitre décide
+    // Pour le moment on laisse la partie continuer (pas de forfait automatique côté serveur)
   }
 
   isTimerExpired = $derived(
