@@ -1,10 +1,27 @@
+// backend/src/emergency.rs — Mode urgence Nook
+// Route : POST /api/emergency (require_auth)
+//
+// Quand un membre envoie une alerte d'urgence :
+//   1. Log immédiat dans les logs Docker (toujours visible)
+//   2. Diffusion WS à tous les clients connectés (type: "emergency")
+//   3. Push notification à tous les membres de la famille
+//
+// Le message WS est géré automatiquement par le broadcast webrtc.rs.
+// La route POST ici déclenche le push push + le log.
+
 use axum::{
-    extract::Json as AxumJson,
+    extract::State,
     http::StatusCode,
     response::Json,
+    Extension,
 };
 use serde::Deserialize;
 use serde_json::json;
+use std::sync::Arc;
+
+use crate::auth::CurrentUser;
+use crate::push::PushPayload;
+use crate::SharedState;
 
 #[derive(Deserialize)]
 pub struct EmergencyRequest {
@@ -12,44 +29,63 @@ pub struct EmergencyRequest {
 }
 
 pub async fn handle_emergency(
-    AxumJson(payload): AxumJson<EmergencyRequest>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Json(payload): Json<EmergencyRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Log de l'urgence en console (visible dans les logs du conteneur)
-    println!("🚨 ALERTE D'URGENCE REÇUE : {}", payload.message);
+    let msg = payload.message.trim().to_string();
+    if msg.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
 
-    // TODO : Implémenter l'envoi réel selon ton choix
-    // Exemples possibles :
-    // - Envoi d'email via lettre
-    // - Envoi de SMS via Twilio
-    // - Notification push via Gotify ou ntfy.sh
-    /*
-    // Exemple avec lettre (SMTP) :
-    use lettre::message::Message;
-    use lettre::transport::smtp::async_smtp::AsyncSmtpTransport;
-    use lettre::transport::smtp::client::Tls;
-    use lettre::AsyncTransport;
+    // 1. Log immédiat — visible dans `docker compose logs nook`
+    tracing::warn!(
+        user_id  = %user.id,
+        username = %user.username,
+        message  = %msg,
+        "🚨 ALERTE D'URGENCE"
+    );
 
-    let email = Message::builder()
-        .from("nook@tondomaine.com".parse().unwrap())
-        .to("admin@tondomaine.com".parse().unwrap())
-        .subject("🚨 ALERTE URGENCE NOOK")
-        .body(format!("Message d'urgence :\n\n{}", payload.message))
-        .unwrap();
+    // 2. Push notification à tous les membres de la famille
+    //    Fire-and-forget — ne bloque pas la réponse HTTP
+    {
+        let pool    = state.db.clone();
+        let sender  = user.username.clone();
+        let message = msg.clone();
 
-    let mailer = AsyncSmtpTransport::relay("smtp.tondomaine.com")
-        .unwrap()
-        .credentials(lettre::transport::smtp::client::Credentials::new(
-            "ton_user".to_string(),
-            "ton_password".to_string(),
-        ))
-        .build();
+        tokio::task::spawn(async move {
+            // Récupérer tous les user_ids actifs (approved = 1)
+            let members: Vec<(String,)> = sqlx::query_as(
+                "SELECT id FROM users WHERE approved = 1",
+            )
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
 
-    mailer.send(email).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    */
+            let push_payload = PushPayload {
+                title: format!("🚨 Urgence — {}", sender),
+                body:  message,
+                icon:  Some("/icon-192.png".to_string()),
+                url:   Some("/chat".to_string()),
+                tag:   Some("nook-emergency".to_string()),
+            };
 
-    // Réponse JSON standardisée
+            for (member_id,) in members {
+                if let Err(e) = crate::push::send_push_notification(
+                    &pool, &member_id, &push_payload,
+                ).await {
+                    tracing::debug!(
+                        error    = %e,
+                        member   = %member_id,
+                        "Push urgence non envoyé"
+                    );
+                }
+            }
+        });
+    }
+
     Ok(Json(json!({
         "success": true,
-        "message": "Alerte d'urgence reçue et enregistrée"
+        "message": "Alerte d'urgence reçue — push envoyé à tous les membres"
     })))
 }

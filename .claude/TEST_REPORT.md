@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-20 12:04 UTC**
+> Généré par `test-nook.yml` · **2026-03-21 09:15 UTC**
 
 ---
 
@@ -14,9 +14,9 @@
 | **Tests ignorés** | 0 |
 | **Total** | 115 |
 | **Durée** | 19.0s |
-| **Branche** | `main` |
-| **Commit** | [`8bd7866`](https://github.com/MX10-AC2N/Nook/commit/8bd78669c584ad7b627260367b99207d1a2f4228) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23341774412) |
+| **Branche** | `develop` |
+| **Commit** | [`6159d10`](https://github.com/MX10-AC2N/Nook/commit/6159d10f9f9d99eed655f082e3b0309899781169) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23376416564) |
 
 ---
 
@@ -174,10 +174,10 @@ Tous les tests ont passé.
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4fe161be-d3b4-4bc6-a860-5be9b19ab5d6 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
 ```
 
 ---
@@ -202,4 +202,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=4
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-20 12:04 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-21 09:15 UTC*

@@ -110,6 +110,10 @@ Tout ce qui passe par Nook reste sur **ton serveur**.
 
 ## Problèmes fréquents
 
+**Les GIFs ne s'affichent pas dans l'onglet 🎬**
+→ La collection est vide. Demande à l'admin de lancer `bash scripts/update-gifs.sh` sur le serveur.
+→ Vérifie que `GIPHY_API_KEY` est défini dans le `.env`.
+
 **Je ne reçois plus de notifications push**
 → Va dans Paramètres → Sécurité → désactive puis réactive les notifications.
 

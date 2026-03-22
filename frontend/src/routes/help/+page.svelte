@@ -1,13 +1,10 @@
-<!-- frontend/src/routes/help/+page.svelte — Session 34
-     Contenu mis à jour pour refléter les fonctionnalités réelles de Nook v0.4.x :
-     - Fichiers/images chiffrés, téléchargeables via /api/download
-     - GIFs via proxy backend
-     - 3 thèmes + mode sombre
-     - Sondages ciblés
-     - Nom affiché vs identifiant de connexion
-     - Chess IA minimax
-     - Analytics admin
-     - Identifiant admin inchangeable
+<!-- frontend/src/routes/help/+page.svelte — Session 39
+     Nook v0.4.0-beta.2 :
+     - Picker emoji natif + GIFs locaux (plus de proxy Tenor)
+     - E2EE actif (clés X25519 générées au login, chiffrement transparent)
+     - Push notifications VAPID (Paramètres → Sécurité)
+     - Bouton d'urgence connecté (push à tous les membres)
+     - Chess IA temps réel (WS broadcast)
 -->
 <script lang="ts">
   let searchQuery = $state('');
@@ -44,12 +41,13 @@
         "Limite : 50 Mo par fichier. Les fichiers sont supprimés automatiquement après 48h.",
     },
     {
-      question: 'Comment utiliser les GIFs ?',
+      question: 'Comment utiliser les emojis et les GIFs ?',
       answer:
-        "Cliquez sur le bouton \"GIF\" dans la barre de saisie du chat. " +
-        "Tapez un mot-clé pour rechercher (ex: \"bravo\", \"chat\", \"fête\"). " +
-        "Les GIFs sont chargés via un proxy sécurisé depuis Tenor. " +
-        "Si aucun résultat n'apparaît, vérifiez que le serveur a accès à internet.",
+        "Cliquez sur le bouton 😊 dans la barre de saisie du chat.\n" +
+        "• Onglet Emoji : 292 emojis répartis en 8 catégories (Visages, Cœurs, Fête, Animaux…). " +
+        "Cliquer sur un emoji l'insère dans votre texte en cours, ou l'envoie directement si l'input est vide.\n" +
+        "• Onglet GIF 🎬 : collection de GIFs curatés stockés directement sur votre serveur. " +
+        "Aucune donnée ne sort de chez vous — tout est local.",
     },
     {
       question: 'Comment changer l\'apparence de l\'application ?',
@@ -70,12 +68,12 @@
         "Les messages E2EE ne sont lisibles que par les destinataires — ni l'admin ni le serveur ne peuvent les lire.",
     },
     {
-      question: 'Comment créer un sondage ciblé (pour certaines personnes) ?',
+      question: 'Comment créer un sondage ?',
       answer:
         "Dans la page Sondages, cliquez \"＋ Nouveau sondage\". " +
-        "Sous les options, choisissez \"🎯 Personnes ciblées\" et sélectionnez les membres concernés. " +
-        "Le sondage reste visible par toute la famille mais un badge indique clairement à qui il est destiné. " +
-        "Une version avec filtrage strict (seuls les destinataires voient le sondage) est prévue dans une prochaine mise à jour.",
+        "Donnez une question et au moins 2 options (10 maximum). " +
+        "Chaque membre peut voter et modifier son vote tant que le sondage est ouvert. " +
+        "Le créateur ou l'administrateur peut fermer le sondage à tout moment — les résultats restent visibles.",
     },
     {
       question: 'Comment jouer aux échecs contre l\'IA ?',
@@ -90,6 +88,24 @@
         "Si vous êtes administrateur, allez dans /admin et cliquez sur l'onglet \"📊 Analytics\". " +
         "Vous y trouverez : nombre d'utilisateurs, messages, conversations, sondages, fichiers, " +
         "utilisateurs actifs sur 7 jours, et un graphique des messages par jour.",
+    },
+    {
+      question: 'Comment activer les notifications push ?',
+      answer:
+        "Allez dans Paramètres → Sécurité → \"🔔 Notifications push\". " +
+        "Cliquez \"Activer les notifications\" et acceptez la demande de permission du navigateur. " +
+        "Vous recevrez une notification sur cet appareil pour chaque nouveau message, " +
+        "même quand l'application est fermée ou en arrière-plan. " +
+        "Désactivable à tout moment depuis le même écran.",
+    },
+    {
+      question: 'Comment envoyer une alerte d\'urgence ?',
+      answer:
+        "La page /help dispose d'un bouton d'urgence accessible à tous les membres. " +
+        "En cas de situation critique, envoyez un message d'urgence : " +
+        "tous les membres connectés sont notifiés immédiatement via l'application " +
+        "et reçoivent une notification push sur leurs appareils. " +
+        "Le message est également enregistré dans les logs du serveur.",
     },
     {
       question: 'Comment faire un appel vidéo ?',
@@ -115,8 +131,10 @@
     {
       question: 'Où sont stockées mes données ?',
       answer:
-        "Toutes vos données sont sur votre serveur auto-hébergé (Docker volume). " +
-        "Aucune donnée n'est envoyée vers des serveurs externes (sauf les GIFs qui passent par Tenor via le proxy Nook). " +
+        "Toutes vos données sont sur votre serveur auto-hébergé (Docker volume) : " +
+        "messages, fichiers, photos, événements, parties d'échecs, sondages. " +
+        "Aucune donnée n'est envoyée vers des serveurs externes — " +
+        "les emojis et GIFs sont servis directement depuis votre serveur. " +
         "Configurez des sauvegardes régulières du volume Docker pour ne rien perdre.",
     },
   ];
@@ -194,7 +212,7 @@
   </div>
 
   <!-- Version -->
-  <p class="version-note">Nook v0.4.x — Auto-hébergé, chiffré, familial 🌿</p>
+  <p class="version-note">Nook v0.4.0-beta.2 — Auto-hébergé, chiffré, familial 🌿</p>
 
 </div>
 
