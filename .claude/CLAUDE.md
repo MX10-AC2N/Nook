@@ -250,6 +250,7 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 5. **Effets de bord** — signaler ce que chaque changement impacte chez les autres agents
 6. **Apprentissage** — tout bug non trivial résolu → section `## 📚 Apprentissages` de l'agent
 7. **MCP Svelte** — `svelte-autofixer` obligatoire avant toute livraison de code Svelte (depuis S38)
+8. **Always speak to the user in French.** Code, commit messages, comments, and technical identifiers stay in English, but all conversation and explanations must be in French.
 
 ---
 
