@@ -1066,7 +1066,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: 100%;
+    height: calc(100svh - var(--header-h, 60px));
     overflow: hidden;
     max-width: 100%;
   }
