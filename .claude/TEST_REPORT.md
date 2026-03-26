@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-26 13:37 UTC**
+> Généré par `test-nook.yml` · **2026-03-26 14:31 UTC**
 
 ---
 
@@ -13,10 +13,10 @@
 | **Tests échoués** | 1 |
 | **Tests ignorés** | 41 |
 | **Total** | 115 |
-| **Durée** | 48.0s |
+| **Durée** | 49.0s |
 | **Branche** | `develop` |
-| **Commit** | [`c128c89`](https://github.com/MX10-AC2N/Nook/commit/c128c89ac722d3d01b0cc52aeb5dc8d2dfc535f1) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23596923020) |
+| **Commit** | [`332c487`](https://github.com/MX10-AC2N/Nook/commit/332c4878926b0281b9a42b44ad2973f713750b63) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23599606651) |
 
 ---
 
@@ -176,14 +176,14 @@
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: locator('.message-content').filter({ hasText: 'E2E message 1774532216325' })
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1774535423897' })
 Expected: visible
 Timeout: 15000ms
 Error: element(s) not found
 
 Call log:
   - Expect "toBeVisible" with timeout 15000ms
-  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774532216325' })
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774535423897' })
 
 
   113 |     ]);
@@ -200,14 +200,14 @@ Call log:
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: locator('.message-content').filter({ hasText: 'E2E message 1774532237228' })
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1774535444986' })
 Expected: visible
 Timeout: 15000ms
 Error: element(s) not found
 
 Call log:
   - Expect "toBeVisible" with timeout 15000ms
-  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774532237228' })
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774535444986' })
 
 
   113 |     ]);
@@ -226,8 +226,8 @@ Call log:
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=730ba8d4-0a38-44db-a58a-eca02d4ffb84 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=730ba8d4-0a38-44db-a58a-eca02d4ffb84 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=ffa7caa0-7a8f-4d5b-a081-833742368058 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=ffa7caa0-7a8f-4d5b-a081-833742368058 username=e2e_ci
 ```
 
 ---
@@ -252,4 +252,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=7
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-26 13:37 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-26 14:31 UTC*
