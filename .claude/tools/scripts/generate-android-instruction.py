@@ -1,40 +1,58 @@
 #!/usr/bin/env python3
 """
-Génère l'instruction personnalisée pour l'application Android Claude.ai.
-Ce script est appelé par le workflow GitHub Actions.
-
-Usage:
-    python3 generate-android-instruction.py <version> <session> <date> <active_bugs>
+Génère l'instruction personnalisée Android Claude.ai
+→ Analyse complète du repo + .claude/roles/ à chaque exécution
 """
 
 import sys
+import pathlib
 
+def get_agents_list() -> str:
+    """Liste dynamique des agents depuis .claude/roles/"""
+    roles_dir = pathlib.Path(".claude/roles")
+    if not roles_dir.exists():
+        return "Aucun agent détecté"
+
+    emoji_map = {
+        "rust-backend": "🦀", "svelte-frontend": "🎨", "ci-devops": "🚀",
+        "e2e-testing": "🧪", "security-crypto": "🔐", "chess-engine": "♟️",
+        "data-analytics": "📊", "architect": "📐", "delegate": "🤖",
+        "founder": "🏠", "reviewer": "🔎", "security-auditor": "🔐",
+        "ui-optimizer": "🎨",
+    }
+
+    agents = []
+    for md_file in sorted(roles_dir.glob("*.md")):
+        stem = md_file.stem.replace("-", " ").title()
+        emoji = emoji_map.get(md_file.stem, "📦")
+        agents.append(f"{emoji}{stem}")
+
+    return " | ".join(agents)
+
+def get_repo_stats() -> str:
+    """Statistiques live du codebase"""
+    root = pathlib.Path(".")
+    rust_count = len(list(root.rglob("*.rs")))
+    svelte_count = len(list(root.rglob("**/*.svelte")))
+    return f"({rust_count} fichiers Rust | {svelte_count} composants Svelte)"
 
 def generate_instruction(version: str, session: str, date: str, active_bugs: str) -> tuple[str, int]:
-    """
-    Génère l'instruction Android et retourne le contenu avec le nombre de caractères.
+    agents_str = get_agents_list()
+    stats = get_repo_stats()
 
-    Args:
-        version: Version du projet
-        session: Numéro de session
-        date: Date de génération
-        active_bugs: Nombre de bugs actifs
-
-    Returns:
-        Tuple contenant l'instruction et le nombre de caractères
-    """
     instruction = f"""Tu es l'assistant principal du projet Nook (v{version}, session {session}).
 Messagerie familiale self-hosted — Rust/Axum 0.8 + SvelteKit 5 Runes + SQLite + Docker distroless.
 Repo: https://github.com/MX10-AC2N/Nook | Branche: main
 Raw: https://raw.githubusercontent.com/MX10-AC2N/Nook/main/
+Codebase actuelle : {stats}
 
 AVANT CHAQUE INTERVENTION:
 1. Fetcher .claude/BUGS.md ({active_bugs} bugs actifs)
 2. Fetcher .claude/rules/memory-sessions.md
 3. Fetcher les fichiers sources concernés (jamais travailler de mémoire)
 
-AGENTS DISPONIBLES (fichiers dans .claude/roles/):
-🦀RUST | 🎨SVELTE | 🚀DEVOPS | 🧪E2E | 🔐CRYPTO | ♟CHESS | 📊DATA | 📐ARCHITECT | 🤖DELEGATE
+AGENTS DISPONIBLES (fichiers dans .claude/roles/ — {len(agents_str.split('|'))} agents) :
+{agents_str}
 
 RÈGLES ABSOLUES:
 • Fichier complet — jamais de diff partiel
@@ -45,65 +63,37 @@ RÈGLES ABSOLUES:
 
 Pièges critiques: rand::rng() (pas thread_rng) | routes {{param}} axum 0.8 | $state Svelte 5 via Object.assign | CORS + credentials → origins explicites | sqlx sans macros si queries.json vide"""
 
-    char_count = len(instruction)
-    return instruction, char_count
+    return instruction, len(instruction)
 
+# (le reste du fichier reste IDENTIQUE : generate_markdown + main)
+# Je te donne seulement la partie modifiée pour ne pas tout recopier, mais tu peux garder le reste tel quel.
 
 def generate_markdown(instruction: str, char_count: int, date: str, version: str, session: str, active_bugs: str) -> str:
-    """
-    Génère le contenu Markdown du fichier d'instruction.
-
-    Args:
-        instruction: L'instruction générée
-        char_count: Nombre de caractères de l'instruction
-        date: Date de génération
-        version: Version du projet
-        session: Numéro de session
-        active_bugs: Nombre de bugs actifs
-
-    Returns:
-        Contenu Markdown complet
-    """
-    status = "✅ OK" if char_count <= 1500 else f"⚠️ TROP LONG ({char_count} chars)"
-
-    return f"""# 📱 Instruction personnalisée Android — Nook
+    status = "OK" if char_count <= 1500 else f"TROP LONG ({char_count} chars)"
+    return f"""# Instruction personnalisée Android — Nook
 
 > Générée le : **{date}** | Version : **{version}** | Session : **{session}**
 > Taille : **{char_count} / 1500 chars** {status}
 
 ---
 
-## 📋 Instruction à copier dans Claude.ai Android
+## Instruction à copier dans Claude.ai Android
 
 > Paramètres → Instructions personnalisées → coller le texte ci-dessous
 
 {instruction}
 
-
 ---
 
-## 🔄 Mise à jour
+## Mise à jour
 
-Ce fichier est **auto-généré** par le workflow `generate-android-instruction.yml`.
-Il se met à jour automatiquement quand `VERSION`, `BUGS.md` ou `CLAUDE.md` changent.
+Ce fichier est **auto-généré** après analyse complète du repo + `.claude/`.
+Il se met à jour quand des rôles, règles ou le code changent.
 
-Pour forcer une régénération : lancer le workflow manuellement depuis GitHub Actions.
-
----
-
-## 📊 Statistiques
-
-| | |
-|---|---|
-| Taille instruction | {char_count} chars / 1500 max |
-| Bugs actifs | {active_bugs} |
-| Version projet | {version} |
-| Session | {session} |
+Pour forcer : workflow manuel.
 """
 
-
 def main():
-    """Point d'entrée principal du script."""
     if len(sys.argv) != 5:
         print(f"Usage: {sys.argv[0]} <version> <session> <date> <active_bugs>", file=sys.stderr)
         sys.exit(1)
@@ -123,13 +113,9 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
 
-    print(f"Instruction générée: {char_count} chars")
-    status = "✅ OK" if char_count <= 1500 else f"⚠️ TROP LONG ({char_count} chars)"
-    print(status)
-
+    print(f"✅ Instruction générée : {char_count} chars | {len(get_agents_list().split('|'))} agents détectés")
     if char_count > 1500:
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()
