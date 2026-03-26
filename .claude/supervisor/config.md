@@ -54,3 +54,40 @@ Optimiser l'utilisation de Claude Free en allouant intelligemment les ressources
 ---
 
 ## Règles d'Allocation
+
+IF complexity == SIMPLE THEN → Utiliser Claude Free → Limiter à 3 itérations max → Demander confirmation avant extension
+
+IF complexity == MODERATE THEN → Utiliser Claude Free → Limiter à 5 itérations max → Proposer upgrade si blocage
+
+IF complexity == COMPLEX THEN → Avertir: "Cette tâche pourrait bénéficier de Claude Plus" → Continuer avec Free si utilisateur confirme → Documenter les limitations
+
+IF complexity == CRITICAL THEN → Recommander fortement Claude Plus → Ne pas procéder sans confirmation explicite → Documenter les risques
+
+---
+
+## Commandes Disponibles
+
+| Commande | Description |
+|----------|-------------|
+| `/supervisor status` | État actuel et statistiques |
+| `/supervisor classify [tâche]` | Classer une tâche |
+| `/supervisor optimize` | Rapport d'optimisation |
+| `/supervisor budget` | Suivi du budget estimé |
+| `/supervisor help` | Aide complète |
+
+---
+
+## Journal des Décisions
+
+| Date | Tâche | Complexité | Modèle | Justification |
+|------|-------|------------|--------|---------------|
+| - | - | - | - | - |
+
+---
+
+## Limitations Connues
+
+- Claude Free a des limites de contexte
+- Pas d'accès API pour automatisation
+- Sessions limitées dans l'app Android
+- Pas de persistance entre sessions
