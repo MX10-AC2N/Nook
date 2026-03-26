@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: $${{ github.workflow }}-$${{ github.ref }}
+  group: $${{ github.workflow }}-$${{ github.ref }}  # ✅ Syntaxe corrigée
   cancel-in-progress: true
 
 jobs:
@@ -29,17 +29,28 @@ jobs:
       - name: 📋 Extraire infos projet
         id: info
         run: |
-          VERSION=$(cat VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
+          set +e  # Désactiver l'arrêt sur erreur pour les grep
+          
+          VERSION=$(cat VERSION 2>/dev/null | tr -d '[:space:]')
+          if [ $$? -ne 0 ] || [ -z "$$VERSION" ]; then
+            VERSION="unknown"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null || echo 0)
+          ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null)
+          if [ $? -ne 0 ]; then
+            ACTIVE_BUGS=0
+          fi
           echo "active_bugs=$ACTIVE_BUGS" >> $GITHUB_OUTPUT
 
-          # Extraction ultra-robuste de la session (évite le bug set -e)
-          SESSION=$(grep -oP 'Session courante\s*:\s*\*\*(\d+)\*\*' .claude/CLAUDE.md 2>/dev/null | head -1 | grep -oP '\d+' || echo 0)
+          SESSION=$(grep -oP 'Session courante\s*:\s*\*\*(\d+)\*\*' .claude/CLAUDE.md 2>/dev/null | head -1 | grep -oP '\d+')
+          if [ $$? -ne 0 ] || [ -z "$$SESSION" ]; then
+            SESSION=0
+          fi
           echo "session=$SESSION" >> $GITHUB_OUTPUT
 
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
+        shell: bash
 
       # ── 2. Générer l'instruction (avec critical-pitfalls.md) ─────
       - name: 🔍 Analyser repo + Générer instruction Android
@@ -49,6 +60,7 @@ jobs:
             "${{ steps.info.outputs.session }}" \
             "${{ steps.info.outputs.date }}" \
             "${{ steps.info.outputs.active_bugs }}"
+        shell: bash
 
       # ── 3. Commit si changement ───────────────────────────────────
       - name: 📤 Commit ANDROID-INSTRUCTION.md
@@ -64,11 +76,22 @@ jobs:
             git push
             echo "✅ ANDROID-INSTRUCTION.md mis à jour"
           fi
+        shell: bash
 
       # ── 4. Résumé ────────────────────────────────────────────────
       - name: 📊 Résumé
         run: |
-          CHAR_COUNT=$(grep -oP '\d+(?=\s+/\s+1500)' .claude/ANDROID-INSTRUCTION.md | head -1 || echo 0)
+          set +e
+          CHAR_COUNT=$(grep -oP '\d+(?=\s+/\s+1500)' .claude/ANDROID-INSTRUCTION.md 2>/dev/null | head -1)
+          if [ -z "$CHAR_COUNT" ]; then
+            CHAR_COUNT=0
+          fi
+          
+          AGENT_COUNT=$(ls .claude/roles/*.md 2>/dev/null | wc -l)
+          if [ $? -ne 0 ]; then
+            AGENT_COUNT=0
+          fi
+
           echo "## 📱 Instruction Android générée" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Métrique                  | Valeur                          |" >> $GITHUB_STEP_SUMMARY
@@ -77,6 +100,7 @@ jobs:
           echo "| **Session**               | ${{ steps.info.outputs.session }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Bugs actifs**           | ${{ steps.info.outputs.active_bugs }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Taille instruction**    | $CHAR_COUNT / 1500 chars        |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Agents détectés**       | $(ls .claude/roles/*.md 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Agents détectés**       | $AGENT_COUNT |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📄 Fichier : \`.claude/ANDROID-INSTRUCTION.md\`" >> $GITHUB_STEP_SUMMARY
+        shell: bash
