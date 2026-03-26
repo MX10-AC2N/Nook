@@ -1,57 +1,51 @@
 name: 📱 Générer l'instruction Android Claude.ai
 
-# Génère automatiquement l'instruction personnalisée pour l'app Claude.ai Android
-# depuis l'état actuel du projet (version, bugs actifs, agents disponibles).
-# Commite le fichier .claude/ANDROID-INSTRUCTION.md dans le repo.
-# Agent concerné : 📐 ARCHITECT (meta)
+# Analyse complète du repo + .claude/ à chaque exécution
+# pour que l'instruction Android soit toujours parfaitement cohérente
 
 on:
   workflow_dispatch:
   push:
     branches: [main, develop]
     paths:
-      - '.claude/BUGS.md'
-      - '.claude/rules/memory-sessions.md'
-      - '.claude/CLAUDE.md'
       - 'VERSION'
+      - '.claude/**'                  # tout le dossier .claude (roles, rules, BUGS, etc.)
+      - 'README.md'                   # description projet
+      - '.claude/tools/scripts/generate-android-instruction.py'
 
 permissions:
   contents: write
 
+concurrency:
+  group: \( {{ github.workflow }}- \){{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   generate:
-    name: 📱 Générer ANDROID-INSTRUCTION.md
+    name: 📱 Générer ANDROID-INSTRUCTION.md (analyse complète repo)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 1. Extraire les infos dynamiques du repo ──────────────────
-      - name: Extraire infos projet
+      # ── 1. Extraire infos de base ───────────────────────────────
+      - name: 📋 Extraire infos projet
         id: info
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          AGENT_COUNT=$(ls .claude/roles/*.md 2>/dev/null | wc -l || echo 0)
-          echo "agent_count=$AGENT_COUNT" >> $GITHUB_OUTPUT
-
-          # grep -c retourne exit 1 quand 0 match → utiliser grep | wc -l
-          ACTIVE_BUGS=$(grep "^### Bug #" .claude/BUGS.md 2>/dev/null | wc -l)
+          ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null || echo 0)
           echo "active_bugs=$ACTIVE_BUGS" >> $GITHUB_OUTPUT
 
-          # "Session courante : **24**" → extraire le dernier **N** avant la date
-          # grep -oE "[0-9]+" seul retourne aussi les chiffres de la version et de la date
-          SESSION=$(grep "Session courante" .claude/CLAUDE.md | grep -oE "\*\*[0-9]+\*\*" | tail -1 | tr -d '*')
-          echo "session=${SESSION:-0}" >> $GITHUB_OUTPUT
+          SESSION=$(grep "Session courante" .claude/CLAUDE.md 2>/dev/null \
+                    | grep -oE "\*\*[0-9]+\*\*" | tail -1 | tr -d '*' || echo 0)
+          echo "session=$SESSION" >> $GITHUB_OUTPUT
 
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
-      # ── 2. Générer l'instruction Android (<1500 chars) ─────────────
-      - name: Générer ANDROID-INSTRUCTION.md
+      # ── 2. Générer l'instruction (analyse complète du repo) ─────
+      - name: 🔍 Analyser repo + Générer instruction Android
         run: |
           python3 .claude/tools/scripts/generate-android-instruction.py \
             "${{ steps.info.outputs.version }}" \
@@ -59,29 +53,33 @@ jobs:
             "${{ steps.info.outputs.date }}" \
             "${{ steps.info.outputs.active_bugs }}"
 
-      # ── 3. Commit ─────────────────────────────────────────────────
-      - name: Commit ANDROID-INSTRUCTION.md
+      # ── 3. Commit uniquement si changement ───────────────────────
+      - name: 📤 Commit ANDROID-INSTRUCTION.md
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .claude/ANDROID-INSTRUCTION.md
+
           if git diff --staged --quiet; then
             echo "ℹ️ Instruction Android inchangée"
           else
-            git commit -m "docs(android): mettre à jour l'instruction personnalisée v${{ steps.info.outputs.version }} [skip ci]"
-            git push origin HEAD:${{ github.ref_name }}
-            echo "✅ ANDROID-INSTRUCTION.md mis à jour dans .claude/"
+            git commit -m "docs(android): mise à jour instruction personnalisée v${{ steps.info.outputs.version }} [skip ci]"
+            git push
+            echo "✅ ANDROID-INSTRUCTION.md mis à jour (repo analysé)"
           fi
 
-      # ── 4. Résumé ─────────────────────────────────────────────────
-      - name: Résumé
+      # ── 4. Résumé enrichi ───────────────────────────────────────
+      - name: 📊 Résumé
         run: |
-          echo "## 📱 Instruction Android générée" >> $GITHUB_STEP_SUMMARY
+          CHAR_COUNT=$(grep -oP '\d+(?=\s+/\s+1500)' .claude/ANDROID-INSTRUCTION.md | head -1 || echo 0)
+          echo "## 📱 Instruction Android générée (analyse complète repo)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| | |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | ${{ steps.info.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Session** | ${{ steps.info.outputs.session }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Bugs actifs** | ${{ steps.info.outputs.active_bugs }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Métrique                  | Valeur                          |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------------------------|---------------------------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Version**               | ${{ steps.info.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Session**               | ${{ steps.info.outputs.session }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Bugs actifs**           | ${{ steps.info.outputs.active_bugs }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Taille instruction**    | $CHAR_COUNT / 1500 chars        |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Agents détectés**       | $(ls .claude/roles/*.md 2>/dev/null | wc -l) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📄 Fichier disponible : \`.claude/ANDROID-INSTRUCTION.md\`" >> $GITHUB_STEP_SUMMARY
+          echo "📄 Fichier : \`.claude/ANDROID-INSTRUCTION.md\`" >> $GITHUB_STEP_SUMMARY
