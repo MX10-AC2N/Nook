@@ -7,6 +7,7 @@ Génère l'instruction personnalisée Android Claude.ai
 import sys
 import pathlib
 
+
 def get_agents_list() -> str:
     """Liste dynamique des agents depuis .claude/roles/"""
     roles_dir = pathlib.Path(".claude/roles")
@@ -29,14 +30,18 @@ def get_agents_list() -> str:
 
     return " | ".join(agents)
 
+
 def get_repo_stats() -> str:
-    """Statistiques live du codebase"""
+    """Statistiques live du codebase (analyse tout le repo)"""
     root = pathlib.Path(".")
     rust_count = len(list(root.rglob("*.rs")))
     svelte_count = len(list(root.rglob("**/*.svelte")))
-    return f"({rust_count} fichiers Rust | {svelte_count} composants Svelte)"
+    toml_count = len(list(root.rglob("Cargo.toml"))) + len(list(root.rglob("*.toml")))
+    return f"({rust_count} fichiers Rust | {svelte_count} composants Svelte | {toml_count} fichiers TOML)"
+
 
 def generate_instruction(version: str, session: str, date: str, active_bugs: str) -> tuple[str, int]:
+    """Génère le texte de l'instruction (<1500 chars)"""
     agents_str = get_agents_list()
     stats = get_repo_stats()
 
@@ -51,7 +56,7 @@ AVANT CHAQUE INTERVENTION:
 2. Fetcher .claude/rules/memory-sessions.md
 3. Fetcher les fichiers sources concernés (jamais travailler de mémoire)
 
-AGENTS DISPONIBLES (fichiers dans .claude/roles/ — {len(agents_str.split('|'))} agents) :
+AGENTS DISPONIBLES (fichiers dans .claude/roles/ — {len(get_agents_list().split(" | "))} agents) :
 {agents_str}
 
 RÈGLES ABSOLUES:
@@ -65,10 +70,9 @@ Pièges critiques: rand::rng() (pas thread_rng) | routes {{param}} axum 0.8 | $s
 
     return instruction, len(instruction)
 
-# (le reste du fichier reste IDENTIQUE : generate_markdown + main)
-# Je te donne seulement la partie modifiée pour ne pas tout recopier, mais tu peux garder le reste tel quel.
 
 def generate_markdown(instruction: str, char_count: int, date: str, version: str, session: str, active_bugs: str) -> str:
+    """Génère le fichier Markdown complet"""
     status = "OK" if char_count <= 1500 else f"TROP LONG ({char_count} chars)"
     return f"""# Instruction personnalisée Android — Nook
 
@@ -88,10 +92,11 @@ def generate_markdown(instruction: str, char_count: int, date: str, version: str
 ## Mise à jour
 
 Ce fichier est **auto-généré** après analyse complète du repo + `.claude/`.
-Il se met à jour quand des rôles, règles ou le code changent.
+Il se met à jour automatiquement quand des rôles, règles, bugs ou le code changent.
 
-Pour forcer : workflow manuel.
+Pour forcer une régénération : lance le workflow manuellement.
 """
+
 
 def main():
     if len(sys.argv) != 5:
@@ -113,9 +118,11 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
 
-    print(f"✅ Instruction générée : {char_count} chars | {len(get_agents_list().split('|'))} agents détectés")
+    print(f"✅ Instruction générée : {char_count} chars | {len(get_agents_list().split(' | '))} agents détectés")
     if char_count > 1500:
+        print("⚠️  Attention : l'instruction dépasse 1500 caractères !")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
