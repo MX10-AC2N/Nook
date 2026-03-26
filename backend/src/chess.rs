@@ -175,16 +175,20 @@ fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, St
     let from_alg = mv.from.to_algebraic();
     let to_alg   = mv.to.to_algebraic();
     let elapsed = start.elapsed();
-    // Délais minimum pour simuler un comportement humain
-    // Un humain prend au moins 1-2 secondes pour jouer même un coup évident
-    let min_delay = match difficulty {
-        Difficulty::Harmless => std::time::Duration::from_millis(800),
-        Difficulty::Easy     => std::time::Duration::from_millis(1500),
-        Difficulty::Medium   => std::time::Duration::from_millis(2500),
-        Difficulty::Hard     => std::time::Duration::from_millis(4000),
-        Difficulty::Expert   => std::time::Duration::from_millis(6000),
-        Difficulty::Godlike  => std::time::Duration::from_millis(8000),
+    // Délais minimum humains — simuler la réflexion d'un vrai joueur
+    // Ajouter un jitter aléatoire pour que ce ne soit pas métronomique
+    let base_ms: u64 = match difficulty {
+        Difficulty::Harmless => 1000,
+        Difficulty::Easy     => 2500,
+        Difficulty::Medium   => 4000,
+        Difficulty::Hard     => 6000,
+        Difficulty::Expert   => 9000,
+        Difficulty::Godlike  => 12000,
     };
+    // Jitter : ±30% de la valeur de base
+    let jitter = (base_ms as f64 * 0.3 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
+    let delay_ms = (base_ms as i64 + jitter).max(500) as u64;
+    let min_delay = std::time::Duration::from_millis(delay_ms);
     if elapsed < min_delay {
         std::thread::sleep(min_delay - elapsed);
     }
