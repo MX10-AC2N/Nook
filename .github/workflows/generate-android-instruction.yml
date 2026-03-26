@@ -1,16 +1,13 @@
 name: 📱 Générer l'instruction Android Claude.ai
 
-# Analyse complète du repo + .claude/ à chaque exécution
-# pour que l'instruction Android soit toujours parfaitement cohérente
-
 on:
   workflow_dispatch:
   push:
     branches: [main, develop]
     paths:
       - 'VERSION'
-      - '.claude/**'                  # tout le dossier .claude (roles, rules, BUGS, etc.)
-      - 'README.md'                   # description projet
+      - '.claude/**'
+      - 'README.md'
       - '.claude/tools/scripts/generate-android-instruction.py'
 
 permissions:
@@ -22,29 +19,29 @@ concurrency:
 
 jobs:
   generate:
-    name: 📱 Générer ANDROID-INSTRUCTION.md (analyse complète repo)
+    name: 📱 Générer ANDROID-INSTRUCTION.md (analyse complète)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # ── 1. Extraire infos de base ───────────────────────────────
+      # ── 1. Extraire infos projet (version corrigée + robuste) ─────
       - name: 📋 Extraire infos projet
         id: info
         run: |
-          VERSION=$(cat VERSION | tr -d '[:space:]')
+          VERSION=$(cat VERSION 2>/dev/null | tr -d '[:space:]' || echo "unknown")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           ACTIVE_BUGS=$(grep -c "^### Bug #" .claude/BUGS.md 2>/dev/null || echo 0)
           echo "active_bugs=$ACTIVE_BUGS" >> $GITHUB_OUTPUT
 
-          SESSION=$(grep "Session courante" .claude/CLAUDE.md 2>/dev/null \
-                    | grep -oE "\*\*[0-9]+\*\*" | tail -1 | tr -d '*' || echo 0)
+          # Extraction ultra-robuste de la session (évite le bug set -e)
+          SESSION=$(grep -oP 'Session courante\s*:\s*\*\*(\d+)\*\*' .claude/CLAUDE.md 2>/dev/null | head -1 | grep -oP '\d+' || echo 0)
           echo "session=$SESSION" >> $GITHUB_OUTPUT
 
           echo "date=$(date -u +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
-      # ── 2. Générer l'instruction (analyse complète du repo) ─────
+      # ── 2. Générer l'instruction (avec critical-pitfalls.md) ─────
       - name: 🔍 Analyser repo + Générer instruction Android
         run: |
           python3 .claude/tools/scripts/generate-android-instruction.py \
@@ -53,7 +50,7 @@ jobs:
             "${{ steps.info.outputs.date }}" \
             "${{ steps.info.outputs.active_bugs }}"
 
-      # ── 3. Commit uniquement si changement ───────────────────────
+      # ── 3. Commit si changement ───────────────────────────────────
       - name: 📤 Commit ANDROID-INSTRUCTION.md
         run: |
           git config user.name "github-actions[bot]"
@@ -65,14 +62,14 @@ jobs:
           else
             git commit -m "docs(android): mise à jour instruction personnalisée v${{ steps.info.outputs.version }} [skip ci]"
             git push
-            echo "✅ ANDROID-INSTRUCTION.md mis à jour (repo analysé)"
+            echo "✅ ANDROID-INSTRUCTION.md mis à jour"
           fi
 
-      # ── 4. Résumé enrichi ───────────────────────────────────────
+      # ── 4. Résumé ────────────────────────────────────────────────
       - name: 📊 Résumé
         run: |
           CHAR_COUNT=$(grep -oP '\d+(?=\s+/\s+1500)' .claude/ANDROID-INSTRUCTION.md | head -1 || echo 0)
-          echo "## 📱 Instruction Android générée (analyse complète repo)" >> $GITHUB_STEP_SUMMARY
+          echo "## 📱 Instruction Android générée" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Métrique                  | Valeur                          |" >> $GITHUB_STEP_SUMMARY
           echo "|---------------------------|---------------------------------|" >> $GITHUB_STEP_SUMMARY
