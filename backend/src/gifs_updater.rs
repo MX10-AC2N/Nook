@@ -15,7 +15,7 @@ use tokio::time::{sleep, Duration};
 
 /// 12 thèmes les plus populaires sur Giphy avec leur libellé affiché
 const THEMES: &[(&str, &str, &str)] = &[
-    ("reactions",    "Réactions",      "thumbs up reaction"),
+    ("reactions",    "💥 Réactions",      "thumbs up reaction"),
     ("lol",          "😂 Humour",       "laughing funny"),
     ("love",         "❤️ Amour",        "love heart"),
     ("celebration",  "🎉 Fête",         "celebration party"),
@@ -57,7 +57,7 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
     {
         Some(k) => k,
         None => {
-            tracing::debug!("GIPHY_API_KEY absent — mise à jour GIFs ignorée");
+            tracing::info!("GIPHY_API_KEY absent — mise à jour GIFs ignorée (configurez GIPHY_API_KEY dans .env)");
             return Ok(());
         }
     };
