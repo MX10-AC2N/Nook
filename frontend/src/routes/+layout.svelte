@@ -68,6 +68,18 @@
     }
   });
 
+  // ─── Hauteur header dynamique (CSS var --header-h) ──────────────────────
+  // Permet aux pages full-height (chat) de calculer leur hauteur exactement
+  let headerEl = $state<HTMLElement | undefined>(undefined);
+  $effect(() => {
+    if (!headerEl) return;
+    const ro = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--header-h', headerEl!.offsetHeight + 'px');
+    });
+    ro.observe(headerEl);
+    return () => ro.disconnect();
+  });
+
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
   // Appelé immédiatement dans onMount pour appliquer le thème AVANT tout rendu.
   // Sans ça, le thème ne s'applique qu'à settings/+page.svelte et disparaît
@@ -173,7 +185,7 @@
     </div>
   {/if}
 
-  <header class="app-header">
+  <header class="app-header" bind:this={headerEl}>
     <button onclick={toggleMenu} class="menu-toggle" aria-label="Ouvrir le menu de navigation">
       ☰
     </button>
@@ -248,17 +260,14 @@
 {/if}
 
 <style>
+  :global(:root) {
+    --header-h: 60px; /* défaut, écrasé dynamiquement par ResizeObserver */
+  }
   :global(body) {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary, #f5f7fa);
-    height: 100%;
-  }
-  /* Le wrapper Svelte doit occuper toute la hauteur en flex column */
-  :global(#svelte) {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
+    min-height: 100vh;
   }
 
   .loading-screen {
@@ -324,7 +333,7 @@
     display: flex; align-items: center; gap: 0.75rem;
     padding: 1rem 1.5rem; background: var(--bg-secondary, white);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-bottom: 1px solid var(--border, #e2e8f0);
-    flex-shrink: 0; z-index: 100;
+    position: sticky; top: 0; z-index: 100;
   }
 
   .menu-toggle, .logout-btn {
@@ -390,7 +399,7 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-      .app-main { flex: 1; overflow: auto; padding: 0; max-width: 100%; margin: 0; background: var(--bg-primary, #f5f7fa); }
+        .app-main { padding: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
@@ -403,7 +412,7 @@
   @media (max-width: 640px) {
     .app-header { padding: 0.85rem 1rem; }
     .app-header h1 { font-size: 1.1rem; }
-    /* app-main padding géré par chaque page */
+    .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
   }
