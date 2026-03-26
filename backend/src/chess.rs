@@ -34,6 +34,7 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use rand::Rng;
 use uuid::Uuid;
 
 // ════════════════════════════════════════════════════════════════
