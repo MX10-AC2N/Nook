@@ -9,7 +9,7 @@
 #   NOOK_IMAGE=nook-ci:local docker compose up -d
 #   → la variable shell NOOK_IMAGE écrase ${NOOK_IMAGE} dans ce fichier,
 #     les autres variables viennent du .env committé dans le repo.
-#   Le CI n'utilise PAS le .env.homeserver (qui vit uniquement sur le Zimaboard).
+#   Le CI n'utilise PAS le .env.homeserver
 
 services:
   nook:
