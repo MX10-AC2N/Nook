@@ -1,3 +1,45 @@
+#!/usr/bin/env python3
+"""
+Génère l'instruction personnalisée Android Claude.ai
+→ Analyse complète du repo + .claude/roles/ à chaque exécution
+"""
+
+import sys
+import pathlib
+
+
+def get_agents_list() -> str:
+    """Liste dynamique des agents depuis .claude/roles/"""
+    roles_dir = pathlib.Path(".claude/roles")
+    if not roles_dir.exists():
+        return "Aucun agent détecté"
+
+    emoji_map = {
+        "rust-backend": "🦀", "svelte-frontend": "🎨", "ci-devops": "🚀",
+        "e2e-testing": "🧪", "security-crypto": "🔐", "chess-engine": "♟️",
+        "data-analytics": "📊", "architect": "📐", "delegate": "🤖",
+        "founder": "🏠", "reviewer": "🔎", "security-auditor": "🔐",
+        "ui-optimizer": "🎨",
+    }
+
+    agents = []
+    for md_file in sorted(roles_dir.glob("*.md")):
+        stem = md_file.stem.replace("-", " ").title()
+        emoji = emoji_map.get(md_file.stem, "📦")
+        agents.append(f"{emoji}{stem}")
+
+    return " | ".join(agents)
+
+
+def get_repo_stats() -> str:
+    """Statistiques live du codebase (analyse tout le repo)"""
+    root = pathlib.Path(".")
+    rust_count = len(list(root.rglob("*.rs")))
+    svelte_count = len(list(root.rglob("**/*.svelte")))
+    toml_count = len(list(root.rglob("Cargo.toml"))) + len(list(root.rglob("*.toml")))
+    return f"({rust_count} fichiers Rust | {svelte_count} composants Svelte | {toml_count} fichiers TOML)"
+
+
 def generate_instruction(version: str, session: str, date: str, active_bugs: str) -> tuple[str, int]:
     """Version OPTIMISÉE et MAXIMALE de l'instruction Android"""
     agents_str = get_agents_list()
@@ -43,3 +85,32 @@ Style de réponse attendu :
 - Propose toujours la solution la plus simple ET la plus maintenable"""
 
     return instruction, len(instruction)
+
+def main():
+    if len(sys.argv) != 5:
+        print(f"Usage: {sys.argv[0]} <version> <session> <date> <active_bugs>", file=sys.stderr)
+        sys.exit(1)
+
+    version = sys.argv[1]
+    session = sys.argv[2]
+    date = sys.argv[3]
+    active_bugs = sys.argv[4]
+
+    instruction, char_count = generate_instruction(version, session, date, active_bugs)
+
+    markdown_content = generate_markdown(
+        instruction, char_count, date, version, session, active_bugs
+    )
+
+    output_path = ".claude/ANDROID-INSTRUCTION.md"
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+
+    print(f"✅ Instruction générée : {char_count} chars | {len(get_agents_list().split(' | '))} agents détectés")
+    if char_count > 1500:
+        print("⚠️  Attention : l'instruction dépasse 1500 caractères !")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
