@@ -365,6 +365,38 @@
       </div>
     {/if}
 
+  <!-- ══ MODAL RÉSULTAT FIN DE PARTIE ══ -->
+  {#if showResult && chessStore.currentGame?.status === 'finished'}
+    {@const g = chessStore.currentGame}
+    {@const isWinner = g?.winner_id === authStore.user?.id}
+    {@const isDraw   = !g?.winner_id}
+    <div class="modal-backdrop" role="dialog" aria-modal="true">
+      <div class="modal-result">
+        <div class="result-icon">
+          {#if isDraw}🤝{:else if isWinner}🏆{:else}👑{/if}
+        </div>
+        <h2 class="result-title">
+          {#if isDraw}Match nul !{:else if isWinner}Victoire !{:else}Défaite{/if}
+        </h2>
+        <p class="result-sub">
+          {#if isDraw}Égalité parfaite
+          {:else if isWinner}Bien joué !
+          {:else if chessStore.isVsAI}L'IA ({g?.ai_difficulty}) a gagné
+          {:else}Votre adversaire a gagné
+          {/if}
+        </p>
+        <p class="result-moves">{g?.move_history?.length ?? 0} coups joués</p>
+        <div class="result-actions">
+          <a href="/chess" class="result-btn result-btn-primary">Nouvelle partie</a>
+          <button class="result-btn result-btn-secondary"
+            onclick={() => { showResult = false; resultDismissed = true; }}>
+            Voir le plateau
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   {/if}
 </div>
 
@@ -638,4 +670,29 @@
       border-radius: .4rem; text-decoration: none; font-size: .78rem; font-weight: 600; flex-shrink: 0;
     }
   }
+  /* ── Modal résultat fin de partie ── */
+  .modal-result {
+    background: #fff; border-radius: 1.25rem; padding: 2rem 1.75rem;
+    text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    min-width: 280px; max-width: 340px;
+    animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn {
+    from { transform: scale(.7); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+  }
+  .result-icon  { font-size: 3.5rem; line-height: 1; margin-bottom: .5rem; }
+  .result-title { font-size: 1.6rem; font-weight: 800; margin: 0 0 .4rem; color: #1e293b; }
+  .result-sub   { font-size: .95rem; color: #64748b; margin: 0 0 .35rem; }
+  .result-moves { font-size: .82rem; color: #94a3b8; margin: 0 0 1.25rem; }
+  .result-actions { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap; }
+  .result-btn {
+    padding: .65rem 1.25rem; border-radius: .6rem; font-weight: 700;
+    font-size: .9rem; cursor: pointer; text-decoration: none; border: none; transition: all .15s;
+  }
+  .result-btn-primary  { background: #2d5a27; color: #fff; }
+  .result-btn-primary:hover  { background: #3d7a37; }
+  .result-btn-secondary { background: #f1f5f9; color: #475569; }
+  .result-btn-secondary:hover { background: #e2e8f0; }
+
 </style>
