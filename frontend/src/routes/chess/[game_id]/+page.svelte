@@ -11,7 +11,6 @@
     PIECE_NAMES,
     statusLabel,
   } from '$lib/chessStore.svelte.ts';
-  import { onMount as _onMount } from 'svelte';
 
   const gameId = $derived($page.params.game_id);
 
@@ -36,7 +35,8 @@
   }
 
   // La case du roi est en échec si engine.status contient "check" ou "checkmate"
-  const kingInCheckSquare = $derived((): string | null => {
+  // CORRECTION: $derived prend une expression, pas une fonction
+  const kingInCheckSquare = $derived(() => {
     const engine = chessStore.currentGame?.engine;
     if (!engine) return null;
     const st = engine.status ?? '';
@@ -60,7 +60,7 @@
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
-    if (kingInCheckSquare() === alg) cls += ' cell-check';
+    if (kingInCheckSquare === alg) cls += ' cell-check';
     return cls;
   }
 
@@ -68,6 +68,9 @@
   const PROMO_LABELS: Record<string, string> = { q: '♛ Dame', r: '♜ Tour', b: '♝ Fou', n: '♞ Cavalier' };
 
   let showResign = $state(false);
+  // CORRECTION: Variables manquantes ajoutées
+  let showResult = $state(false);
+  let resultDismissed = $state(false);
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
@@ -76,6 +79,7 @@
   onDestroy(() => chessStore.disconnectWebSocket());
 
   // Guard : ne pas dériver si currentGame est null
+  // CORRECTION: Utiliser $derived correctement
   const mySlot = $derived(() => {
     const g = chessStore.currentGame;
     if (!g) return null;
@@ -366,7 +370,8 @@
     {/if}
 
   <!-- ══ MODAL RÉSULTAT FIN DE PARTIE ══ -->
-  {#if showResult && chessStore.currentGame?.status === 'finished'}
+  <!-- CORRECTION: Vérifier showResult et status 'finished' ensemble -->
+  {#if showResult && (chessStore.currentGame?.status ?? '') === 'finished'}
     {@const g = chessStore.currentGame}
     {@const isWinner = g?.winner_id === authStore.user?.id}
     {@const isDraw   = !g?.winner_id}
