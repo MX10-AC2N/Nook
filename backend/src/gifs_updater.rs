@@ -34,6 +34,9 @@ const GIPHY_BASE:      &str  = "https://api.giphy.com/v1/gifs/search";
 const INTERVAL_SECS:   u64   = 7 * 24 * 3600; // 7 jours
 const STARTUP_DELAY:   u64   = 30;             // attendre 30s après boot
 
+/// Rate limiting: 100 requêtes par heure = 1 requête toutes les 36 secondes
+const RATE_LIMIT_INTERVAL_MS: u64 = 36_000;
+
 /// Lance la tâche de mise à jour en arrière-plan.
 /// Appelée une fois depuis main.rs au démarrage.
 pub fn start(gifs_dir: String) {
@@ -66,10 +69,15 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
         .await
         .map_err(|e| format!("Impossible de créer {gifs_dir}: {e}"))?;
 
+    let gifs_path = Path::new(gifs_dir);
+
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|e| e.to_string())?;
+
+    // Intervalle de rate limiting: 100 req/heure = 36s entre chaque requête
+    let rate_limit_interval = Duration::from_millis(RATE_LIMIT_INTERVAL_MS);
 
     tracing::info!(gifs_dir = %gifs_dir, "🎬 Mise à jour GIFs — début");
 
@@ -99,6 +107,7 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
         };
 
         let data: Value = resp.json().await.unwrap_or(serde_json::json!({}));
+
         let gifs = match data["data"].as_array() {
             Some(a) => a.clone(),
             None    => continue,
@@ -122,8 +131,10 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
                 continue;
             }
 
-            let filename = format!("{}-{}-{}.gif", cat_key, i, &gif_id[..8.min(gif_id.len())]);
-            let dest     = Path::new(gifs_dir).join(&filename);
+            // Nom de fichier fixe : {cat_key}-{i}.gif
+            // L'ancien fichier est automatiquement écrasé par le nouveau
+            let filename = format!("{}-{}.gif", cat_key, i);
+            let dest     = gifs_path.join(&filename);
 
             match client.get(gif_url).send().await {
                 Ok(r) if r.status().is_success() => {
@@ -134,7 +145,7 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
                                 continue;
                             }
                             let size_kb = bytes.len() / 1024;
-                            tracing::debug!(file = %filename, size_kb = %size_kb, "GIF téléchargé");
+                            tracing::debug!(file = %filename, size_kb = %size_kb, "GIF téléchargé/écrasé");
                             ok += 1;
 
                             index_entries.push(serde_json::json!({
@@ -151,10 +162,11 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
                 }
                 _ => tracing::warn!(file = %filename, "Téléchargement GIF échoué"),
             }
-
-            // Petite pause pour rester dans les limites de taux Giphy
-            sleep(Duration::from_millis(100)).await;
         }
+
+        // Rate limiting: attendre avant la prochaine requête API
+        tracing::debug!(theme = %cat_key, "Attente rate limit: {}s", rate_limit_interval.as_secs());
+        sleep(rate_limit_interval).await;
     }
 
     // Générer index.json
@@ -166,7 +178,7 @@ async fn update_gifs(gifs_dir: &str) -> Result<(), String> {
         "gifs":       index_entries,
     });
 
-    let index_path = Path::new(gifs_dir).join("index.json");
+    let index_path = gifs_path.join("index.json");
     fs::write(&index_path, serde_json::to_string_pretty(&index).unwrap_or_default())
         .await
         .map_err(|e| format!("Écriture index.json: {e}"))?;
