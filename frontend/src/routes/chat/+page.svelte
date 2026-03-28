@@ -183,14 +183,6 @@
   // tous les emojis disponibles (picker étendu)
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
 
-  /** Détecte si un message est un unique emoji (affichage agrandi) */
-  function isSingleEmoji(content: string): boolean {
-    const trimmed = content.trim();
-    // Regex couvrant les emojis Unicode : sequences ZWJ, variation selectors, regional indicators…
-    const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-    return emojiRegex.test(trimmed) && trimmed.length <= 8;
-  }
-
   async function toggleReaction(msgId: string, emoji: string) {
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
@@ -1176,6 +1168,7 @@
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
     background: var(--bg-primary, #fff);
+    overflow: hidden; /* empêche les images/GIFs de pousser input-area hors écran */
   }
   .chat-header {
     padding: .75rem 1rem;
@@ -1221,7 +1214,8 @@
 
   /* ─── Messages ─── */
   .messages-container {
-    flex: 1; overflow-y: auto;
+    flex: 1; min-height: 0; /* min-height: 0 OBLIGATOIRE en flexbox colonne pour éviter débordement */
+    overflow-y: auto;
     padding: 1rem;
     display: flex; flex-direction: column; gap: .5rem;
   }
