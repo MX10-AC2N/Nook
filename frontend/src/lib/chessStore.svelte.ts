@@ -131,8 +131,11 @@ export function statusLabel(status: string): string {
     stalemate:             '🤝 Pat',
     draw:                  '🤝 Nulle',
     insufficient_material: '🤝 Matériel insuffisant',
-    repetition:            '🤝 Répétition',
+    // Alias renvoyés par GameStatus::as_str() du moteur Rust
+    repetition:            '🤝 Répétition × 3',
+    threefold_repetition:  '🤝 Répétition × 3',
     fifty_moves:           '🤝 Règle des 50 coups',
+    fifty_move_rule:       '🤝 Règle des 50 coups',
   };
   return labels[status] ?? status;
 }
@@ -204,9 +207,16 @@ class ChessStore {
 
   isVsAI = $derived(!!this.currentGame?.ai_difficulty); // true seulement si chaîne non vide
 
+  // Statuts terminaux : DB ("finished") + moteur Rust (checkmate, stalemate, draw, fifty_move_rule…)
+  private static readonly OVER_STATUSES = new Set([
+    'finished', 'checkmate', 'stalemate', 'draw',
+    'insufficient_material', 'repetition', 'threefold_repetition',
+    'fifty_moves', 'fifty_move_rule',
+  ]);
+
   isGameOver = $derived(
     this.currentGame !== null &&
-    !['waiting', 'playing'].includes(this.currentGame.status)
+    ChessStore.OVER_STATUSES.has(this.currentGame.status)
   );
 
   // Plateau courant sous forme de tableau 8×8 (ou tableau vide)
@@ -522,15 +532,27 @@ class ChessStore {
   // ── Abandon ───────────────────────────────────────────────────
   async resign(): Promise<void> {
     if (!this.currentGame) return;
+    const gameId = this.currentGame.id;
     try {
-      const res = await fetch(`/api/chess/${this.currentGame.id}/resign`, {
+      const res = await fetch(`/api/chess/${gameId}/resign`, {
         method: 'POST', credentials: 'include',
       });
       const data = await res.json();
-      if (data.success && data.game) this.currentGame = data.game;
-      else await this.refreshGame(this.currentGame.id);
+      if (data.success) {
+        // Le backend retourne { success, status, winner_id } — pas de data.game
+        // On met à jour currentGame directement pour éviter un fetch supplémentaire
+        this.currentGame = {
+          ...this.currentGame!,
+          status: data.status ?? 'finished',
+          winner_id: data.winner_id ?? null,
+        };
+        this.stopTimer();
+      } else {
+        await this.refreshGame(gameId);
+      }
     } catch (e: any) {
       this.error = e?.message ?? 'Erreur abandon';
+      await this.refreshGame(gameId);
     }
   }
 
