@@ -98,6 +98,7 @@ store.prop = newValue;  // ✅
 | R_HOVER_REACTION | 41 | Picker réaction disparaît avant clic souris | `onmouseleave` → 400ms délai avant `hoveredMsgId = null` |
 | R_B1 | 26 | `state_invalid_export` conversationStore | Déjà corrigé (objet $state encapsulé) |
 | R_B3 | 26 | `connectionError.set()` cassé | Déjà corrigé : `setConnectionError()` |
+| R_ISEMOJI | 41 | `isSingleEmoji()` appelée dans le template chat mais jamais déclarée → ReferenceError → aucun message affiché | Fonction ajoutée dans +page.svelte |
 
 ---
 
