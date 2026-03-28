@@ -34,16 +34,19 @@
     return null;
   }
 
-  // La case du roi est en échec si engine.status contient "check" ou "checkmate"
-  // CORRECTION: $derived prend une expression, pas une fonction
-  const kingInCheckSquare = $derived(() => {
-    const engine = chessStore.currentGame?.engine;
-    if (!engine) return null;
-    const st = engine.status ?? '';
-    if (!st.includes('check') && st !== 'checkmate') return null;
-    const side = engine.side_to_move;
-    return findKingSquare(side === 'white' ? 'w' : 'b');
-  });
+  // ── Case du roi en échec/mat (surbrillance rouge) ─────────────
+  // SVELTE 5 : $derived(expr) évalue l'expression immédiatement et réactivement.
+  // $derived(() => x) = la FONCTION comme valeur, pas x !
+  // Correction : IIFE pour les blocs multi-lignes.
+  const kingInCheckSquare = $derived(
+    (() => {
+      const engine = chessStore.currentGame?.engine;
+      if (!engine) return null as string | null;
+      const st = engine.status ?? '';
+      if (!st.includes('check') && st !== 'checkmate') return null as string | null;
+      return findKingSquare(engine.side_to_move === 'white' ? 'w' : 'b');
+    })()
+  );
 
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
@@ -78,15 +81,32 @@
   });
   onDestroy(() => chessStore.disconnectWebSocket());
 
-  // Guard : ne pas dériver si currentGame est null
-  // CORRECTION: Utiliser $derived correctement
-  const mySlot = $derived(() => {
-    const g = chessStore.currentGame;
-    if (!g) return null;
-    const uid = authStore.user?.id;
-    if (g.player1_id === uid) return 1;
-    if (g.player2_id === uid) return 2;
-    return null;
+  // BUG-CHESS-3 FIX : mySlot — même bug $derived(() => {...}) que kingInCheckSquare
+  // $derived(() => x) = la fonction comme valeur. Correction : IIFE.
+  const mySlot = $derived(
+    (() => {
+      const g   = chessStore.currentGame;
+      const uid = authStore.user?.id;
+      if (!g || !uid) return null as number | null;
+      if (g.player1_id === uid) return 1 as number | null;
+      if (g.player2_id === uid) return 2 as number | null;
+      return null as number | null;
+    })()
+  );
+
+  // BUG-CHESS-1 FIX : showResult jamais déclenché.
+  // $effect détecte la transition vers un statut terminal et ouvre le modal résultat.
+  $effect(() => {
+    const status = chessStore.currentGame?.status;
+    const OVER = new Set([
+      'finished', 'checkmate', 'stalemate', 'draw',
+      'insufficient_material', 'repetition', 'threefold_repetition',
+      'fifty_moves', 'fifty_move_rule',
+    ]);
+    if (status && OVER.has(status) && !resultDismissed) {
+      // Petit délai pour laisser le plateau se mettre à jour avant le modal
+      setTimeout(() => { showResult = true; }, 400);
+    }
   });
 
   const flipped  = $derived(chessStore.myColor() === 'black');
@@ -370,22 +390,31 @@
     {/if}
 
   <!-- ══ MODAL RÉSULTAT FIN DE PARTIE ══ -->
-  <!-- CORRECTION: Vérifier showResult et status 'finished' ensemble -->
-  {#if showResult && (chessStore.currentGame?.status ?? '') === 'finished'}
+  <!-- BUG-CHESS-1 FIX : showResult déclenché par $effect ci-dessus dès que la partie se termine -->
+  <!-- BUG-CHESS-4+5 FIX : isDraw ne se base plus sur winner_id seul (serait null même pour checkmate IA) -->
+  {#if showResult && chessStore.isGameOver}
     {@const g = chessStore.currentGame}
-    {@const isWinner = g?.winner_id === authStore.user?.id}
-    {@const isDraw   = !g?.winner_id}
+    {@const st = g?.status ?? ''}
+    {@const DRAW_STATUSES = new Set(['stalemate','draw','insufficient_material','repetition','threefold_repetition','fifty_moves','fifty_move_rule'])}
+    {@const isDraw   = DRAW_STATUSES.has(st)}
+    {@const isWinner = !isDraw && g?.winner_id === authStore.user?.id}
+    {@const isAiWin  = !isDraw && !isWinner && chessStore.isVsAI && st === 'checkmate'}
     <div class="modal-backdrop" role="dialog" aria-modal="true">
       <div class="modal-result">
         <div class="result-icon">
-          {#if isDraw}🤝{:else if isWinner}🏆{:else}👑{/if}
+          {#if isDraw}🤝{:else if isWinner}🏆{:else if isAiWin}🤖{:else}😔{/if}
         </div>
         <h2 class="result-title">
-          {#if isDraw}Match nul !{:else if isWinner}Victoire !{:else}Défaite{/if}
+          {#if isDraw}Match nul !
+          {:else if isWinner}Victoire !
+          {:else if isAiWin}Défaite contre l'IA
+          {:else}Défaite
+          {/if}
         </h2>
         <p class="result-sub">
-          {#if isDraw}Égalité parfaite
-          {:else if isWinner}Bien joué !
+          {#if isDraw}{statusLabel(st)}
+          {:else if isWinner}Bien joué ! Échec et mat ♟
+          {:else if isAiWin}L'IA ({g?.ai_difficulty}) vous a battu
           {:else if chessStore.isVsAI}L'IA ({g?.ai_difficulty}) a gagné
           {:else}Votre adversaire a gagné
           {/if}
