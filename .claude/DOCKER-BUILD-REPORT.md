@@ -1,7 +1,7 @@
 # 🐳 Docker Build Report — Nook
 
 > Généré automatiquement par `Docker.yml`
-> **2026-03-28 08:08 UTC**
+> **2026-03-28 18:58 UTC**
 
 ---
 
@@ -12,10 +12,10 @@
 | **Push GHCR** | ✅ OK |
 | **Version** | `v0.4.0-beta.2` |
 | **Image** | `ghcr.io/MX10-AC2N/Nook` |
-| **Digest** | `sha256:a2d0f405557422fb9393b981b90e553aec2fd615032d743f4884dc0e4cdf52c9` |
+| **Digest** | `sha256:227c17126b4fc8fce85c68bf8149dc45b54c9eae33ba7923626b7f4c2bfa6944` |
 | **Branche** | `develop` |
-| **Commit** | [`62a0ed1`](https://github.com/MX10-AC2N/Nook/commit/62a0ed15837343784ac0f4d77f3630a713e6362a) |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23680987666) |
+| **Commit** | [`20c18da`](https://github.com/MX10-AC2N/Nook/commit/20c18da5b0a64f72d26fe2c6446751bf3bf6bf43) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23692087651) |
 
 ---
 
