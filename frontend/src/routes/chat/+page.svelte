@@ -183,6 +183,14 @@
   // tous les emojis disponibles (picker étendu)
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
 
+  /** Détecte si un message est un unique emoji (affichage agrandi) */
+  function isSingleEmoji(content: string): boolean {
+    const trimmed = content.trim();
+    // Regex couvrant les emojis Unicode : sequences ZWJ, variation selectors, regional indicators…
+    const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+    return emojiRegex.test(trimmed) && trimmed.length <= 8;
+  }
+
   async function toggleReaction(msgId: string, emoji: string) {
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
