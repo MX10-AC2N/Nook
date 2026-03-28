@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-03-28 07:24 UTC**
+> **2026-03-28 08:07 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | `develop` |
-| **Commit** | [`3f91a44`](https://github.com/MX10-AC2N/Nook/commit/3f91a4447039fc656df3a0571f2796c369e49805) |
+| **Commit** | [`134ac30`](https://github.com/MX10-AC2N/Nook/commit/134ac30e82e3475db223458537192e8b36e67853) |
 | **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23680243822) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23680972793) |
 
  ---
 
@@ -43,7 +43,7 @@ rendering chunks...
 vite v7.3.1 building client environment for production...
 ✓ 227 modules transformed.
 rendering chunks...
-✓ built in 4.88s
+✓ built in 5.25s
 vite v7.3.1 building client environment for production...
 ✓ 1 modules transformed.
 rendering chunks...
