@@ -6,6 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
+  import { cryptoStore } from '$lib/cryptoStore.svelte';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -179,7 +180,7 @@
   </div>
 
 {:else}
-  {#if cryptoError}
+  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
     </div>
