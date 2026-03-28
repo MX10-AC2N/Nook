@@ -222,14 +222,19 @@ pub async fn create_game(
 
     let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let (initial_fen, initial_history) = if is_ai && creator_color == "black" {
+        // L'IA joue le premier coup (elle est Blancs, le joueur est Noirs).
+        // OBLIGATOIRE : spawn_blocking — play_ai() est CPU-bound et bloquerait
+        // le thread Tokio sinon (cause du freeze frontend S42).
+        // Pas de délai d'affichage ici : on veut juste créer la partie rapidement.
         let game = Game::new();
         let difficulty = parse_difficulty(opponent);
-        match play_ai(game, difficulty) {
-            Ok((san, from_alg, to_alg, new_fen_init, _, _)) => (
+        let ai_result = tokio::task::spawn_blocking(move || play_ai(game, difficulty)).await;
+        match ai_result {
+            Ok(Ok((san, from_alg, to_alg, new_fen_init, _, _))) => (
                 new_fen_init,
                 json!([{"san": san, "from": from_alg, "to": to_alg, "by": "ai", "color": "white"}]).to_string(),
             ),
-            Err(_) => (starting_fen.to_string(), "[]".to_string()),
+            _ => (starting_fen.to_string(), "[]".to_string()),
         }
     } else {
         (starting_fen.to_string(), "[]".to_string())
@@ -780,16 +785,9 @@ pub async fn ai_move(
         Color::Black => "black",
     };
 
-    // Pour les nulles, winner_id reste None.
-    // Pour checkmate par l'IA : l'IA n'a pas d'id user → winner_id = None côté DB (Pattern R_RESIGN),
-    // mais on stocke "ai" dans un champ dédié pour que le frontend distingue victoire IA vs nulle.
-    // Les statuts viennent de GameStatus::as_str() : "fifty_move_rule", "threefold_repetition", "insufficient_material"
     let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
-        "checkmate" => (None, "finished"),  // IA gagne → pas de FK users, winner_id=None. Le frontend détecte via ai_difficulty.
-        "stalemate" | "draw"
-        | "insufficient_material"
-        | "fifty_move_rule"
-        | "threefold_repetition" => (None, "finished"),
+        "checkmate" => (None, "finished"),
+        "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
         _ => (None, "playing"),
     };
 
