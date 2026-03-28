@@ -780,9 +780,16 @@ pub async fn ai_move(
         Color::Black => "black",
     };
 
+    // Pour les nulles, winner_id reste None.
+    // Pour checkmate par l'IA : l'IA n'a pas d'id user → winner_id = None côté DB (Pattern R_RESIGN),
+    // mais on stocke "ai" dans un champ dédié pour que le frontend distingue victoire IA vs nulle.
+    // Les statuts viennent de GameStatus::as_str() : "fifty_move_rule", "threefold_repetition", "insufficient_material"
     let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
-        "checkmate" => (None, "finished"),
-        "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
+        "checkmate" => (None, "finished"),  // IA gagne → pas de FK users, winner_id=None. Le frontend détecte via ai_difficulty.
+        "stalemate" | "draw"
+        | "insufficient_material"
+        | "fifty_move_rule"
+        | "threefold_repetition" => (None, "finished"),
         _ => (None, "playing"),
     };
 
