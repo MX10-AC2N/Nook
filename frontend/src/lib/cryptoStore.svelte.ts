@@ -77,11 +77,6 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
 
     if (!kp) {
       // ── Premier setup E2EE pour cet utilisateur ──────────────────────────
-      // Aucune clé trouvée dans IndexedDB : génération initiale transparente.
-      // Cela couvre :
-      //   • Tout utilisateur approuvé se connectant pour la première fois
-      //   • L'administrateur initial (qui ne passe plus par join/+page.svelte)
-      //   • Un utilisateur dont les clés ont été effacées (clearStoredKeys)
       console.info('[cryptoStore] Aucune clé en IndexedDB → génération initiale E2EE');
 
       // 1. Générer la paire de clés Curve25519
@@ -90,34 +85,37 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       // 2. Chiffrer la clé privée avec le mot de passe (XSalsa20+Argon2)
       const encryptedPrivKey = await encryptPrivateKey(newKeyPair.privateKey, password);
 
-      // 3. Stocker dans IndexedDB (clé publique en clair, privée chiffrée)
+      // 3. Stocker dans IndexedDB — ne dépend pas de sodium, rapide
       await storeKeysInIndexedDB(userId, newKeyPair.publicKey, encryptedPrivKey);
 
-      // 4. Envoyer la clé publique au serveur (endpoint /api/e2ee/register-key)
-      //    → les autres membres peuvent maintenant chiffrer des messages pour nous
-      await registerPublicKeyOnServer(newKeyPair.publicKey);
+      // 4. Activer le store IMMÉDIATEMENT — les clés sont prêtes en mémoire
+      //    L'enregistrement serveur se fait en arrière-plan pour ne pas bloquer
+      //    si sodium n'est pas encore chargé (race condition DT-01 — 938kb WASM)
+      _keyPair           = newKeyPair;
+      cryptoStore.userId = userId;
+      cryptoStore.ready  = true;
 
-      kp = newKeyPair;
-      console.info('[cryptoStore] Clé E2EE générée, chiffrée, stockée et enregistrée ✓');
+      // Enregistrement serveur en arrière-plan (non bloquant)
+      registerPublicKeyOnServer(newKeyPair.publicKey)
+        .then(() => console.info('[cryptoStore] Clé publique enregistrée sur le serveur ✓'))
+        .catch((e) => console.warn('[cryptoStore] Enregistrement clé différé (sodium pas encore prêt) :', e?.message));
+
+      console.info('[cryptoStore] Clé E2EE générée et activée ✓ (enregistrement serveur en cours)');
+      return true;
     }
 
-    // kp est garanti non-null ici (chargé ou généré)
+    // kp est garanti non-null ici (chargé depuis IndexedDB)
     _keyPair           = kp;
     cryptoStore.userId = userId;
     cryptoStore.ready  = true;
     return true;
 
   } catch (e: any) {
-    // Causes possibles :
-    //   • Mot de passe incorrect → libsodium lève une exception au déchiffrement
-    //   • Échec réseau lors de registerPublicKeyOnServer
-    //   • IndexedDB inaccessible (mode privé sur certains navigateurs)
+    // Seules vraies erreurs : mot de passe incorrect ou IndexedDB inaccessible
     const msg = e?.message ?? String(e);
-    if (msg.includes('register') || msg.includes('HTTP')) {
-      cryptoStore.error = 'Erreur réseau lors de l\'enregistrement des clés. Réessayez.';
-    } else {
-      cryptoStore.error = 'Mot de passe incorrect ou clés corrompues.';
-    }
+    cryptoStore.error = msg.includes('IndexedDB') || msg.includes('storage')
+      ? 'Stockage local inaccessible (mode privé ?).'
+      : 'Clés inaccessibles — vérifiez votre mot de passe.';
     console.error('[cryptoStore] unlock:', e);
     return false;
   }
