@@ -61,7 +61,7 @@
         goto(authStore.isAdmin ? '/admin' : '/chat');
       }
     } else {
-      const publicPaths = ['/login', '/register', '/help', '/join'];
+      const publicPaths = ['/login', '/register', '/help', '/join', '/invite'];
       if (!publicPaths.some((p) => pathname.startsWith(p))) {
         goto('/login');
       }
