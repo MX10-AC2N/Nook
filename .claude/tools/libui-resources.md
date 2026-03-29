@@ -1,99 +1,69 @@
-# Svelte UI Libraries - Ressources & Knowledge Base
+# Svelte UI Libraries - Knowledge Base (Enterprise & General)
 
-**Source** : Article « 10 UI Libraries for Svelte to Try in 2024 » par Olga Tash  
-**URL** : https://dev.to/olga_tash/10-ui-libraries-for-svelte-to-try-in-2024-1692  
-**Date de mise à jour de l’article** : mars 2026 (titre mis à jour en « 2026 »)
+**Sources** :
+- Article dev.to : « 10 UI Libraries for Svelte to Try in 2024 » (Olga Tash)
+- Article Medium : « Best 10+ Svelte UI Components & Libraries for Building Enterprise Apps » (Olga Tashlikovich, juin 2025)
 
-### 1. Flowbite Svelte
-- **Site officiel** : [flowbite-svelte.com](https://flowbite-svelte.com/)
-- **GitHub** : [themesberg/flowbite-svelte](https://github.com/themesberg/flowbite-svelte) (2.7k ⭐)
-- **Description** : Bibliothèque UI open-source composée de composants Svelte natifs + Tailwind CSS. Plus de 63 composants UI et des centaines d’éléments interactifs basés sur Flowbite.
-- **Points forts** :
-  - Data table avec tri, filtrage et pagination
-  - Documentation très bien organisée (exemples + previews responsives)
-  - Support light/dark + RTL/LTR
-- **Usage recommandé** : Projets Tailwind qui veulent des composants prêts à l’emploi et élégants.
+**Objectif** : Base de connaissance pour projets Svelte / SvelteKit (général + enterprise-grade).
 
-### 2. Skeleton
-- **Site officiel** : [skeleton.dev](https://www.skeleton.dev/)
-- **GitHub** : [skeletonlabs/skeleton](https://github.com/skeletonlabs/skeleton) (5.9k ⭐)
-- **Description** : Système de design + bibliothèque de composants construite sur Tailwind CSS pour des interfaces scalables et cohérentes (Svelte + React).
-- **Points forts** :
-  - Thèmes, éléments stylés et composants pré-construits
-  - Intégrations avec Bits UI, Melt UI, Radix
-  - Construit sur Zag.js
-- **Usage recommandé** : Applications qui ont besoin d’un design system cohérent.
+## 1. Bibliothèques générales / UI classiques (dev.to + Medium)
 
-### 3. SVAR Svelte Core
-- **Site officiel** : [svar.dev/svelte/core](https://svar.dev/svelte/core/)
-- **GitHub** : [svar-widgets/core](https://github.com/svar-widgets/core) (247 ⭐)
-- **Description** : Sélection de contrôles de formulaires, popups, date pickers, menus, etc. pour créer des interfaces d’applications élégantes.
-- **Points forts** :
-  - Composants enterprise : data grid, Gantt chart, file manager
-  - Thèmes clair/sombre + personnalisation CSS pure (pas de Tailwind)
-- **Usage recommandé** : Applications enterprise-grade qui ne veulent pas dépendre de Tailwind.
+### Flowbite Svelte
+- Site : https://flowbite-svelte.com/
+- 60+ composants Tailwind natifs, dark mode, data table complet.
 
-### 4. Carbon Components Svelte
-- **Site officiel** : [svelte.carbondesignsystem.com](https://svelte.carbondesignsystem.com/)
-- **GitHub** : [carbon-design-system/carbon-components-svelte](https://github.com/carbon-design-system/carbon-components-svelte) (2.9k ⭐)
-- **Description** : Bibliothèque basée sur le Carbon Design System d’IBM.
-- **Points forts** : Très grand nombre de composants avec fonctionnalités avancées + style minimaliste (nuances de gris).
-- **Usage recommandé** : Applications professionnelles / business / enterprise.
+### Skeleton
+- Site : https://www.skeleton.dev/
+- Design system complet + Figma kit, support React & Svelte.
 
-### 5. Svelte UX
-- **Site officiel** : [svelte-ux.techniq.dev](https://svelte-ux.techniq.dev/)
-- **GitHub** : [techniq/svelte-ux](https://github.com/techniq/svelte-ux) (1.1k ⭐)
-- **Description** : Bibliothèque complète construite sur Tailwind CSS avec une personnalisation poussée (thèmes, variants, styling flexible).
-- **Points forts** : Intégration native avec LayerChart (visualisation de données).
-- **Usage recommandé** : Applications data-heavy qui veulent beaucoup de customisation + charts.
+### Bits UI
+- Site : https://bits-ui.com/
+- Primitives headless (basé sur Melt UI), Svelte 5, très accessible.
 
-### 6. Kampsy-ui
-- **GitHub** : [kampsy/ui](https://github.com/kampsy/ui) (260 ⭐)
-- **Description** : Plus de 30 composants UI Svelte interactifs intégrables avec Tailwind CSS. Inspiré du design system Geist de Vercel.
-- **Points forts** : Design moderne et cohérent.
-- **Usage recommandé** : Projets qui veulent un look “Vercel-like” sans trop d’efforts.
+### shadcn-svelte
+- Site : https://www.shadcn-svelte.com/
+- Port officiel de shadcn/ui, CLI, full control, Svelte 5 + Tailwind v4 + LayerChart intégré.
 
-### 7. Melt UI
-- **Site officiel** : [melt-ui.com](https://melt-ui.com/)
-- **GitHub** : [melt-ui/melt-ui](https://github.com/melt-ui/melt-ui) (2.9k ⭐)
-- **Description** : Bibliothèque **headless** la plus puissante et complète pour Svelte (composants accessibles et hautement personnalisables).
-- **Points forts** :
-  - Builders de composants très flexibles
-  - Contrôle total du styling (CSS, Tailwind, CSS-in-JS…)
-  - Documentation excellente avec démos
-- **Usage recommandé** : Tout projet qui veut un maximum de contrôle et d’accessibilité.
+### SVAR Svelte UI Components
+- Site : https://svar.dev/svelte/
+- Très orienté enterprise : DataGrid avec virtual scrolling, Gantt, Filter Builder.
 
-### 8. Bits UI
-- **Site officiel** : [bits-ui.com](https://www.bits-ui.com/docs/introduction)
-- **GitHub** : [huntabyte/bits-ui](https://github.com/huntabyte/bits-ui) (3.1k ⭐)
-- **Description** : Primitives de composants headless construites sur Melt UI.
-- **Points forts** : Complètement unstyled, accessibles, styling flexible (Tailwind, UnoCSS, etc.).
-- **Usage recommandé** : Construction de design systems sur des bases solides.
+## 2. Bibliothèques Enterprise / Data-heavy (nouveautés Medium 2025)
 
-### 9. shadcn-svelte
-- **Site officiel** : [shadcn-svelte.com](https://www.shadcn-svelte.com/)
-- **GitHub** : [huntabyte/shadcn-svelte](https://github.com/huntabyte/shadcn-svelte) (8.4k ⭐)
-- **Description** : Port Svelte officiel de shadcn/ui (React). Composants réutilisables à copier-coller ou via CLI (aucune dépendance lourde).
-- **Points forts** :
-  - Basé sur Bits UI + styles Tailwind par défaut
-  - Theme builder + kit Figma
-  - Tu possèdes entièrement le code
-- **Usage recommandé** : Projets qui veulent des composants de qualité tout en gardant un contrôle total.
+### Tzezar Svelte DataGrid
+- Site : https://datagrid.tzezar.pl/
+- Tableau headless ultra-performant (virtualisation avec svelte-virtuallists), tri, filtre, grouping, TypeScript first.
 
-### 10. DaisyUI
-- **Site officiel** : [daisyui.com](https://daisyui.com/)
-- **GitHub** : [saadeghi/daisyui](https://github.com/saadeghi/daisyui) (40k ⭐)
-- **Description** : Plugin Tailwind CSS qui fournit 65+ composants UI sous forme de classes CSS de haut niveau.
-- **Points forts** : Intégration parfaite avec SvelteKit et tout projet Tailwind.
-- **Usage recommandé** : Styling ultra-rapide avec très peu de CSS personnalisé.
+### vkurko/calendar (EventCalendar)
+- GitHub : https://github.com/vkurko/calendar
+- Calendrier complet multi-vues (day/week/month/resource/timeline), léger, thèmes clair/sombre.
 
-## Recommandations rapides (pour Claude)
+### svelte-gantt
+- Demo : https://anovokmet.github.io/svelte-gantt/
+- Gantt chart haute performance, drag & drop, zoom, dépendances, tree view.
 
-- **Tu veux du style prêt à l’emploi + Tailwind** → Flowbite Svelte, Skeleton, DaisyUI, Kampsy-ui, Svelte UX
-- **Tu veux du headless / contrôle total** → Melt UI → Bits UI → shadcn-svelte
-- **Tu fais une app enterprise / business** → SVAR Svelte Core ou Carbon Components
-- **Tu veux un design system cohérent** → Skeleton ou shadcn-svelte
+### LayerChart
+- Site : https://www.layerchart.com/
+- Suite de composants de visualisation (Bar, Area, Scatter, Pie, Treemap, etc.) construits sur Layer Cake.
 
-**Note** : La majorité des bibliothèques s’intègrent très bien avec Tailwind CSS (sauf SVAR et Carbon qui ont leur propre styling).
+### Svelte Flow
+- Site : https://svelteflow.dev/
+- Bibliothèque pour créer des éditeurs de nœuds / diagrammes interactifs (MiniMap, controls, nodes = composants Svelte).
 
----
+### Superforms + Felte
+- Superforms : https://superforms.rocks/ → formulaires SvelteKit avec validation serveur/client (Zod, etc.)
+- Felte : https://felte.dev/ → librairie légère de gestion de formulaires + validation.
+
+## Recommandations rapides (Enterprise)
+
+**Pour un projet enterprise complet** :
+- UI de base → **shadcn-svelte** ou **Skeleton**
+- Tableaux / Data → **SVAR DataGrid** ou **Tzezar DataGrid**
+- Planification / Scheduling → **svelte-gantt** + **EventCalendar**
+- Dashboards / Visualisation → **LayerChart**
+- Diagrammes / Workflow → **Svelte Flow**
+- Formulaires complexes → **Superforms**
+
+**Stack recommandé 2025-2026** :  
+Svelte 5 + Tailwind v4 + shadcn-svelte + Bits UI + SVAR/Tzezar (data) + LayerChart + Superforms.
+
