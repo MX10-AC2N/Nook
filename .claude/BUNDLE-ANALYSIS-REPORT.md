@@ -1,6 +1,6 @@
 # 📦 Bundle Analysis — Nook Frontend
 
-> Généré le : **2026-03-29 05:43 UTC** | Commit : `b0dc790`
+> Généré le : **2026-03-29 05:44 UTC** | Commit : `98ed8b1`
 
 ## Résumé
 
@@ -15,14 +15,14 @@
 ```
 917 kB  frontend/build/_app/immutable/chunks/HEavZsIZ.js
 225 kB  frontend/build/_app/immutable/chunks/D5ra78x3.js
-71 kB  frontend/build/_app/immutable/chunks/qbZJw2N0.js
-60 kB  frontend/build/_app/immutable/nodes/8.DfiCZuAT.js
-17 kB  frontend/build/_app/immutable/nodes/6.CYISQYW2.js
-14 kB  frontend/build/_app/immutable/nodes/10.BVha2fMa.js
-14 kB  frontend/build/_app/immutable/nodes/18.DkkpO5Ac.js
-10 kB  frontend/build/_app/immutable/chunks/DQAK23eA.js
-10 kB  frontend/build/_app/immutable/nodes/16.2Q0r_As5.js
-8 kB  frontend/build/_app/immutable/nodes/12.FoqLUCFv.js
+71 kB  frontend/build/_app/immutable/chunks/DGYtKmzH.js
+60 kB  frontend/build/_app/immutable/nodes/8.CParL4tD.js
+17 kB  frontend/build/_app/immutable/nodes/6.CZOsaphh.js
+14 kB  frontend/build/_app/immutable/nodes/10.CSUVtrLm.js
+14 kB  frontend/build/_app/immutable/nodes/18.CiImIhLG.js
+10 kB  frontend/build/_app/immutable/chunks/C069ctwH.js
+10 kB  frontend/build/_app/immutable/nodes/16.CcBjJFyY.js
+8 kB  frontend/build/_app/immutable/nodes/12.DyaGidZ2.js
 ```
 
 ## DT-01 — Suivi libsodium
