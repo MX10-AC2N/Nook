@@ -26,8 +26,10 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
   let showIncomingCallModal = $state(false);
-  let incomingCallFrom = $state('');
-  let incomingCallConvId = $state('');
+  let incomingCallFrom     = $state('');     // user_id de l'appelant
+  let incomingCallFromName = $state('');     // nom affiché dans la sonnerie
+  let incomingCallConvId   = $state('');
+  let incomingCallType     = $state<'audio'|'video'>('audio');
 
   // Ajout pour l'accessibilité : référence au contenu du modal
   let modalOverlay = $state<HTMLElement | undefined>(undefined);
@@ -35,49 +37,45 @@
   // Focus automatique sur le bouton Accepter quand le modal s'ouvre
   $effect(() => {
     if (showIncomingCallModal && modalOverlay) {
-      // Focus sur le bouton Accepter (premier interactif)
       const acceptBtn = modalOverlay.querySelector('.accept-btn') as HTMLButtonElement | null;
-      if (acceptBtn) {
-        acceptBtn.focus();
-      }
+      if (acceptBtn) acceptBtn.focus();
     }
   });
 
   // -----------------------------------------------------------------
   // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
   // -----------------------------------------------------------------
-  /** Id de la conversation (ex. /call/[id]) */
   const conversationId = $derived($page.params?.id ?? '');
+  const callType       = $derived(($page.url?.searchParams?.get('type') ?? 'audio') as 'audio'|'video');
 
-  /** Type d'appel demandé dans l'URL (`?type=audio|video`) - défaut video */
-  const callType = $derived($page.url?.searchParams?.get('type') ?? 'video');
+  // BUG-CALL-6 FIX : nom de la conversation (pas l'UUID brut)
+  // participants.value est le tableau des Participant[], chargé par loadParticipants()
+  const convTitle = $derived(
+    (() => {
+      const parts = participants.value.filter((p) => p.id !== authStore.user?.id);
+      if (parts.length === 0) return 'Appel';
+      if (parts.length === 1) return parts[0].name ?? parts[0].username ?? 'Appel';
+      return parts.map(p => p.name ?? p.username).join(', ');
+    })()
+  );
 
   // -----------------------------------------------------------------
-  // 3️⃣ Cycle de vie - chargement et écouteurs
+  // 3️⃣ Cycle de vie
   // -----------------------------------------------------------------
   onMount(async () => {
-    // Rediriger si l'utilisateur n'est pas authentifié
-    if (!authStore.isAuthenticated) {
-      goto('/login');
-      return;
-    }
-
+    if (!authStore.isAuthenticated) { goto('/login'); return; }
     try {
       loading = true;
       error = null;
-
-      // Charger les participants de la conversation
       await loadParticipants(conversationId);
 
-      // Si l'URL contient `?call` → démarrer immédiatement l'appel
+      // BUG-CALL-2 FIX : participants.value (objet { value, subscribe }, pas un Array)
       if ($page.url?.searchParams?.has('call')) {
-        const ids = participants.map((p) => p.id);
+        const ids = participants.value.map((p) => p.id);
         await startGroupCall(conversationId, ids, callType);
       }
 
       loading = false;
-
-      // Écouteurs globaux (uniquement côté client)
       if (browser) {
         window.addEventListener('incoming-call', handleIncomingCall as EventListener);
         window.addEventListener('keydown', handleKeydown);
@@ -85,7 +83,7 @@
     } catch (err) {
       error = err instanceof Error ? err.message : String(err) || "Erreur d'initialisation de l'appel";
       loading = false;
-      console.error('Erreur appel :', err);
+      console.error('Appel init error:', err);
     }
   });
 
@@ -94,29 +92,32 @@
       window.removeEventListener('incoming-call', handleIncomingCall as EventListener);
       window.removeEventListener('keydown', handleKeydown);
     }
+    // Stopper la sonnerie si la page est quittée
+    callManager.stopRingtone();
   });
 
   // -----------------------------------------------------------------
-  // 4️⃣ Gestion d'un appel entrant (custom event)
+  // 4️⃣ Gestion d'un appel entrant (custom event émis par webrtc-calls)
   // -----------------------------------------------------------------
   function handleIncomingCall(event: CustomEvent) {
-    const { from_user_id, conversationId: convId } = event.detail;
-    incomingCallFrom = from_user_id;
-    incomingCallConvId = convId;
+    const { from_user_id, from_user_name, conversationId: convId, callType: ct } = event.detail;
+    incomingCallFrom     = from_user_id;
+    incomingCallFromName = from_user_name ?? from_user_id;
+    incomingCallConvId   = convId;
+    incomingCallType     = ct ?? 'audio';
     showIncomingCallModal = true;
   }
 
-  /** Ferme le modal d'appel entrant. */
   function closeIncomingCallModal() {
     showIncomingCallModal = false;
-    incomingCallFrom = '';
-    incomingCallConvId = '';
+    incomingCallFrom     = '';
+    incomingCallFromName = '';
+    incomingCallConvId   = '';
   }
 
-  /** Gestion du `Esc` uniquement quand le modal est ouvert. */
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape' && showIncomingCallModal) {
-      closeIncomingCallModal();
+      rejectCall();
     }
   }
 
@@ -125,10 +126,11 @@
   // -----------------------------------------------------------------
   async function acceptCall() {
     if (!incomingCallConvId) return;
-
     try {
-      const ids = participants.map((p) => p.id);
-      await startGroupCall(incomingCallConvId, ids, 'audio');
+      callManager.stopRingtone();
+      // BUG-CALL-2 FIX : participants.value
+      const ids = participants.value.map((p) => p.id);
+      await startGroupCall(incomingCallConvId, ids, incomingCallType);
       closeIncomingCallModal();
     } catch (err) {
       console.error('Erreur acceptation appel :', err);
@@ -136,23 +138,18 @@
   }
 
   function rejectCall() {
+    callManager.stopRingtone();
+    // Envoyer signal call_rejected à l'appelant
+    callManager.sendReject(incomingCallConvId, incomingCallFrom);
     closeIncomingCallModal();
   }
 
   // -----------------------------------------------------------------
   // 6️⃣ Contrôles de l'appel en cours
   // -----------------------------------------------------------------
-  function toggleMute() {
-    callManager.toggleMute();
-  }
-
-  function toggleVideo() {
-    callManager.toggleVideo();
-  }
-
-  async function endCall() {
-    await endCurrentCall();
-  }
+  function toggleMute()  { callManager.toggleMute(); }
+  function toggleVideo() { callManager.toggleVideo(); }
+  async function endCall() { await endCurrentCall(); }
 </script>
 
 <svelte:head>
@@ -194,10 +191,10 @@
           {/if}
         </div>
 
-        <h1 class="call-title">Appel avec {conversationId}</h1>
+        <h1 class="call-title">Appel avec {convTitle}</h1>
 
-        {#if participants.length > 1}
-          <p class="participants-count">{participants.length} participants</p>
+        {#if participants.value.length > 1}
+          <p class="participants-count">{participants.value.length} participants</p>
         {/if}
 
         <button
@@ -248,7 +245,7 @@
               <video srcObject={stream} autoplay playsinline class="remote-video"></video>
               <div class="participant-info">
                 <span class="participant-name">
-                  {participants.find((p) => p.id === userId)?.name || userId}
+                  {participants.value.find((p) => p.id === userId)?.name || userId}
                 </span>
               </div>
             </div>
@@ -298,7 +295,7 @@
           {#if callStore.isCalling}
             <p>Appel en cours vers les participants…</p>
           {:else}
-            <p>Appel entrant de {incomingCallFrom}</p>
+            <p>Appel entrant de {incomingCallFromName || incomingCallFrom}</p>
           {/if}
 
           <div class="spinner"></div>
@@ -327,7 +324,7 @@
             <button
               class="start-audio-call"
               onclick={async () => {
-                const ids = participants.map((p) => p.id);
+                const ids = participants.value.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'audio');
               }}
               aria-label="Démarrer un appel audio avec les participants"
@@ -338,7 +335,7 @@
             <button
               class="start-video-call"
               onclick={async () => {
-                const ids = participants.map((p) => p.id);
+                const ids = participants.value.map((p) => p.id);
                 await startGroupCall(conversationId, ids, 'video');
               }}
               aria-label="Démarrer un appel vidéo avec les participants"
@@ -389,7 +386,7 @@
           </div>
 
           <h2 class="caller-name">Appel entrant</h2>
-          <p class="caller-from">De : {incomingCallFrom}</p>
+          <p class="caller-from">De : {incomingCallFromName || incomingCallFrom}</p>
           <p class="call-info-text">Vous avez un appel entrant</p>
 
           <div class="call-actions">
