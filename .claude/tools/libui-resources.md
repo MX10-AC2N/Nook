@@ -4,16 +4,6 @@
 **URL** : https://dev.to/olga_tash/10-ui-libraries-for-svelte-to-try-in-2024-1692  
 **Date de mise à jour de l’article** : mars 2026 (titre mis à jour en « 2026 »)
 
-## Introduction
-
-Svelte est un framework UI basé sur un compilateur qui transforme des composants déclarés en HTML, CSS et JavaScript en JavaScript vanille efficace avec un runtime minimal dans le navigateur.
-
-Svelte gagne en popularité grâce à ses performances rapides, sa légèreté et sa facilité d’apprentissage. Il est utilisé par IKEA, Spotify, Apple Music & TV, Yahoo Finance et StackOverflow.
-
-Cet article recense **10 bibliothèques UI Svelte les plus complètes et utiles** pour accélérer le développement d’applications.
-
-## Liste des 10 bibliothèques UI Svelte
-
 ### 1. Flowbite Svelte
 - **Site officiel** : [flowbite-svelte.com](https://flowbite-svelte.com/)
 - **GitHub** : [themesberg/flowbite-svelte](https://github.com/themesberg/flowbite-svelte) (2.7k ⭐)
