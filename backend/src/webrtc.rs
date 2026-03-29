@@ -96,16 +96,21 @@ pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
 
 pub type BroadcastSender = broadcast::Sender<String>;
 pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
+/// Mapping user_id → sender pour router les signaux WebRTC vers le bon destinataire.
+pub type UserSenderMap = Arc<Mutex<HashMap<String, BroadcastSender>>>;
 
 #[derive(Clone)]
 pub struct WebRtcState {
     pub broadcasts: SharedCallState,
+    /// Index user_id → canal de broadcast pour le routage des signaux d'appel.
+    pub user_senders: UserSenderMap,
 }
 
 impl WebRtcState {
     pub fn new() -> Self {
         Self {
             broadcasts: Arc::new(Mutex::new(HashMap::new())),
+            user_senders: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -377,9 +382,14 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
     let broadcast_tx_for_send = broadcast_tx.clone();
     let broadcast_tx_for_receive = broadcast_tx.clone();
 
+    // Enregistrer dans les deux maps : uuid→sender (broadcast chat) et user_id→sender (signaling)
     {
         let mut guard = state.webrtc_state.broadcasts.lock().await;
-        guard.insert(id, broadcast_tx);
+        guard.insert(id, broadcast_tx.clone());
+    }
+    {
+        let mut guard = state.webrtc_state.user_senders.lock().await;
+        guard.insert(user_id.clone(), broadcast_tx);
     }
 
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
@@ -397,45 +407,86 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         }
     });
 
+    let state_recv = state.clone();
+    let user_id_recv = user_id.clone();
     let receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
                     let text_str = text.to_string();
 
-                    // SEC-05 : limite de taille sur les messages de signaling (64 KB)
-                    // Empêche un client malveillant d'envoyer un payload massif
-                    // qui serait désérialisé par serde_json et broadcasté à tous.
+                    // SEC-05 : limite 64 KB
                     if text_str.len() > 65_536 {
-                        tracing::warn!(
-                            ws_id = %id,
-                            bytes = text_str.len(),
-                            "WebSocket : message trop volumineux (>64KB) — ignoré"
-                        );
+                        tracing::warn!(ws_id = %id, bytes = text_str.len(), "WebSocket : message trop volumineux — ignoré");
                         continue;
                     }
 
-                    // Parse pour logging
-                    if let Ok(json) = serde_json::from_str::<Value>(&text_str) {
-                        let msg_type = json
-                            .get("type")
-                            .or(json.get("event"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("unknown");
-                        tracing::debug!(
-                            ws_id = %id,
-                            msg_type = %msg_type,
-                            "WebSocket : message reçu"
-                        );
-                    }
+                    // Parser le message pour extraire type et to_user_id
+                    let json_val = match serde_json::from_str::<Value>(&text_str) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            // Non-JSON : broadcast global (rétrocompatibilité)
+                            let _ = broadcast_tx_for_receive.send(text_str);
+                            continue;
+                        }
+                    };
 
-                    let _ = broadcast_tx_for_receive.send(text_str);
+                    let msg_type = json_val
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown");
+
+                    tracing::debug!(ws_id = %id, user_id = %user_id_recv, msg_type = %msg_type, "WebSocket : message reçu");
+
+                    // ── Routage des signaux WebRTC par to_user_id ─────────────────
+                    // Types d'appel : offer, answer, ice, join, leave, decline,
+                    //                 call_request, call_accepted, call_rejected
+                    let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
+                        "join", "leave", "decline",
+                        "call_request", "call_accepted", "call_rejected",
+                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
+
+                    if webrtc_types.contains(&msg_type) {
+                        let to_user_id = json_val
+                            .get("to_user_id")
+                            .and_then(|v| v.as_str());
+
+                        match to_user_id {
+                            Some(target) if !target.is_empty() => {
+                                // Routage direct vers le destinataire
+                                let guard = state_recv.webrtc_state.user_senders.lock().await;
+                                if let Some(target_tx) = guard.get(target) {
+                                    let _ = target_tx.send(text_str.clone());
+                                    tracing::debug!(
+                                        from = %user_id_recv,
+                                        to = %target,
+                                        msg_type = %msg_type,
+                                        "WebRTC signal routé"
+                                    );
+                                } else {
+                                    tracing::warn!(
+                                        to = %target,
+                                        msg_type = %msg_type,
+                                        "WebRTC signal : destinataire non connecté"
+                                    );
+                                }
+                                // call_request : aussi envoyer à l'expéditeur pour confirmation
+                            }
+                            _ => {
+                                // Pas de to_user_id (ex: join/leave) → broadcast global
+                                let guard = state_recv.webrtc_state.broadcasts.lock().await;
+                                for (_, tx) in guard.iter() {
+                                    let _ = tx.send(text_str.clone());
+                                }
+                            }
+                        }
+                    } else {
+                        // Messages non-WebRTC (chat, chess, etc.) → broadcast global
+                        let _ = broadcast_tx_for_receive.send(text_str);
+                    }
                 }
                 Ok(axum::extract::ws::Message::Binary(data)) => {
-                    tracing::debug!(
-                        bytes = data.len(),
-                        "WebSocket : binaire ignoré (P2P direct)"
-                    );
+                    tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
                 }
                 Ok(axum::extract::ws::Message::Close(_)) => {
                     tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
@@ -455,8 +506,15 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         _ = receive_task => {},
     }
 
-    let mut guard = state.webrtc_state.broadcasts.lock().await;
-    guard.remove(&id);
+    // Nettoyage des deux maps
+    {
+        let mut guard = state.webrtc_state.broadcasts.lock().await;
+        guard.remove(&id);
+    }
+    {
+        let mut guard = state.webrtc_state.user_senders.lock().await;
+        guard.remove(&user_id);
+    }
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket déconnecté");
 }
 
