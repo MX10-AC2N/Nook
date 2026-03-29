@@ -49,10 +49,53 @@ export const callStore = $state<CallState>(createInitialState());
 class WebRTCCallManager {
   private ws: WebSocket | null = null;
   private conversationId: string = '';
+  // ── Sonnerie ────────────────────────────────────────────────
+  private ringtoneCtx: AudioContext | null = null;
+  private ringtoneInterval: ReturnType<typeof setInterval> | null = null;
 
   // userId est un getter réactif — toujours synchronisé avec authStore
   private get userId(): string {
     return authStore.user?.id ?? 'anonymous';
+  }
+
+  // ── Sonnerie : tonalité synthétisée (pas de fichier externe) ─
+  private playRingtone(): void {
+    if (this.ringtoneInterval) return; // déjà en cours
+    this._ringOnce();
+    this.ringtoneInterval = setInterval(() => this._ringOnce(), 3000);
+  }
+
+  private _ringOnce(): void {
+    try {
+      if (!browser) return;
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      this.ringtoneCtx = ctx;
+      // Deux tonalités (300ms + 300ms) séparées par 150ms
+      const playTone = (freq: number, startSec: number, durSec: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + startSec);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startSec + durSec);
+        osc.start(ctx.currentTime + startSec);
+        osc.stop(ctx.currentTime + startSec + durSec);
+      };
+      playTone(880, 0, 0.3);    // La5
+      playTone(1100, 0.45, 0.3); // Do#6
+    } catch { /* AudioContext non disponible */ }
+  }
+
+  public stopRingtone(): void {
+    if (this.ringtoneInterval) {
+      clearInterval(this.ringtoneInterval);
+      this.ringtoneInterval = null;
+    }
+    if (this.ringtoneCtx) {
+      try { this.ringtoneCtx.close(); } catch { /* */ }
+      this.ringtoneCtx = null;
+    }
   }
 
   // -----------------------------------------------------------------
@@ -179,12 +222,16 @@ class WebRTCCallManager {
 
     switch (signal.type) {
       case 'offer':
+      case 'webrtc_offer':
         await this.handleOffer(signal);
         break;
       case 'answer':
+      case 'webrtc_answer':
         await this.handleAnswer(signal);
         break;
       case 'ice':
+      case 'ice_candidate':
+      case 'webrtc_ice_candidate':
         await this.handleIceCandidate(signal);
         break;
       case 'join':
@@ -194,15 +241,51 @@ class WebRTCCallManager {
         this.handleLeave(signal);
         break;
       case 'decline':
+      case 'call_rejected':
+        this.stopRingtone();
         this.handleDecline(signal);
         break;
+      // ── Sonnerie : appel entrant ──────────────────────────────
+      case 'call_request':
+        this.stopRingtone();
+        this.playRingtone();
+        if (browser) {
+          window.dispatchEvent(new CustomEvent('incoming-call', {
+            detail: {
+              from_user_id: signal.from_user_id,
+              from_user_name: signal.from_user_name ?? signal.from_user_id,
+              conversationId: signal.conversationId,
+              callType: signal.callType ?? 'audio',
+            }
+          }));
+        }
+        break;
+      case 'call_accepted':
+        this.stopRingtone();
+        callStore.isCalling = false;
+        callStore.isInCall = true;
+        break;
       default:
-        console.warn('Signal inconnu reçu :', signal);
+        console.warn('Signal inconnu reçu :', signal.type);
     }
   }
 
   private async handleOffer(signal: CallSignal) {
-    if (!signal.sdp || !signal.from_user_id || !callStore.localStream) return;
+    if (!signal.sdp || !signal.from_user_id) return;
+
+    // BUG-CALL-5 FIX : l'appelé peut recevoir une offer sans avoir encore de stream local
+    // (il arrive sur la page call sans avoir cliqué "Démarrer").
+    // → Setup automatique du stream avant de répondre.
+    if (!callStore.localStream) {
+      try {
+        const hasVideo = signal.sdp.includes('m=video');
+        await this.setupLocalStream(hasVideo ? 'video' : 'audio');
+        callStore.isAnswering = true;
+      } catch (err: any) {
+        callStore.error = `Impossible d'accéder au micro/caméra : ${err.message}`;
+        return;
+      }
+    }
 
     const pc = this.createPeerConnection(signal.from_user_id);
     try {
@@ -220,6 +303,9 @@ class WebRTCCallManager {
 
       callStore.isAnswering = false;
       callStore.isInCall = true;
+
+      // Arrêter la sonnerie si elle joue (appel accepté automatiquement)
+      this.stopRingtone();
     } catch (err) {
       console.error('Erreur lors du traitement de l\'offre :', err);
       this.endCallForUser(signal.from_user_id);
@@ -295,7 +381,10 @@ class WebRTCCallManager {
       callStore.isCalling = true;
 
       // --- WebSocket (signalling) ---
-      const wsUrl = `wss://${browser ? window.location.host : 'localhost:3000'}/ws/call?conv=${conversationId}`;
+      // Protocole correct : ws en HTTP, wss en HTTPS — même logique que chatStore
+      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      // BUG-CALL-1 FIX : /ws/call n'existe pas côté backend → utiliser /ws
+      const wsUrl = `${proto}://${window.location.host}/ws`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -311,6 +400,18 @@ class WebRTCCallManager {
           return;
         }
 
+        // Envoyer call_request à chaque destinataire → déclenche la sonnerie chez eux
+        const callerName = (authStore.user as any)?.name ?? (authStore.user as any)?.username ?? this.userId;
+        targets.forEach((uid) => {
+          this.sendSignal({
+            type: 'call_request',
+            to_user_id: uid,
+            from_user_name: callerName,
+            callType: type,
+          });
+        });
+
+        // Puis lancer les offres WebRTC
         targets.forEach((uid) => {
           this.initiateCallWithUser(uid).catch((err) => {
             console.error(`Erreur appel vers ${uid} :`, err);
@@ -369,6 +470,23 @@ class WebRTCCallManager {
     await this.startCall(conversationId, participantIds, type);
   }
 
+  /** Envoie un signal call_rejected à l'appelant (refus de l'appel entrant). */
+  public sendReject(convId: string, toUserId: string): void {
+    // Ouvrir un WS temporaire si nécessaire, ou utiliser le WS existant
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const signal = {
+        type: 'call_rejected',
+        conversationId: convId,
+        from_user_id: this.userId,
+        to_user_id: toUserId,
+        sdp: null,
+        candidate: null,
+        timestamp: Date.now(),
+      };
+      this.ws.send(JSON.stringify(signal));
+    }
+  }
+
   /** Bascule le mute du microphone. */
   public toggleMute(): void {
     callStore.isMuted = !callStore.isMuted;
@@ -390,6 +508,14 @@ class WebRTCCallManager {
 
   /** Termine l'appel en cours et nettoie toutes les ressources. */
   public endCall(): void {
+    // Arrêter la sonnerie (cas où on raccroche pendant que ça sonne)
+    this.stopRingtone();
+
+    // Prévenir les pairs qu'on part
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendSignal({ type: 'leave' });
+    }
+
     // Fermer toutes les connexions peer-to-peer
     callStore.peerConnections.forEach((pc) => pc.close());
     callStore.peerConnections = new Map();
@@ -398,8 +524,6 @@ class WebRTCCallManager {
     if (callStore.localStream) {
       callStore.localStream.getTracks().forEach((t) => t.stop());
       callStore.localStream = null;
-      
-      // Nettoyer l'élément vidéo
       if (callStore.localVideoElement) {
         callStore.localVideoElement.srcObject = null;
       }
