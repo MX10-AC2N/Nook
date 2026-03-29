@@ -225,6 +225,35 @@ Ce fichier recense les ressources spécifiques pour le développement et l'optim
 
 ---
 
+## 🔗 Networking P2P
+
+**[rust-libp2p](https://github.com/libp2p/rust-libp2p)** - Framework réseau peer-to-peer
+
+| Aspect | Détails |
+|--------|---------|
+| **Réseau** | Stack réseau P2P complet |
+| **Modular** | Transport, muxers, protocoles séparables |
+| **WASM** | Support navigateur |
+| **Stars** | 5.5k |
+| **Usage** | ~23,000 repositories |
+
+**Protocoles supportés :**
+
+| Protocole | Usage pour Nook |
+|-----------|----------------|
+| **mDNS** | Découverte locale appareils familiaux |
+| **Gossipsub** | Messages temps réel sans serveur central |
+| **Kademlia** | Partage clés E2EE distribué |
+| **Noise** | Chiffrement connexions P2P |
+| **WebRTC** | Alternative aux appels existants |
+
+**Cas d'usage concrets :**
+- Appareils se découvrent automatiquement sur le LAN (mDNS)
+- Messages diffusés sans passer par le serveur (Gossipsub)
+- Clés de chiffrement partagées de façon décentralisée (Kademlia)
+
+---
+
 ## 🧪 Testing
 
 ### Playwright (E2E)
