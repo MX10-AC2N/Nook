@@ -517,19 +517,13 @@ let app = Router::new()
 
 - [ ] Health check endpoint `/health`
 - [ ] Logging structuré (tracing)
-- [ ] Intégration Beszel (déjà utilisé)
+- [ ] Intégration d'un monitoring natif en Rust
 
 ### Intermediate
 
 - [ ] Exposer `/api/metrics` (sysinfo)
 - [ ] Intégration rustmon
 - [ ] Alertes push (notifications existantes)
-
-### Advanced
-
-- [ ] Prometheus + Grafana
-- [ ] Distributed tracing
-- [ ] monitor-rs sur SSH
 
 ---
 
