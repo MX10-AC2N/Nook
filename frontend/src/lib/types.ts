@@ -100,10 +100,17 @@ export interface CallSignal {
   from_user_id: string;
   /** `null` → appel broadcast (ex. appel de groupe) */
   to_user_id: string | null;
-  type: 'offer' | 'answer' | 'ice' | 'join' | 'leave' | 'decline';
+  type:
+    | 'offer' | 'answer' | 'ice' | 'ice_candidate'
+    | 'webrtc_offer' | 'webrtc_answer' | 'webrtc_ice_candidate'
+    | 'join' | 'leave' | 'decline'
+    | 'call_request' | 'call_accepted' | 'call_rejected';
   sdp: string | null;
   candidate: RTCIceCandidateInit | null;
   timestamp: number;
+  // Champs optionnels pour call_request (sonnerie)
+  from_user_name?: string;
+  callType?: 'audio' | 'video';
 }
 
 /**
