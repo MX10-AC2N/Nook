@@ -5,6 +5,7 @@
 @import './lib/ui/themes/jardin-secret.css';
 @import './lib/ui/themes/space-hub.css';
 @import './lib/ui/themes/maison-chaleureuse.css';
+@import './lib/ui/themes/nuit-douce.css';
 
 /* Reset global */
 *, *::before, *::after {
