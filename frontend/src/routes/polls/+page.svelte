@@ -35,6 +35,7 @@
   let newOptions        = $state(['', '', '', '']);
   let audienceMode      = $state<'all' | 'custom'>('all');
   let selectedMemberIds = $state<string[]>([]);
+  let closingDate       = $state('');   // date de clôture automatique (optionnel)
 
   // ─── API ────────────────────────────────────────────────────────
   async function loadPolls() {
@@ -58,7 +59,6 @@
       if (!res.ok) return;
       const data = await res.json();
       const all: Member[] = Array.isArray(data) ? data : (data.users ?? []);
-      // Exclure l'utilisateur courant de la liste (il est toujours inclus)
       members = all.filter(m => m.id !== authStore.user?.id);
     } catch { /* optionnel */ }
   }
@@ -78,11 +78,17 @@
 
     submitting = true; error = null;
     try {
+      const body: Record<string, unknown> = { question, options };
+      // Date de clôture optionnelle → timestamp unix
+      if (closingDate) {
+        body.closes_at = Math.floor(new Date(closingDate + 'T23:59:59').getTime() / 1000);
+      }
+
       const res = await fetch('/api/polls', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ question, options }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -90,8 +96,7 @@
       }
       const data = await res.json();
 
-      // Stocker les destinataires ciblés dans localStorage pour l'affichage UI
-      // (zero-migration — le backend ne change pas)
+      // Stocker les destinataires ciblés dans localStorage
       if (audienceMode === 'custom' && selectedMemberIds.length > 0) {
         const stored = JSON.parse(localStorage.getItem('nook-poll-audience') ?? '{}');
         stored[data.poll.id] = selectedMemberIds;
@@ -99,10 +104,8 @@
       }
 
       polls = [data.poll, ...polls];
-      newQuestion = '';
-      newOptions  = ['', '', '', ''];
-      audienceMode = 'all';
-      selectedMemberIds = [];
+      newQuestion = ''; newOptions = ['', '', '', ''];
+      audienceMode = 'all'; selectedMemberIds = []; closingDate = '';
       showCreate = false;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Erreur création';
@@ -213,6 +216,14 @@
         {/each}
       </div>
 
+      <!-- Date de clôture automatique -->
+      <label class="form-label" style="margin-top:.5rem;">
+        📅 Fermeture automatique (optionnel)
+        <input type="date" class="form-input" bind:value={closingDate}
+          min={new Date().toISOString().slice(0,10)}
+          style="margin-top:.3rem;" />
+      </label>
+
       <!-- Sélection des participants -->
       {#if members.length > 0}
         <div class="audience-section">
@@ -302,6 +313,11 @@
 
           <h2 class="poll-question">{poll.question}</h2>
 
+          <!-- Date de clôture -->
+          {#if poll.closed_at && !poll.is_closed}
+            <p class="closing-date">⏰ Fermeture le {formatDate(poll.closed_at)}</p>
+          {/if}
+
           <!-- Tag audience ciblée -->
           {#if getAudienceLabel(poll.id)}
             <p class="audience-tag">{getAudienceLabel(poll.id)}</p>
@@ -390,6 +406,7 @@
   .audience-hint { font-size: .78rem; color: var(--text-secondary); margin: 0; }
   .audience-tag { font-size: .78rem; color: var(--accent-dark, var(--accent)); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: .2rem .6rem; border-radius: var(--radius-full); display: inline-block; margin: 0 0 .75rem; }
 
+  .closing-date { font-size: .78rem; color: var(--warning, #f59e0b); margin: -.25rem 0 .5rem; font-weight: 600; }
   .loading { text-align: center; padding: 2.5rem; color: var(--text-secondary); font-size: .9rem; }
   .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); }
   .empty-icon { font-size: 3rem; display: block; margin-bottom: .75rem; }
