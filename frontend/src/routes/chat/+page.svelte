@@ -313,6 +313,9 @@
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
     await loadMessages(conv.id);
+    // Scroll immédiat en bas après chargement des messages
+    await Promise.resolve();
+    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
     // Charger les réactions pour les messages visibles
     await loadReactionsForMessages(conv.id);
     // Fallback polling si WS non disponible
@@ -595,10 +598,18 @@
   });
 
   $effect(() => {
-    const _ = chatStore.messages.length;
-    if (chatContainer) {
+    const count = chatStore.messages.length;
+    if (!chatContainer || count === 0) return;
+    // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
+    // Tolérance : si on est à moins de 150px du bas → scroll auto
+    const el = chatContainer;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom || count === 1) {
+      // Attendre le prochain tick (DOM mis à jour)
       Promise.resolve().then(() => {
-        if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
       });
     }
   });
