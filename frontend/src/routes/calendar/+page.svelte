@@ -161,7 +161,7 @@
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
             {#each dayEvts.slice(0,2) as evt}
-              <span class="evt-pill" onclick|stopPropagation={() => openDetail(evt)} title={evt.title}>{evt.title}</span>
+              <span class="evt-pill" onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
             {/each}
             {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
           </div>
@@ -199,7 +199,7 @@
 <!-- MODAL AJOUT -->
 {#if showAddModal}
   <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement">
-    <div class="modal" onclick|stopPropagation>
+    <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
       <div class="modal-body">
         <label class="field">Titre *<input type="text" bind:value={newEvent.title} placeholder="Titre" maxlength="100" /></label>
@@ -219,7 +219,7 @@
 <!-- MODAL DÉTAIL/ÉDITION -->
 {#if detailEvent}
   <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement">
-    <div class="modal" onclick|stopPropagation>
+    <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-hdr">
         <h3>{editMode ? '✏️ Modifier' : '📌 '+detailEvent.title}</h3>
         <button class="modal-close" onclick={closeDetail}>✕</button>
@@ -255,7 +255,7 @@
 <!-- MODAL JOUR MULTI-ÉVÉNEMENTS -->
 {#if selectedDay && !detailEvent && eventsForDay(selectedDay).length > 1}
   <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour">
-    <div class="modal" onclick|stopPropagation>
+    <div class="modal" onclick={(e) => e.stopPropagation()}>
       <div class="modal-hdr"><h3>📅 {selectedDay} {monthNames[currentDate.getMonth()]}</h3><button class="modal-close" onclick={() => selectedDay=null}>✕</button></div>
       <div class="modal-body">
         <ul class="day-evts-list">
