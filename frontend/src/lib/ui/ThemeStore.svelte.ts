@@ -4,7 +4,7 @@ import { browser } from '$app/environment';
 // ---------------------------------------------------------------------
 // Types & constantes
 // ---------------------------------------------------------------------
-export type Theme = 'jardin-secret' | 'space-hub' | 'maison-chaleureuse';
+export type Theme = 'jardin-secret' | 'space-hub' | 'maison-chaleureuse' | 'nuit-douce';
 
 export interface ThemeInfo {
   id: Theme;
@@ -33,6 +33,12 @@ export const availableThemes: ThemeInfo[] = [
     description: "Un thème chaleureux aux nuances d'ambre et de feu",
     icon: '🏠',
   },
+  {
+    id: 'nuit-douce',
+    name: 'Nuit Douce',
+    description: 'Mode sombre doux — repose les yeux le soir',
+    icon: '🌙',
+  },
 ];
 
 // ---------------------------------------------------------------------
@@ -54,7 +60,7 @@ function applyTheme(theme: Theme): void {
   if (!browser) return;
 
   // 1️⃣ Supprimer les classes de thème précédentes
-  document.body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse');
+  document.body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse', 'theme-nuit-douce');
 
   // 2️⃣ Ajouter la classe du nouveau thème
   document.body.classList.add(`theme-${theme}`);
@@ -101,7 +107,7 @@ export function getSystemTheme(): Theme {
   if (!browser) return DEFAULT_THEME;
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  return prefersDark ? 'space-hub' : 'jardin-secret';
+  return prefersDark ? 'nuit-douce' : 'jardin-secret';
 }
 
 /** 
