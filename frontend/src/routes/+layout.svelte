@@ -7,6 +7,7 @@
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
   import { cryptoStore } from '$lib/cryptoStore.svelte';
+  import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -15,6 +16,11 @@
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
+
+  // Badge non-lu : somme de tous les compteurs de conversations
+  const totalUnread = $derived(
+    Object.values(chatStore.unreadCounts).reduce((sum, n) => sum + (n ?? 0), 0)
+  );
 
   const navItems = [
     { path: '/chat',      label: '💬 Chat',           requiresAuth: true  },
@@ -235,13 +241,20 @@
           {:else if item.requiresAdmin && !authStore.isAdmin}
             <!-- Skip -->
           {:else}
-            <li><a href={item.path} onclick={closeMenu}>{item.label}</a></li>
+            <li>
+              <a href={item.path} onclick={closeMenu} class:active={$page.url.pathname.startsWith(item.path)}>
+                {item.label}
+                {#if item.path === '/chat' && totalUnread > 0}
+                  <span class="nav-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
+                {/if}
+              </a>
+            </li>
           {/if}
         {/each}
       </ul>
 
       <div class="menu-footer">
-        <p class="version">Version 3.0 • SvelteKit</p>
+        <p class="version">Nook v0.5 • Svelte 5 + Rust</p>
         {#if authStore.isAuthenticated}
           <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
             🔌 Déconnexion
@@ -382,11 +395,21 @@
   .nav-list { list-style: none; margin: 0; padding: 1rem 0; flex: 1; overflow-y: auto; }
 
   .nav-list li a {
-    display: block; padding: 0.85rem 1.5rem;
+    display: flex; align-items: center; gap: .5rem;
+    padding: 0.85rem 1.5rem;
     color: var(--text-primary, #334155); text-decoration: none; transition: all 0.2s; font-size: 1rem;
+    border-radius: .5rem; margin: 0 .35rem;
   }
 
-  .nav-list li a:hover { background: var(--bg-tertiary, #f1f5f9); color: var(--text-primary, #1e293b); }
+  .nav-list li a:hover, .nav-list li a.active { background: var(--bg-tertiary, #f1f5f9); color: var(--text-primary, #1e293b); }
+
+  .nav-badge {
+    margin-left: auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent, #4ade80); color: #166534;
+    font-size: .65rem; font-weight: 700; border-radius: 999px;
+    min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
+  }
 
   .menu-footer { padding: 1.25rem 1.5rem; border-top: 1px solid var(--border, #e2e8f0); }
   .version { font-size: 0.8rem; color: var(--text-muted, #94a3b8); margin: 0 0 0.75rem 0; }
