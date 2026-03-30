@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-30 12:13 UTC**
+> Généré par `test-nook.yml` · **2026-03-30 19:22 UTC**
 
 ---
 
@@ -9,14 +9,14 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 73 |
+| **Tests passés** | 97 |
 | **Tests échoués** | 1 |
-| **Tests ignorés** | 41 |
+| **Tests ignorés** | 17 |
 | **Total** | 115 |
-| **Durée** | 49.0s |
+| **Durée** | 51.0s |
 | **Branche** | `develop` |
-| **Commit** | [`5f7757b`](https://github.com/MX10-AC2N/Nook/commit/5f7757b83c2d92113b5bfe2c0556e7275e689df8) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23743906520) |
+| **Commit** | [`24075b6`](https://github.com/MX10-AC2N/Nook/commit/24075b6421694638eb256aa24fc8dfb1c9e45c88) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23763040563) |
 
 ---
 
@@ -108,7 +108,7 @@
 | ✅ | GET /users/pending avec user normal → 403 | 0s |
 | ✅ | Page /admin → non accessible pour user normal | 2s |
 
-### ❌ user.spec.ts — 7/49 passés
+### ❌ user.spec.ts — 31/49 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -118,31 +118,31 @@
 | ✅ | GET /conversations → default_global présente | 0s |
 | ✅ | GET /conversations/default_global → détail de la conv | 0s |
 | ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
-| ❌ | Chat UI — sidebar et envoi message | 30s |
-| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A |
-| ⏭️ | POST /conversations → créer un groupe de test | N/A |
-| ⏭️ | GET /users/available → liste des membres disponibles | N/A |
-| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A |
-| ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A |
-| ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A |
-| ⏭️ | Réactions — DELETE → my_emoji null | N/A |
-| ⏭️ | Réactions — GET → structure {message_id, counts, my_emoji} | N/A |
-| ⏭️ | Réactions — message inexistant → 404 | N/A |
-| ⏭️ | Réactions UI — hover → picker → pill visible | N/A |
-| ⏭️ | Upload — fichier texte → file_id, url=/api/download/, download OK | N/A |
-| ⏭️ | Download — id inexistant → 404 | N/A |
-| ⏭️ | GET /polls → tableau de sondages | N/A |
-| ⏭️ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | N/A |
-| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A |
-| ⏭️ | GET /chess/list → 200 | N/A |
-| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A |
-| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A |
-| ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A |
-| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A |
-| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A |
-| ⏭️ | Calendar — GET /events → 200 | N/A |
-| ⏭️ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | N/A |
-| ⏭️ | Calendar UI — page, grille et bouton ajouter visibles | N/A |
+| ✅ | Chat UI — sidebar et envoi message | 0s |
+| ✅ | GET /conversations/default_global/messages → messages récupérés | 0s |
+| ✅ | POST /conversations → créer un groupe de test | 0s |
+| ✅ | GET /users/available → liste des membres disponibles | 0s |
+| ✅ | Réactions — POST emoji valide 👍 → counts mis à jour | 0s |
+| ✅ | Réactions — POST emoji non autorisé 🦄 → 400 | 0s |
+| ✅ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | 0s |
+| ✅ | Réactions — DELETE → my_emoji null | 0s |
+| ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
+| ✅ | Réactions — message inexistant → 404 | 0s |
+| ✅ | Réactions UI — hover → picker → pill visible | 2s |
+| ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
+| ✅ | Download — id inexistant → 404 | 0s |
+| ✅ | GET /polls → tableau de sondages | 0s |
+| ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
+| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 1s |
+| ✅ | GET /chess/list → 200 | 0s |
+| ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
+| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 4s |
+| ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
+| ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
+| ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 0s |
+| ✅ | Calendar — GET /events → 200 | 0s |
+| ✅ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | 0s |
+| ❌ | Calendar UI — page, grille et bouton ajouter visibles | 20s |
 | ⏭️ | Settings UI — 3 onglets navigables | N/A |
 | ⏭️ | Settings — changement de thème (clic → sélectionné) | N/A |
 | ⏭️ | POST /user/update → mise à jour du nom | N/A |
@@ -168,7 +168,7 @@
 
 > 1 test(s) en échec
 
-### Échec 1 — `Chat UI — sidebar et envoi message`
+### Échec 1 — `Calendar UI — page, grille et bouton ajouter visibles`
 
 **Suite :** `user.spec.ts > User — Flux complet`
 
@@ -176,48 +176,48 @@
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: locator('.message-content').filter({ hasText: 'E2E message 1774872759166' })
+Locator: locator('.calendar-grid')
 Expected: visible
-Timeout: 15000ms
+Timeout: 10000ms
 Error: element(s) not found
 
 Call log:
-  - Expect "toBeVisible" with timeout 15000ms
-  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774872759166' })
+  - Expect "toBeVisible" with timeout 10000ms
+  - waiting for locator('.calendar-grid')
 
 
-  113 |     ]);
-  114 |     expect(res.status()).toBe(200);
-> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
-      |                                                                                 ^
-  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
-  117 |   });
-  118 |
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+  606 |     await page.goto('/calendar');
+  607 |     await waitForAppReady(page);
+> 608 |     await expect(page.locator('.calendar-grid')).toBeVisible({ timeout: 10_000 });
+      |                                                  ^
+  609 |     await expect(page.locator('.add-event-btn')).toBeVisible({ timeout: 8_000 });
+  610 |     console.log('✅ /calendar chargé');
+  611 |   });
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:608:50
 ```
 
 **Message :**
 ```
 Error: expect(locator).toBeVisible() failed
 
-Locator: locator('.message-content').filter({ hasText: 'E2E message 1774872780120' })
+Locator: locator('.calendar-grid')
 Expected: visible
-Timeout: 15000ms
+Timeout: 10000ms
 Error: element(s) not found
 
 Call log:
-  - Expect "toBeVisible" with timeout 15000ms
-  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1774872780120' })
+  - Expect "toBeVisible" with timeout 10000ms
+  - waiting for locator('.calendar-grid')
 
 
-  113 |     ]);
-  114 |     expect(res.status()).toBe(200);
-> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
-      |                                                                                 ^
-  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
-  117 |   });
-  118 |
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+  606 |     await page.goto('/calendar');
+  607 |     await waitForAppReady(page);
+> 608 |     await expect(page.locator('.calendar-grid')).toBeVisible({ timeout: 10_000 });
+      |                                                  ^
+  609 |     await expect(page.locator('.add-event-btn')).toBeVisible({ timeout: 8_000 });
+  610 |     console.log('✅ /calendar chargé');
+  611 |   });
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:608:50
 ```
 
 ---
@@ -226,8 +226,10 @@ Call log:
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=5944596e-acb8-4263-ad23-3f1c3a9f6108 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=5944596e-acb8-4263-ad23-3f1c3a9f6108 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f4378bdb-47cc-45d9-b4ac-b4df4e978774 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f4378bdb-47cc-45d9-b4ac-b4df4e978774 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f4378bdb-47cc-45d9-b4ac-b4df4e978774 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=f4378bdb-47cc-45d9-b4ac-b4df4e978774 username=e2e_ci
 ```
 
 ---
@@ -252,4 +254,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=5
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-30 12:13 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-03-30 19:22 UTC*
