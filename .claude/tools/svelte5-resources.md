@@ -61,3 +61,5 @@ Ce fichier recense les ressources utiles pour l'optimisation et le développemen
 <Motion let:motion animate={{ x: isVisible ? 100 : 0, opacity: 1 }}>
   <div use:motion>Contenu animé</div>
 </Motion>
+
+https://github.com/Yuzu02/svelte5-showcase
