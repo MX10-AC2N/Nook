@@ -131,7 +131,7 @@
       <h1>📅 Calendrier</h1>
       <p class="subtitle">Événements familiaux</p>
     </div>
-    <button class="btn-add" onclick={() => { newEvent.date = todayStr; showAddModal = true; }}>＋ Ajouter</button>
+    <button class="add-event-btn" onclick={() => { newEvent.date = todayStr; showAddModal = true; }}>＋ Ajouter</button>
   </div>
 
   {#if error}<div class="error-banner">⚠️ {error}</div>{/if}
@@ -146,7 +146,7 @@
       <button class="nav-btn" onclick={nextMonth}>›</button>
     </div>
 
-    <div class="cal-grid">
+    <div class="calendar-grid">
       {#each ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] as d}
         <div class="day-hdr">{d}</div>
       {/each}
@@ -279,8 +279,8 @@
   .cal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
   .cal-header h1 { margin: 0; font-size: 1.5rem; color: var(--text-primary, #1e293b); }
   .subtitle { margin: .2rem 0 0; font-size: .85rem; color: var(--text-secondary, #64748b); }
-  .btn-add { flex-shrink: 0; padding: .6rem 1.2rem; background: var(--accent, #4ade80); color: #fff; border: none; border-radius: .65rem; font-weight: 700; font-size: .9rem; cursor: pointer; transition: background .15s; }
-  .btn-add:hover { background: var(--button-hover, #22c55e); }
+  .add-event-btn { flex-shrink: 0; padding: .6rem 1.2rem; background: var(--accent, #4ade80); color: #fff; border: none; border-radius: .65rem; font-weight: 700; font-size: .9rem; cursor: pointer; transition: background .15s; }
+  .add-event-btn:hover { background: var(--button-hover, #22c55e); }
   .error-banner { background: var(--error-light, #fee2e2); color: var(--error, #ef4444); padding: .75rem 1rem; border-radius: .5rem; margin-bottom: 1rem; font-size: .88rem; }
   .cal-container { background: var(--bg-primary, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 1rem; padding: 1rem; margin-bottom: 1.25rem; box-shadow: var(--depth, 0 2px 8px rgba(0,0,0,.06)); }
   .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
@@ -290,7 +290,7 @@
   .today-btn:hover { background: var(--bg-tertiary, #e2e8f0); }
   .nav-btn { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: var(--bg-secondary, #f8fafc); border: 1px solid var(--border, #e2e8f0); border-radius: .5rem; font-size: 1.1rem; cursor: pointer; color: var(--text-primary, #1e293b); flex-shrink: 0; }
   .nav-btn:hover { background: var(--bg-tertiary, #e2e8f0); }
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
   .day-hdr { text-align: center; font-size: .7rem; font-weight: 700; color: var(--text-muted, #94a3b8); padding: .35rem 0; text-transform: uppercase; }
   .cal-cell { min-height: 70px; padding: .3rem .25rem; background: var(--bg-secondary, #f8fafc); border-radius: .45rem; display: flex; flex-direction: column; gap: .12rem; cursor: pointer; border: 1.5px solid transparent; transition: all .12s; text-align: left; width: 100%; }
   .cal-cell:hover { background: var(--bg-tertiary, #f1f5f9); border-color: var(--border, #e2e8f0); }
@@ -350,6 +350,6 @@
     .evt-pill { font-size: .58rem; }
     .day-num { font-size: .7rem; }
     .cal-header { flex-direction: column; gap: .5rem; }
-    .btn-add { width: 100%; text-align: center; }
+    .add-event-btn { width: 100%; text-align: center; }
   }
 </style>
