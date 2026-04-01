@@ -105,6 +105,19 @@ pub async fn register(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
+    // FIX M1: validation cote serveur - minimum 8 caracteres
+    if payload.password.trim().len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse {
+                success: false,
+                message: "Le mot de passe doit contenir au moins 8 caracteres".to_string(),
+                user: None,
+            }),
+        )
+            .into_response();
+    }
+
     let hashed_password = hash_password(&payload.password);
     let user_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().timestamp();
@@ -263,7 +276,24 @@ pub async fn change_password(
     headers: axum::http::HeaderMap,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
+    // FIX C1: seul un admin ou le proprietaire du compte peut changer le mot de passe
     let target_id = payload.user_id.unwrap_or_else(|| current_user.id.clone());
+    if current_user.role != "admin" && target_id != current_user.id {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"success": false, "message": "Permission refusee"})),
+        )
+            .into_response();
+    }
+
+    // Validation minimale de la force du mot de passe (cote API egalement)
+    if payload.new_password.trim().len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"success": false, "message": "Le mot de passe doit contenir au moins 8 caracteres"})),
+        )
+            .into_response();
+    }
 
     let hashed = hash_password(&payload.new_password);
     let new_token = Uuid::new_v4().to_string();
