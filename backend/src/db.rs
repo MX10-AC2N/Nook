@@ -345,21 +345,42 @@ pub async fn send_message(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    // Vérifier que la conversation existe
-    let exists: Option<(i64,)> =
-        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+    // FIX C5: Verifier que la conversation existe ET que l'utilisateur y est participant
+    let is_participant: Option<(i64,)> =
+        sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM conversations c
+             INNER JOIN conversation_participants p ON c.id = p.conversation_id
+             WHERE c.id = ? AND p.user_id = ?"
+        )
             .bind(&conversation_id)
+            .bind(&user.id)
             .fetch_optional(&state.db)
             .await
             .ok()
             .flatten();
 
-    if exists.map(|(c,)| c).unwrap_or(0) == 0 {
+    if is_participant.map(|(c,)| c).unwrap_or(0) == 0 {
+        // La conversation n'existe pas OU l'utilisateur n'en est pas participant
+        let conv_exists: Option<(i64,)> =
+            sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+                .bind(&conversation_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+        if conv_exists.map(|(c,)| c).unwrap_or(0) == 0 {
+            return Err(StatusCode::NOT_FOUND);
+        }
         eprintln!(
-            "[send_message] Conversation '{}' introuvable",
-            conversation_id
+            "[send_message] Utilisateur {} n'est pas participant de la conversation {}",
+            user.id, conversation_id
         );
-        return Err(StatusCode::NOT_FOUND);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // FIX M2: limiter la taille du message a 8000 caracteres
+    if req.content.len() > 8000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     sqlx::query(
