@@ -198,8 +198,8 @@
             <div class="participant-overlay">
               <span class="participant-name">{localName} (vous)</span>
               <div class="participant-status">
-                {if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
-                {if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
+                {#if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
+                {#if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
               </div>
             </div>
           </div>
