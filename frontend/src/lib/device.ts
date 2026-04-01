@@ -6,15 +6,26 @@
 import { browser } from '$app/environment';
 
 /**
- * Génère un UUID v4 compatible HTTP/LAN.
- * crypto.randomUUID() n'est disponible qu'en secure context (HTTPS).
- * Cette implémentation fonctionne sur HTTP (LAN) et HTTPS (WAN).
+ * Génère un UUID v4 cryptographiquement sûr compatible HTTP/LAN.
+ * NOTE: `crypto.getRandomValues()` est disponible en HTTP et HTTPS.
+ * Seul `crypto.randomUUID()` est restreint au secure context (HTTPS).
+ * Cette implémentation fonctionne partout en utilisant crypto.getRandomValues().
  */
 function generateId(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
+  // FIX L3: utiliser crypto.getRandomValues au lieu de Math.random()
+  // crypto.getRandomValues est disponible en HTTP (secure context non requis)
+  const buf = new Uint8Array(16);
+  crypto.getRandomValues(buf);
+  // Forcer version 4, variant 2
+  buf[6] = (buf[6] & 0x0f) | 0x40;
+  buf[8] = (buf[8] & 0x3f) | 0x80;
+  return [
+    buf.slice(0, 4).reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+    buf.slice(4, 6).reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+    buf.slice(6, 8).reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+    buf.slice(8, 10).reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+    buf.slice(10).reduce((s, b) => s + b.toString(16).padStart(2, '0'), ''),
+  ].join('-');
 }
 
 /**
