@@ -1,254 +1,166 @@
-# Rust - Ressources pour le Développement Web
-
-Ce fichier recense les ressources utiles pour le développement d'applications web et de services en Rust.
-
-## Frameworks Web
-
-### Frameworks Principaux
-
-**[Axum](https://github.com/tokio-rs/axum)** - Framework web créé par l'équipe de Tokio
-
-| Aspect | Détails |
-|--------|---------|
-| **Créé par** | Équipe Tokio |
-| **Performance** | Haute performance, async natif |
-| **Ergonomie** | API moderne et intuitive |
-| **Intégration** | Tower middleware, Tokio |
-| **Typed** | Request/Response typesafe |
-| **Documentation** | Excellente |
-
-**[Actix Web](https://github.com/actix/actix-web)** - Framework haute performance
-
-| Aspect | Détails |
-|--------|---------|
-| **Performance** | Leader des benchmarks |
-| **Actix** | Basé sur le framework Actix |
-| **Features** | WebSocket, HTTP/2, middleware |
-| **Type-safe** | Extraction de données typée |
-| **Écosystème** | Large communauté |
-
-**[Rocket](https://github.com/rust-flash/rocket)** - Framework ergonomique
-
-| Aspect | Détails |
-|--------|---------|
-| **Simplicité** | API simple et expressive |
-| **Type-safe** | Routes typées |
-| **Validation** | FromForm pour validation |
-| **Testing** | Support de test intégré |
-| **Stable** | API stable |
-
-**[Warp](https://github.com/seanmonstar/warp)** - Framework filtré
-
-| Aspect | Détails |
-|--------|---------|
-| **Filtres** | Système de filtres composables |
-| **Hyper** | Basé sur Hyper |
-| **Flexible** | Haute configurabilité |
-| **Type-safe** | Filtres typés |
-
-**[Poem](https://github.com/poem-web/poem)** - Framework full-featured
-
-| Aspect | Détails |
-|--------|---------|
-| **OpenAPI** | Génération automatique OpenAPI |
-| **gRPC** | Support gRPC natif |
-| **WebSocket** | Support WebSocket |
-| **JWT** | Authentification JWT |
-
-## Runtime Asynchrone
-
-**[Tokio](https://github.com/tokio-rs/tokio)** - Runtime async standard
-
-| Aspect | Détails |
-|--------|---------|
-| **Status** | De facto standard async Rust |
-| **I/O** | Async I/O non-bloquant |
-| **Scheduling** | Multi-threaded scheduler |
-| **Timers** | Timers asynchrones |
-| **Tracing** | Intégration tracing |
-| **Usage** | Axum, Hyper, etc. |
-
-## Bases de Données & ORM
-
-**[SQLx](https://github.com/build-trust/codebase)** - ORM async compile-time checked
-
-| Aspect | Détails |
-|--------|---------|
-| **Compile-time** | Requêtes vérifiées à la compilation |
-| **Async** | 100% async |
-| **Pools** | Connection pooling |
-| **Support** | PostgreSQL, MySQL, SQLite |
-
-**[Diesel](https://github.com/diesel-rs/diesel)** - ORM établi
-
-| Aspect | Détails |
-|--------|---------|
-| **Type-safe** | Queries typées |
-| **Migrations** | Système de migrations |
-| **Async** | Support async (async-trait) |
-
-**[SeaORM](https://github.com/SeaQL/sea-orm)** - ORM async dynamique
-
-| Aspect | Détails |
-|--------|---------|
-| **Async** | Entièrement async |
-| **Active Record** | Pattern Active Record |
-| **Migrations** | Migrations automatiques |
-
-## HTTP & API
-
-**[reqwest](https://github.com/seanmonstar/reqwest)** - Client HTTP
-
-| Aspect | Détails |
-|--------|---------|
-| **Async** | API async |
-| **TLS** | Support HTTPS |
-| **JSON** | Désérialization automatique |
-
-**[Hyper](https://github.com/hyperium/hyper)** - HTTP library basse niveau
-
-| Aspect | Détails |
-|--------|---------|
-| **Low-level** | HTTP implementation |
-| **HTTP/1** | HTTP/1.1 |
-| **HTTP/2** | HTTP/2 |
-
-**[GraphQL Rust](https://github.com/async-graphql/async-graphql)** - Implémentation GraphQL
-
-| Aspect | Détails |
-|--------|---------|
-| **Schema** | Schema-first ou code-first |
-| **Subscriptions** | Support WebSocket |
-| **Introspection** | Introspection GraphQL |
-
-**[jsonwebtoken](https://github.com/Keats/jsonwebtoken)** - JWT en Rust
-
-| Aspect | Détails |
-|--------|---------|
-| **Claims** | Validation des claims |
-| **Algorithms** | HS256, RS256, etc. |
-
-## WebSocket & Temps Réel
-
-**[tokio-tungstenite](https://github.com/snapview/tokio-tungstenite)** - WebSocket pour Tokio
-
-| Aspect | Détails |
-|--------|---------|
-| **Async** | Entièrement async |
-| **TLS** | Support WSS |
-
-**[rustrtc](https://github.com/restsend/rustrtc)** - WebRTC haute performance
-
-| Aspect | Détails |
-|--------|---------|
-| **Performance** | ~2.8x plus rapide que pion |
-| **SFU** | Serveur visioconférence |
-| **STUN/TURN** | Support STUN/TURN |
-
-**[turn-rs](https://github.com/mycrl/turn-rs)** - Serveur TURN/STUN
-
-| Aspect | Détails |
-|--------|---------|
-| **STUN** | RFC 3489, 5389 |
-| **TURN** | RFC 5766, 6062 |
-| **Performance** | 40M msg/sec, <35µs latence |
-
-## Frontend & WebAssembly
-
-**[Leptos](https://github.com/leptos-rs/leptos)** - Framework frontend reactif
-
-| Aspect | Détails |
-|--------|---------|
-| **SSR** | Server-side rendering |
-| **SPA** | Single page app |
-| **Fine-grained** | Réactivité fine |
-
-**[Dioxus](https://github.com/DioxusLabs/dioxus)** - Framework UI moderne
-
-| Aspect | Détails |
-|--------|---------|
-| **Multi-platform** | Web, Desktop, Mobile |
-| **RSX** | Syntaxe JSX-like |
-| **Popularité** | En croissance rapide |
-
-**[Yew](https://github.com/yewstack/yew)** - Framework frontend
-
-| Aspect | Détails |
-|--------|---------|
-| **Components** | Composants comme React |
-| **WebAssembly** | Compile vers WASM |
-
-## Testing
-
-**[rstest](https://github.com/la10736/rstest)** - Tests paramétrés
-
-| Aspect | Détails |
-|--------|---------|
-| **Parametric** | Tests paramétrés |
-| **Fixtures** | Fixtures async |
-
-**[proptest](https://github.com/proptest-rs/proptest)** - Property-based testing
-
-| Aspect | Détails |
-|--------|---------|
-| **Property** | Property-based testing |
-| **Arbitrary** | Génération de données |
-
-**[wiremock](https://github.com/MatejLach/wiremock-rs)** - Mock HTTP server
-
-| Aspect | Détails |
-|--------|---------|
-| **Mock** | Mock server |
-| **Testing** | Tests d'intégration |
-
-## Logging & Observability
-
-**[tracing](https://github.com/tokio-rs/tracing)** - Framework de tracing
-
-| Aspect | Détails |
-|--------|---------|
-| **Structured** | Logging structuré |
-| **Spans** | Distributed tracing |
-| **Metrics** | Instrumentation |
-
-**[metrics](https://github.com/metrics-rs/metrics)** - Instrumentation metrics
-
-| Aspect | Détails |
-|--------|---------|
-| **Counter** | Counters |
-| **Gauge** | Gauges |
-| **Histogram** | Histograms |
-| **Prometheus** | Export Prometheus |
-
-## CLI & Tools
-
-**[Clap](https://github.com/clap-rs/clap)** - Parser d'arguments
-
-| Aspect | Détails |
-|--------|---------|
-| **Derive** | Derive macros |
-| **Typed** | Arguments typés |
-| **Completions** | Shell completions |
-
-## Learning Resources
-
-**[The Rust Programming Language](https://doc.rust-lang.org/book/)** - Livre officiel
-
-**[Rust by Example](https://doc.rust-lang.org/rust-by-example/)** - Apprendre par l'exemple
-
-**[Rustlings](https://github.com/rust-lang/rustlings)** - Exercices interactifs
-
-## Listes de Ressources
-
-**[awesome-rust](https://github.com/rust-unofficial/awesome-rust)** - Liste complète (25k+ stars)
-
-**[Rust Frameworks List](https://github.com/venuswhispers/Rust-awesome-frameworks)** - Comparaison frameworks
-
-**[Rust Security](https://github.com/osirislab/awesome-rust-security)** - Outils de sécurité
-
-## Notes
-
-- **Last updated**: 2026-03-29
-- **Focus**: Web development, API, services
-- **async-std**: Déprécié en 2025 - utiliser Tokio
-- **À revisar**: Trimestriellement pour nouvelles ressources
+# 🦀 Rust Resources — Nook
+
+> Référence **opérationnelle** des crates Rust utilisées ou à intégrer dans Nook.
+> Versions exactes et patterns validés en production.
+> Mis à jour : session 44
+
+---
+
+## ✅ Crates actuellement dans Cargo.toml
+
+```toml
+# backend/Cargo.toml — versions de production validées
+axum          = { version = "0.8", features = ["ws", "multipart", "tokio"] }
+axum-extra    = { version = "0.10", features = ["typed-header"] }
+sqlx          = { version = "0.8.6", features = ["sqlite", "migrate", "runtime-tokio-rustls"] }
+tokio         = { version = "1.0", features = ["full"] }
+tower-http    = { version = "0.6.8", features = ["fs", "cors", "compression-br"] }
+serde         = { version = "1.0", features = ["derive"] }
+serde_json    = "1.0"
+uuid          = { version = "1.0", features = ["v4"] }
+chrono        = { version = "0.4", features = ["serde"] }
+rand          = "0.9"           # utiliser rand::rng() — PAS thread_rng()
+rand_core     = "0.6"           # utiliser rand_core::OsRng — PAS rand::rngs::OsRng
+argon2        = "0.5"
+chacha20poly1305 = "0.10.1"
+base64ct      = "1.6"
+tracing       = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+```
+
+---
+
+## 🔴 Pièges Rust connus dans Nook
+
+### rand 0.9 — API changée
+```rust
+// ❌ Ancien (rand 0.8) — ne compile pas
+use rand::thread_rng;
+let mut rng = thread_rng();
+
+// ✅ Nouveau (rand 0.9)
+let mut rng = rand::rng();
+let val: f64 = rng.random::<f64>();
+```
+
+### rand_core::OsRng — diamond dependency
+```rust
+// ❌ rand::rngs::OsRng — conflit de type avec argon2
+// ✅ rand_core::OsRng — compatible argon2 0.5
+use rand_core::OsRng;
+let password_hash = Argon2::default().hash_password(pwd, &SaltString::generate(&mut OsRng))?;
+```
+
+### DefaultBodyLimit — obligatoire pour les uploads
+```rust
+// main.rs — sans ça, Axum limite à 2MB (cause du bug upload > 7Mo)
+use axum::extract::DefaultBodyLimit;
+
+let app = Router::new()
+    .nest("/api", api_router)
+    .layer(DefaultBodyLimit::max(52 * 1024 * 1024)) // 52MB
+    // ...
+```
+
+### spawn_blocking — obligatoire pour le code CPU-bound
+```rust
+// ❌ Bloque le thread Tokio → serveur freeze
+let result = play_ai(game, difficulty)?;
+
+// ✅ CPU-bound dans spawn_blocking
+let result = tokio::task::spawn_blocking(move || {
+    play_ai(game, difficulty)
+}).await??;
+```
+
+### sqlx sans macro quand queries.json est absent
+```rust
+// ❌ sqlx! macro → erreur si .sqlx/queries.json pas régénéré
+let row = sqlx::query!("SELECT id FROM users WHERE id = ?", id)...
+
+// ✅ query_as sans macro → toujours safe
+let row: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE id = ?")
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await?;
+```
+
+---
+
+## 🟡 Crates à ajouter — LOT 3
+
+### sysinfo — Métriques système pour `/api/admin/metrics`
+```toml
+sysinfo = "0.32"
+```
+```rust
+use sysinfo::System;
+let mut sys = System::new_all();
+sys.refresh_all();
+Json(json!({
+    "cpu_usage": sys.global_cpu_usage(),
+    "memory_used": sys.used_memory(),
+    "memory_total": sys.total_memory(),
+}))
+```
+
+### bollard — Stats Docker pour l'admin
+```toml
+bollard = "0.17"
+```
+```rust
+use bollard::Docker;
+let docker = Docker::connect_with_local_defaults()?;
+let containers = docker.list_containers::<String>(None).await?;
+```
+
+---
+
+## 🔵 Crates à ajouter — LOT 4
+
+### turn-rs — Serveur TURN pour appels WAN
+Pas une crate — déployer comme service Docker séparé.  
+Voir `github-resources.md` pour la config docker-compose.
+
+---
+
+## 📐 Patterns Axum validés dans Nook
+
+### Route avec auth + state
+```rust
+pub async fn my_handler(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
+    Json(req): Json<MyRequest>,
+) -> impl IntoResponse {
+    // ...
+}
+```
+
+### Route PATCH (nouveau en S43)
+```rust
+// main.rs
+.route("/events/{id}", axum::routing::patch(db::update_event))
+// ⚠️ Axum 0.8 : {id} et non :id
+```
+
+### Broadcast WS avec routage to_user_id (S42)
+```rust
+// Enregistrer le sender du user
+state.webrtc_state.user_senders.lock().await.insert(user_id.clone(), tx);
+// Router vers un user spécifique
+if let Some(target_tx) = guard.get(target_user_id) {
+    let _ = target_tx.send(message);
+}
+```
+
+---
+
+## 📚 Ressources officielles
+
+- **Axum 0.8 docs :** https://docs.rs/axum/0.8/axum/
+- **SQLx 0.8 :** https://docs.rs/sqlx/0.8/sqlx/
+- **Tokio :** https://tokio.rs/
+- **The Book :** https://doc.rust-lang.org/book/
+- **Rust by Example :** https://doc.rust-lang.org/rust-by-example/
