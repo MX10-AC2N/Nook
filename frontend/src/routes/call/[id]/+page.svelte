@@ -206,7 +206,7 @@
 
           <!-- Remote streams -->
           {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
-            {#let participant = participants.value.find((p) => p.id === userId)}
+            {@const participant = participants.value.find((p) => p.id === userId)}
               <div class="participant-card remote" class:without-video={!isVideo}>
                 {#if isVideo && !callStore.isVideoOff}
                   <video
@@ -220,7 +220,7 @@
                   <span class="participant-name">{participant?.name ?? participant?.username ?? userId}</span>
                 </div>
               </div>
-            {/let}
+            
           {/each}
 
           <!-- Waiting state -->
