@@ -1,156 +1,89 @@
-# Base de Connaissances GitHub
+# 🔗 GitHub Resources — Nook
 
-Ce fichier recense des projets GitHub utiles pour le développement de Nook.
+> Projets GitHub **directement applicables** à Nook. Pour chaque entrée :
+> décision d'usage, priorité, et comment l'intégrer concrètement.
+> Mis à jour : session 44
 
-## Projets de Référence
+---
 
-### Visioconférence & Streaming (Rust)
+## 📞 WebRTC & Appels (priorité haute)
 
-**[videocall.rs](https://github.com/security-union/videocall-rs)** - Framework open-source de streaming média et système de téléconférence écrit en Rust
+### turn-rs — Serveur TURN/STUN Rust pur
+**Repo :** https://github.com/mycrl/turn-rs  
+**Décision :** ✅ **À intégrer LOT 3** — résout les appels WAN (actuellement instables hors LAN)  
+**Pourquoi :** Rust pur, <35µs latence, tourne sur Zimaboard ARM64, licence MIT  
+**Intégration :**
+```yaml
+# docker-compose.yml — ajouter après le service nook
+turn:
+  image: ghcr.io/mycrl/turn-rs:latest
+  ports: ["3478:3478/udp", "3478:3478/tcp"]
+  environment:
+    TURN_REALM: nook.local
+    TURN_SECRET: ${TURN_SECRET}
+```
+```typescript
+// webrtc-calls.svelte.ts — iceServers
+iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'turn:192.168.X.X:3478', username: 'nook', credential: '${TURN_SECRET}' },
+]
+```
 
-| Aspect | Détails |
-|--------|---------|
-| **Latence** | Ultra-basse latence sub-100ms |
-| **Transport** | WebTransport (QUIC/HTTP3) + WebSocket fallback |
-| **Backend** | Rust + Actix Web + PostgreSQL + NATS |
-| **Frontend** | Rust + Dioxus + WebAssembly + Tailwind CSS |
-| **Mobile** | Support via Tauri |
-| **Cibles** | Robotique, IoT, systèmes embarqués (Raspberry Pi, Jetson Nano) |
-| **Licence** | MIT |
+### rustrtc — SFU WebRTC haute performance
+**Repo :** https://github.com/restsend/rustrtc  
+**Décision :** 🔵 **LOT 4** — remplace le mesh P2P pour les appels groupe (4+ personnes)  
+**Pourquoi :** 2.8x plus rapide que pion, SFU intégré, Rust natif  
+**Note :** Intégration lourde — prioriser turn-rs d'abord
 
-**Cas d'usage :**
-- Applications vidéo personnalisées avec API Rust type-safe
-- Streaming vidéo depuis drones/robots avec latence minimale
-- Auto-hébergement de visioconférence avec authentification JWT + SSO
+---
 
-**[rustrtc](https://github.com/restsend/rustrtc)** - Implémentation haute performance de WebRTC écrite en Rust
+## 📊 Monitoring (priorité moyenne)
 
-| Aspect | Détails |
-|--------|---------|
-| **Performance** | ~2.8x plus rapide que pion (Go) et webrtc-rs |
-| **Débits** | 713 MB/s (vs 254 pour webrtc, 309 pour pion) |
-| **Latence** | 0.22ms (vs 1.36ms pour webrtc) |
-| **Mémoire** | 15 MB (vs 29 MB pour webrtc) |
-| **Support** | RTP/SRTP audio/vidéo, ICE/STUN, Data Channels |
-| **SFU** | Serveur de visioconférence multi-utilisateurs inclus |
-| **Licence** | MIT |
+### rustmon — Dashboard monitoring web
+**Repo :** https://github.com/imdadareeph/rustmon  
+**Décision :** 🟡 **Optionnel** — utile pour une page admin `/admin/system`  
+**Pourquoi :** Stack Rust + Axum (identique à Nook), WebSocket temps réel, Docker stats  
+**Intégration :** Exposer `/api/metrics` dans Nook via `sysinfo` crate, afficher dans admin
 
-**Cas d'usage :**
-- Applications WebRTC haute performance
-- Serveur SFU pour conférences vidéo multi-utilisateurs
-- Communication peer-to-peer avec data channels
+### Beszel — Dashboard multi-serveurs
+**Repo :** https://github.com/henrygd/beszel  
+**Décision :** 🟡 **Outil externe** — pas intégré dans Nook, déployé séparément sur le Zimaboard  
+**Usage :** Surveiller CPU/RAM/Docker du Zimaboard depuis un navigateur
 
-**[turn-rs](https://github.com/mycrl/turn-rs)** - Serveur TURN/STUN pur Rust pour la traverse NAT
+---
 
-| Aspect | Détails |
-|--------|---------|
-| **Performance** | 40M messages/seconde, 600K allocations/seconde |
-| **Latence** | < 35 microsecondes |
-| **Transport** | TCP + UDP, multi-interface réseau |
-| **API** | gRPC pour contrôle externe et notifications |
-| **RFC** | Support RFC 3489, 5389, 5766, 6062, 6156 |
-| **IoT** | Fonctionne sur Raspberry Pi 4 |
-| **Licence** | MIT |
+## ♟️ Échecs (référence moteur)
 
-**Cas d'usage :**
-- Traverse NAT pour WebRTC
-- Serveur de relai haute performance pour VoIP
-- Passerelle pour trafic média temps réel
+### Walleye — Moteur UCI Rust
+**Repo :** https://github.com/MitchelPaulin/Walleye  
+**Décision :** 📌 **Référence** — notre moteur actuel est custom, Walleye sert de comparaison  
+**Usage :** Comparer les optimisations (Killer Moves, MVV-LVA, PV Search)
 
-### Messagerie & Collaboration (Rust)
+---
 
-**[rustchat](https://github.com/rustchatio/rustchat)** - Plateforme de collaboration d'équipe auto-hébergée. Alternative à Slack, Mattermost et Zulip
+## 💬 Messagerie (référence architecture)
 
-| Aspect | Détails |
-|--------|---------|
-| **Backend** | Rust + Axum + Tokio + SQLx |
-| **Frontend** | Vue 3 + TypeScript + Pinia |
-| **Base de données** | PostgreSQL + Redis |
-| **Stockage** | S3-compatible (MinIO) |
-| **API** | Native `/api/v1` + Compatibilité Mattermost `/api/v4` |
-| **Temps réel** | WebSocket + Appels intégré |
-| **Sécurité** | Authentification JWT, Argon2id hashing, Rate limiting |
-| **Licence** | MIT |
+### rustchat — Chat Rust + Axum (comme Nook)
+**Repo :** https://github.com/rustchatio/rustchat  
+**Décision :** 📌 **Référence architecture** — même stack (Axum + SQLx + WebSocket)  
+**Usage :** S'inspirer des patterns pour le temps réel, la gestion des rooms, les notifications
 
-**Cas d'usage :**
-- Système de chat d'équipe auto-hébergé avec compatibilité Mattermost
-- Plateforme de collaboration temps réel avec WebSocket
-- Backend Rust haute performance pour messagerie
+---
 
-### Échecs (Rust)
+## ❌ Non retenus pour Nook
 
-**[chess-tui](https://github.com/thomas-mauran/chess-tui)** - Jeu d'échecs en terminal, multiplateforme, écrit en Rust
+| Projet | Raison |
+|---|---|
+| videocall-rs | Stack incompatible (Actix + NATS + PostgreSQL) — trop lourd |
+| chess-tui | TUI terminal — pas utile pour une app web |
+| React/Vue/Express/Django/FastAPI | Nook est Svelte 5 + Rust, pas de migration prévue |
+| webpack | Nook utilise Vite, pas webpack |
 
-| Aspect | Détails |
-|--------|---------|
-| **Modes** | Local 2 joueurs, moteur UCI, Lichess en ligne |
-| **UI** | TUI via ratatui |
-| **Moteurs** | Compatible tout moteur UCI (Stockfish, etc.) |
-| **Multijoueur** | Partie en réseau local ou internet |
-| **Personnalisation** | Skins, configuration moteur, sons |
-| **Stats** | 989 étoiles, 60 forks |
-| **Licence** | MIT |
+---
 
-**[Walleye](https://github.com/MitchelPaulin/Walleye)** - Moteur d'échecs UCI écrit en Rust
+## 📝 Notes
 
-| Aspect | Détails |
-|--------|---------|
-| **Protocole** | UCI compatible |
-| **Algorithme** | Alpha-Beta pruning, Iterative Deepening |
-| **Optimisations** | Killer Moves, MVV-LVA, PV Search |
-| **Plateau** | Square Centric 12x12 avec sentinelles |
-| **Tests** | Suite complète de tests unitaires |
-| **Déploiement** | AWS + Lichess (@Walleye_Bot) |
-| **Licence** | MIT |
-
-**Cas d'usage :**
-- Intégration de jeu d'échecs dans vos applications
-- Recherche en intelligence artificielle pour jeux de plateau
-- Backend de plateforme d'échecs en ligne
-
-## Framework & Libraries
-
-### Frontend
-- [React](https://github.com/facebook/react) - Bibliothèque JavaScript pour construire des interfaces utilisateurs
-- [Vue.js](https://github.com/vuejs/vue) - Framework JavaScript progressif
-- [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) - Framework CSS utilitaire
-
-### Backend
-- [Express](https://github.com/expressjs/express) - Framework web minimal pour Node.js
-- [FastAPI](https://github.com/tiangolo/fastapi) - Framework Python moderne et rapide
-- [Django](https://github.com/django/django) - Framework web Python de haut niveau
-
-### Base de données
-- [PostgreSQL](https://github.com/postgres/postgres) - Système de base de données relationnelle objet
-- [Prisma](https://github.com/prisma/prisma) - Next-generation ORM pour Node.js et TypeScript
-- [Redis](https://github.com/redis/redis) - Base de données en mémoire
-
-## Outils de Développement
-
-### CLI & Automation
-- [yabc](https://github.com/) - Outil de build
-- [webpack](https://github.com/webpack/webpack) - Bundler de modules
-- [vite](https://github.com/vitejs/vite) - Outil de build nouvelle génération
-
-### Testing
-- [Jest](https://github.com/jestjs/jest) - Framework de test JavaScript délicieux
-- [Playwright](https://github.com/microsoft/playwright) - Framework de test end-to-end
-- [pytest](https://github.com/pytest-dev/pytest) - Framework de test Python mature
-
-### Documentation
-- [docsify](https://github.com/docsifyjs/docsify) - Générateur de documentation léger
-- [Docusaurus](https://github.com/facebook/docusaurus) - Framework de documentation optimisé
-
-## Ressources d'Apprentissage
-
-### Awesome Lists
-- [awesome-python](https://github.com/vinta/awesome-python)
-- [awesome-javascript](https://github.com/sorrycc/awesome-javascript)
-- [awesome-nodejs](https://github.com/sindresorhus/awesome-nodejs)
-- [awesome-rust](https://github.com/rust-unofficial/awesome-rust)
-
-## Notes
-
-- Last updated: 2026-03-29
-- Projets ajoutés: videocall-rs, rustchat, rustrtc, turn-rs, chess-tui, Walleye
-- À reviser régulièrement pour ajouter de nouvelles ressources pertinentes
+- **Priorité LOT 3 :** turn-rs en docker-compose → appels WAN fonctionnels
+- **Priorité LOT 4 :** rustrtc SFU → appels groupe famille
+- **À ne pas changer :** Stack core Axum 0.8 + SQLite + SvelteKit 5 — mature et stable
