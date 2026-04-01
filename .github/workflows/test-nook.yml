@@ -181,7 +181,6 @@ jobs:
             echo "Aucun changement dans le rapport"
           else
             git commit -m "ci: TEST_REPORT.md [run ${{ github.run_id }}]"
-            git pull --rebase origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "Rapport commite"
           fi
