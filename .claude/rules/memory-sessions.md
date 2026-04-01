@@ -1,66 +1,57 @@
-## Session 43 — 2026-03-29 — LOT 1+2 : Upload, Scroll, Badge, Calendrier, Mode sombre, Polls
+## Session 44 — 2026-03-30 — Fix calendrier classes CSS + réécriture tools
 
 ### Contexte
-Suite du plan CEO v0.5. Objectif : stabilisation + expérience. 7 fichiers produits en une seule passe.
+Score 97/98 après session 43. 1 test restant : `Calendar UI — page, grille et bouton ajouter visibles`.
+Réécriture complète des fichiers `.claude/tools/*-resources.md` pour les rendre actionnables.
 
-### Corrections LOT 1 (stabilisation)
+### Correction
 
-**🔴 R_UPLOAD_7MO** — Upload > 7Mo : "failed to read"
-- Axum `DefaultBodyLimit` par défaut = 2MB → tout upload > 2Mo échoue avec 413
-- Fix : `DefaultBodyLimit::max(52 * 1024 * 1024)` appliqué sur le Router global dans main.rs
-- La validation métier 50Mo reste dans upload.rs
-- Layer appliqué AVANT `.layer(cors_layer)` pour éviter rejet prématuré
+**🔴 R_CALENDAR_CLASSES** — `.calendar-grid` et `.add-event-btn` absents
+- Le calendrier refait en S43 utilisait `.cal-grid` et `.btn-add`
+- Le test E2E (user.spec.ts:608) cherche `.calendar-grid` et `.add-event-btn`
+- Fix : renommer les classes CSS dans le composant pour correspondre aux sélecteurs du test
+- **Règle ajoutée** : avant de livrer un composant refait, toujours vérifier `user.spec.ts` pour les sélecteurs attendus
 
-**🔴 R_SCROLL_CHAT** — Scroll chat ne suit pas les nouveaux messages
-- `$effect` existant recalculait scrollTop mais sans vérifier si l'user avait remonté
-- Fix : tolérance 150px — si `scrollHeight - scrollTop - clientHeight < 150` → scroll auto
-- Ajout scroll forcé après `loadMessages` dans `selectConversation`
+**🔴 R_ISEMOJI_S44** — `isSingleEmoji` toujours absente du zip 51
+- La fonction avait été livrée en S42 mais le zip 50→51 ne l'avait pas intégrée
+- Fix : re-livré `chat/+page.svelte` avec `isSingleEmoji` définie après `ALL_EMOJIS`
 
-**🔴 R_BADGE_MENU** — Badge non-lu absent dans le menu navigation
-- `unreadCounts` existait dans chatStore mais jamais affiché dans le menu burger
-- Fix : `totalUnread = $derived(Object.values(chatStore.unreadCounts).reduce(...))` dans +layout.svelte
-- Badge vert `.nav-badge` sur l'item Chat, lien actif `.active` avec CSS
+### Réécriture .claude/tools
 
-### Corrections LOT 2 (expérience)
+Les 6 fichiers tools ont été réécrits pour être **actionnables** (pas juste descriptifs) :
 
-**🟡 R_CALENDAR_EDIT** — Calendrier : click, édition, suppression
-- Calendrier refait entièrement : click sur case → modal détail/édition/suppression
-- Jour actuel mis en avant (fond accent + numéro en cercle)
-- Multi-événements par jour → modal liste intermédiaire
-- Nouveau handler backend `update_event` (PATCH /api/events/{id}) dans db.rs
-- Route ajoutée dans main.rs : `axum::routing::patch(db::update_event)`
+| Fichier | Avant | Après |
+|---|---|---|
+| `github-resources.md` | Catalogue générique (React, Vue, Django...) | Uniquement projets applicables à Nook + décisions d'usage + code d'intégration |
+| `svelte5-resources.md` | Liste de libs + exemple générique | Pièges Svelte 5 validés Nook + patterns validés + recommandations concrètes |
+| `rust-resources.md` | Catalogue de frameworks Rust | Versions Cargo.toml exactes + pièges connus + patterns validés Nook |
+| `nook-resources.md` | Description générale | État features, roadmap LOT 3/4, décisions immuables, score E2E historique |
+| `libui-resources.md` | Toutes les libs sans filtre | Seules les libs compatibles CSS variables Nook + règle absolue pas de couleurs hardcodées |
+| `monitoring-resources.md` | Stack Prometheus/Grafana enterprise | Uniquement sysinfo (LOT 3) + Beszel externe + suppression de l'inutilisable |
 
-**🟡 R_THEME_DARK** — Mode sombre global absent
-- Nouveau thème `nuit-douce` : gris ardoise profond + violet lavande, adapté pour le soir
-- Fichier CSS : `frontend/src/lib/ui/themes/nuit-douce.css`
-- ThemeStore : type étendu + thème ajouté dans `availableThemes` + `applyTheme` mis à jour
-- app.css : import ajouté
-- `getSystemTheme()` : préférence dark → `nuit-douce` (au lieu de space-hub)
+### Fichiers modifiés session 44
 
-**🟡 R_POLLS_CLOSING** — Sondages : date de clôture automatique
-- Nouveau champ `closingDate` (date HTML) dans le formulaire de création
-- Converti en timestamp unix `closes_at` envoyé au backend
-- Affiché sur la carte sondage si non encore fermé
+- `frontend/src/routes/calendar/+page.svelte` — `.cal-grid` → `.calendar-grid`, `.btn-add` → `.add-event-btn`
+- `frontend/src/routes/chat/+page.svelte` — `isSingleEmoji` re-livrée
+- `.claude/tools/github-resources.md` — réécrit
+- `.claude/tools/svelte5-resources.md` — réécrit
+- `.claude/tools/rust-resources.md` — réécrit
+- `.claude/tools/nook-resources.md` — réécrit
+- `.claude/tools/libui-resources.md` — réécrit
+- `.claude/tools/monitoring-resources.md` — réécrit
+- `.claude/BUGS.md` — mis à jour
 
-### Fichiers modifiés session 43
+### Ce qui reste (LOT 3 — session 45)
 
-- `backend/src/main.rs` — DefaultBodyLimit 52MB + route PATCH /events/{id}
-- `backend/src/db.rs` — `update_event` handler PATCH
-- `frontend/src/routes/+layout.svelte` — badge non-lu + chatStore import + nav actif + version
-- `frontend/src/routes/chat/+page.svelte` — scroll intelligent (tolérance 150px)
-- `frontend/src/routes/calendar/+page.svelte` — refonte complète avec modals
-- `frontend/src/routes/polls/+page.svelte` — date clôture automatique
-- `frontend/src/lib/ui/ThemeStore.svelte.ts` — thème nuit-douce
-- `frontend/src/lib/ui/themes/nuit-douce.css` — NOUVEAU fichier thème sombre
-- `frontend/src/app.css` — import nuit-douce.css
+- [ ] **turn-rs** — serveur TURN dans docker-compose → appels WAN
+- [ ] Métriques système admin via `sysinfo` → `GET /api/admin/metrics`
+- [ ] Fermeture auto sondages côté backend (check `closed_at` au GET /api/polls)
+- [ ] Messages vocaux iOS Safari (format MP4 fallback)
+- [ ] Valider appels audio/vidéo LAN après fixes S42
 
-### Ce qui reste (LOT 3 — session 44)
+### Score E2E
 
-- [ ] Messages vocaux : tester iOS Safari + format MP4 fallback
-- [ ] Appels audio/vidéo : valider après fixes S42 en conditions réelles LAN
-- [ ] Serveur TURN (turn-rs) pour appels WAN — docker-compose + iceServers config
-- [ ] Sondages : fermeture auto côté backend (cron ou check à la lecture)
-- [ ] GIFs : documenter workflow fetch-gifs.yml ou pack open-source
-- [ ] Android TWA / Capacitor
-- [ ] Export PGN parties d'échecs
-- [ ] Backup chiffré automatique DB
+| Run | Score | Note |
+|---|---|---|
+| S44 run1 (zip 51) | 97/98 | `.calendar-grid` absent |
+| S44 run2 | 98/98 | Attendu ✅ après fix classes |
