@@ -785,8 +785,16 @@ pub async fn ai_move(
         Color::Black => "black",
     };
 
+    // FIX: In case of checkmate, the AI just won — set winner_id to the AI player
     let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
-        "checkmate" => (None, "finished"),
+        "checkmate" => {
+            // AI wins: if AI plays white, winner is player1, else player2
+            let p2_id: Option<String> = row.get("player2_id");
+            match ai_color {
+                Color::White => (Some(row.get::<String, _>("player1_id")), "finished"),
+                Color::Black => (p2_id.clone(), "finished"),
+            }
+        }
         "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
         _ => (None, "playing"),
     };
@@ -797,7 +805,8 @@ pub async fn ai_move(
     };
     history.push(json!({ "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str }));
     let new_history = serde_json::to_string(&history).unwrap();
-    let next_turn = if db_status == "finished" { 0 } else { 1 };
+    // Alternate turns: 1=human, 2=AI for AI games
+    let next_turn = if db_status == "finished" { 0 } else { 2 };
 
     sqlx::query(
         r#"UPDATE chess_games
@@ -840,7 +849,7 @@ pub async fn ai_move(
             "id": game_id,
             "created_by": row.get::<String, _>("created_by"),
             "player1_id": row.get::<Option<String>, _>("player1_id"),
-            "player2_id": serde_json::Value::Null,
+            "player2_id": row.get::<Option<String>, _>("player2_id"),
             "player1_color": row.get::<String, _>("player1_color"),
             "player2_color": row.get::<String, _>("player2_color"),
             "status": game_status_str.as_str(),

@@ -82,6 +82,14 @@
     await chessStore.loadGame(gameId);
     pageLoading = false;
   });
+
+  // Auto-show result modal when game finishes
+  $effect(() => {
+    if (chessStore.currentGame?.status === 'finished' && !showResult) {
+      showResult = true;
+      resultDismissed = false;
+    }
+  });
   onDestroy(() => chessStore.disconnectWebSocket());
 
   // Guard : ne pas dériver si currentGame est null
