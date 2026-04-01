@@ -32,6 +32,7 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 use chrono::Utc;
+use rand::{rng, distr::Alphanumeric, Rng};
 
 mod admin;
 mod auth;
@@ -106,7 +107,13 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     if count.0 == 0 {
         tracing::warn!("⚠️  Aucun utilisateur trouvé - création de l'administrateur initial");
 
-        let password_hash = crate::auth::hash_password("changeme2026");
+        // FIX C2: generer un mot de passe aleatoire au lieu d'un mot de passe statique
+        let random_password: String = rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+        let password_hash = crate::auth::hash_password(&random_password);
         let now = Utc::now().timestamp();
 
         sqlx::query(
@@ -128,8 +135,8 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             role = "admin",
             "✓ Administrateur initial créé avec succès"
         );
-        eprintln!("[Init] Admin initial créé — identifiants : admin / changeme2026");
-        eprintln!("[Init] ⚠️  Changez le mot de passe dès la première connexion !");
+        eprintln!("[Init] Admin initial cree - utilisateur : admin / mot de passe : {}", random_password);
+        eprintln!("[Init] ⚠️  Changez le mot de passe des la premiere connexion !");
     } else {
         tracing::debug!("Administrateur initial déjà existant");
     }
