@@ -11,7 +11,6 @@
     PIECE_NAMES,
     statusLabel,
   } from '$lib/chessStore.svelte.ts';
-  import { onMount as _onMount } from 'svelte';
 
   const gameId = $derived($page.params.game_id);
 
@@ -36,7 +35,8 @@
   }
 
   // La case du roi est en échec si engine.status contient "check" ou "checkmate"
-  const kingInCheckSquare = $derived((): string | null => {
+  // CORRECTION: $derived prend une expression, pas une fonction
+  const kingInCheckSquare = $derived(() => {
     const engine = chessStore.currentGame?.engine;
     if (!engine) return null;
     const st = engine.status ?? '';
@@ -60,7 +60,7 @@
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
-    if (kingInCheckSquare() === alg) cls += ' cell-check';
+    if (kingInCheckSquare === alg) cls += ' cell-check';
     return cls;
   }
 
@@ -68,14 +68,24 @@
   const PROMO_LABELS: Record<string, string> = { q: '♛ Dame', r: '♜ Tour', b: '♝ Fou', n: '♞ Cavalier' };
 
   let showResign = $state(false);
+  // CORRECTION: Variables manquantes ajoutées
+  let showResult = $state(false);
+  let resultDismissed = $state(false);
+  // Loading LOCAL à cette page — évite la race condition avec chessStore.loading
+  // partagé par loadGameList() du lobby qui peut remettre loading=false avant
+  // que loadGame() ait terminé → "Partie introuvable" affiché prématurément.
+  let pageLoading = $state(true);
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
+    pageLoading = true;
     await chessStore.loadGame(gameId);
+    pageLoading = false;
   });
   onDestroy(() => chessStore.disconnectWebSocket());
 
   // Guard : ne pas dériver si currentGame est null
+  // CORRECTION: Utiliser $derived correctement
   const mySlot = $derived(() => {
     const g = chessStore.currentGame;
     if (!g) return null;
@@ -97,7 +107,7 @@
 
 <div class="chess-page">
 
-  {#if chessStore.loading && !chessStore.currentGame}
+  {#if pageLoading}
     <div class="loading-full">
       <div class="spinner-lg"></div>
       <p>Chargement de la partie…</p>
@@ -139,13 +149,13 @@
       <div class="mobile-players">
         <span class="mp" class:mp-active={engine?.side_to_move === game?.player2_color && (game?.status ?? '') === 'playing'}>
           {game?.player2_id
-            ? (slot === 2 ? 'Vous' : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : 'Adv.'))
+            ? (slot === 2 ? 'Vous' : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : (game?.player2_name ?? 'Adv.')))
             : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : '…')}
           <span class="mp-dot" class:dot-w={game?.player2_color === 'white'} class:dot-b={game?.player2_color === 'black'}></span>
         </span>
         <span class="mp-sep">vs</span>
         <span class="mp" class:mp-active={engine?.side_to_move === game?.player1_color && (game?.status ?? '') === 'playing'}>
-          {slot === 1 ? 'Vous' : (game?.player1_id ? 'Adv.' : '…')}
+          {slot === 1 ? 'Vous' : (game?.player1_id ? (game?.player1_name ?? 'Adv.') : '…')}
           <span class="mp-dot" class:dot-w={game?.player1_color === 'white'} class:dot-b={game?.player1_color === 'black'}></span>
         </span>
       </div>
@@ -194,7 +204,7 @@
             <div class="player-info">
               <span class="player-name">
                 {game?.player2_id
-                  ? (slot === 2 ? 'Vous' : (game?.player2_id.slice(0,10) + '…'))
+                  ? (slot === 2 ? 'Vous' : (game?.player2_name ?? game?.player2_id?.slice(0,10) ?? '?'))
                   : (game?.ai_difficulty ? `🤖 IA (${game?.ai_difficulty})` : 'En attente…')}
               </span>
               <span class="player-color">{game?.player2_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
@@ -210,7 +220,7 @@
             <div class="color-dot" class:dot-white={game?.player1_color === 'white'} class:dot-black={game?.player1_color === 'black'}></div>
             <div class="player-info">
               <span class="player-name">
-                {game?.player1_id ? (slot === 1 ? 'Vous' : (game?.player1_id.slice(0,10) + '…')) : 'En attente…'}
+                {game?.player1_id ? (slot === 1 ? 'Vous' : (game?.player1_name ?? game?.player1_id?.slice(0,10) ?? '?')) : 'En attente…'}
               </span>
               <span class="player-color">{game?.player1_color === 'white' ? '♙ Blancs' : '♟ Noirs'}</span>
             </div>
@@ -364,6 +374,39 @@
         </div>
       </div>
     {/if}
+
+  <!-- ══ MODAL RÉSULTAT FIN DE PARTIE ══ -->
+  <!-- CORRECTION: Vérifier showResult et status 'finished' ensemble -->
+  {#if showResult && (chessStore.currentGame?.status ?? '') === 'finished'}
+    {@const g = chessStore.currentGame}
+    {@const isWinner = g?.winner_id === authStore.user?.id}
+    {@const isDraw   = !g?.winner_id}
+    <div class="modal-backdrop" role="dialog" aria-modal="true">
+      <div class="modal-result">
+        <div class="result-icon">
+          {#if isDraw}🤝{:else if isWinner}🏆{:else}👑{/if}
+        </div>
+        <h2 class="result-title">
+          {#if isDraw}Match nul !{:else if isWinner}Victoire !{:else}Défaite{/if}
+        </h2>
+        <p class="result-sub">
+          {#if isDraw}Égalité parfaite
+          {:else if isWinner}Bien joué !
+          {:else if chessStore.isVsAI}L'IA ({g?.ai_difficulty}) a gagné
+          {:else}Votre adversaire a gagné
+          {/if}
+        </p>
+        <p class="result-moves">{g?.move_history?.length ?? 0} coups joués</p>
+        <div class="result-actions">
+          <a href="/chess" class="result-btn result-btn-primary">Nouvelle partie</a>
+          <button class="result-btn result-btn-secondary"
+            onclick={() => { showResult = false; resultDismissed = true; }}>
+            Voir le plateau
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {/if}
 </div>
@@ -638,4 +681,29 @@
       border-radius: .4rem; text-decoration: none; font-size: .78rem; font-weight: 600; flex-shrink: 0;
     }
   }
+  /* ── Modal résultat fin de partie ── */
+  .modal-result {
+    background: #fff; border-radius: 1.25rem; padding: 2rem 1.75rem;
+    text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    min-width: 280px; max-width: 340px;
+    animation: popIn .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes popIn {
+    from { transform: scale(.7); opacity: 0; }
+    to   { transform: scale(1);  opacity: 1; }
+  }
+  .result-icon  { font-size: 3.5rem; line-height: 1; margin-bottom: .5rem; }
+  .result-title { font-size: 1.6rem; font-weight: 800; margin: 0 0 .4rem; color: #1e293b; }
+  .result-sub   { font-size: .95rem; color: #64748b; margin: 0 0 .35rem; }
+  .result-moves { font-size: .82rem; color: #94a3b8; margin: 0 0 1.25rem; }
+  .result-actions { display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap; }
+  .result-btn {
+    padding: .65rem 1.25rem; border-radius: .6rem; font-weight: 700;
+    font-size: .9rem; cursor: pointer; text-decoration: none; border: none; transition: all .15s;
+  }
+  .result-btn-primary  { background: #2d5a27; color: #fff; }
+  .result-btn-primary:hover  { background: #3d7a37; }
+  .result-btn-secondary { background: #f1f5f9; color: #475569; }
+  .result-btn-secondary:hover { background: #e2e8f0; }
+
 </style>

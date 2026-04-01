@@ -762,6 +762,63 @@ pub async fn create_event(
     }
 }
 
+// ═════════════════════════════════════════════════════════════════
+// PATCH /events/{id}  — modifier un événement
+// ═════════════════════════════════════════════════════════════════
+
+#[derive(serde::Deserialize)]
+pub struct UpdateEventRequest {
+    pub title:       Option<String>,
+    pub date:        Option<String>,
+    pub time:        Option<String>,
+    pub description: Option<String>,
+}
+
+pub async fn update_event(
+    State(state): State<Arc<crate::SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
+    Json(req): Json<UpdateEventRequest>,
+) -> impl axum::response::IntoResponse {
+    use serde_json::json;
+
+    // Vérifier existence + propriétaire
+    let row: Option<(String, String, String, String, String)> = sqlx::query_as(
+        "SELECT created_by, title, date, time, description FROM events WHERE id = ?"
+    )
+    .bind(&id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (created_by, cur_title, cur_date, cur_time, cur_desc) = match row {
+        None => return (StatusCode::NOT_FOUND, Json(json!({ "success": false, "message": "Événement introuvable" }))).into_response(),
+        Some(r) if r.0 != user.id && user.role != "admin" => return (StatusCode::FORBIDDEN, Json(json!({ "success": false, "message": "Accès refusé" }))).into_response(),
+        Some(r) => r,
+    };
+    let _ = created_by;
+
+    let new_title = req.title.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or(cur_title);
+    let new_date  = req.date.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or(cur_date);
+    let new_time  = req.time.unwrap_or(cur_time);
+    let new_desc  = req.description.unwrap_or(cur_desc);
+
+    match sqlx::query(
+        "UPDATE events SET title = ?, date = ?, time = ?, description = ? WHERE id = ?"
+    )
+    .bind(&new_title).bind(&new_date).bind(&new_time).bind(&new_desc).bind(&id)
+    .execute(&state.db)
+    .await
+    {
+        Ok(_) => (StatusCode::OK, Json(json!({
+            "success": true,
+            "event": { "id": id, "title": new_title, "date": new_date, "time": new_time, "description": new_desc }
+        }))).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+    }
+}
+
 pub async fn delete_event(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,

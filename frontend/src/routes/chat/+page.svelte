@@ -138,6 +138,7 @@
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
+  let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
   let localGifs   = $state<{id:string;category:string;cat_label:string;file:string;title:string}[]>([]);
@@ -181,6 +182,14 @@
   }
   // tous les emojis disponibles (picker étendu)
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
+
+  /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
+  function isSingleEmoji(content: string): boolean {
+    const t = content.trim();
+    if (t.length > 8) return false;
+    const emojiRe = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
+    return emojiRe.test(t);
+  }
 
   async function toggleReaction(msgId: string, emoji: string) {
     const cur = reactions[msgId];
@@ -312,6 +321,9 @@
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
     await loadMessages(conv.id);
+    // Scroll immédiat en bas après chargement des messages
+    await Promise.resolve();
+    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
     // Charger les réactions pour les messages visibles
     await loadReactionsForMessages(conv.id);
     // Fallback polling si WS non disponible
@@ -594,10 +606,18 @@
   });
 
   $effect(() => {
-    const _ = chatStore.messages.length;
-    if (chatContainer) {
+    const count = chatStore.messages.length;
+    if (!chatContainer || count === 0) return;
+    // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
+    // Tolérance : si on est à moins de 150px du bas → scroll auto
+    const el = chatContainer;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom || count === 1) {
+      // Attendre le prochain tick (DOM mis à jour)
       Promise.resolve().then(() => {
-        if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
       });
     }
   });
@@ -726,8 +746,8 @@
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
-            onmouseenter={() => hoveredMsgId = msg.id}
-            onmouseleave={() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }}
+            onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
+            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
             {#if !isMyMessage(msg.sender_id)}
               <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
@@ -768,7 +788,11 @@
                   ></video>
                 </div>
               {:else}
-                <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                {#if isSingleEmoji(msg.content)}
+                  <div class="message-content emoji-only">{msg.content}</div>
+                {:else}
+                  <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                {/if}
               {/if}
             {/if}
 
@@ -1061,8 +1085,9 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100vh - 60px);
+    height: calc(100svh - var(--header-h, 60px));
     overflow: hidden;
+    max-width: 100%;
   }
 
   /* ─── Sidebar ─── */
@@ -1162,6 +1187,7 @@
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
     background: var(--bg-primary, #fff);
+    overflow: hidden; /* empêche les images/GIFs de pousser input-area hors écran */
   }
   .chat-header {
     padding: .75rem 1rem;
@@ -1207,7 +1233,8 @@
 
   /* ─── Messages ─── */
   .messages-container {
-    flex: 1; overflow-y: auto;
+    flex: 1; min-height: 0; /* min-height: 0 OBLIGATOIRE en flexbox colonne pour éviter débordement */
+    overflow-y: auto;
     padding: 1rem;
     display: flex; flex-direction: column; gap: .5rem;
   }
@@ -1402,6 +1429,14 @@
   .ep-emoji:hover { background: var(--bg-primary, #fff); transform: scale(1.2); }
 
   /* ─── Saisie ─── */
+  .emoji-only {
+    font-size: 2.5rem !important;
+    line-height: 1.2;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
   .input-area {
     flex-shrink: 0;
     display: flex; align-items: center; gap: .4rem;

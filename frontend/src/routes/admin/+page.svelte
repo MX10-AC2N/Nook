@@ -18,6 +18,19 @@
   let inviteLink       = $state<string | null>(null);
   let authChecked      = $state(false);
 
+  async function deleteUser(userId: string) {
+    if (!confirm('Supprimer définitivement ce membre ? Cette action est irréversible.')) return;
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.message ?? 'Erreur'); return; }
+      allUsers = allUsers.filter(u => u.id !== userId);
+    } catch (e) { alert('Erreur réseau'); }
+  }
+
   onMount(async () => {
     const ok = await checkAuthAndRedirect();
     if (ok) {
@@ -204,6 +217,10 @@
                     {user.approved ? '✅ Approuvé' : '⏳ En attente'}
                   </span>
                 </div>
+                {#if user.role !== 'admin'}
+                  <button class="delete-user-btn" onclick={() => deleteUser(user.id)}
+                    title="Supprimer ce membre">🗑</button>
+                {/if}
               </div>
             {/each}
           </div>
@@ -331,4 +348,11 @@
     .invites-table { font-size: 0.8rem; }
     .invites-table th, .invites-table td { padding: 0.5rem; }
   }
+  .delete-user-btn {
+    padding: .35rem .6rem; background: none; border: 1px solid #fecaca;
+    border-radius: .4rem; color: #dc2626; cursor: pointer; font-size: .9rem;
+    transition: background .15s; flex-shrink: 0;
+  }
+  .delete-user-btn:hover { background: #fee2e2; }
+
 </style>

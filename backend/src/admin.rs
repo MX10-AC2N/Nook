@@ -4,7 +4,7 @@
 //               à default_global → GET /api/conversations retournait [] après approbation
 
 use crate::{auth::CurrentUser, SharedState};
-use axum::{extract::State as AxumState, http::StatusCode, Extension, Json};
+use axum::{extract::{State as AxumState, Path}, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -323,4 +323,64 @@ pub async fn get_analytics(
         messages_7d,
         messages_per_day,
     }))
+}
+
+/// Supprimer un membre (ADMIN ONLY)
+/// DELETE /api/users/{id}
+pub async fn delete_user(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(admin)): Extension<CurrentUser>,
+    Path(user_id): Path<String>,
+) -> impl IntoResponse {
+    use axum::http::StatusCode;
+
+    // Empêcher l'admin de se supprimer lui-même
+    if user_id == admin.id {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "message": "Impossible de supprimer son propre compte" })),
+        ).into_response();
+    }
+
+    // Vérifier que l'utilisateur n'est pas admin
+    let target_role: Option<(String,)> = sqlx::query_as(
+        "SELECT role FROM users WHERE id = ?"
+    )
+    .bind(&user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    match target_role {
+        None => return (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "success": false, "message": "Utilisateur introuvable" })),
+        ).into_response(),
+        Some((role,)) if role == "admin" => return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "success": false, "message": "Impossible de supprimer un administrateur" })),
+        ).into_response(),
+        _ => {}
+    }
+
+    // Supprimer les données associées puis l'utilisateur
+    // Les FK ON DELETE CASCADE gèrent push_subscriptions, push_preferences, message_keys
+    // On nettoie manuellement conversation_participants et le token de session
+    sqlx::query("DELETE FROM conversation_participants WHERE user_id = ?")
+        .bind(&user_id).execute(&state.db).await.ok();
+
+    sqlx::query("DELETE FROM users WHERE id = ? AND role != 'admin'")
+        .bind(&user_id)
+        .execute(&state.db)
+        .await
+        .ok();
+
+    tracing::info!(
+        admin_id = %admin.id,
+        deleted_user = %user_id,
+        "Membre supprimé par l'administrateur"
+    );
+
+    Json(json!({ "success": true, "message": "Membre supprimé" })).into_response()
 }

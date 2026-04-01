@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-03-21 09:15 UTC**
+> Généré par `test-nook.yml` · **2026-04-01 08:25 UTC**
 
 ---
 
@@ -13,10 +13,10 @@
 | **Tests échoués** | 0 |
 | **Tests ignorés** | 0 |
 | **Total** | 115 |
-| **Durée** | 19.0s |
+| **Durée** | 24.0s |
 | **Branche** | `develop` |
-| **Commit** | [`6159d10`](https://github.com/MX10-AC2N/Nook/commit/6159d10f9f9d99eed655f082e3b0309899781169) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23376416564) |
+| **Commit** | [`51d5e13`](https://github.com/MX10-AC2N/Nook/commit/51d5e13062174e21b8b5881fc427be9dd679a44c) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23838992712) |
 
 ---
 
@@ -136,7 +136,7 @@
 | ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
 | ✅ | GET /chess/list → 200 | 0s |
 | ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
-| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 0s |
+| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 3s |
 | ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
 | ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
 | ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 0s |
@@ -174,10 +174,10 @@ Tous les tests ont passé.
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0d8efa66-6a88-4b55-a082-1a7941473593 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9cd44e76-74ba-4c53-887a-e80c2f3819ae username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9cd44e76-74ba-4c53-887a-e80c2f3819ae username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9cd44e76-74ba-4c53-887a-e80c2f3819ae username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9cd44e76-74ba-4c53-887a-e80c2f3819ae username=e2e_ci
 ```
 
 ---
@@ -202,4 +202,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=0
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-03-21 09:15 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-01 08:25 UTC*

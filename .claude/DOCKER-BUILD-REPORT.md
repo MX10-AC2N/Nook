@@ -1,7 +1,7 @@
 # 🐳 Docker Build Report — Nook
 
 > Généré automatiquement par `Docker.yml`
-> **2026-03-21 09:16 UTC**
+> **2026-04-01 08:21 UTC**
 
 ---
 
@@ -12,10 +12,10 @@
 | **Push GHCR** | ✅ OK |
 | **Version** | `v0.4.0-beta.2` |
 | **Image** | `ghcr.io/MX10-AC2N/Nook` |
-| **Digest** | `sha256:c1024a9058fd4cbcce099f3cde68dc2f0dc69292fc42d3afc4f393932fcf4414` |
+| **Digest** | `sha256:98d8e0af449d94fdf73e44d72a0823043f2a7f5ee81aedd8eecfb52ea4f97083` |
 | **Branche** | `develop` |
-| **Commit** | [`8113609`](https://github.com/MX10-AC2N/Nook/commit/811360979d1f0210c42940a930e2f3f4029dd8b7) |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23376504730) |
+| **Commit** | [`51d5e13`](https://github.com/MX10-AC2N/Nook/commit/51d5e13062174e21b8b5881fc427be9dd679a44c) |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23839037197) |
 
 ---
 
@@ -24,7 +24,7 @@
 | Composant | Taille | Statut |
 |-----------|--------|--------|
 | **Backend amd64** | 12M | ✅ |
-| **Backend arm64** | 8.8M | ✅ |
+| **Backend arm64** | 8.9M | ✅ |
 | **Frontend** | 14 fichiers | ✅ |
 
 ---

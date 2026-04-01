@@ -42,16 +42,19 @@ export interface Cell {
 
 /** État d'une partie retourné par l'API */
 export interface GameState {
-  id:           string;
-  created_by:   string;
-  player1_id:   string | null;
-  player2_id:   string | null;
-  player1_color: string;  // "white" | "black"
-  player2_color: string;
-  status:        string;  // GameStatus élargi
-  winner_id:     string | null;
-  ai_difficulty: string | null;
-  fen:           string;
+  id:              string;
+  created_by:      string;
+  player1_id:      string | null;
+  player2_id:      string | null;
+  player1_name:    string | null;
+  player2_name:    string | null;
+  player1_color:   string;  // "white" | "black"
+  player2_color:   string;
+  status:          string;  // GameStatus élargi
+  winner_id:       string | null;
+  ai_difficulty:   string | null;
+  time_limit_secs: number;
+  fen:             string;
   move_history:  MoveRecord[];
   engine: {
     board:        string[][];   // 8×8
@@ -128,8 +131,11 @@ export function statusLabel(status: string): string {
     stalemate:             '🤝 Pat',
     draw:                  '🤝 Nulle',
     insufficient_material: '🤝 Matériel insuffisant',
-    repetition:            '🤝 Répétition',
+    // Alias renvoyés par GameStatus::as_str() du moteur Rust
+    repetition:            '🤝 Répétition × 3',
+    threefold_repetition:  '🤝 Répétition × 3',
     fifty_moves:           '🤝 Règle des 50 coups',
+    fifty_move_rule:       '🤝 Règle des 50 coups',
   };
   return labels[status] ?? status;
 }
@@ -201,9 +207,16 @@ class ChessStore {
 
   isVsAI = $derived(!!this.currentGame?.ai_difficulty); // true seulement si chaîne non vide
 
+  // Statuts terminaux : DB ("finished") + moteur Rust (checkmate, stalemate, draw, fifty_move_rule…)
+  private static readonly OVER_STATUSES = new Set([
+    'finished', 'checkmate', 'stalemate', 'draw',
+    'insufficient_material', 'repetition', 'threefold_repetition',
+    'fifty_moves', 'fifty_move_rule',
+  ]);
+
   isGameOver = $derived(
     this.currentGame !== null &&
-    !['waiting', 'playing'].includes(this.currentGame.status)
+    ChessStore.OVER_STATUSES.has(this.currentGame.status)
   );
 
   // Plateau courant sous forme de tableau 8×8 (ou tableau vide)
@@ -241,8 +254,9 @@ class ChessStore {
   }
 
   async createGame(params: {
-    opponent: string;   // "human" | Difficulty
-    color: 'white' | 'black';
+    opponent:        string;   // "human" | Difficulty
+    color:           'white' | 'black';
+    time_limit_secs?: number;
   }): Promise<string | null> {
     this.loading = true;
     this.error = null;
@@ -251,7 +265,7 @@ class ChessStore {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body:        JSON.stringify({ opponent: params.opponent, color: params.color }),
+        body:        JSON.stringify({ opponent: params.opponent, color: params.color, time_limit_secs: params.time_limit_secs ?? 0 }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
@@ -285,6 +299,11 @@ class ChessStore {
         ? { from: lastWithCoords.from!, to: lastWithCoords.to! }
         : null;
 
+      // Init minuteur depuis la config serveur (tous les joueurs voient le même timer)
+      const tl = data.game?.time_limit_secs ?? 0;
+      if (tl > 0 && this.timerLimit === 0) {
+        this.initTimer(tl);
+      }
       this.connectWebSocket(gameId);
     } catch (e: any) {
       this.error = e?.message ?? 'Impossible de charger la partie';
@@ -458,7 +477,11 @@ class ChessStore {
     this.timerLimit = seconds;
     this.whiteTime  = seconds;
     this.blackTime  = seconds;
-    if (seconds > 0) this.startTimer('white');
+    if (seconds > 0) {
+      // Démarrer sur le bon camp selon l'état actuel du jeu
+      const side = this.currentGame?.engine?.side_to_move ?? 'white';
+      this.startTimer(side as 'white' | 'black');
+    }
   }
 
   startTimer(side: 'white' | 'black'): void {
@@ -487,8 +510,16 @@ class ChessStore {
   }
 
   private onTimerExpired(side: 'white' | 'black'): void {
-    // Afficher l'info — resign automatique géré par le composant via isTimerExpired
-    console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
+    const game = this.currentGame;
+    if (!game || game.status !== 'playing') return;
+    tracing: console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
+    // Si c'est notre tour qui expire → on abandonne automatiquement
+    const myColor = this.myColor();
+    if (myColor === side) {
+      this.resign().catch(() => {});
+    }
+    // Sinon : l'adversaire a perdu son temps → l'admin/arbitre décide
+    // Pour le moment on laisse la partie continuer (pas de forfait automatique côté serveur)
   }
 
   isTimerExpired = $derived(
@@ -501,15 +532,27 @@ class ChessStore {
   // ── Abandon ───────────────────────────────────────────────────
   async resign(): Promise<void> {
     if (!this.currentGame) return;
+    const gameId = this.currentGame.id;
     try {
-      const res = await fetch(`/api/chess/${this.currentGame.id}/resign`, {
+      const res = await fetch(`/api/chess/${gameId}/resign`, {
         method: 'POST', credentials: 'include',
       });
       const data = await res.json();
-      if (data.success && data.game) this.currentGame = data.game;
-      else await this.refreshGame(this.currentGame.id);
+      if (data.success) {
+        // Le backend retourne { success, status, winner_id } — pas de data.game
+        // On met à jour currentGame directement pour éviter un fetch supplémentaire
+        this.currentGame = {
+          ...this.currentGame!,
+          status: data.status ?? 'finished',
+          winner_id: data.winner_id ?? null,
+        };
+        this.stopTimer();
+      } else {
+        await this.refreshGame(gameId);
+      }
     } catch (e: any) {
       this.error = e?.message ?? 'Erreur abandon';
+      await this.refreshGame(gameId);
     }
   }
 
