@@ -71,7 +71,9 @@
 - ❌ Réintroduire un bug listé dans `BUGS.md`
 - ❌ Proposer `writable()` / `readable()` Svelte 4
 - ❌ Proposer `allow_any_origin()` avec `allow_credentials(true)`
-- ❌ Proposer `thread_rng()` (supprimé rand 0.9)
+- ❌ Proposer `thread_rng()` (supprimé rand 0.9 → utiliser `rng()`)
+- ❌ Proposer `rand::distributions` (déplacé vers `rand::distr` en 0.9)
+- ❌ Importer sans `Rng` trait quand on utilise `sample_iter()`
 - ❌ Oublier de mettre à jour `.claude/` en fin de session
 
 ---
