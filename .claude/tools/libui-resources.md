@@ -1,69 +1,103 @@
-# Svelte UI Libraries - Knowledge Base (Enterprise & General)
+# 🎨 Lib UI Resources — Nook
 
-**Sources** :
-- Article dev.to : « 10 UI Libraries for Svelte to Try in 2024 » (Olga Tash)
-- Article Medium : « Best 10+ Svelte UI Components & Libraries for Building Enterprise Apps » (Olga Tashlikovich, juin 2025)
+> Bibliothèques UI Svelte évaluées pour Nook.
+> Focalisé sur ce qui est compatible Svelte 5 + Tailwind v4 + notre système de thèmes CSS variables.
+> Mis à jour : session 44
 
-**Objectif** : Base de connaissance pour projets Svelte / SvelteKit (général + enterprise-grade).
+---
 
-## 1. Bibliothèques générales / UI classiques (dev.to + Medium)
+## ✅ Recommandé pour Nook
 
-### Flowbite Svelte
-- Site : https://flowbite-svelte.com/
-- 60+ composants Tailwind natifs, dark mode, data table complet.
+### shadcn-svelte — Composants headless prêts à l'emploi
+**Site :** https://www.shadcn-svelte.com/  
+**Svelte 5 ✅ | Tailwind v4 ✅ | TypeScript ✅**
 
-### Skeleton
-- Site : https://www.skeleton.dev/
-- Design system complet + Figma kit, support React & Svelte.
+Contrairement aux autres libs, shadcn **copie le code source** dans le projet — pas de dépendance externe. On adapte le CSS aux variables de thème Nook (`--accent`, `--bg-primary`, etc.).
 
-### Bits UI
-- Site : https://bits-ui.com/
-- Primitives headless (basé sur Melt UI), Svelte 5, très accessible.
+**Composants utiles pour Nook :**
 
-### shadcn-svelte
-- Site : https://www.shadcn-svelte.com/
-- Port officiel de shadcn/ui, CLI, full control, Svelte 5 + Tailwind v4 + LayerChart intégré.
+| Composant | Usage dans Nook |
+|---|---|
+| `Dialog` | Remplacer nos modals manuels |
+| `Toast` | Notifications succès/erreur |
+| `DropdownMenu` | Menu contexte messages |
+| `Select` | Sélection difficulté IA chess |
+| `Tabs` | Onglets emoji/GIF dans le picker |
+| `Popover` | Picker émoji ancré sur le message |
 
-### SVAR Svelte UI Components
-- Site : https://svar.dev/svelte/
-- Très orienté enterprise : DataGrid avec virtual scrolling, Gantt, Filter Builder.
+```bash
+npx shadcn-svelte@latest init
+npx shadcn-svelte@latest add dialog toast dropdown-menu
+```
 
-## 2. Bibliothèques Enterprise / Data-heavy (nouveautés Medium 2025)
+---
 
-### Tzezar Svelte DataGrid
-- Site : https://datagrid.tzezar.pl/
-- Tableau headless ultra-performant (virtualisation avec svelte-virtuallists), tri, filtre, grouping, TypeScript first.
+### bits-ui — Primitives headless ultra-légères
+**Site :** https://bits-ui.com/  
+**Svelte 5 ✅ | 0 dépendance externe ✅**
 
-### vkurko/calendar (EventCalendar)
-- GitHub : https://github.com/vkurko/calendar
-- Calendrier complet multi-vues (day/week/month/resource/timeline), léger, thèmes clair/sombre.
+Utilisé par shadcn-svelte en interne. Utile si on veut construire un composant très custom (ex: picker de date pour le calendrier, slider pour le volume dans les appels).
 
-### svelte-gantt
-- Demo : https://anovokmet.github.io/svelte-gantt/
-- Gantt chart haute performance, drag & drop, zoom, dépendances, tree view.
+---
 
-### LayerChart
-- Site : https://www.layerchart.com/
-- Suite de composants de visualisation (Bar, Area, Scatter, Pie, Treemap, etc.) construits sur Layer Cake.
+### AutoAnimate — Animations de listes sans configuration
+**Site :** https://auto-animate.formkit.com/
 
-### Svelte Flow
-- Site : https://svelteflow.dev/
-- Bibliothèque pour créer des éditeurs de nœuds / diagrammes interactifs (MiniMap, controls, nodes = composants Svelte).
+```typescript
+import autoAnimate from '@formkit/auto-animate'
 
-### Superforms + Felte
-- Superforms : https://superforms.rocks/ → formulaires SvelteKit avec validation serveur/client (Zod, etc.)
-- Felte : https://felte.dev/ → librairie légère de gestion de formulaires + validation.
+// Animer l'apparition de messages dans le chat
+let messagesEl: HTMLElement;
+$effect(() => { if (messagesEl) autoAnimate(messagesEl); });
+```
+**Usage dans Nook :** Apparition des messages, ouverture/fermeture des conversations, listes de sondages.
 
-## Recommandations rapides (Enterprise)
+---
 
-**Pour un projet enterprise complet** :
-- UI de base → **shadcn-svelte** ou **Skeleton**
-- Tableaux / Data → **SVAR DataGrid** ou **Tzezar DataGrid**
-- Planification / Scheduling → **svelte-gantt** + **EventCalendar**
-- Dashboards / Visualisation → **LayerChart**
-- Diagrammes / Workflow → **Svelte Flow**
-- Formulaires complexes → **Superforms**
+## 🟡 À considérer plus tard
 
-**Stack recommandé 2025-2026** :  
-Svelte 5 + Tailwind v4 + shadcn-svelte + Bits UI + SVAR/Tzezar (data) + LayerChart + Superforms.
+### vkurko/calendar — Calendrier multi-vues
+**Repo :** https://github.com/vkurko/calendar  
+**Quand :** Si on ajoute une vue semaine ou jour au calendrier familial  
+**Pas maintenant :** Notre calendrier custom S43 couvre les besoins actuels (mois + clic + édition)
 
+### LayerChart — Graphiques avancés
+**Site :** https://www.layerchart.com/  
+**Quand :** Si on enrichit la page analytics admin (Chart.js est déjà en place et suffisant)
+
+---
+
+## ❌ Non retenus pour Nook
+
+| Lib | Raison |
+|---|---|
+| Carbon Components | IBM design system — style incompatible avec nos thèmes |
+| Skeleton | Design system complet — trop opinionated, conflit avec notre système CSS variables |
+| Flowbite Svelte | Basé sur Tailwind classes hardcodées — incompatible avec nos thèmes CSS variables |
+| svelte-motion | Framer Motion port — animations trop complexes pour nos besoins |
+| Svelte Headless UI | Équipe officielle Svelte — abandonné, pas maintenu en Svelte 5 |
+| SVAR DataGrid | Enterprise data grid — hors scope pour une app familiale |
+
+---
+
+## 🎨 Notre système de thèmes — Règle absolue
+
+Toute lib UI intégrée dans Nook **doit** utiliser nos variables CSS, pas des couleurs hardcodées :
+
+```css
+/* ✅ Variables à utiliser */
+var(--bg-primary)
+var(--bg-secondary)
+var(--bg-tertiary)
+var(--accent)
+var(--accent-dark)
+var(--text-primary)
+var(--text-secondary)
+var(--border)
+var(--depth)
+
+/* ❌ Jamais de couleurs hardcodées dans les composants Nook */
+color: #1e293b;  /* même si c'est "la bonne couleur" pour jardin-secret */
+```
+
+Les 4 thèmes actuels (`jardin-secret`, `space-hub`, `maison-chaleureuse`, `nuit-douce`) appliquent leurs valeurs sur `.theme-*` via `body.classList`.
