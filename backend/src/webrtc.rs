@@ -267,13 +267,17 @@ async fn verify_ws_auth(
 
 pub async fn handle_offer(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
+    headers: axum::http::HeaderMap,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
+    // FIX M3: verifier l'authentification avant de traiter l'offre
+    let Some(user_id) = verify_ws_auth(&headers, &state).await else {
+        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifie"}))).into_response();
+    };
+
+    // Use authenticated user_id instead of trusting payload
+    let from_user_id = &user_id;
     let offer = payload.get("offer").and_then(|o| o.as_str());
-    let from_user_id = payload
-        .get("from_user_id")
-        .and_then(|u| u.as_str())
-        .unwrap_or("unknown");
     let conversation_id = payload
         .get("conversation_id")
         .and_then(|c| c.as_str())
@@ -293,7 +297,7 @@ pub async fn handle_offer(
             let _ = tx.send(response.to_string());
         }
 
-        tracing::info!(from = %from_user_id, "Offre WebRTC diffusée");
+        tracing::info!(from = %from_user_id, "Offre WebRTC diffusee");
         (StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
     } else {
         (
@@ -301,17 +305,22 @@ pub async fn handle_offer(
             AxumJson(json!({"error": "Missing offer"})),
         )
     }
+    .into_response()
 }
 
 pub async fn handle_answer(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
+    headers: axum::http::HeaderMap,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
+    // FIX M3: verifier l'authentification avant de traiter la reponse
+    let Some(user_id) = verify_ws_auth(&headers, &state).await else {
+        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifie"}))).into_response();
+    };
+
+    // Use authenticated user_id instead of trusting payload
+    let from_user_id = &user_id;
     let answer = payload.get("answer").and_then(|a| a.as_str());
-    let from_user_id = payload
-        .get("from_user_id")
-        .and_then(|u| u.as_str())
-        .unwrap_or("unknown");
     let conversation_id = payload
         .get("conversation_id")
         .and_then(|c| c.as_str())
@@ -331,7 +340,7 @@ pub async fn handle_answer(
             let _ = tx.send(response.to_string());
         }
 
-        tracing::info!(from = %from_user_id, "Réponse WebRTC diffusée");
+        tracing::info!(from = %from_user_id, "Reponse WebRTC diffusee");
         (StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
     } else {
         (
@@ -339,6 +348,7 @@ pub async fn handle_answer(
             AxumJson(json!({"error": "Missing answer"})),
         )
     }
+    .into_response()
 }
 
 // ════════════════════════════════════════════════════════════════

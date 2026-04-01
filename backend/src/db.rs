@@ -345,21 +345,42 @@ pub async fn send_message(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    // Vérifier que la conversation existe
-    let exists: Option<(i64,)> =
-        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+    // FIX C5: Verifier que la conversation existe ET que l'utilisateur y est participant
+    let is_participant: Option<(i64,)> =
+        sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM conversations c
+             INNER JOIN conversation_participants p ON c.id = p.conversation_id
+             WHERE c.id = ? AND p.user_id = ?"
+        )
             .bind(&conversation_id)
+            .bind(&user.id)
             .fetch_optional(&state.db)
             .await
             .ok()
             .flatten();
 
-    if exists.map(|(c,)| c).unwrap_or(0) == 0 {
+    if is_participant.map(|(c,)| c).unwrap_or(0) == 0 {
+        // La conversation n'existe pas OU l'utilisateur n'en est pas participant
+        let conv_exists: Option<(i64,)> =
+            sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+                .bind(&conversation_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+        if conv_exists.map(|(c,)| c).unwrap_or(0) == 0 {
+            return Err(StatusCode::NOT_FOUND);
+        }
         eprintln!(
-            "[send_message] Conversation '{}' introuvable",
-            conversation_id
+            "[send_message] Utilisateur {} n'est pas participant de la conversation {}",
+            user.id, conversation_id
         );
-        return Err(StatusCode::NOT_FOUND);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // FIX M2: limiter la taille du message a 8000 caracteres
+    if req.content.len() > 8000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     sqlx::query(
@@ -459,16 +480,29 @@ pub async fn send_message(
         "edited_at": null
     });
 
-    // ── Broadcast WS → tous les clients (filtrés côté client par conversation_id) ──
+    // ── C4 FIX : Broadcast WS uniquement aux participants de la conversation ──
     {
         let ws_payload = serde_json::json!({
             "type": "new_message",
             "conversation_id": conversation_id,
             "message": msg_json.clone(),
         });
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() {
-            let _ = tx.send(ws_payload.to_string());
+        // Recuperer les participants de la conversation
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        )
+            .bind(&conversation_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+
+        // Envoyer uniquement aux participants connectes
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in participant_ids {
+            // L'expe?iteur recoit aussi sa confirmation via le WS
+            if let Some(tx) = guard.get(&user_id) {
+                let _ = tx.send(ws_payload.to_string());
+            }
         }
     }
 
@@ -522,8 +556,15 @@ pub async fn edit_message(
 
     {
         let ws = serde_json::json!({"type": "message_edited", "conversation_id": conv_id, "message_id": msg_id, "content": content, "edited_at": now});
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in &participant_ids {
+            if let Some(tx) = guard.get(user_id) {
+                let _ = tx.send(ws.to_string());
+            }
+        }
     }
 
     tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message édité");
@@ -564,8 +605,15 @@ pub async fn delete_message(
 
     {
         let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in &participant_ids {
+            if let Some(tx) = guard.get(user_id) {
+                let _ = tx.send(ws.to_string());
+            }
+        }
     }
 
     tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message supprimé");
