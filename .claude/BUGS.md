@@ -80,3 +80,5 @@ store.prop = newValue;
 | R_CALL_ROUTING | 42 | Signaux WebRTC broadcast global | `user_senders` HashMap + routage `to_user_id` |
 | R_RESIGN | 39 | `resign_game` winner_id="ai" → FK violation | `winner_id = None` pour IA |
 | R_POLLS_ID | 39 | Tests polls `.id` au lieu de `.poll?.id` | Accès via `.poll?.id` |
+
+| R_NOTIF_SW_S45 | 45 | Service Worker jamais enregistré → notifications ne marchent nulle part | +layout.ts: register manuel au load + reply icon path fixe |
