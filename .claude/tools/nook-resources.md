@@ -82,8 +82,8 @@ Fichiers : backend/src/admin.rs (route GET /api/admin/metrics via sysinfo)
 # .env sur le Zimaboard (référence)
 NOOK_IMAGE=ghcr.io/mx10-ac2n/nook:latest
 HOST_PORT=6300
-DATA_DIR=/media/ac2n-cloud/volume_docker_Nook/nook-data
-LOGS_DIR=/media/ac2n-cloud/volume_docker_Nook/nook-logs
+DATA_DIR=/media/docker_Nook/nook-data
+LOGS_DIR=/media/docker_Nook/nook-logs
 PUBLIC_SITE_URL=http://192.168.X.X:6300
 ALLOWED_ORIGINS=http://192.168.X.X:6300,https://nook.mondomaine.com
 RUST_LOG=info
