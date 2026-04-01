@@ -7,7 +7,7 @@
 
 use axum::{
     body::Body,
-    extract::ConnectInfo,
+    extract::{ConnectInfo, DefaultBodyLimit},
     http::{
         header::CONTENT_TYPE,
         Request,
@@ -340,6 +340,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/auth/login", post(auth::login))
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
+        .route("/invite/accept", axum::routing::post(invites::accept_invite))
         .route("/health", get(|| async { "OK" }))
         .nest("/push", push::public_router())
         .route_layer(middleware::from_fn(move |
@@ -381,6 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
         .route("/analytics", get(admin::get_analytics))
+        .route("/users/{id}", axum::routing::delete(admin::delete_user))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
@@ -409,6 +411,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/events", get(db::get_events))
         .route("/events", post(db::create_event))
         .route("/events/{id}", delete(db::delete_event))
+        .route("/events/{id}", axum::routing::patch(db::update_event))
         .route("/conversations/{id}/participants", get(db::get_conversation_participants))
         .route("/conversations/{id}/participants", post(db::add_conversation_participant))
         .route("/conversations/{id}/leave", post(db::leave_conversation))
@@ -484,6 +487,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ConnectInfo requis pour extraire l'IP dans le rate limiter par IP (SEC-02)
     let app = Router::new()
         .nest("/api", api_router)
+        // FIX upload > 7Mo : Axum par défaut limite le body à 2MB.
+        // On monte à 52MB (50MB fichier + overhead multipart).
+        // La validation métier (50MB max) reste dans upload.rs.
+        .layer(DefaultBodyLimit::max(52 * 1024 * 1024))
         .nest_service("/files", ServeDir::new(&config.uploads_dir))
         // GIFs : volume de données en priorité, fallback sur les GIFs de l'image Docker
         .nest_service("/gifs",

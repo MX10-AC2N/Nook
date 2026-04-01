@@ -34,7 +34,9 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
+use rand::Rng;
 use uuid::Uuid;
+use tokio::time::{sleep as tokio_sleep, Duration as TokioDuration};
 
 // ════════════════════════════════════════════════════════════════
 // TYPES
@@ -42,15 +44,16 @@ use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct CreateGameRequest {
-    pub opponent: Option<String>, // "human"|"easy"|"medium"|"hard"|"expert"|"godlike"
-    pub color: Option<String>,    // "white"|"black"
+    pub opponent: Option<String>,
+    pub color: Option<String>,
+    pub time_limit_secs: Option<i64>,
 }
 
 #[derive(Deserialize)]
 pub struct MakeMoveRequest {
     pub from: String,
     pub to: String,
-    pub promotion: Option<String>, // "q"|"r"|"b"|"n"
+    pub promotion: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -137,43 +140,62 @@ fn game_json(game: &Game) -> Value {
     })
 }
 
-// Limites de temps par difficulté — garantit une réponse rapide
-// même sur Zimaboard ARM64 (CPU modeste)
+// Limites de temps par difficulté
 fn ai_time_limit(difficulty: Difficulty) -> std::time::Duration {
     match difficulty {
-        Difficulty::Harmless => std::time::Duration::from_millis(50),
-        Difficulty::Easy     => std::time::Duration::from_millis(500),
-        Difficulty::Medium   => std::time::Duration::from_millis(1500),
-        Difficulty::Hard     => std::time::Duration::from_millis(3000),
-        Difficulty::Expert   => std::time::Duration::from_millis(5000),
-        Difficulty::Godlike  => std::time::Duration::from_millis(8000),
+        Difficulty::Harmless => std::time::Duration::from_millis(30),
+        Difficulty::Easy => std::time::Duration::from_millis(100),
+        Difficulty::Medium => std::time::Duration::from_millis(400),
+        Difficulty::Hard => std::time::Duration::from_millis(1500),
+        Difficulty::Expert => std::time::Duration::from_millis(3000),
+        Difficulty::Godlike => std::time::Duration::from_millis(6000),
     }
 }
 
-// TT size par difficulté — évite d'allouer 40MB à chaque coup sur ARM64
+// TT size par difficulté
 fn ai_tt_size(difficulty: Difficulty) -> usize {
     match difficulty {
-        Difficulty::Harmless => 1 << 10,   //   1K entries  (~40KB)
-        Difficulty::Easy     => 1 << 14,   //  16K entries  (~640KB)
-        Difficulty::Medium   => 1 << 16,   //  64K entries  (~2.5MB)
-        Difficulty::Hard     => 1 << 18,   // 256K entries  (~10MB)
-        Difficulty::Expert   => 1 << 19,   // 512K entries  (~20MB)
-        Difficulty::Godlike  => 1 << 20,   //   1M entries  (~40MB)
+        Difficulty::Harmless => 1 << 10,
+        Difficulty::Easy => 1 << 14,
+        Difficulty::Medium => 1 << 16,
+        Difficulty::Hard => 1 << 18,
+        Difficulty::Expert => 1 << 19,
+        Difficulty::Godlike => 1 << 20,
     }
 }
 
-// Retourne (san, from_alg, to_alg, new_fen, game_status_str)
-fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, String, String, String), ChessError> {
+// Calculer le délai d'affichage (sans dormir — juste retourner la durée)
+fn ai_display_delay(difficulty: Difficulty) -> u64 {
+    let base_ms: u64 = match difficulty {
+        Difficulty::Harmless => 1000,
+        Difficulty::Easy => 2500,
+        Difficulty::Medium => 4000,
+        Difficulty::Hard => 6000,
+        Difficulty::Expert => 9000,
+        Difficulty::Godlike => 12000,
+    };
+    // Jitter : ±30% de la valeur de base
+    let jitter = (base_ms as f64 * 0.3 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
+    (base_ms as i64 + jitter).max(500) as u64
+}
+
+// Retourne (san, from_alg, to_alg, new_fen, game_status_str, delay_ms)
+// NOTE: Le délai d'affichage est calculé mais le sleep est géré côté async
+fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, String, String, String, u64), ChessError> {
     let time_limit = ai_time_limit(difficulty);
-    let tt_size    = ai_tt_size(difficulty);
+    let tt_size = ai_tt_size(difficulty);
     let ai = MinimaxAi::with_time_limit_and_tt(time_limit, tt_size);
     let mv = ai.best_move(&game, difficulty)?;
     let from_alg = mv.from.to_algebraic();
-    let to_alg   = mv.to.to_algebraic();
+    let to_alg = mv.to.to_algebraic();
+
+    // Calculer le délai d'affichage (sans bloquer)
+    let delay_ms = ai_display_delay(difficulty);
+
     let san = game.make_move(mv)?;
-    let new_fen    = game.to_fen();
+    let new_fen = game.to_fen();
     let status_str = game.status().as_str().to_string();
-    Ok((san, from_alg, to_alg, new_fen, status_str))
+    Ok((san, from_alg, to_alg, new_fen, status_str, delay_ms))
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -198,17 +220,21 @@ pub async fn create_game(
     let opponent = req.opponent.as_deref().unwrap_or("human");
     let is_ai = opponent != "human";
 
-    // Si IA joue blanc, elle joue immédiatement le premier coup
     let starting_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     let (initial_fen, initial_history) = if is_ai && creator_color == "black" {
+        // L'IA joue le premier coup (elle est Blancs, le joueur est Noirs).
+        // OBLIGATOIRE : spawn_blocking — play_ai() est CPU-bound et bloquerait
+        // le thread Tokio sinon (cause du freeze frontend S42).
+        // Pas de délai d'affichage ici : on veut juste créer la partie rapidement.
         let game = Game::new();
         let difficulty = parse_difficulty(opponent);
-        match play_ai(game, difficulty) {
-            Ok((san, from_alg, to_alg, new_fen_init, _)) => (
+        let ai_result = tokio::task::spawn_blocking(move || play_ai(game, difficulty)).await;
+        match ai_result {
+            Ok(Ok((san, from_alg, to_alg, new_fen_init, _, _))) => (
                 new_fen_init,
                 json!([{"san": san, "from": from_alg, "to": to_alg, "by": "ai", "color": "white"}]).to_string(),
             ),
-            Err(_) => (starting_fen.to_string(), "[]".to_string()),
+            _ => (starting_fen.to_string(), "[]".to_string()),
         }
     } else {
         (starting_fen.to_string(), "[]".to_string())
@@ -216,6 +242,7 @@ pub async fn create_game(
 
     let initial_status = if is_ai { "playing" } else { "waiting" };
     let ai_diff: Option<&str> = if is_ai { Some(opponent) } else { None };
+    let time_limit = req.time_limit_secs.unwrap_or(0).max(0);
 
     let result = sqlx::query(
         r#"
@@ -223,8 +250,8 @@ pub async fn create_game(
             id, created_by, player_count,
             player1_id, player1_color, player2_color,
             status, board_state, move_history, eliminated,
-            current_turn, ai_difficulty, created_at, updated_at
-        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?)"#,
+            current_turn, ai_difficulty, time_limit_secs, created_at, updated_at
+        ) VALUES (?, ?, 2, ?, ?, ?, ?, ?, ?, '[]', 1, ?, ?, ?, ?)"#,
     )
     .bind(&game_id)
     .bind(&user.id)
@@ -235,6 +262,7 @@ pub async fn create_game(
     .bind(&initial_fen)
     .bind(&initial_history)
     .bind(ai_diff)
+    .bind(time_limit)
     .bind(now)
     .bind(now)
     .execute(&state.db)
@@ -260,9 +288,7 @@ pub async fn create_game(
             tracing::error!(error = %e, "Erreur création partie");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "success": false, "message": "Erreur serveur"
-                })),
+                Json(json!({"success": false, "message": "Erreur serveur"})),
             )
                 .into_response()
         }
@@ -302,7 +328,15 @@ pub async fn get_game(
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
-    let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
+    let row = sqlx::query(
+        r#"SELECT g.*,
+            u1.username AS p1_username, u1.name AS p1_name,
+            u2.username AS p2_username, u2.name AS p2_name
+           FROM chess_games g
+           LEFT JOIN users u1 ON g.player1_id = u1.id
+           LEFT JOIN users u2 ON g.player2_id = u2.id
+           WHERE g.id = ?"#
+    )
         .bind(&game_id)
         .fetch_optional(&state.db)
         .await;
@@ -318,21 +352,29 @@ pub async fn get_game(
                 .map(|g| game_json(&g))
                 .unwrap_or(json!(null));
 
+            let p1_display: Option<String> = row.get::<Option<String>, _>("p1_name")
+                .or_else(|| row.get::<Option<String>, _>("p1_username"));
+            let p2_display: Option<String> = row.get::<Option<String>, _>("p2_name")
+                .or_else(|| row.get::<Option<String>, _>("p2_username"));
+
             Json(json!({ "success": true, "game": {
-                "id":            row.get::<String, _>("id"),
-                "created_by":    row.get::<String, _>("created_by"),
-                "player1_id":    row.get::<Option<String>, _>("player1_id"),
-                "player2_id":    row.get::<Option<String>, _>("player2_id"),
+                "id": row.get::<String, _>("id"),
+                "created_by": row.get::<String, _>("created_by"),
+                "player1_id": row.get::<Option<String>, _>("player1_id"),
+                "player2_id": row.get::<Option<String>, _>("player2_id"),
+                "player1_name": p1_display,
+                "player2_name": p2_display,
                 "player1_color": row.get::<String, _>("player1_color"),
                 "player2_color": row.get::<String, _>("player2_color"),
-                "status":        row.get::<String, _>("status"),
-                "winner_id":     row.get::<Option<String>, _>("winner_id"),
+                "status": row.get::<String, _>("status"),
+                "winner_id": row.get::<Option<String>, _>("winner_id"),
                 "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
-                "fen":           fen,
-                "move_history":  history,
-                "engine":        engine,
-                "created_at":    row.get::<i64, _>("created_at"),
-                "updated_at":    row.get::<i64, _>("updated_at"),
+                "time_limit_secs": row.get::<i64, _>("time_limit_secs"),
+                "fen": fen,
+                "move_history": history,
+                "engine": engine,
+                "created_at": row.get::<i64, _>("created_at"),
+                "updated_at": row.get::<i64, _>("updated_at"),
             }}))
             .into_response()
         }
@@ -478,7 +520,6 @@ pub async fn make_move(
     let p1_color: String = row.get("player1_color");
     let ai_diff: Option<String> = row.get("ai_difficulty");
 
-    // Déterminer la couleur du joueur
     let player_color = if p1_id.as_deref() == Some(&user.id) {
         if p1_color == "white" {
             Color::White
@@ -617,25 +658,24 @@ pub async fn make_move(
         }
     }
 
-    // Reconstruire GameState complet pour le frontend (interface GameState)
     let move_history_val: serde_json::Value = serde_json::from_str(&new_history).unwrap_or(json!([]));
     Json(json!({
         "success": true,
         "game": {
-            "id":            game_id,
-            "created_by":    row.get::<String, _>("created_by"),
-            "player1_id":    row.get::<Option<String>, _>("player1_id"),
-            "player2_id":    row.get::<Option<String>, _>("player2_id"),
+            "id": game_id,
+            "created_by": row.get::<String, _>("created_by"),
+            "player1_id": row.get::<Option<String>, _>("player1_id"),
+            "player2_id": row.get::<Option<String>, _>("player2_id"),
             "player1_color": row.get::<String, _>("player1_color"),
             "player2_color": row.get::<String, _>("player2_color"),
-            "status":        db_status,
-            "winner_id":     winner_id,
+            "status": db_status,
+            "winner_id": winner_id,
             "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
-            "fen":           new_fen,
-            "move_history":  move_history_val,
-            "engine":        engine,
-            "created_at":    row.get::<i64, _>("created_at"),
-            "updated_at":    now,
+            "fen": new_fen,
+            "move_history": move_history_val,
+            "engine": engine,
+            "created_at": row.get::<i64, _>("created_at"),
+            "updated_at": now,
         }
     }))
     .into_response()
@@ -647,7 +687,6 @@ pub async fn ai_move(
     Path(game_id): Path<String>,
     body: Option<axum::extract::Json<AiMoveRequest>>,
 ) -> impl IntoResponse {
-    // Extraire la difficulté du body optionnel (le body peut être absent)
     let req = body.map(|b| b.0).unwrap_or(AiMoveRequest { difficulty: None });
     let row = sqlx::query("SELECT * FROM chess_games WHERE id = ?")
         .bind(&game_id)
@@ -710,14 +749,14 @@ pub async fn ai_move(
         }
     };
 
-    let ai_color = game.side_to_move(); // l'IA joue le côté à jouer maintenant
-    // Exécuter l'IA dans spawn_blocking pour ne pas bloquer le runtime tokio
-    // (MinimaxAi est CPU-bound, peut prendre plusieurs secondes)
+    let ai_color = game.side_to_move();
+
+    // Exécuter l'IA dans spawn_blocking
     let ai_result = tokio::task::spawn_blocking(move || {
         play_ai(game, difficulty)
     }).await;
 
-    let (san, ai_from, ai_to, new_fen_ai, new_status_ai) = match ai_result {
+    let (san, ai_from, ai_to, new_fen_ai, new_status_ai, delay_ms) = match ai_result {
         Ok(Ok(t)) => t,
         Ok(Err(e)) => {
             return (
@@ -735,9 +774,10 @@ pub async fn ai_move(
         }
     };
 
+    // CORRECTION: Appliquer le délai d'affichage de manière NON-BLOQUANTE
+    tokio_sleep(TokioDuration::from_millis(delay_ms)).await;
+
     let new_fen = new_fen_ai;
-    // game_status reconstruit depuis la string retournée par play_ai
-    // (game a été move dans spawn_blocking)
     let game_status_str = new_status_ai;
     let now = Utc::now().timestamp();
     let ai_color_str = match ai_color {
@@ -746,7 +786,7 @@ pub async fn ai_move(
     };
 
     let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
-        "checkmate" => (None, "finished"),  // winner_id = None pour IA (FK safety — Pattern 8)
+        "checkmate" => (None, "finished"),
         "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
         _ => (None, "playing"),
     };
@@ -776,7 +816,6 @@ pub async fn ai_move(
     .await
     .ok();
 
-    // game a été moved dans spawn_blocking — reconstruire depuis new_fen pour game_json
     let engine = match Game::from_fen(&new_fen) {
         Ok(rebuilt) => game_json(&rebuilt),
         Err(_) => serde_json::json!(null),
@@ -794,25 +833,24 @@ pub async fn ai_move(
         }
     }
 
-        // Reconstruire GameState complet pour le frontend (interface GameState)
     let move_history_val: serde_json::Value = serde_json::from_str(&new_history).unwrap_or(json!([]));
     Json(json!({
         "success": true,
         "game": {
-            "id":            game_id,
-            "created_by":    row.get::<String, _>("created_by"),
-            "player1_id":    row.get::<Option<String>, _>("player1_id"),
-            "player2_id":    null,
+            "id": game_id,
+            "created_by": row.get::<String, _>("created_by"),
+            "player1_id": row.get::<Option<String>, _>("player1_id"),
+            "player2_id": serde_json::Value::Null,
             "player1_color": row.get::<String, _>("player1_color"),
             "player2_color": row.get::<String, _>("player2_color"),
-            "status":        game_status_str.as_str(),
-            "winner_id":     winner_id,
+            "status": game_status_str.as_str(),
+            "winner_id": winner_id,
             "ai_difficulty": row.get::<Option<String>, _>("ai_difficulty"),
-            "fen":           new_fen,
-            "move_history":  move_history_val,
-            "engine":        engine,
-            "created_at":    row.get::<i64, _>("created_at"),
-            "updated_at":    now,
+            "fen": new_fen,
+            "move_history": move_history_val,
+            "engine": engine,
+            "created_at": row.get::<i64, _>("created_at"),
+            "updated_at": now,
         }
     }))
     .into_response()
@@ -848,13 +886,9 @@ pub async fn resign_game(
     let p2_id: Option<String> = row.get("player2_id");
     let ai_diff: Option<String> = row.get("ai_difficulty");
 
-    // winner_id = adversaire humain ou NULL pour les parties vs IA
-    // On n'utilise jamais "ai" (chaîne) : ce n'est pas un user_id valide en DB
     let winner_id: Option<String> = if p1_id.as_deref() == Some(&user.id) {
-        // Le joueur 1 abandonne → le joueur 2 gagne (None si IA)
         if ai_diff.is_some() { None } else { p2_id.clone() }
     } else if p2_id.as_deref() == Some(&user.id) {
-        // Le joueur 2 abandonne → le joueur 1 gagne
         p1_id.clone()
     } else {
         return (

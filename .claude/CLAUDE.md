@@ -1,7 +1,7 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.2** | Session courante : **40** | Mis à jour : **2026-03-21**
+> Version projet : **0.4.0-beta.2** | Session courante : **41** | Mis à jour : **2026-03-22**
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
 
@@ -250,6 +250,7 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 5. **Effets de bord** — signaler ce que chaque changement impacte chez les autres agents
 6. **Apprentissage** — tout bug non trivial résolu → section `## 📚 Apprentissages` de l'agent
 7. **MCP Svelte** — `svelte-autofixer` obligatoire avant toute livraison de code Svelte (depuis S38)
+8. **Always speak to the user in French.** Code, commit messages, comments, and technical identifiers stay in English, but all conversation and explanations must be in French.
 
 ---
 

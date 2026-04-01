@@ -6,6 +6,8 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
+  import { cryptoStore } from '$lib/cryptoStore.svelte';
+  import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -14,6 +16,11 @@
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
+
+  // Badge non-lu : somme de tous les compteurs de conversations
+  const totalUnread = $derived(
+    Object.values(chatStore.unreadCounts).reduce((sum, n) => sum + (n ?? 0), 0)
+  );
 
   const navItems = [
     { path: '/chat',      label: '💬 Chat',           requiresAuth: true  },
@@ -61,11 +68,23 @@
         goto(authStore.isAdmin ? '/admin' : '/chat');
       }
     } else {
-      const publicPaths = ['/login', '/register', '/help', '/join'];
+      const publicPaths = ['/login', '/register', '/help', '/join', '/invite'];
       if (!publicPaths.some((p) => pathname.startsWith(p))) {
         goto('/login');
       }
     }
+  });
+
+  // ─── Hauteur header dynamique (CSS var --header-h) ──────────────────────
+  // Permet aux pages full-height (chat) de calculer leur hauteur exactement
+  let headerEl = $state<HTMLElement | undefined>(undefined);
+  $effect(() => {
+    if (!headerEl) return;
+    const ro = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--header-h', headerEl!.offsetHeight + 'px');
+    });
+    ro.observe(headerEl);
+    return () => ro.disconnect();
   });
 
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
@@ -167,13 +186,13 @@
   </div>
 
 {:else}
-  {#if cryptoError}
+  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
     </div>
   {/if}
 
-  <header class="app-header">
+  <header class="app-header" bind:this={headerEl}>
     <button onclick={toggleMenu} class="menu-toggle" aria-label="Ouvrir le menu de navigation">
       ☰
     </button>
@@ -222,13 +241,20 @@
           {:else if item.requiresAdmin && !authStore.isAdmin}
             <!-- Skip -->
           {:else}
-            <li><a href={item.path} onclick={closeMenu}>{item.label}</a></li>
+            <li>
+              <a href={item.path} onclick={closeMenu} class:active={$page.url.pathname.startsWith(item.path)}>
+                {item.label}
+                {#if item.path === '/chat' && totalUnread > 0}
+                  <span class="nav-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
+                {/if}
+              </a>
+            </li>
           {/if}
         {/each}
       </ul>
 
       <div class="menu-footer">
-        <p class="version">Version 3.0 • SvelteKit</p>
+        <p class="version">Nook v0.5 • Svelte 5 + Rust</p>
         {#if authStore.isAuthenticated}
           <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
             🔌 Déconnexion
@@ -248,6 +274,9 @@
 {/if}
 
 <style>
+  :global(:root) {
+    --header-h: 60px; /* défaut, écrasé dynamiquement par ResizeObserver */
+  }
   :global(body) {
     margin: 0;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -337,15 +366,15 @@
   }
 
   .menu {
-    position: fixed; top: 0; right: 0; bottom: 0; width: 300px;
+    position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
     max-width: 85vw; background: var(--bg-secondary, white); z-index: 201;
-    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
     display: flex; flex-direction: column;
     animation: slideIn 0.25s ease-out;
   }
 
   @keyframes slideIn {
-    from { transform: translateX(100%); }
+    from { transform: translateX(-100%); }
     to   { transform: translateX(0); }
   }
 
@@ -366,11 +395,21 @@
   .nav-list { list-style: none; margin: 0; padding: 1rem 0; flex: 1; overflow-y: auto; }
 
   .nav-list li a {
-    display: block; padding: 0.85rem 1.5rem;
+    display: flex; align-items: center; gap: .5rem;
+    padding: 0.85rem 1.5rem;
     color: var(--text-primary, #334155); text-decoration: none; transition: all 0.2s; font-size: 1rem;
+    border-radius: .5rem; margin: 0 .35rem;
   }
 
-  .nav-list li a:hover { background: var(--bg-tertiary, #f1f5f9); color: var(--text-primary, #1e293b); }
+  .nav-list li a:hover, .nav-list li a.active { background: var(--bg-tertiary, #f1f5f9); color: var(--text-primary, #1e293b); }
+
+  .nav-badge {
+    margin-left: auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent, #4ade80); color: #166534;
+    font-size: .65rem; font-weight: 700; border-radius: 999px;
+    min-width: 1.25rem; height: 1.25rem; padding: 0 .3rem;
+  }
 
   .menu-footer { padding: 1.25rem 1.5rem; border-top: 1px solid var(--border, #e2e8f0); }
   .version { font-size: 0.8rem; color: var(--text-muted, #94a3b8); margin: 0 0 0.75rem 0; }
@@ -384,11 +423,12 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-  .app-main { min-height: calc(100vh - 140px); padding: 1.5rem; max-width: 1200px; margin: 0 auto; background: var(--bg-primary, #f5f7fa); }
+        .app-main { padding: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
     font-size: 0.85rem; border-top: 1px solid var(--border, #e2e8f0); background: var(--bg-secondary, white);
+    flex-shrink: 0;
   }
 
   .app-footer p { margin: 0; }
@@ -396,8 +436,8 @@
   @media (max-width: 640px) {
     .app-header { padding: 0.85rem 1rem; }
     .app-header h1 { font-size: 1.1rem; }
-    .app-main { padding: 1rem; }
-    .menu { width: 100%; max-width: none; }
+    .app-main { padding: 0; }
+    .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
   }
 </style>

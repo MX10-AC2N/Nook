@@ -24,10 +24,16 @@
   // ── Handlers ──────────────────────────────────────────────────
   async function handleCreate() {
     creating = true;
-    const gameId = await chessStore.createGame({ opponent, color: myColor });
+    const gameId = await chessStore.createGame({
+      opponent,
+      color: myColor,
+      time_limit_secs: timerChoice,
+    });
     creating = false;
     if (gameId) {
-      chessStore.initTimer(timerChoice);
+      // Le timer est initialisé via loadGame → time_limit_secs du serveur
+      // initTimer ici uniquement pour le créateur (avant le premier loadGame)
+      if (timerChoice > 0) chessStore.initTimer(timerChoice);
       goto(`/chess/${gameId}`);
     }
   }
