@@ -185,52 +185,77 @@ jobs:
           echo "GET /auth/me sans cookie → HTTP $STATUS (attendu 401)"
           [ "$STATUS" = "401" ] || (echo "Attendu 401, reçu $STATUS" && exit 1)
 
+
+
       # ── Test: Auth flows ─────────────────────────────────
       - name: Test Auth flows
         continue-on-error: true
         run: |
           echo "=== Test registration ==="
-          # Créer un user de test (devrait échouer si déjà existe ou créer un nouveau)
-          REG=$(curl -s -X POST http://localhost:6300/api/auth/register             -H "Content-Type: application/json"             -d '{"username":"test_e2e_new","password":"TestPass123!","email":"test@nook.local","name":"Test User"}')
+          REG=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"test_e2e_new","password":"TestPass123!","email":"test@nook.local","name":"Test User"}')
           echo "Register: $REG"
-          
+
           echo "=== Test mot de passe faible ==="
-          WEAK=$(curl -s -X POST http://localhost:6300/api/auth/register             -H "Content-Type: application/json"             -d '{"username":"weak_pwd_test","password":"123","email":"weak@nook.local","name":"Weak"}')
+          WEAK=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"weak_pwd_test","password":"123","email":"weak@nook.local","name":"Weak"}')
           echo "Weak password: $WEAK"
-          # Devrait rejeter - 8 chars min
-          
-          echo "=== Test login admin ==="
-          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"AdminCI2026!"}')
-          
-          ADMIN_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
+
+          # ══════════════════════════════════════════════════
+          # Flux admin: 1er login → change password → re-login
+          # ══════════════════════════════════════════════════
+          echo "=== Test login admin (premier acces) ==="
+
+          # Etape 1: Login avec mdp initial (changeme2026 via ADMIN_INITIAL_PASSWORD)
+          BODY=$(curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"changeme2026"}')
+          ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers.txt | grep -o "auth_token=[^;]*" | head -1)
+
           if [ -n "$ADMIN_COOKIE" ]; then
-            echo "✅ Login admin réussi"
-            echo "ADMIN_COOKIE=$ADMIN_COOKIE" >> $GITHUB_ENV
+            echo "Login admin avec changeme2026: OK"
+            ADMIN_ID=$(python3 -c "import json; d=json.load(open('/tmp/admin-body.txt')); print(d.get('user',{}).get('id',''))" 2>/dev/null || echo "")
+
+            # Etape 2: Changer le mot de passe (obligatoire apres 1er login)
+            if [ -n "$ADMIN_ID" ]; then
+              CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password -H "Content-Type: application/json" -H "Cookie: $ADMIN_COOKIE" -d "{\"new_password\":\"AdminCI2026!\",\"user_id\":\"$ADMIN_ID\"}")
+              echo "Change password: $CHG"
+
+              # Etape 3: Re-login avec nouveau mot de passe
+              curl -s -D /tmp/admin-headers2.txt -o /tmp/admin-body2.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
+              ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers2.txt | grep -o "auth_token=[^;]*" | head -1)
+
+              if [ -n "$ADMIN_COOKIE" ]; then
+                echo "Re-login admin avec AdminCI2026: OK"
+                ADMIN_ID=$(python3 -c "import json; d=json.load(open('/tmp/admin-body2.txt')); print(d.get('user',{}).get('id',''))" 2>/dev/null || echo "")
+              else
+                echo "Warning: re-login admin echoue, tentative avec ancien cookie"
+              fi
+            fi
           else
-            echo "❌ Login admin échoué"
-            echo "Headers: $HEADERS"
-            exit 1
+            echo "Warning: login admin avec changeme2026 echoue, tentative AdminCI2026"
+            BODY=$(curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}')
+            ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers.txt | grep -o "auth_token=[^;]*" | head -1)
+            if [ -n "$ADMIN_COOKIE" ]; then
+              echo "Login admin avec AdminCI2026: OK"
+            else
+              echo "ERREUR: aucun login admin ne fonctionne (changeme2026 ni AdminCI2026)"
+              exit 1
+            fi
           fi
-          
-          echo "=== Test auth/me avec cookie ==="
+
+          # Verifier session admin
+          echo "=== Test auth/me avec cookie admin ==="
           ME=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/auth/me)
           echo "/auth/me: $ME"
-          
-          echo "=== Test change password (admin sur lui-même) ==="
-          # Admin change son propre mot de passe
-          ADMIN_ID=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
-          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}')
-          echo "Change password admin: $CHG"
-          
+          ADMIN_ID=$(echo "$ME" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user',{}).get('id',''))" 2>/dev/null || echo "")
+          echo "Admin ID: $ADMIN_ID"
+
           echo "=== Test register puis approve (flux complet) ==="
-          REG2=$(curl -s -X POST http://localhost:6300/api/auth/register             -H "Content-Type: application/json"             -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
+          REG2=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "Register e2e_ci: $REG2 (200/201/409 OK)"
-          
+
           sleep 2
-          
+
           PENDING=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/users/pending)
           echo "Pending users: $PENDING"
-          
+
           E2E_ID=$(echo "$PENDING" | python3 -c '
           import sys,json
           data=json.load(sys.stdin)
@@ -238,12 +263,12 @@ jobs:
           match=[u for u in users if u.get("username")=="e2e_ci"]
           print(match[0]["id"] if match else "")
           ')
-          
+
           if [ -n "$E2E_ID" ]; then
-            APPROVE=$(curl -s -X POST http://localhost:6300/api/users/approve               -H "Content-Type: application/json"               -H "Cookie: $ADMIN_COOKIE"               -d "{"user_id":"$E2E_ID"}")
+            APPROVE=$(curl -s -X POST http://localhost:6300/api/users/approve -H "Content-Type: application/json" -H "Cookie: $ADMIN_COOKIE" -d "{\"user_id\":\"$E2E_ID\"}")
             echo "Approve: $APPROVE"
           else
-            echo "e2e_ci déjà approuvé ou non trouvé"
+            echo "e2e_ci deja approuve ou non trouve"
           fi
 
       # ── Test: Security ───────────────────────────────────
