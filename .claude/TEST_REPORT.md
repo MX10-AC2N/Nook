@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-02 20:51 UTC**
+> Généré par `test-nook.yml` · **2026-04-02 21:01 UTC**
 
 ---
 
@@ -68,4 +68,4 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-02 20:51 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-02 21:01 UTC*
