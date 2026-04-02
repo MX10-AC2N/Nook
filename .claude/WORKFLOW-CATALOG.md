@@ -25,10 +25,11 @@
 | 14 | `ghcr-cleanup.yml` | GHCR Nettoyage | 220 | wf_run/dispatch | 🟢 UTILITAIRE |
 | 15 | `clear-cache.yml` | Nettoyage cache GA | 106 | dispatch/cron | 🟢 UTILITAIRE |
 | 16 | `fetch-gifs.yml` | Fetch GIFs | 107 | dispatch | 🟢 UTILITAIRE |
-| 17 | `generate-pwa-icons.yml` | Generation icônes PWA | 226 | push/dispatch | 🟢 UTILITAIRE |
-| 18 | `auto-svelte5-migration.yml` | Check Svelte 5 | 234 | dispatch | 🔴 OBSOLÈTE |
-| 19 | `fix-svelte5-runes.yml` | Purify Svelte 5 | 174 | dispatch | 🔴 OBSOLÈTE |
-| 20 | `generate-android-instruction.yml` | Instruction Android | 106 | push/dispatch | ⚪ FAIBLE |
+17 | `generate-pwa-icons.yml` | Generation icônes PWA | 226 | push/dispatch | 🟢 UTILITAIRE |
+18 | `security-audit.yml` | Security Audit auto | 160 | dispatch/cron | 🆕 NOUVEAU |
+19 | `auto-svelte5-migration.yml` | Check Svelte 5 | 234 | dispatch | 🔴 OBSOLÈTE |
+20 | `fix-svelte5-runes.yml` | Purify Svelte 5 | 174 | dispatch | 🔴 OBSOLÈTE |
+21 | `generate-android-instruction.yml` | Instruction Android | 106 | push/dispatch | ⚪ FAIBLE |
 
 ---
 
