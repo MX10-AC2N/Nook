@@ -486,7 +486,7 @@
       setTimeout(() => chatStore.connectionError = null, 5000);
     }
   }
-}
+
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
     if (recordingState.isRecording) {
       // Arrêt : récupérer le blob et l'envoyer comme upload
