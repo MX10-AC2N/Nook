@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-04-02 17:15 UTC**
+> **2026-04-02 17:42 UTC**
 
 ---
 
@@ -9,11 +9,11 @@
 
 | Champ | Valeur |
 |-------|--------|
-| **Build** | ❌ FAIL |
+| **Build** | ✅ OK |
 | **Branche** | `fix/notifications-and-chess-audit` |
-| **Commit** | [`309f123`](https://github.com/MX10-AC2N/Nook/commit/309f12367bc9667934942de28c059d532102b75a) |
-| **Node.js** | `v20.20.2` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23912743793) |
+| **Commit** | [`b5cd507`](https://github.com/MX10-AC2N/Nook/commit/b5cd5077483ff26e4d2eb2e3b605b0b816554030) |
+| **Node.js** | `v20.20.1` |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23913815508) |
 
  ---
 
@@ -29,6 +29,7 @@
 
 ```
 ▲ [WARNING] Cannot find base config file "./.svelte-kit/tsconfig.json" [tsconfig.json]
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
 ```
 
 ---
@@ -38,8 +39,35 @@
 ```
 vite v7.3.1 building ssr environment for production...
 ✓ 191 modules transformed.
+rendering chunks...
+vite v7.3.1 building client environment for production...
+✓ 224 modules transformed.
+rendering chunks...
+✓ built in 4.99s
+vite v7.3.1 building client environment for production...
+✓ 1 modules transformed.
+rendering chunks...
 
-
+.svelte-kit/output/server/entries/pages/admin/_page.svelte.js              0.75 kB
+.svelte-kit/output/server/chunks/Icon.js                                   0.77 kB
+.svelte-kit/output/server/entries/pages/_page.svelte.js                    0.92 kB
+.svelte-kit/output/server/entries/pages/admin/analytics/_page.svelte.js    0.93 kB
+.svelte-kit/output/server/entries/pages/chess/_game_id_/_page.svelte.js    0.98 kB
+.svelte-kit/output/server/entries/pages/invite/_page.svelte.js             1.04 kB
+.svelte-kit/output/server/entries/pages/polls/_page.svelte.js              1.06 kB
+.svelte-kit/output/server/entries/pages/login/_page.svelte.js              2.53 kB
+.svelte-kit/output/server/entries/pages/register/_page.svelte.js           2.55 kB
+.svelte-kit/output/server/entries/pages/settings/_page.svelte.js           2.64 kB
+.svelte-kit/output/server/entries/pages/change-password/_page.svelte.js    2.88 kB
+.svelte-kit/output/server/chunks/authStore.svelte.js                       2.99 kB
+.svelte-kit/output/server/entries/pages/chess/_page.svelte.js              3.68 kB
+.svelte-kit/output/server/entries/pages/events/_page.svelte.js             3.84 kB
+.svelte-kit/output/server/entries/pages/calendar/_page.svelte.js           5.33 kB
+.svelte-kit/output/server/entries/pages/help/_page.svelte.js              10.41 kB
+.svelte-kit/output/server/entries/pages/chat/_page.svelte.js              12.62 kB
+.svelte-kit/output/server/chunks/chessStore.svelte.js                     15.90 kB
+.svelte-kit/output/server/entries/pages/call/_id_/_page.svelte.js         16.34 kB
+.svelte-kit/output/server/chunks/svelte.js                               301.39 kB
 ```
 
 ---
