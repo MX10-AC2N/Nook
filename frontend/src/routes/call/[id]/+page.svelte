@@ -24,7 +24,7 @@
   let error: string | null = $state(null);
   let callDuration = $state(0);
   let timerInterval: ReturnType<typeof setInterval> | null = null;
-  let callStartedAt = $state<Date | null>(null);
+  let callStartedAt = $state(0);
 
   // ════════════════════════════════════════════════════
   // Dérivés réactifs
@@ -33,21 +33,21 @@
   const callType = $derived((($page.url?.searchParams?.get('type') ?? 'audio') as 'audio' | 'video'));
 
   // Titre de l'appel : nom de la conversation OU noms des participants
-  const callTitle = $derived.by(() => {
+  const callTitle = $derived(() => {
     const conv = conversations.find((c) => c.id === conversationId);
     if (conv?.name && conv.name !== 'Groupe Global') return conv.name;
     const others = participants.value.filter((p) => p.id !== authStore.user?.id);
     if (others.length === 0) return 'Appel';
     if (others.length === 1) return others[0].name ?? others[0].username ?? 'Appel';
     return `${others.length} participants`;
-  });
+  })();
 
   // Formatage de la durée d'appel MM:SS
-  const formattedDuration = $derived.by(() => {
+  const formattedDuration = $derived(() => {
     const mins = Math.floor(callDuration / 60);
     const secs = callDuration % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  });
+  })();
 
   // Participant connecté (pour affichage vidéo local)
   const localName = $derived(authStore.user?.name ?? authStore.user?.username ?? 'Moi');
@@ -87,17 +87,17 @@
 
   // Redémarrer le timer quand on passe en isInCall
   $effect(() => {
-    if (callStore.isInCall && callStartedAt === null) {
-      callStartedAt = new Date();
+    if (callStore.isInCall && callStartedAt === 0) {
+      callStartedAt = Math.floor(Date.now() / 1000);
       timerInterval = setInterval(() => {
-        callDuration = Math.floor((Date.now() - callStartedAt.getTime()) / 1000)
+        callDuration = Math.floor(Date.now() / 1000) - callStartedAt;
       }, 1000);
     } else if (!callStore.isInCall) {
       if (timerInterval) {
         clearInterval(timerInterval);
         timerInterval = null;
       }
-      callStartedAt = null;
+      callStartedAt = 0;
       callDuration = 0;
     }
   });
@@ -170,7 +170,7 @@
       <button onclick={goBack} class="btn-back" aria-label="Retour">←</button>
       <div class="call-header-info">
         <h1 class="call-title">{callTitle}</h1>
-        {#if callStore.isInCall || callStartedAt !== null}
+        {#if callStore.isInCall || callStartedAt > 0}
           <span class="call-timer">{formattedDuration}</span>
         {/if}
       </div>
