@@ -450,65 +450,42 @@
   }
 
   async function handleFileUpload(event: Event) {
-  const input = event.target as HTMLInputElement;
-  if (!input.files?.length) return;
-  const file = input.files[0];
+    const input = event.target as HTMLInputElement;
+    if (!input.files?.length) return;
+    const file = input.files[0];
 
-  // Vérification taille côté client (limite backend = 50 Mo)
-  const MAX_BYTES = 50 * 1024 * 1024;
-  if (file.size > MAX_BYTES) {
-    chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`;
-    input.value = '';
-    setTimeout(() => chatStore.connectionError = null, 8000);
-    return;
-  }
-
-  try {
-    // Pour les fichiers > 10MB, utiliser le transfert P2P
-    const P2P_THRESHOLD = 10 * 1024 * 1024; // 10MB threshold for P2P
-    if (file.size > P2P_THRESHOLD && webrtcCalls.fileDataChannels.size > 0) {
-      await uploadFileP2P(file, activeConvId);
-    } else {
-      await uploadFileStandard(file, activeConvId);
+    // Vérification taille côté client (limite backend = 50 Mo)
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
     }
-    input.value = '';
-  } catch (err: unknown) {
-    console.error('[Upload]', err);
-    chatStore.connectionError = err instanceof Error ? err.message : "Échec de l'upload";
-    setTimeout(() => chatStore.connectionError = null, 6000);
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('conversation_id', activeConvId);
+    fd.append('from_user_id', authStore.user?.id || '');
+    try {
+      const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      const isImage = data.is_image ?? file.type.startsWith('image/');
+      const uploadContent = isImage
+        ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
+        : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
+      await sendMessage(uploadContent, activeConvId);
+      input.value = '';
+    } catch (err: unknown) {
+      console.error('[Upload]', err);
+      chatStore.connectionError = err instanceof Error ? err.message : "Échec de l'upload";
+      setTimeout(() => chatStore.connectionError = null, 5000);
+    }
   }
-}
-
-async function uploadFileStandard(file: File, conversationId: string): Promise<void> {
-  const fd = new FormData();
-  fd.append('file', file);
-  fd.append('conversation_id', conversationId);
-  fd.append('from_user_id', authStore.user?.id || '');
-  const res = await fetch('/api/upload/chat', { method: 'POST', body: fd, credentials: 'include' });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
-  }
-  const data = await res.json();
-  const isImage = data.is_image ?? file.type.startsWith('image/');
-  const content = isImage
-    ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
-    : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
-  await sendMessage(content, conversationId);
-}
-
-async function uploadFileP2P(file: File, conversationId: string): Promise<void> {
-  // Importer le module de transfert P2P
-  const { sendFileP2P } = await import('$lib/file-transfer.svelte.ts');
-  const participantIds = conversationStore.participants.value
-    .filter((p) => p.id !== authStore.user?.id)
-    .map((p) => p.id);
-
-  const result = await sendFileP2P(file, conversationId, participantIds, webrtcCalls.fileDataChannels);
-  
-  // Envoyer un message avec les métadonnées du fichier
-  const content = `<span class="file-attachment">📎 <a href="#" onclick="window.__downloadP2PFile('${file.name}', '${crypto.randomUUID()}')" >${file.name}</a> <span class="file-size">(${(file.size / 1024 / 1024).toFixed(1)} Mo - P2P)</span></span>`;
-  await sendMessage(content, conversationId);
 }
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
     if (recordingState.isRecording) {
@@ -989,19 +966,7 @@ async function uploadFileP2P(file: File, conversationId: string): Promise<void> 
     <form class="input-area" onsubmit={handleSubmit}>
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <!-- File transfer progress -->
-{#if $fileTransfer.transfers.size > 0}
-<div class="transfer-progress">
-  {#each Array.from($fileTransfer.transfers.entries()) as [id, transfer]}
-    <div class="transfer-item">
-      <span>{transfer.metadata.fileName}</span>
-      <span class="progress-bar">
-        <span class="progress-fill" style="width: {transfer.progress}%"></span>
-      </span>
-      <span>{transfer.progress}% {transfer.status === 'completed' ? '✓' : transfer.status === 'failed' ? '✗' : ''}</span>
-    </div>
-  {/each}
-</div>
-{/if}
+
 
 <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
       <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
@@ -1751,48 +1716,5 @@ async function uploadFileP2P(file: File, conversationId: string): Promise<void> 
     .modal { max-width: 96vw; margin: .75rem; }
   }
 
-/* ─── File Transfer Progress ────────────────────────────────────── */
-.transfer-progress {
-  position: fixed;
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  z-index: 1000;
-  max-width: 400px;
-  width: 90%;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-}
-.transfer-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
-  font-size: 0.875rem;
-}
-.transfer-item + .transfer-item {
-  border-top: 1px solid var(--border);
-}
-.progress-bar {
-  flex: 1;
-  height: 8px;
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.progress-fill {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--accent-dark));
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-.file-size {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-left: 0.25rem;
-}
+
 </style>
