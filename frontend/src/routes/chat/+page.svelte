@@ -474,12 +474,11 @@
         throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
       }
       const data = await res.json();
-      // data.url pointe maintenant vers /api/download/{id} (déchiffré) — session 34
       const isImage = data.is_image ?? file.type.startsWith('image/');
-      const content = isImage
+      const uploadContent = isImage
         ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
         : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
-      await sendMessage(content, activeConvId);
+      await sendMessage(uploadContent, activeConvId);
       input.value = '';
     } catch (err: unknown) {
       console.error('[Upload]', err);
@@ -488,7 +487,6 @@
     }
   }
 
-  // ─── Messages vocaux ─────────────────────────────────────────────
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
     if (recordingState.isRecording) {
       // Arrêt : récupérer le blob et l'envoyer comme upload
@@ -967,7 +965,10 @@
 
     <form class="input-area" onsubmit={handleSubmit}>
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
-      <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
+      <!-- File transfer progress -->
+
+
+<input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
       <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
       <!-- Bouton message vocal -->
       <button
@@ -1714,4 +1715,6 @@
     .message { max-width: 88%; }
     .modal { max-width: 96vw; margin: .75rem; }
   }
+
+
 </style>

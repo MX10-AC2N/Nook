@@ -1,9 +1,10 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.2** | Session courante : **41** | Mis à jour : **2026-03-22**
-> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `main`
-> Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/main/`
+> Version projet : **0.4.0-beta.2** | Session courante : **46** | Mis à jour : **2026-04-02**
+> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `fix/notifications-and-chess-audit`
+> Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/fix/notifications-and-chess-audit/`
+> PR en cours : [#23](https://github.com/MX10-AC2N/Nook/pull/23) — tests E2E chess+WebRTC + audit sécurité
 
 ---
 
@@ -83,7 +84,7 @@
 □ Fichiers .rs backend hors chess_engine/ ?              → 🦀 RUST
 □ Fichiers .svelte, .svelte.ts, .svelte.js ?             → 🎨 SVELTE  (+ MCP Svelte)
 □ Workflows .yml, Dockerfile*, docker-compose* ?         → 🚀 DEVOPS
-□ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?       → 🧪 E2E
+□ `chess-extended.spec.ts`, `webrtc.spec.ts`, `TEST_REPORT` ?  → 🧪 E2E
 □ Auth, crypto, clés, cookies, WebRTC, E2EE ?            → 🔐 CRYPTO
 □ chess_engine/, chess.rs, chessStore ?                  → ♟️ CHESS
 □ polls.rs, analytics, calendar, events, DB données ?    → 📊 DATA
@@ -262,7 +263,33 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 | `BACKEND-BUILD-REPORT-amd64.md` | 🦀 RUST | `Backend.yml` |
 | `BACKEND-BUILD-REPORT-arm64.md` | 🦀 RUST | `Backend.yml` |
 | `DOCKER-BUILD-REPORT.md` | 🚀 DEVOPS | `Docker.yml` |
-| `TEST_REPORT.md` | 🧪 E2E | `test-nook.yml` |
+| `TEST-AND-SECURITY-AUDIT-2026.md` | 🧪 E2E + 🔐 CRYPTO | Tests étendus + findings ouvertes |
+| `E2E-TARGETED-REPORT.md` | 🧪 E2E | `e2e-targeted.yml` |
+
+---
+
+## 🛠️ WORKFLOWS DISPONIBLES — Catalogue rapide
+
+> 20 workflows au total. Voir détails dans `rules/workflows.md`.
+
+| Catégorie | Workflows | Déclencheur |
+|-----------|-----------|-------------|
+| CI principale | `test-nook.yml` | push/PR sur develop/main |
+| Build artifacts | `Backend.yml`, `Frontend.yml`, `Docker.yml`, `ci-new2.yml` | `workflow_dispatch` |
+| E2E debug | `e2e-targeted.yml` | `workflow_dispatch` (input: suite) |
+| Maintenance auto | `update-cargo-lock.yml`, `update-frontend-lock.yml`, `sqlx-prepare.yml` | push sur paths |
+| Bundle/audit | `bundle-analysis.yml`, `npm-audit-report.yml` | push/cron |
+| Nettoyage | `clear-cache.yml`, `ghcr-cleanup.yml` | cron/workflow_run |
+| Assets | `fetch-gifs.yml`, `generate-pwa-icons.yml`, `generate-android-instruction.yml` | push/dispatch |
+| Migration | `auto-svelte5-migration.yml`, `fix-svelte5-runes.yml` | `workflow_dispatch` |
+| Release | `Release.yml` | `workflow_dispatch` |
+
+> ⚠️ **Nettoyage recommandé** (détails dans [WORKFLOW-CATALOG.md](#workflow-cleansing) ci-dessous):
+> - `auto-svelte5-migration.yml` — migration S5 terminée depuis S37
+> - `fix-svelte5-runes.yml` — idem, plus nécessaire
+> - `ci-new2.yml` — doublon avec `Backend.yml`+`Docker.yml`
+> - `generate-android-instruction.yml` — usage ponctuel, pas besoin de workflow dédié
+> - `update-cargo-lock.yml` + `update-frontend-lock.yml` — redondants si `sqlx-prepare.yml` gère lock
 
 ---
 

@@ -4,9 +4,37 @@
 
 ---
 
-## 🔴 BUGS ACTIFS
+## 🔴 BUGS ACTIFS — SÉCURITÉ OUVERTE (S46)
 
-*Aucun bug actif bloquant.*
+### SEC-07 : Routes WebRTC /api/webrtc/offer et /api/webrtc/answer sans authentification
+
+**Fichier** : `backend/src/webrtc.rs` — `handle_offer` et `handle_answer`
+**Impact** : Quiconque peut spammer de fausses offres de call à tous les utilisateurs connectés
+**Fix** : Ajouter `Extension(CurrentUser)` aux handlers ou déplacer routes dans `protected_routes`
+
+### SEC-09 : Pas de Content-Security-Policy dans `app.html`
+
+**Fichier** : `frontend/src/app.html`
+**Impact** : Sans CSP, XSS potentielle pourrait charger du JS externe
+**Fix** : Ajouter `<meta http-equiv="Content-Security-Policy" ...>` dans `<head>`
+
+### SEC-10 : Pas de headers de sécurité HTTP (X-Frame-Options, HSTS, etc.)
+
+**Fichier** : `backend/src/main.rs`
+**Impact** : Clickjacking, MIME sniffing, etc. — dépend du reverse proxy Nginx
+**Fix** : Ajouter une couche middleware Axum ou configurer Nginx
+
+---
+
+## 📋 Pièges critiques S46
+
+```
+chess tests : Les tests E2E chess utilisent .serial — ordre critique (login → puis tests API)
+webrtc tests : Pas de périphériques media en CI headless → getUserMedia échoue → tests UI
+                se limitent à la structure de page et fallback
+workflows   : 20 workflows, 5 candidats suppression (voir WORKFLOW-CATALOG.md)
+tests E2E   : chess-extended.spec.ts + webrtc.spec.ts = 41 nouveaux tests → 156 total
+```
 
 ---
 
@@ -80,3 +108,8 @@ store.prop = newValue;
 | R_CALL_ROUTING | 42 | Signaux WebRTC broadcast global | `user_senders` HashMap + routage `to_user_id` |
 | R_RESIGN | 39 | `resign_game` winner_id="ai" → FK violation | `winner_id = None` pour IA |
 | R_POLLS_ID | 39 | Tests polls `.id` au lieu de `.poll?.id` | Accès via `.poll?.id` |
+
+| R_NOTIF_SW_S45 | 45 | Service Worker jamais enregistre → notifications ne marchent nulle part | +layout.ts: register manuel au load + reply icon path fixe |
+| R_SEC07_WEBRTC | 46 | Routes WebRTC offer/answer sans auth | **A FAIRE** — ajouter CurrentUser |
+| R_SEC09_CSP | 46 | Pas de CSP dans app.html | **A FAIRE** — meta tag |
+| R_SEC10_HEADERS | 46 | Pas de headers sécu HTTP | **A FAIRE** — middleware ou Nginx |

@@ -36,7 +36,7 @@
 
   // La case du roi est en échec si engine.status contient "check" ou "checkmate"
   // CORRECTION: $derived prend une expression, pas une fonction
-  const kingInCheckSquare = $derived(() => {
+  const kingInCheckSquare = $derived.by(() => {
     const engine = chessStore.currentGame?.engine;
     if (!engine) return null;
     const st = engine.status ?? '';
@@ -82,11 +82,19 @@
     await chessStore.loadGame(gameId);
     pageLoading = false;
   });
+
+  // Auto-show result modal when game finishes
+  $effect(() => {
+    if (chessStore.currentGame?.status === 'finished' && !showResult) {
+      showResult = true;
+      resultDismissed = false;
+    }
+  });
   onDestroy(() => chessStore.disconnectWebSocket());
 
   // Guard : ne pas dériver si currentGame est null
   // CORRECTION: Utiliser $derived correctement
-  const mySlot = $derived(() => {
+  const mySlot = $derived.by(() => {
     const g = chessStore.currentGame;
     if (!g) return null;
     const uid = authStore.user?.id;
@@ -95,7 +103,7 @@
     return null;
   });
 
-  const flipped  = $derived(chessStore.myColor() === 'black');
+  const flipped  = $derived(chessStore.myColor === 'black');
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const recentHistory = $derived((chessStore.currentGame?.move_history ?? []).slice(-20));
@@ -122,7 +130,7 @@
   {:else}
     {@const game   = chessStore.currentGame}
     {@const engine = game?.engine ?? null}
-    {@const slot   = mySlot()}
+    {@const slot   = mySlot}
 
     <!-- ══ BARRE COMPACTE MOBILE (status + abandon) ══ -->
     <div class="mobile-bar">
@@ -326,7 +334,7 @@
                     {#if decoded}
                       <span
                         class="piece"
-                        class:piece-mine={decoded.color === (chessStore.myColor() === 'white' ? 'w' : 'b')}
+                        class:piece-mine={decoded.color === (chessStore.myColor === 'white' ? 'w' : 'b')}
                         class:piece-selected={chessStore.selected?.algebraic === toAlgebraic(row, col)}
                         style="color:{decoded.color === 'w' ? '#fff' : '#1a1a1a'};
                                text-shadow:{decoded.color === 'w'
@@ -361,8 +369,8 @@
             {#each PROMO_PIECES as p}
               <button class="promo-btn" onclick={() => chessStore.confirmPromotion(p)}>
                 <span class="promo-piece"
-                  style="color:{chessStore.myColor() === 'white' ? '#fff' : '#1a1a1a'};
-                         text-shadow:{chessStore.myColor() === 'white'
+                  style="color:{chessStore.myColor === 'white' ? '#fff' : '#1a1a1a'};
+                         text-shadow:{chessStore.myColor === 'white'
                            ? '0 1px 3px rgba(0,0,0,0.8)' : '0 1px 2px rgba(255,255,255,0.3)'};">
                   {PROMO_LABELS[p].split(' ')[0]}
                 </span>

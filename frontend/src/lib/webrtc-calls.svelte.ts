@@ -15,6 +15,7 @@ export interface CallState {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
   peerConnections: Map<string, RTCPeerConnection>;
+  fileDataChannels: Map<string, RTCDataChannel>;
   currentConversationId: string | null;
   error: string | null;
   isMuted: boolean;
@@ -32,6 +33,7 @@ function createInitialState(): CallState {
     localStream: null,
     remoteStreams: new Map<string, MediaStream>(),
     peerConnections: new Map<string, RTCPeerConnection>(),
+    fileDataChannels: new Map<string, RTCDataChannel>(),
     currentConversationId: null,
     error: null,
     isMuted: false,
@@ -148,6 +150,38 @@ class WebRTCCallManager {
       ],
       iceCandidatePoolSize: 10,
     });
+
+    // ── File Transfer Data Channel ──
+    const fileChan = pc.createDataChannel('file-transfer', {
+      ordered: true,
+      maxRetransmits: 3,
+    });
+    fileChan.binaryType = 'arraybuffer';
+    this.fileDataChannels.set(remoteUserId, fileChan);
+    
+    fileChan.onmessage = (ev) => {
+      import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+        handleFileTransferMessage(ev.data);
+      }).catch(e => console.error('[FileChannel] Error:', e));
+    };
+    fileChan.onopen = () => {
+      console.log(`[FileChannel] Open to ${remoteUserId}`);
+    };
+    fileChan.onclose = () => {
+      this.fileDataChannels.delete(remoteUserId);
+      console.log(`[FileChannel] Closed to ${remoteUserId}`);
+    };
+
+    // Handle incoming DataChannel requests from peer
+    pc.ondatachannel = (event) => {
+      const ch = event.channel;
+      ch.binaryType = 'arraybuffer';
+      ch.onmessage = (ev) => {
+        import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+          handleFileTransferMessage(ev.data);
+        }).catch(e => console.error('[FileChannel] Incoming error:', e));
+      };
+    };
 
     // Ajouter le flux local (audio/vidéo) à la connexion
     if (callStore.localStream) {

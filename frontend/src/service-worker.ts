@@ -5,7 +5,7 @@
 const ICONS = {
   default: '/icon-192.png',
   badge: '/icon-72.png',
-  reply: '/reply.png',
+  reply: '/icons/reply.svg',
   dark: '/icon-192-dark.png',
   badgeDark: '/icon-72-dark.png'
 } as const;
