@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-02 20:02 UTC**
+> Généré par `test-nook.yml` · **2026-04-02 20:16 UTC**
 
 ---
 
@@ -13,7 +13,7 @@
 | **Tests échoués** | 0 |
 | **Tests ignorés** | 0 |
 | **Total** | 0 |
-| **Durée** | N/A |
+| **Durée** | 0.0s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -68,4 +68,4 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-02 20:02 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-02 20:16 UTC*
