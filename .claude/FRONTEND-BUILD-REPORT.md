@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-04-02 05:48 UTC**
+> **2026-04-02 12:11 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Build** | ❌ FAIL |
 | **Branche** | `fix/notifications-and-chess-audit` |
-| **Commit** | [`3f7c9f0`](https://github.com/MX10-AC2N/Nook/commit/3f7c9f04b85da1db37f219e24f1752b3eedd0be1) |
-| **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23886065715) |
+| **Commit** | [`2a5873a`](https://github.com/MX10-AC2N/Nook/commit/2a5873a1fab1d407431cf141251bb00865dc3457) |
+| **Node.js** | `v20.20.2` |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23899720685) |
 
  ---
 
