@@ -40,14 +40,14 @@
     if (others.length === 0) return 'Appel';
     if (others.length === 1) return others[0].name ?? others[0].username ?? 'Appel';
     return `${others.length} participants`;
-  })();
+  });
 
   // Formatage de la durée d'appel MM:SS
   const formattedDuration = $derived.by(() => {
     const mins = Math.floor(callDuration / 60);
     const secs = callDuration % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  })();
+  });
 
   // Participant connecté (pour affichage vidéo local)
   const localName = $derived(authStore.user?.name ?? authStore.user?.username ?? 'Moi');

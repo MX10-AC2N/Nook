@@ -494,7 +494,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                         // File transfer signaling → broadcast to conversation participants
                         // Forward to all connected clients in the conversation
                         let guard = state_recv.webrtc_state.user_senders.lock().await;
-                        for (user_id, tx) in guard.iter() {
+                        for (_user_id, tx) in guard.iter() {
                             let _ = tx.send(text_str.clone());
                         }
                         tracing::debug!("File transfer signal relayed");
