@@ -924,7 +924,7 @@ test.describe('Call page', () => {
     expect(hasAudioBtn || hasVideoBtn).toBe(true);
   });
 
-  test('/call/[id] sans auth → redirige vers /login', async ({ browser }) => {
+  test('/call/[id] avec session → page appel chargee', async ({ browser }) => {
     const page = await browser.newPage();
     await clearSession(page);
     await page.goto(`http://localhost:6300/call/some-id`);
