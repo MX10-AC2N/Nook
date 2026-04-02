@@ -2,14 +2,6 @@ name: "3==> CI - Test Nook (Backend + Frontend + Integration)"
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - develop
-      - main
-  pull_request:
-    branches:
-      - develop
-      - main
 
 concurrency:
   group: test-nook-${{ github.ref }}
