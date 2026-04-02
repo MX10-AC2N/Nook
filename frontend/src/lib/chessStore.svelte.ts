@@ -473,19 +473,18 @@ class ChessStore {
     const aiColor = myColor === 'white' ? 'black' : 'white';
     this.switchTimer(aiColor);
 
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 15_000);
     try {
-      const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 15_000);
-      try {
-        const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
-          method:      'POST',
-          headers:     { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          signal:      ctrl.signal,
-          body:        JSON.stringify({ difficulty: this.currentGame.ai_difficulty }),
-        });
-        clearTimeout(timeout);
-        const data = await res.json();
+      const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        signal:      ctrl.signal,
+        body:        JSON.stringify({ difficulty: this.currentGame.ai_difficulty }),
+      });
+      clearTimeout(timeout);
+      const data = await res.json();
       if (data.success && data.game) {
         this.currentGame = data.game;
         // Mettre à jour lastMove depuis le dernier coup IA (from/to maintenant disponibles)
@@ -501,6 +500,7 @@ class ChessStore {
     } catch {
       // Silencieux — le joueur peut retenter
     } finally {
+      clearTimeout(timeout);
       this.aiThinking = false;
     }
   }
