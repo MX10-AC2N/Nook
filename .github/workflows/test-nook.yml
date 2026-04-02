@@ -217,8 +217,8 @@ jobs:
           
           echo "=== Test change password (admin sur lui-même) ==="
           # Admin change son propre mot de passe
-          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"AdminCI2026!","user_id":"$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
-          "}')
+          ADMIN_ID=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
+          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}')
           echo "Change password admin: $CHG"
           
           echo "=== Test register puis approve (flux complet) ==="
@@ -257,7 +257,6 @@ jobs:
           echo "=== Test upload fichier invalide ==="
           # Essayer d'uploader un fichier vide
           UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat             -H "Cookie: $ADMIN_COOKIE"             -F "file=@/dev/null"             -F "conversation_id=default_global"             -F "from_user_id=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
-          ")
           echo "Upload vide: $UPLOAD_EMPTY"
           
           echo "=== Test upload taille >50MB (simulation header) ==="
