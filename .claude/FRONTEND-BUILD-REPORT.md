@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-04-02 17:42 UTC**
+> **2026-04-02 18:20 UTC**
 
 ---
 
@@ -10,10 +10,10 @@
 | Champ | Valeur |
 |-------|--------|
 | **Build** | ✅ OK |
-| **Branche** | `fix/notifications-and-chess-audit` |
-| **Commit** | [`b5cd507`](https://github.com/MX10-AC2N/Nook/commit/b5cd5077483ff26e4d2eb2e3b605b0b816554030) |
-| **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23913815508) |
+| **Branche** | `develop` |
+| **Commit** | [`1e92bf8`](https://github.com/MX10-AC2N/Nook/commit/1e92bf82ff5ad560d9a1c277b8f926663aa91930) |
+| **Node.js** | `v20.20.2` |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23915357217) |
 
  ---
 
@@ -43,7 +43,7 @@ rendering chunks...
 vite v7.3.1 building client environment for production...
 ✓ 224 modules transformed.
 rendering chunks...
-✓ built in 4.99s
+✓ built in 4.91s
 vite v7.3.1 building client environment for production...
 ✓ 1 modules transformed.
 rendering chunks...
