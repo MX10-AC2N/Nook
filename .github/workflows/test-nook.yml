@@ -369,7 +369,7 @@ jobs:
         continue-on-error: true
         run: |
           cd frontend
-          npx playwright test 2>&1 | tee /tmp/playwright-output.txt || true
+npx playwright test --reporter=list --reporter=json 2>&1 | tee /tmp/playwright-output.txt; EXIT_CODE=${PIPESTATUS[0]; echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           
@@ -397,7 +397,7 @@ jobs:
           RUN_DATE: "$(date -u '+%Y-%m-%d %H:%M UTC')"
         run: |
           export RUN_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
-          python3 scripts/generate-test-report.py             --json   /tmp/playwright-results.json             --docker /tmp/docker.log             --output .claude/TEST_REPORT.md
+          python3 scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
           echo "Rapport généré"
           head -20 .claude/TEST_REPORT.md
 
