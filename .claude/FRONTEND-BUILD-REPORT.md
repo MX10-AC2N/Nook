@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-04-02 17:04 UTC**
+> **2026-04-02 17:11 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Build** | ❌ FAIL |
 | **Branche** | `fix/notifications-and-chess-audit` |
-| **Commit** | [`4c87d1a`](https://github.com/MX10-AC2N/Nook/commit/4c87d1abbe88ccd0737e4c3feef9c901bff7919e) |
-| **Node.js** | `v20.20.2` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23912287774) |
+| **Commit** | [`9f841a3`](https://github.com/MX10-AC2N/Nook/commit/9f841a3eb6039ec9b9cf9ca8939f292521a97c4d) |
+| **Node.js** | `v20.20.1` |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23912567382) |
 
  ---
 
@@ -37,7 +37,7 @@
 
 ```
 vite v7.3.1 building ssr environment for production...
-✓ 117 modules transformed.
+✓ 186 modules transformed.
 
 
 ```
