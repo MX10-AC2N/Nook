@@ -363,13 +363,13 @@ jobs:
             echo "Suppression: HTTP $DELETE"
           fi
 
+
       # ── E2E Playwright ──────────────────────────────────
       - name: E2E Playwright
         id: playwright
-        continue-on-error: true
         run: |
           cd frontend
-npx playwright test --reporter=list --reporter=json 2>&1 | tee /tmp/playwright-output.txt; EXIT_CODE=${PIPESTATUS[0]; echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          npx playwright test --reporter=list --reporter=json 2>&1 | tee /tmp/playwright-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           
@@ -381,7 +381,6 @@ npx playwright test --reporter=list --reporter=json 2>&1 | tee /tmp/playwright-o
             echo "❌ Tests E2E échoués"
             grep -E "✗|passed|failed|skipped" /tmp/playwright-output.txt || true
           fi
-
       # ── Capture logs ────────────────────────────────────
       - name: Capture logs Docker
         if: always()
