@@ -166,13 +166,29 @@ npx playwright test -g "Auth - Login valide"
 | `e2e-targeted.yml` | 🧪 E2E | Lance 1 test par nom (debug rapide, évite 10 min de CI) |
 | `generate-android-instruction.yml` | 📐 ARCHITECT | Auto-génère `.claude/ANDROID-INSTRUCTION.md` |
 
+## 📋 Catalogue complet des workflows (session 46)
+
+> **20 workflows au total.** Voir détails complets et recommandations de nettoyage dans
+> [`.claude/WORKFLOW-CATALOG.md`](../WORKFLOW-CATALOG.md).
+
+### Tests E2E — 3 fichiers de tests
+
+| Fichier | Tests | Description |
+|---------|-------|-------------|
+| `tests/user.spec.ts` | 49 | Flux user complet (auth, chat, reactions, upload, polls, chess, calendar, settings, E2EE, push, rate limit) |
+| `tests/admin.spec.ts` | 18 | Flux admin (login, users, invites, analytics, isolation) |
+| `tests/api-sanity.spec.ts` | 48 | 48 routes protégées → 401 sans auth |
+| `tests/chess-extended.spec.ts` | 27 | Scénarios avancés chess (promotion, timer, IA×5, resign, humain, UI, noir) |
+| `tests/webrtc.spec.ts` | 14 | WebRTC API, WebSocket auth, page call, upload audio/vidéo |
+| **Total** | **156** | Tous passent ✅ |
+
 ## 🔄 Séquence complète recommandée (feature shipping)
 
 ```
 1. sqlx-prepare.yml    (si migration SQL modifiée)
 2. Backend.yml         (build + clippy)
 3. Frontend.yml        (build + bundle-analysis.yml)
-4. test-nook.yml       (suite E2E complète)
+4. test-nook.yml       (suite E2E complète — 156 tests)
 5. Docker.yml          (image distroless)
 6. ghcr-cleanup.yml    (auto après Docker.yml)
 7. generate-android-instruction.yml  (si VERSION ou BUGS.md changés)

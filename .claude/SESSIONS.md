@@ -2,6 +2,40 @@
 
 ---
 
+## Session 46 — 2026-04-02 (audit tests + sécurité)
+
+### Tests E2E étendus
+- **chess-extended.spec.ts** : 27 nouveaux tests chess (promotion, timer, 5× IA, resign, humain, UI, noir, 401)
+- **webrtc.spec.ts** : 14 nouveaux tests WebRTC (API auth, WS auth, page call, upload audio/video)
+- Total tests E2E : 115 → **156 tests**
+- Rapport complet : `.claude/TEST-AND-SECURITY-AUDIT-2026.md`
+
+### Audit de sécurité complet
+- SEC-01 à SEC-06 : toutes **résolues** (confirmé par scan automatique)
+- SEC-06 (emergency) : maintenant importé dans main.rs + `CurrentUser` vérifié ✅
+- **SEC-07** 🔴 : Routes `/api/webrtc/offer` et `/api/webrtc/answer` sans auth
+- **SEC-09** 🔴 : Pas de CSP dans `app.html`
+- **SEC-10** 🔴 : Pas de headers sécurité HTTP (X-Frame-Options, HSTS, etc.)
+- **SEC-08** 🟡 : Broadcast WebRTC global (pas par conversation)
+- **SEC-11** 🟡 : X-Forwarded-Proto spoofable sans Nginx
+- **SEC-12** 🟡 : Complexité mot de passe minimale (8 chars)
+
+### Catalogue workflows
+- **20 workflows** inventoriés et catégorisés
+- `.claude/WORKFLOW-CATALOG.md` créé avec recommandations cleanup
+- 3 candidats suppression : `auto-svelte5-migration.yml`, `fix-svelte5-runes.yml`, `generate-android-instruction.yml`
+- 2 candidats fusion : `update-cargo-lock.yml` + `update-frontend-lock.yml`
+- 1 doublon à décider : `ci-new2.yml` vs `Backend.yml`+`Docker.yml`
+
+### Fichiers modifiés
+- `.claude/CLAUDE.md` : version → S46, branche, PR #23, references tests+securite, catalogue workflows
+- `.claude/BUGS.md` : 3 bugs sécurité actifs ajoutés, pièges S46
+- `.claude/rules/workflows.md` : ajout catalogue tests E2E + reference WORKFLOW-CATALOG.md
+- `.claude/WORKFLOW-CATALOG.md` : créé (nouveau)
+- `.claude/TEST-AND-SECURITY-AUDIT-2026.md` : créé (précédemment)
+
+---
+
 ## Session 1 — 2026-02-19
 - Analyse complète du projet (Rust + SvelteKit 5)
 - Identification des 5 bugs Svelte 5 actifs
