@@ -199,7 +199,7 @@ jobs:
           # Devrait rejeter - 8 chars min
           
           echo "=== Test login admin ==="
-          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"changeme2026"}')
+          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"AdminCI2026!"}')
           
           ADMIN_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
           if [ -n "$ADMIN_COOKIE" ]; then
@@ -217,7 +217,8 @@ jobs:
           
           echo "=== Test change password (admin sur lui-même) ==="
           # Admin change son propre mot de passe
-          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"NewSecurePass1!","user_id":"admin-initial-id-0000-0000-000000000001"}')
+          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"AdminCI2026!","user_id":"$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
+          "}')
           echo "Change password admin: $CHG"
           
           echo "=== Test register puis approve (flux complet) ==="
@@ -255,7 +256,8 @@ jobs:
           
           echo "=== Test upload fichier invalide ==="
           # Essayer d'uploader un fichier vide
-          UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat             -H "Cookie: $ADMIN_COOKIE"             -F "file=@/dev/null"             -F "conversation_id=default_global"             -F "from_user_id=admin-initial-id-0000-0000-000000000001")
+          UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat             -H "Cookie: $ADMIN_COOKIE"             -F "file=@/dev/null"             -F "conversation_id=default_global"             -F "from_user_id=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
+          ")
           echo "Upload vide: $UPLOAD_EMPTY"
           
           echo "=== Test upload taille >50MB (simulation header) ==="
@@ -288,7 +290,7 @@ jobs:
         run: |
           echo "=== Test connexion WebSocket ==="
           # Récupérer le cookie
-          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"NewSecurePass1!"}')
+          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"AdminCI2026!"}')
           WS_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
           
           if [ -n "$WS_COOKIE" ]; then
@@ -369,7 +371,7 @@ jobs:
         id: playwright
         run: |
           cd frontend
-          npx playwright test --reporter=list --reporter=json 2>&1 | tee /tmp/playwright-output.txt
+          npx playwright test 2>&1 | tee /tmp/playwright-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           
