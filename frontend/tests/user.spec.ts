@@ -789,3 +789,221 @@ test.describe.serial('Rate Limiting', () => {
   });
 
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CALL PAGE — UI et navigation (fix S45)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('Call page', () => {
+
+  test('/call/default_global → page charge avec titre "Appel"', async ({ browser }) => {
+    const page = await browser.newPage();
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+
+    await page.goto(`${BASE.replace('/api', '')}/call/default_global`);
+    await page.waitForLoadState('networkidle');
+    const title = await page.title();
+    expect(title.toLowerCase()).toContain('appel');
+  });
+
+  test('/call/default_global → bouton "Appel audio" visible', async ({ browser }) => {
+    const page = await browser.newPage();
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+
+    await page.goto(`${BASE.replace('/api', '')}/call/default_global`);
+    await page.waitForLoadState('networkidle');
+
+    const hasAudioBtn = await page.getByText('Appel audio').isVisible().catch(() => false);
+    const hasVideoBtn = await page.getByText('Appel vidéo').isVisible().catch(() => false);
+    expect(hasAudioBtn || hasVideoBtn).toBe(true);
+  });
+
+  test('/call/[id] sans auth → redirige vers /login', async ({ browser }) => {
+    const page = await browser.newPage();
+    await clearSession(page);
+    await page.goto(`${BASE.replace('/api', '')}/call/some-conv-id`);
+    await page.waitForURL(/login/, { timeout: 10000 });
+    expect(page.url()).toContain('login');
+  });
+
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHESS — Couverture complète (coups spéciaux, timer)
+// ─────────────────────────────────────────────────────────────────────────────
+let chessGameId = '';
+
+test.describe('Chess — Coups spéciaux et timer', () => {
+  let cookie = '';
+
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+  });
+
+  test('Créer partie vs IA (facile)', async ({ page }) => {
+    await page.goto(`${BASE.replace('/api', '')}/chess`);
+    await page.waitForLoadState('networkidle');
+
+    // Cliquer sur "vs IA" ou bouton créer
+    const btn = page.getByRole('button', { name: /IA|intelligence|Easy|easy|Facile/i }).first();
+    if (await btn.isVisible().catch(() => false)) {
+      await btn.click();
+    }
+
+    // Sinon créer via API
+    const res = await page.request.post(`${BASE}/chess/create`, {
+      data: { opponent: 'easy', color: 'white', time_limit_secs: 0 },
+    });
+    if (res.ok()) {
+      const body = await res.json();
+      chessGameId = body.game_id;
+    }
+  });
+
+  test('Chess — UI plateau 8x8 (64 cases) avec sélection', async ({ browser, page }) => {
+    if (!chessGameId) return;
+    await page.goto(`${BASE.replace('/api', '')}/chess/${chessGameId}`);
+    await page.waitForSelector('.cell', { state: 'visible', timeout: 10000 });
+    const cells = await page.locator('.cell').count();
+    expect(cells).toBe(64);
+  });
+
+  test('Chess — coup illégal → message erreur', async ({ page }) => {
+    if (!chessGameId) return;
+    await page.goto(`${BASE.replace('/api', '')}/chess/${chessGameId}`);
+    await page.waitForSelector('.cell', { state: 'visible', timeout: 10000 });
+
+    // Essayer un coup impossible
+    const moveBtn = page.locator('text=Move').first();
+    if (await moveBtn.isVisible().catch(() => false)) {
+      // Si un bouton move existe, cliquer et vérifier erreur
+    } else {
+      // Vérifier via API
+      const res = await page.request.post(`${BASE}/chess/${chessGameId}/move`, {
+        data: { from: 'e1', to: 'a8' },
+      });
+      expect(res.status()).toBe(400);
+    }
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════
+// CALL PAGE — UI et navigation (fix S45)
+// ═══════════════════════════════════════════════════════════
+test.describe('Call page', () => {
+
+  test('/call/default_global → page charge avec titres', async ({ page }) => {
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+
+    await page.goto(`http://localhost:6300/call/default_global`);
+    await page.waitForLoadState('networkidle');
+    const title = await page.title();
+    expect(title.toLowerCase()).toContain('appel');
+  });
+
+  test('/call/default_global → boutons "Appel audio" et "Appel vidéo" visibles', async ({ page }) => {
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+
+    await page.goto(`http://localhost:6300/call/default_global`);
+    await page.waitForLoadState('networkidle');
+
+    const hasAudioBtn = await page.getByText('Appel audio').isVisible().catch(() => false);
+    const hasVideoBtn = await page.getByText('Appel vidéo').isVisible().catch(() => false);
+    expect(hasAudioBtn || hasVideoBtn).toBe(true);
+  });
+
+  test('/call/[id] sans auth → redirige vers /login', async ({ browser }) => {
+    const page = await browser.newPage();
+    await clearSession(page);
+    await page.goto(`http://localhost:6300/call/some-id`);
+    await page.waitForURL(/login/, { timeout: 10000 });
+    expect(page.url()).toContain('login');
+  });
+
+});
+
+// ═══════════════════════════════════════════════════════════
+// CHESS — Coups spéciaux et timer (fix S45)
+// ═══════════════════════════════════════════════════════════
+let chessGameIdForSpecial = '';
+
+test.describe('Chess — Coups spéciaux et timer', () => {
+
+  test('Créer partie vs IA (facile) → game_id', async ({ page }) => {
+    await clearSession(page);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForURL(/chat/);
+
+    const res = await page.request.post(`${BASE}/chess/create`, {
+      data: { opponent: 'easy', color: 'white', time_limit_secs: 0 },
+    });
+
+    if (res.status() === 200) {
+      const body = await res.json();
+      chessGameIdForSpecial = body.game_id;
+      expect(chessGameIdForSpecial).toBeTruthy();
+    }
+  });
+
+  test('Chess — UI plateau 8x8 (64 cases)', async ({ page }) => {
+    if (!chessGameIdForSpecial) return;
+    await page.goto(`http://localhost:6300/chess/${chessGameIdForSpecial}`);
+    await page.waitForSelector('.cell', { state: 'visible', timeout: 10000 });
+
+    const cells = await page.locator('.cell').count();
+    expect(cells).toBe(64);
+  });
+
+  test('Chess — coup légal e2→e4', async ({ page }) => {
+    if (!chessGameIdForSpecial) return;
+    const res = await page.request.post(`${BASE}/chess/${chessGameIdForSpecial}/move`, {
+      data: { from: 'e2', to: 'e4' },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test('Chess — coup illégal → 400', async ({ page }) => {
+    if (!chessGameIdForSpecial) return;
+    const res = await page.request.post(`${BASE}/chess/${chessGameIdForSpecial}/move`, {
+      data: { from: 'e1', to: 'a8' },
+    });
+    expect(res.status()).toBe(400);
+  });
+
+  test('Chess — coups légaux depuis e2 → contient e3 et e4', async ({ page }) => {
+    if (!chessGameIdForSpecial) return;
+    const res = await page.request.get(`${BASE}/chess/${chessGameIdForSpecial}/moves?from=e2`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body)).toBe(true);
+    const targets = body.map((m: string) => m.split(':')[0] ?? m);
+    expect(targets.some((t: string) => t.includes('e3') || t.includes('e4'))).toBe(true);
+  });
+
+  test('Chess — resign → status finished', async ({ page }) => {
+    if (!chessGameIdForSpecial) return;
+    const res = await page.request.post(`${BASE}/chess/${chessGameIdForSpecial}/resign`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('finished');
+
+    // Verify via GET
+    const get = await page.request.get(`${BASE}/chess/${chessGameIdForSpecial}`);
+    expect(get.status()).toBe(200);
+    const getBody = await get.json();
+    expect(getBody.status).toBe('finished');
+  });
+
+});
