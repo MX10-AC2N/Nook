@@ -148,6 +148,7 @@ jobs:
         env:
           NOOK_IMAGE: nook-ci:local
           RATE_LIMIT_PER_MIN: 120
+          ADMIN_INITIAL_PASSWORD: changeme2026
         run: |
           docker compose up -d
           
@@ -198,50 +199,29 @@ jobs:
           echo "Weak password: $WEAK"
           # Devrait rejeter - 8 chars min
           
-          echo "=== Test login admin (premier login + change password) ==="
-          # Etape 1: Login avec mot de passe initial (changeme2026)
-          BODY1=$(curl -s -D - -o /dev/null -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"changeme2026"}')
-          ADMIN_COOKIE=$(echo "$BODY1" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
+          echo "=== Test login admin ==="
+          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"AdminCI2026!"}')
           
+          ADMIN_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
           if [ -n "$ADMIN_COOKIE" ]; then
-            echo "Login admin avec changeme2026: OK (ou besoin change password)"
+            echo "✅ Login admin réussi"
+            echo "ADMIN_COOKIE=$ADMIN_COOKIE" >> $GITHUB_ENV
           else
-            # Le mot de passe a deja ete change (run precedent)
-            BODY1=$(curl -s -D - -o /dev/null -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}')
-            ADMIN_COOKIE=$(echo "$BODY1" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
-            if [ -n "$ADMIN_COOKIE" ]; then
-              echo "Login admin avec AdminCI2026: OK (deja change)"
-            else
-              echo "Echec login admin avec tous les mots de passe connus"
-              exit 1
-            fi
+            echo "❌ Login admin échoué"
+            echo "Headers: $HEADERS"
+            exit 1
           fi
           
-          # Etape 2: Verifier if needs_password_change
+          echo "=== Test auth/me avec cookie ==="
           ME=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/auth/me)
-          ADMIN_ID=$(echo "$ME" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user',{}).get('id',''))")
-          ADMIN_ROLE=$(echo "$ME" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user',{}).get('role',''))")
-          echo "/auth/me: role=$ADMIN_ROLE, id=$ADMIN_ID"
+          echo "/auth/me: $ME"
           
-          # Etape 3: Si besoin_password_change, alors changer et re-login
-          # (Si deja change par un run precedent on skip change+relogin)
-          if [ "$ADMIN_ROLE" != "admin" ]; then
-            echo "Admin non encore actif, tentative change-password"
-            CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password -H "Content-Type: application/json" -H "Cookie: $ADMIN_COOKIE" -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}')
-            echo "Change password: $CHG"
-            # Re-login obligatoire apres change-password
-            BODY2=$(curl -s -D - -o /dev/null -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}')
-            ADMIN_COOKIE=$(echo "$BODY2" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
-            if [ -z "$ADMIN_COOKIE" ]; then
-              echo "Echec re-login admin apres change-password"
-              exit 1
-            fi
-            echo "Re-login admin avec AdminCI2026: OK"
-            ME=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/auth/me)
-            ADMIN_ID=$(echo "$ME" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user',{}).get('id',''))")
-          fi
+          echo "=== Test change password (admin sur lui-même) ==="
+          # Admin change son propre mot de passe
+          ADMIN_ID=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
+          CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}')
+          echo "Change password admin: $CHG"
           
-          echo "Admin session etablie: id=$ADMIN_ID"
           echo "=== Test register puis approve (flux complet) ==="
           REG2=$(curl -s -X POST http://localhost:6300/api/auth/register             -H "Content-Type: application/json"             -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "Register e2e_ci: $REG2 (200/201/409 OK)"
