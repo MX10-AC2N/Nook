@@ -33,21 +33,23 @@
   const callType = $derived((($page.url?.searchParams?.get('type') ?? 'audio') as 'audio' | 'video'));
 
   // Titre de l'appel : nom de la conversation OU noms des participants
-  const callTitle = $derived(() => {
+  // Helper fonctions pour $derived (Svelte 5 restriction)
+  function _computeCallTitle(): string {
     const conv = conversations.find((c) => c.id === conversationId);
     if (conv?.name && conv.name !== 'Groupe Global') return conv.name;
     const others = participants.value.filter((p) => p.id !== authStore.user?.id);
     if (others.length === 0) return 'Appel';
     if (others.length === 1) return others[0].name ?? others[0].username ?? 'Appel';
     return `${others.length} participants`;
-  })();
+  }
+
+  // Titre de l'appel
+  const callTitle = $derived(_computeCallTitle());
 
   // Formatage de la durée d'appel MM:SS
-  const formattedDuration = $derived(() => {
-    const mins = Math.floor(callDuration / 60);
-    const secs = callDuration % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  })();
+  const formattedDuration = $derived(
+    `${Math.floor(callDuration / 60).toString().padStart(2, '0')}:${(callDuration % 60).toString().padStart(2, '0')}`
+  );
 
   // Participant connecté (pour affichage vidéo local)
   const localName = $derived(authStore.user?.name ?? authStore.user?.username ?? 'Moi');
@@ -198,15 +200,15 @@
             <div class="participant-overlay">
               <span class="participant-name">{localName} (vous)</span>
               <div class="participant-status">
-                {#if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
-                {#if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
+                {if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
+                {if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
               </div>
             </div>
           </div>
 
           <!-- Remote streams -->
           {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
-            {@const participant = participants.value.find((p) => p.id === userId)}
+            {#let participant = participants.value.find((p) => p.id === userId)}
               <div class="participant-card remote" class:without-video={!isVideo}>
                 {#if isVideo && !callStore.isVideoOff}
                   <video
@@ -220,7 +222,7 @@
                   <span class="participant-name">{participant?.name ?? participant?.username ?? userId}</span>
                 </div>
               </div>
-            
+            {/let}
           {/each}
 
           <!-- Waiting state -->
