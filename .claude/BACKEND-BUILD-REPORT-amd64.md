@@ -1,7 +1,7 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
 > Généré automatiquement par `Backend.yml` · target `x86_64-unknown-linux-gnu`
-> **2026-04-01 19:47 UTC**
+> **2026-04-02 04:46 UTC**
 
 ---
 
@@ -11,9 +11,9 @@
 |-------|--------|
 | **Architecture** | `amd64` (`x86_64-unknown-linux-gnu`) |
 | **Branche** | `fix/notifications-and-chess-audit` |
-| **Commit** | [`625d3a6`](https://github.com/MX10-AC2N/Nook/commit/625d3a6a4245dd921b6c934fdd72d0692c64094a) |
+| **Commit** | [`401c2e4`](https://github.com/MX10-AC2N/Nook/commit/401c2e446a0799088cbfa60ad9fea7d9853c479c) |
 | **Rust** | `rustc 1.94.1 (e408947bf 2026-03-25)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23867575671) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23884273699) |
 
 ---
 
@@ -21,9 +21,9 @@
 
 | Étape | Statut | Détail |
 |-------|--------|--------|
-| **cargo check** | ❌ | exit 101 |
+| **cargo check** | ✅ | exit 0 |
 | **cargo clippy** | ❌ | exit 101 (-D warnings) |
-| **cargo build --release** | ❌ | binaire N/A stripped |
+| **cargo build --release** | ✅ | binaire 12M stripped |
 
 ---
 
@@ -60,7 +60,7 @@
 ## Résumé compilation
 
 ```
-(non disponible)
+    Finished `release` profile [optimized] target(s) in 55.69s
 ```
 
 ---
