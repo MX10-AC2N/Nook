@@ -108,11 +108,15 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         tracing::warn!("⚠️  Aucun utilisateur trouvé - création de l'administrateur initial");
 
         // FIX C2: generer un mot de passe aleatoire au lieu d'un mot de passe statique
-        let random_password: String = rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
+        // Si ADMIN_INITIAL_PASSWORD est defini (CI/testing), l'utiliser
+        let random_password: String = std::env::var("ADMIN_INITIAL_PASSWORD")
+            .unwrap_or_else(|_| {
+                rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(16)
+                    .map(char::from)
+                    .collect()
+            });
         let password_hash = crate::auth::hash_password(&random_password);
         let now = Utc::now().timestamp();
 
