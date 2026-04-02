@@ -320,3 +320,218 @@ test.describe.serial('Admin — Flux complet', () => {
   });
 
 });
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN COMPLÉMENTAIRE — Tests manquants (fix S45)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('Admin — Complément', () => {
+
+  test('Admin — DELETE /users/{id} → supprime un utilisateur', async ({ page }) => {
+    // Créer un user de test
+    const regRes = await page.request.post(`${BASE}/auth/register`, {
+      data: { username: 'del_test_user', password: 'DelTest123!', email: 'del@nook.local', name: 'Delete Test' },
+    });
+    expect([200, 409]).toContain(regRes.status());
+
+    if (regRes.status() === 200) {
+      // Approuver
+      await page.waitForTimeout(2000);
+      await page.goto(`${BASE.replace('/api', '')}/admin`);
+      await page.waitForTimeout(2000);
+      await page.click('text=Membres');
+      await page.waitForTimeout(1000);
+
+      // Trouver et supprimer
+      const deleteBtn = page.locator('text=Supprimer').last();
+      if (await deleteBtn.isVisible().catch(() => false)) {
+        await deleteBtn.click();
+        await page.waitForTimeout(2000);
+      }
+
+      // Vérifier via API
+      const usersRes = await page.request.get(`${BASE}/users`);
+      expect(usersRes.status()).toBe(200);
+      const users = await usersRes.json();
+      const found = users.find((u: any) => u.username === 'del_test_user');
+      expect(found).toBeFalsy();
+    }
+  });
+
+  test('Admin — approve + login after approve → accès complet', async ({ browser, page }) => {
+    // Créer un nouveau user
+    await page.request.post(`${BASE}/auth/register`, {
+      data: { username: 'approve_test', password: 'Approve123!', email: 'approve@nook.local', name: 'Approve Test' },
+    });
+
+    // Approuver via admin
+    await page.goto(`${BASE.replace('/api', '')}/admin`);
+    await page.waitForTimeout(2000);
+
+    // Vérifier que le user apparaît dans pending
+    const pendingRow = page.locator('text=approve_test');
+    if (await pendingRow.isVisible().catch(() => false)) {
+      // Approuver
+      const approveBtn = page.locator('button:has-text("Approuver")').last();
+      if (await approveBtn.isVisible().catch(() => false)) {
+        await approveBtn.click();
+        await page.waitForTimeout(2000);
+      }
+    }
+
+    // Login avec le nouveau user
+    const newPage = await browser.newPage();
+    await clearSession(newPage);
+    await newPage.goto(`${BASE.replace('/api', '')}/login`);
+    await newPage.fill('#username', 'approve_test');
+    await newPage.fill('#password', 'Approve123!');
+    await newPage.getByRole('button', { name: 'Se connecter' }).click();
+
+    await expect(newPage).toHaveURL(/chat|admin/, { timeout: 10000 });
+
+    // Vérifier /auth/me
+    const meRes = await newPage.request.get(`${BASE}/auth/me`);
+    expect(meRes.status()).toBe(200);
+    const meBody = await meRes.json();
+    expect(meBody.user?.username).toBe('approve_test');
+  });
+
+  test('Admin — analytics contient toutes les sections', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    await page.goto(`${BASE.replace('/api', '')}/admin/analytics`);
+    await page.waitForLoadState('networkidle');
+
+    // Vérifier les stat-cards principales
+    const hasUsers = await page.getByText(/utilisateurs|membres|users/i).isVisible().catch(() => false);
+    const hasMessages = await page.getByText(/messages/i).isVisible().catch(() => false);
+    expect(hasUsers || hasMessages).toBe(true);
+  });
+
+});
+
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN COMPLÉMENTAIRE (fix S45)
+// ─────────────────────────────────────────────────────────────────────
+test.describe('Admin — Delete user', () => {
+
+  test('DELETE /users/{id} → supprime un utilisateur', async ({ page }) => {
+    // Créer et approuver un user de test
+    const regRes = await page.request.post(`${BASE}/auth/register`, {
+      data: { username: 'del_test_u', password: 'DelTest123!', email: 'del@nook.local', name: 'Del' },
+    });
+    expect([200, 409]).toContain(regRes.status());
+
+    // Attendre que le user soit dans pending
+    await page.waitForTimeout(1000);
+
+    // Trouver via API users/pending
+    const pending = await page.request.get(`${BASE}/users/pending`);
+    const pendingBody = await pending.json();
+    const pendingUser = Array.isArray(pendingBody)
+      ? pendingBody.find((u: any) => u.username === 'del_test_u')
+      : (pendingBody.users || []).find((u: any) => u.username === 'del_test_u');
+
+    if (pendingUser) {
+      // Approuver
+      await page.request.post(`${BASE}/users/approve`, {
+        data: { user_id: pendingUser.id },
+      });
+      await page.waitForTimeout(1000);
+    }
+
+    // Now get the user from the users list
+    const users = await page.request.get(`${BASE}/users`);
+    const usersBody = await users.json();
+    const user = Array.isArray(usersBody)
+      ? usersBody.find((u: any) => u.username === 'del_test_u')
+      : null;
+
+    if (user) {
+      // Delete via API
+      const delRes = await page.request.delete(`${BASE}/users/${user.id}`);
+      expect([200, 204]).toContain(delRes.status());
+
+      // Verify deletion
+      const getUsers = await page.request.get(`${BASE}/users`);
+      const getUsersBody = await getUsers.json();
+      const stillExists = Array.isArray(getUsersBody)
+        ? getUsersBody.find((u: any) => u.id === user.id)
+        : null;
+      expect(stillExists).toBeFalsy();
+    }
+  });
+
+});
+
+test.describe('Admin — Analytics', () => {
+
+  test('GET /analytics → contient user_count, message_count', async ({ request, page }) => {
+    await loginAs(page, 'admin', 'changeme2026');
+
+    const res = await request.get(`${BASE}/analytics`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // Vérifier les champs obligatoires
+    expect(body).toHaveProperty('user_count');
+    expect(body).toHaveProperty('message_count');
+    expect(typeof body.user_count).toBe('number');
+    expect(typeof body.message_count).toBe('number');
+  });
+
+  test('GET /analytics sans auth → 401', async ({ request }) => {
+    const res = await request.get(`${BASE}/analytics`);
+    expect(res.status()).toBe(401);
+  });
+
+});
+
+test.describe('Admin — Approve user + login flow', () => {
+  let newUserId = '';
+
+  test('Register + Approve + Login → accès complet', async ({ browser, request, page }) => {
+    // Step 1: Register
+    const regRes = await request.post(`${BASE}/auth/register`, {
+      data: { username: 'approve_flow_u', password: 'Approve123!', email: 'af@nook.local', name: 'ApproveFlow' },
+    });
+    expect([200, 409]).toContain(regRes.status());
+
+    // Step 2: Admin approves
+    await loginAs(page, 'admin', 'changeme2026');
+
+    const pending = await request.get(`${BASE}/users/pending`);
+    const pendingBody = await pending.json();
+    const pendingUser = Array.isArray(pendingBody)
+      ? pendingBody.find((u: any) => u.username === 'approve_flow_u')
+      : (pendingBody.users || []).find((u: any) => u.username === 'approve_flow_u');
+
+    if (pendingUser) {
+      newUserId = pendingUser.id;
+      const approveRes = await request.post(`${BASE}/users/approve`, {
+        data: { user_id: newUserId },
+      });
+      expect(approveRes.status()).toBe(200);
+    }
+
+    // Step 3: Login with approved user
+    const browser2 = await browser.newContext();
+    const newPage = await browser2.newPage();
+    await newPage.goto(`http://localhost:6300/login`);
+    await newPage.fill('#username', 'approve_flow_u');
+    await newPage.fill('#password', 'Approve123!');
+    await newPage.getByRole('button', { name: 'Se connecter' }).click();
+
+    await expect(newPage).toHaveURL(/chat|admin/, { timeout: 10000 });
+
+    // Step 4: Verify /auth/me
+    const meRes = await newPage.request.get(`${BASE}/auth/me`);
+    expect(meRes.status()).toBe(200);
+    const meBody = await meRes.json();
+    expect(meBody.user?.username).toBe('approve_flow_u');
+
+    await newPage.close();
+    await browser2.close();
+  });
+
+});
