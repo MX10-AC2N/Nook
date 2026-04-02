@@ -39,6 +39,8 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       # Variable utilisée par le backend pour créer le compte E2E en CI
       - E2E_SETUP=${E2E_SETUP:-0}
+      # Mot de passe initial de l'admin (override en CI pour tests, sinon aléatoire)
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
       # Push notifications VAPID (optionnel — no-op si absent)
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
