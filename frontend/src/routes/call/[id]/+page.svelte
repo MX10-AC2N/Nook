@@ -200,15 +200,15 @@
             <div class="participant-overlay">
               <span class="participant-name">{localName} (vous)</span>
               <div class="participant-status">
-                {if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
-                {if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
+                {#if callStore.isMuted}<span class="badge muted">🔇</span>{/if}
+                {#if callStore.isVideoOff && isVideo}<span class="badge cam-off">📷❌</span>{/if}
               </div>
             </div>
           </div>
 
           <!-- Remote streams -->
           {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
-            {#let participant = participants.value.find((p) => p.id === userId)}
+            {@const participant = participants.value.find((p) => p.id === userId)}
               <div class="participant-card remote" class:without-video={!isVideo}>
                 {#if isVideo && !callStore.isVideoOff}
                   <video
@@ -222,7 +222,7 @@
                   <span class="participant-name">{participant?.name ?? participant?.username ?? userId}</span>
                 </div>
               </div>
-            {/let}
+            
           {/each}
 
           <!-- Waiting state -->
