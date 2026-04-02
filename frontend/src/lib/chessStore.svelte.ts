@@ -577,17 +577,14 @@ class ChessStore {
       clearTimeout(timeout);
       const data = await res.json();
       if (!data.success) throw new Error('Failed to resign');
-        // Le backend retourne { success, status, winner_id } — pas de data.game
-        // On met à jour currentGame directement pour éviter un fetch supplémentaire
-        this.currentGame = {
-          ...this.currentGame!,
-          status: data.status ?? 'finished',
-          winner_id: data.winner_id ?? null,
-        };
-        this.stopTimer();
-      } else {
-        await this.refreshGame(gameId);
-      }
+      // Le backend retourne { success, status, winner_id } — pas de data.game
+      // On met à jour currentGame directement pour éviter un fetch supplémentaire
+      this.currentGame = {
+        ...this.currentGame!,
+        status: data.status ?? 'finished',
+        winner_id: data.winner_id ?? null,
+      };
+      this.stopTimer();
     } catch (e: any) {
       this.error = e?.message ?? 'Erreur abandon';
       await this.refreshGame(gameId);
