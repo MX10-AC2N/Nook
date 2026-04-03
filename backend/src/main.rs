@@ -50,9 +50,11 @@ mod upload;
 mod emergency;
 mod gifs_updater;
 mod webrtc;
+mod sfu;
 
 use crate::config::Config;
 use crate::prune::prune_old_data;
+use sfu::SfuState;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
@@ -67,6 +69,7 @@ pub struct SharedState {
     pub db: SqlitePool,
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
+    pub sfu_state: SfuState,
 }
 
 // ---------------------------------------------------------------------
@@ -329,6 +332,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         db: pool,
         webrtc_state,
         file_manager,
+        sfu_state,
     });
 
     // ============================================================
