@@ -32,21 +32,18 @@ export async function clearSession(page: Page): Promise<void> {
 // À utiliser dans beforeAll d'un describe, UNE SEULE FOIS par suite.
 // ─────────────────────────────────────────────────────────────────
 export async function loginAs(page: Page, username: string, password: string): Promise<void> {
+  // API-first login to set cookie, then navigate
   await clearSession(page);
-  // Try API login first for reliability, then navigate
   const loginRes = await page.request.post(`${BASE}/auth/login`, {
     data: { username, password },
   });
-  if (!loginRes.ok()) throw new Error(`loginAs(${username}) API failed: HTTP ${loginRes.status()}`);
-
-  // Now navigate — the browser should pick up the auth cookie
-  await page.goto('/admin');
-  try {
-    await page.locator('.admin-header').waitFor({ state: 'visible', timeout: 10_000 });
-  } catch {
-    await page.goto('/chat');
-    await page.waitForTimeout(1000);
+  if (!loginRes.ok()) {
+    const body = await loginRes.json().catch(() => ({}));
+    throw new Error(`loginAs(${username}) failed: HTTP ${loginRes.status()} - ${body.message || 'unknown'}`);
   }
+  // Navigate — cookie is now set
+  await page.goto('/chat');
+  await page.waitForTimeout(1000);
 }
 
 // ─────────────────────────────────────────────────────────────────
