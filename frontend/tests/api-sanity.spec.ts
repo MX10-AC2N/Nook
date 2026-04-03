@@ -397,7 +397,7 @@ test.describe('Sécurité — Change password autre user → 403 (fix C1)', () =
 });
 
 test.describe('Sécurité — Upload validation', () => {
-  test('Upload fichier vide → 400 (second block)', async ({ request }) => {
+  test('Upload sec -- fichier vide refuse → 400 (second block)', async ({ request }) => {
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'changeme2026' },
     });
