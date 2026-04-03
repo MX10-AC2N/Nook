@@ -2,81 +2,113 @@
 # generate-docker-report.sh
 # Génère .claude/DOCKER-BUILD-REPORT.md
 # Appelé par Docker.yml
-# Variables d'environnement attendues :
-#   RUN_DATE, COMMIT_SHA, BRANCH, RUN_URL, VERSION
-#   AMD64_SIZE, ARM64_SIZE, FRONT_FILES, IMAGE
-#   PUSH_DIGEST, BUILD_DURATION
+# Variables d'env attendues : RUN_DATE, COMMIT_SHA, BRANCH, RUN_URL, VERSION,
+#   AMD64_SIZE, ARM64_SIZE, FRONT_FILES, IMAGE, PUSH_DIGEST, BUILD_DURATION
 # Fichiers lus : /tmp/docker-build.txt (optionnel)
 
 set -euo pipefail
-
 cd "${GITHUB_WORKSPACE:-.}"
 
-REPORT=".claude/DOCKER-BUILD-REPORT.md"
-mkdir -p .claude
+RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+COMMIT_SHA="${{ github.sha }}"
+COMMIT_SHORT="${COMMIT_SHA:0:7}"
+BRANCH="${{ github.ref_name }}"
+RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+VERSION="${{ steps.version.outputs.tag }}"
+AMD64_SIZE="${{ steps.ctx.outputs.amd64_size }}"
+ARM64_SIZE="${{ steps.ctx.outputs.arm64_size }}"
+FRONT_FILES="${{ steps.ctx.outputs.front_files }}"
+IMAGE="ghcr.io/${{ github.repository }}"
+PUSH_DIGEST="${{ steps.push.outputs.digest }}"
 
-# Statut global du push
+[ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
+
+# Per-Platform Build Status
+AMD64_STATUS="✅"
+ARM64_STATUS="✅"
+[ ! -f "docker-context/backend/nook-backend-amd64" ] && AMD64_STATUS="❌ manquant"
+[ ! -f "docker-context/backend/nook-backend-arm64" ] && ARM64_STATUS="❌ manquant"
+
+# Docker Image Info
+LAYER_INFO="(image non disponible — push échoué)"
 if [ -n "$PUSH_DIGEST" ]; then
-  PUSH_STATUS="✅ OK"
-else
-  PUSH_STATUS="❌ FAIL"
+  LAYER_INFO="Digest: ${PUSH_DIGEST}"
+  LAYER_INFO="${LAYER_INFO}\nAMD64 binary: ${AMD64_SIZE}"
+  LAYER_INFO="${LAYER_INFO}\nARM64 binary: ${ARM64_SIZE}"
+  LAYER_INFO="${LAYER_INFO}\nFrontend: ${FRONT_FILES} fichiers"
 fi
 
-# ── Build logs (si dispo) ──────────────────────────────────────────────
-BUILD_LOGS="(non capturé)"
-if [ -f /tmp/docker-build.txt ]; then
-  BUILD_LOGS=$(tail -30 /tmp/docker-build.txt | sed 's/\x1b\[[0-9;]*m//g')
-fi
-
+REPORT=".claude/DOCKER-BUILD-REPORT.md"
 cat > "$REPORT" << ENDOFMD
-# 🐳 Docker Build Report — Nook
+ Build Report — Nook
 
-> Généré automatiquement par \`Docker.yml\`
-> **${RUN_DATE}**
+utomatiquement par `Docker.yml`
+DATE}**
 
----
 
-## Statut
 
-| Champ | Valeur |
-|-------|--------|
-| **Push GHCR** | ${PUSH_STATUS} |
-| **Version** | \`${VERSION}\` |
-| **Image** | \`${IMAGE}\` |
-| **Digest** | \`${PUSH_DIGEST:-N/A}\` |
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHA:0:7}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Build Time** | ${BUILD_DURATION:-N/A} |
-| **Run** | [Voir le run](${RUN_URL}) |
 
----
 
-## Images multi-plateforme
+Valeur |
+-------|
+HCR** | ${PUSH_STATUS} |
+n** | `${VERSION}` |
+* | `${IMAGE}` |
+** | `${PUSH_DIGEST:-N/A}` |
+e** | `${BRANCH}` |
+** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+| [Voir le run](${RUN_URL}) |
 
-| Platform | Taille | Statut |
-|----------|--------|--------|
-| linux/amd64 | ${AMD64_SIZE:-N/A} | $([ -n "$AMD64_SIZE" ] && echo "✅" || echo "❌") |
-| linux/arm64 | ${ARM64_SIZE:-N/A} | $([ -n "$ARM64_SIZE" ] && echo "✅" || echo "❌") |
 
----
 
-## Frontend inclus
+ts intégrés
 
-\`\`\`
-front-end files: ${FRONT_FILES:-N/A}
-\`\`\`
+t | Taille | Statut |
+--|--------|--------|
+d amd64** | ${AMD64_SIZE} | ${AMD64_STATUS} |
+d arm64** | ${ARM64_SIZE} | ${ARM64_STATUS} |
+nd** | ${FRONT_FILES} fichiers | ✅ |
 
----
 
-## Build logs (fin)
 
-\`\`\`
-${BUILD_LOGS}
-\`\`\`
+nfo & Platform Status
 
----
 
-*Rapport généré par \`.github/scripts/generate-docker-report.sh\`*
-ENDOFMD
+FO}
+
+
+
+
+bliés
+
+
+meta.outputs.tags }}
+
+
+
+
+rmes
+
+ | Statut | Cible |
+-|--------|-------|
+md64` | ${AMD64_STATUS} | Zimaboard x86 + CI GitHub |
+rm64` | ${ARM64_STATUS} | Raspberry Pi, Apple M1/M2 |
+
+
+
+tion homeserver
+
+
+ jour le homeserver Zimaboard
+l ${IMAGE}:${VERSION}
+
+l ${IMAGE}:latest
+
+
+
+
+énéré par `.github/workflows/Docker.yml`*
+
 
 echo "✅ DOCKER-BUILD-REPORT.md généré"
+cat "$REPORT"
