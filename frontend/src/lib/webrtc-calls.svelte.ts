@@ -504,6 +504,12 @@ class WebRTCCallManager {
   ): Promise<void> {
     try {
       // Met à jour l'état réactif
+    // Auto-switch to SFU for 3+ participants
+    if (participantIds.length >= 3) {
+      callStore.useSfu = true;
+      return this.startSfuCall(conversationId, participantIds, type);
+    }
+
       callStore.isCalling = true;
       callStore.callType = type;
       callStore.currentConversationId = conversationId;
