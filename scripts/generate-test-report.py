@@ -160,7 +160,7 @@ def fmt_duration(ms: int) -> str:
     s = ms // 1000
     m = s // 60
     s = s % 60
-    return f"{m}m {s:02d}s" if m else f"{s}s"
+    return f"{m}m {int(s):02d}s" if m else f"{int(s)}s"
 
 
 def build_report(pw: dict, docker_warnings: list[str], ctx: dict) -> str:
