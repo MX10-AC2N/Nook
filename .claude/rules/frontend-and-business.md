@@ -207,3 +207,114 @@ libsodium-wrappers: ^0.8.0  ← 938 kB WASM (DT-01)
 chart.js: ^4.5.1 | simple-peer: ^9.11.1
 @playwright/test: ^1.40.0
 ```
+
+
+## 🌐 SFU (Selective Forwarding Unit) — Appels groupe
+
+### CallState — Champs SFU
+
+```typescript
+// Dans CallState interface
+useSfu: boolean;              // Mode SFU actif (auto pour 3+ participants)
+sfuAnswer: string | null;     // SDP answer du backend SFU
+sfuRenegotiateOffer: null;    // Offre de renegotiation du SFU
+sfuPeers: string[];           // Liste des autres participants dans la room SFU
+sfuPendingOffer: string | null; // Offre en attente de traitement
+```
+
+### WebRTCCallManager — Méthodes SFU
+
+```typescript
+// Démarrer un appel SFU (backend relaye les medias)
+await callManager.startSfuCall(conversationId, participantIds, type);
+
+// Gérer la réponse du backend
+callManager.handleSfuJoinResponse({ answer, peers, renegotiate_offer });
+
+// Gérer une offre de renegotiation (nouvelles tracks ajoutées)
+callManager.handleSfuRenegotiateOffer(offer);
+
+// Mettre à jour la liste des peers
+callManager.handleSfuPeers({ peers });
+
+// Retourner au mode P2P mesh
+await callManager.stopSfuMode();
+```
+
+### Auto-activation SFU
+
+```typescript
+// Dans startCall() — bascule automatique si 3+ participants
+if (participantIds.length >= 3) {
+  callStore.useSfu = true;
+  return this.startSfuCall(conversationId, participantIds, type);
+}
+// Sinon: continue en mode P2P mesh normal
+```
+
+### Signalisation SFU via WebSocket
+
+Types de messages WS ajoutés dans `handleSignal`:
+- `sfu_answer` → handleSfuJoinResponse
+- `sfu_renegotiate_offer` → handleSfuRenegotiateOffer
+- `sfu_peers` → handleSfuPeers
+- `sfu_error` → set error state
+
+### Call Page — UI SFU
+
+```svelte
+<!-- Badge SFU dans le header -->
+{#if callStore.useSfu}
+  <span class="sfu-badge">🌐 SFU · {callStore.sfuPeers.length} pairs</span>
+{/if}
+
+<!-- Toggle P2P ↔ SFU (visible si 3+ participants) -->
+{#if callStore.sfuPeers.length >= 2}
+  <button onclick={toggleSfuMode} class:active={callStore.useSfu}>
+    {callStore.useSfu ? '🌐 P2P' : '🔗 SFU'}
+  </button>
+{/if}
+```
+
+### Toggle SFU/P2P
+
+```typescript
+function toggleSfuMode() {
+  if (callStore.useSfu) {
+    callManager.stopSfuMode(); // Retour en P2P mesh
+  } else {
+    const nonSelf = participants.value.filter(p => p.id !== authStore.user?.id);
+    if (nonSelf.length >= 2) {
+      callManager.startSfuCall(conversationId, nonSelf.map(p => p.id), callType);
+    }
+  }
+}
+```
+
+### Architecture backend SFU
+
+```
+SfuState (singleton dans SharedState)
+  └─> rooms: HashMap<conversation_id, Room>
+       └─> Room
+            ├─ peers: HashMap<user_id, Arc<Peer>>
+            │    └─ Peer { pc: PeerConnection, added_sources: HashSet, negotiation_pending }
+            └─ tracks: Vec<Arc<TrackInfo>>
+                 └─ TrackInfo { relay: MediaRelay, remote_track, user_id, kind, params }
+```
+
+### Flow SFU complet
+
+1. Client appelle `startSfuCall()` → WS `sfu_join` avec offer SDP
+2. Backend `handle_join()`:
+   - Crée `PeerConnection::new(RtcConfiguration::default())`
+   - `pc.set_remote_description(offer)` puis `pc.create_answer()`
+   - Ajoute les tracks existantes de la room au nouveau peer
+   - Retourne `SfuJoinResponse { answer, peers, renegotiate_offer? }`
+3. Client reçoit `sfu_answer` → stocke dans `callStore.sfuAnswer`
+4. Quand un participant envoie une track:
+   - Backend reçoit `PeerConnectionEvent::Track(transceiver)`
+   - Crée `MediaRelay::with_capacity(track, 500)`
+   - Ajoute la track relayée aux autres peers
+   - Forward PLI/RTCP + PLI periodique 3s
+5. Si nouvelles tracks ajoutées → backend envoie `sfu_renegotiate_offer`
