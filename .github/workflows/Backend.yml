@@ -129,104 +129,206 @@ jobs:
             GLOBAL_STATUS="❌ FAIL"
           fi
 
-          # Erreurs cargo check
+          # ── Build Time Extraction ─────────────────────────────────────
+          COMPILE_TIME=$(grep -oP 'Finished .*(optimized|release).*profile.*in \K[0-9.]+' /tmp/cargo-build.txt 2>/dev/null | tail -1 || echo "N/A")
+          [ -z "$COMPILE_TIME" ] && COMPILE_TIME="N/A"
+
+          FINISHED_LINE=$(grep -iE "^\s*Finished " /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | tail -3)
+          [ -z "$FINISHED_LINE" ] && FINISHED_LINE="(non disponible)"
+
+          COMPILE_PROGRESSION=$(grep -E "^\s*Compiling " /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | tail -20)
+          [ -z "$COMPILE_PROGRESSION" ] && COMPILE_PROGRESSION="(non disponible)"
+
+          # ── Warning Counts (AI Trend Tracking) ────────────────────────
+          CHECK_WARNING_COUNT=$(grep -cE "^warning" /tmp/cargo-check.txt 2>/dev/null || echo "0")
+          CLIPPY_WARNING_COUNT=$(grep -cE "^warning" /tmp/cargo-clippy.txt 2>/dev/null || echo "0")
+          BUILD_WARNING_COUNT=$(grep -cE "^warning" /tmp/cargo-build.txt 2>/dev/null || echo "0")
+          DEPRECATED_COUNT=$(grep -ciE "deprecated" /tmp/cargo-build.txt 2>/dev/null || echo "0")
+          DEAD_CODE_COUNT=$(grep -cE "never used|dead code" /tmp/cargo-build.txt 2>/dev/null || echo "0")
+
+          # ── Erreurs cargo check ───────────────────────────────────────
           CHECK_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-check.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' | head -30 || true)
           [ -z "$CHECK_ERRORS" ] && CHECK_ERRORS="(aucune)"
 
-          # Warnings clippy + contexte fichier:ligne
+          # ── Compilation Warnings file-by-file (build) ─────────────────
+          BUILD_WARNINGS_FILE=$(grep -E "^warning| -->" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -50 || true)
+          [ -z "$BUILD_WARNINGS_FILE" ] && BUILD_WARNINGS_FILE="(aucun)"
+
+          # ── Deprecated Warnings Detection ─────────────────────────────
+          DEPRECATED_WARNS=$(grep -iE "warning.*deprecated|^.*is deprecated" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -20 || true)
+          [ -z "$DEPRECATED_WARNS" ] && DEPRECATED_WARNS="(aucune déprécation détectée)"
+
+          # ── Dead Code Warnings ────────────────────────────────────────
+          DEAD_CODE_WARNS=$(grep -E "^warning:.*never used|^warning:.*dead code" /tmp/cargo-build.txt 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' | head -20 || true)
+          [ -z "$DEAD_CODE_WARNS" ] && DEAD_CODE_WARNS="(aucun dead code détecté)"
+
+          # ── Warnings clippy + contexte fichier:ligne ──────────────────
           CLIPPY_WARNS=$(grep -E "^warning\[|^warning:" /tmp/cargo-clippy.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' | head -40 || true)
           [ -z "$CLIPPY_WARNS" ] && CLIPPY_WARNS="(aucun)"
 
-          CLIPPY_CONTEXT=$(grep -E "^warning|^ -->" /tmp/cargo-clippy.txt 2>/dev/null \
+          CLIPPY_CONTEXT=$(grep -E "^warning|[^-]-->" /tmp/cargo-clippy.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' | head -60 || true)
           [ -z "$CLIPPY_CONTEXT" ] && CLIPPY_CONTEXT="(aucun)"
 
-          # Erreurs build release
+          # ── Clippy Lint Breakdown by type ─────────────────────────────
+          CLIPPY_LINTS=$(grep -oP "warning\[clippy::\K[^\]]+" /tmp/cargo-clippy.txt 2>/dev/null \
+            | sort | uniq -c | sort -rn | head -15 || true)
+          [ -z "$CLIPPY_LINTS" ] && CLIPPY_LINTS="(aucune violation clippy)"
+
+          # ── Erreurs build release ─────────────────────────────────────
           BUILD_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-build.txt 2>/dev/null \
             | sed 's/\x1b\[[0-9;]*m//g' | head -30 || true)
           [ -z "$BUILD_ERRORS" ] && BUILD_ERRORS="(aucune)"
 
-          # Ligne Finished
-          FINISHED=$(grep -E "Finished|error\[E" /tmp/cargo-build.txt 2>/dev/null \
-            | sed 's/\x1b\[[0-9;]*m//g' | tail -5 || true)
-          [ -z "$FINISHED" ] && FINISHED="(non disponible)"
+          # ── Dependency Version Info ───────────────────────────────────
+          DEP_INFO="(non disponible)"
+          if [ -f "backend/Cargo.toml" ]; then
+            DEP_INFO=$(grep -E "^\[dependencies\]|^\[dev-dependencies\]|^[a-z_-]+ = " backend/Cargo.toml 2>/dev/null \
+              | head -30 || true)
+          fi
 
           REPORT=".claude/BACKEND-BUILD-REPORT-${ARCH}.md"
 
           cat > "$REPORT" << ENDOFMD
-          # 🏗️ Backend Build Report — ${ARCH} — Nook
+# 🏗️ Backend Build Report — ${ARCH} — Nook
 
-          > Généré automatiquement par \`Backend.yml\` · target \`${{ matrix.target }}\`
-          > **${RUN_DATE}**
+> Généré automatiquement par `Backend.yml` · target `${{ matrix.target }}`
+> **${RUN_DATE}**
 
-          ---
+---
 
-          ## Statut global : ${GLOBAL_STATUS}
+## Statut global : ${GLOBAL_STATUS}
 
-          | Champ | Valeur |
-          |-------|--------|
-          | **Architecture** | \`${ARCH}\` (\`${{ matrix.target }}\`) |
-          | **Branche** | \`${BRANCH}\` |
-          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-          | **Rust** | \`${RUSTC_VER}\` |
-          | **Run CI** | [Voir le run complet](${RUN_URL}) |
+| Champ | Valeur |
+|-------|--------|
+| **Architecture** | `${ARCH}` (`${{ matrix.target }}`) |
+| **Branche** | `${BRANCH}` |
+| **Commit** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+| **Rust** | `${RUSTC_VER}` |
+| **Run CI** | [Voir le run complet](${RUN_URL}) |
 
-          ---
+---
 
-          ## Étapes
+## Étapes
 
-          | Étape | Statut | Détail |
-          |-------|--------|--------|
-          | **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT:-?} |
-          | **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT:-?} (-D warnings) |
-          | **cargo build --release** | ${BUILD_ICON} | binaire ${BIN_SIZE:-N/A} stripped |
+| Étape | Statut | Détail |
+|-------|--------|--------|
+| **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT:-?} |
+| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT:-?} (-D warnings) |
+| **cargo build --release** | ${BUILD_ICON} | binaire ${BIN_SIZE:-N/A} stripped |
 
-          ---
+---
 
-          ## Erreurs cargo check
+## ⏱️ Build Metrics (AI Trend Tracking)
 
-          \`\`\`
-          ${CHECK_ERRORS}
-          \`\`\`
+| Métrique | Valeur |
+|----------|--------|
+| **Compile Time** | ${COMPILE_TIME}s |
+| **Binary Size** | ${BIN_SIZE:-N/A} |
+| **Check Warnings** | ${CHECK_WARNING_COUNT} |
+| **Build Warnings** | ${BUILD_WARNING_COUNT} |
+| **Clippy Warnings** | ${CLIPPY_WARNING_COUNT} |
+| **Deprecated Warnings** | ${DEPRECATED_COUNT} |
+| **Dead Code Warnings** | ${DEAD_CODE_COUNT} |
 
-          ---
+> *Compare ces valeurs entre les runs pour détecter les régressions.*
 
-          ## Warnings clippy (-D warnings = fail si présents)
+---
 
-          \`\`\`
-          ${CLIPPY_WARNS}
-          \`\`\`
+## Compilation Progression (derniers crates compilés)
 
-          ### Contexte complet (fichier + ligne)
+```
+${COMPILE_PROGRESSION}
+```
 
-          \`\`\`
-          ${CLIPPY_CONTEXT}
-          \`\`\`
+```
+${FINISHED_LINE}
+```
 
-          ---
+---
 
-          ## Erreurs cargo build --release
+## Top Clippy Lints (par fréquence)
 
-          \`\`\`
-          ${BUILD_ERRORS}
-          \`\`\`
+```
+${CLIPPY_LINTS}
+```
 
-          ---
+---
 
-          ## Résumé compilation
+## Erreurs cargo check
 
-          \`\`\`
-          ${FINISHED}
-          \`\`\`
+```
+${CHECK_ERRORS}
+```
 
-          ---
+---
 
-          *Rapport généré par \`.github/workflows/Backend.yml\` · job \`${{ matrix.target }}\`*
-          ENDOFMD
+## Warnings clippy (-D warnings = fail si présents)
+
+```
+${CLIPPY_WARNS}
+```
+
+### Détail avec fichiers et lignes
+
+```
+${CLIPPY_CONTEXT}
+```
+
+---
+
+## Compilation Warnings (par fichier)
+
+```
+${BUILD_WARNINGS_FILE}
+```
+
+---
+
+## ⚠️ Warnings de déprécation
+
+```
+${DEPRECATED_WARNS}
+```
+
+---
+
+## Dead Code Warnings
+
+```
+${DEAD_CODE_WARNS}
+```
+
+---
+
+## Erreurs cargo build --release
+
+```
+${BUILD_ERRORS}
+```
+
+---
+
+## Dépendances (Cargo.toml)
+
+```toml
+${DEP_INFO}
+```
+
+---
+
+*Rapport généré par `.github/workflows/Backend.yml` · job `${{ matrix.target }}`*
+ENDOFMD
 
           echo "✅ ${REPORT} généré"
+
 
       - name: Commit BACKEND-BUILD-REPORT-{arch}.md
         if: always()

@@ -420,14 +420,20 @@ jobs:
         if: always()
         env:
           PLAYWRIGHT_EXIT: ${{ steps.playwright.outputs.playwright_exit }}
-          RUN_DATE: "$(date -u '+%Y-%m-%d %H:%M UTC')"
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMMIT_SHA: "${{ github.sha }}"
+          BRANCH: "${{ github.ref_name }}"
+          REPO: "${{ github.repository }}"
         run: |
           export RUN_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          export RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export COMMIT_SHA="${{ github.sha }}"
+          export BRANCH="${{ github.ref_name }}"
+          export REPO="${{ github.repository }}"
           python3 scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
           echo "Rapport généré"
           head -20 .claude/TEST_REPORT.md
 
-      # ── Commit report ──────────────────────────────────
       - name: Commit TEST_REPORT.md
         if: always()
         run: |
