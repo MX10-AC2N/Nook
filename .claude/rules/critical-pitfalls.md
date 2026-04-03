@@ -28,3 +28,38 @@
 6. Backend peut retourner 201 (Created) pas juste 200 — inclure dans assertions: `.toContain([200, 201, 409])`
 7. `test.describe.serial` pour tests avec state share — `test.describe` standard sinon
 8. Helpers partages dans `tests/helpers.ts` — loginAs, loginAsAdmin, clearSession, waitForAppReady
+
+
+## 🌐 SFU — Pièges critiques
+
+### SFU-P1: APIs rustrtc ne correspondent pas aux exemples Pion/SFU génériques
+- **Piège:** Les subagents ont inventé des APIs rustrtc qui n'existent pas (PeerConnection::new(&config) au lieu de PeerConnection::new(config))
+- **Bonne pratique:** TOUJOURS verifier les APIs sur https://github.com/restsend/rustrtc/blob/main/src/peer_connection.rs
+- **APIs vérifiées:**
+  - `PeerConnection::new(config)` — prend par valeur, pas par ref
+  - `pc.set_remote_description(desc: SessionDescription)` — pas (SdpType, &str)
+  - `pc.create_answer()` — retourne directement SessionDescription
+  - `pc.add_ice_candidate(candidate: IceCandidate)` — synchrone, pas async
+  - `pc.recv().await` — retourne `Option<PeerConnectionEvent>`
+  - `PeerConnectionEvent::Track(transceiver)` — pas "TrackAdded"
+  - `MediaRelay::with_capacity(track, capacity)` — pas new()
+
+### SFU-P2: Structure if/else dans webrtc.rs
+- **Piège:** Le bloc SFU doit être dans la même chaîne if/else que webrtc_types, PAS imbriqué dedans
+- **Correct:** `if webrtc_types.contains() { ... } else if msg_type == "sfu_join" { ... } else if ... { ... }`
+- **Incorrect:** `if webrtc_types.contains() { ... } else { /* SFU block ici */ }`
+
+### SFU-P3: MediaRelay et added_sources
+- **Piège:** Ajouter la même track deux fois au même peer → SDP reject
+- **Solution:** HashSet<String> added_sources avec clé "{user_id}:{peer_id}:{kind:?}"
+- **Vérification:** `if added.contains(&source_key) { continue; }` avant add_track
+
+### SFU-P4: Negotiation et signaling_state
+- **Piège:** Appeler create_offer() quand signaling_state n'est pas Stable
+- **Solution:** Utiliser negotiation_pending: Arc<AtomicBool> pour différer
+- **Pattern:** `if state != SignalingState::Stable { pending.store(true); return; }`
+
+### SFU-P5: PLI forwarding RTCP
+- **Piège:** Ne pas forward les PLI/FIR des peers → video freeze
+- **Solution:** `sender.subscribe_rtcp()` → spawn task → `remote_track.request_key_frame().await`
+- **Bonus:** PLI périodique toutes les 3s pour forcer les keyframes
