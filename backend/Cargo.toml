@@ -61,5 +61,4 @@ sysinfo = "0.32"
 
 # SFU pour appels groupe 3+ participants
 rustrtc = "0.3.40"
-sysinfo = "0.32"
 webrtc-sdp = "0.6"
