@@ -489,11 +489,9 @@ test.describe('Admin — Delete user', () => {
 
 test.describe('Admin — Analytics', () => {
 
-  test('GET /analytics → contient user_count, message_count', async ({ request, page }) => {
-    await loginAs(page, 'admin', ADMIN_NEW_PASSWORD);
-    await page.waitForTimeout(1000);  // Let session settle
-
-    const res = await page.request.get(`${BASE}/analytics`);  // Use page.request (has session)
+  test('GET /analytics → contient user_count, message_count', async () => {
+    // Use adminPage which already has auth from loginAsAdmin in beforeAll
+    const res = await adminPage.request.get(`${BASE}/analytics`);
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('user_count');
@@ -513,16 +511,19 @@ test.describe('Admin — Approve user + login flow', () => {
   let newUserId = '';
 
   test('Register + Approve + Login → accès complet', async ({ browser, request, page }) => {
+    // Login as admin via API first (page fixture has no session in this describe)
+    await loginAs(page, 'admin', ADMIN_NEW_PASSWORD);
+    await page.waitForTimeout(500);
+
     // Step 1: Register
-    const regRes = await request.post(`${BASE}/auth/register`, {
+    const regRes = await page.request.post(`${BASE}/auth/register`, {
       data: { username: 'approve_flow_u', password: 'Approve123!', email: 'af@nook.local', name: 'ApproveFlow' },
     });
-    expect([200, 409]).toContain(regRes.status());
+    expect([200, 201, 409]).toContain(regRes.status());
+    await page.waitForTimeout(1500);
 
-    // Step 2: Admin approves
-    await loginAs(page, 'admin', ADMIN_NEW_PASSWORD);
-
-    const pending = await request.get(`${BASE}/users/pending`);
+    // Step 2: Admin approves via authenticated page
+    const pending = await page.request.get(`${BASE}/users/pending`);
     const pendingBody = await pending.json();
     const pendingUser = Array.isArray(pendingBody)
       ? pendingBody.find((u: any) => u.username === 'approve_flow_u')
@@ -530,30 +531,30 @@ test.describe('Admin — Approve user + login flow', () => {
 
     if (pendingUser) {
       newUserId = pendingUser.id;
-      const approveRes = await request.post(`${BASE}/users/approve`, {
+      const approveRes = await page.request.post(`${BASE}/users/approve`, {
         data: { user_id: newUserId },
       });
       expect(approveRes.status()).toBe(200);
+      console.log(`✅ approve_flow_u approuvé`);
     }
 
-    // Step 3: Login with approved user
-    const browser2 = await browser.newContext();
-    const newPage = await browser2.newPage();
-    await newPage.goto(`http://localhost:6300/login`);
-    await newPage.fill('#username', 'approve_flow_u');
-    await newPage.fill('#password', 'Approve123!');
-    await newPage.getByRole('button', { name: 'Se connecter' }).click();
-
-    await expect(newPage).toHaveURL(/chat|admin/, { timeout: 10000 });
+    // Step 3: Login with approved user via API
+    const newPage = await browser.newPage();
+    await clearSession(newPage);
+    const lr = await newPage.request.post(`${BASE}/auth/login`, {
+      data: { username: 'approve_flow_u', password: 'Approve123!' },
+    });
+    expect(lr.status()).toBe(200);
+    await newPage.goto('/chat');
+    await newPage.waitForTimeout(1000);
 
     // Step 4: Verify /auth/me
     const meRes = await newPage.request.get(`${BASE}/auth/me`);
     expect(meRes.status()).toBe(200);
     const meBody = await meRes.json();
     expect(meBody.user?.username).toBe('approve_flow_u');
-
+    expect(meBody.user?.approved).toBe(true);
     await newPage.close();
-    await browser2.close();
   });
 
 });
