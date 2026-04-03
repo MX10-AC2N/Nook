@@ -263,7 +263,7 @@ test.describe('Sécurité — Message conversation CRUD', () => {
     }
   });
 
-  test('Rename conversation → 200 (integration)'), async ({ request }) => {
+  test('Rename conversation → 200', async ({ request }) => {
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'changeme2026' },
     });
@@ -383,7 +383,7 @@ test.describe('Sécurité renforcée — Mot de passe faible', () => {
 });
 
 test.describe('Sécurité — Change password autre user → 403 (fix C1)', () => {
-  test('User normal change pwd autre user → 403', async ({ request }) => {
+  test('User normal change pwd autre user → 403 (2)', async ({ request }) => {
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'e2e_ci', password: 'E2eTest123!' },
     });
@@ -397,7 +397,7 @@ test.describe('Sécurité — Change password autre user → 403 (fix C1)', () =
 });
 
 test.describe('Sécurité — Upload validation', () => {
-  test('Upload fichier vide → 400', async ({ request }) => {
+  test('Upload fichier vide → 400 (2)', async ({ request }) => {
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'changeme2026' },
     });
@@ -520,7 +520,7 @@ test.describe('Sécurité — Message CRUD conversation', () => {
     }
   });
 
-  test('Rename conversation → 200 (integration)'), async ({ request }) => {
+  test('Rename conversation → 200 (2)', async ({ request }) => {
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'changeme2026' },
     });
