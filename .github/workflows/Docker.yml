@@ -111,110 +111,19 @@ jobs:
       # ── Génération DOCKER-BUILD-REPORT.md ────────────────────────────
       - name: Générer DOCKER-BUILD-REPORT.md
         if: always()
-        run: |
-          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-          COMMIT_SHA="${{ github.sha }}"
-          COMMIT_SHORT="${COMMIT_SHA:0:7}"
-          BRANCH="${{ github.ref_name }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          VERSION="${{ steps.version.outputs.tag }}"
-          AMD64_SIZE="${{ steps.ctx.outputs.amd64_size }}"
-          ARM64_SIZE="${{ steps.ctx.outputs.arm64_size }}"
-          FRONT_FILES="${{ steps.ctx.outputs.front_files }}"
-          IMAGE="ghcr.io/${{ github.repository }}"
-          PUSH_DIGEST="${{ steps.push.outputs.digest }}"
-
-          [ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
-
-          # Per-Platform Build Status
-          AMD64_STATUS="✅"
-          ARM64_STATUS="✅"
-          [ ! -f "docker-context/backend/nook-backend-amd64" ] && AMD64_STATUS="❌ manquant"
-          [ ! -f "docker-context/backend/nook-backend-arm64" ] && ARM64_STATUS="❌ manquant"
-
-          # Docker Image Info
-          LAYER_INFO="(image non disponible — push échoué)"
-          if [ -n "$PUSH_DIGEST" ]; then
-            LAYER_INFO="Digest: ${PUSH_DIGEST}"
-            LAYER_INFO="${LAYER_INFO}\nAMD64 binary: ${AMD64_SIZE}"
-            LAYER_INFO="${LAYER_INFO}\nARM64 binary: ${ARM64_SIZE}"
-            LAYER_INFO="${LAYER_INFO}\nFrontend: ${FRONT_FILES} fichiers"
-          fi
-
-          REPORT=".claude/DOCKER-BUILD-REPORT.md"
-          cat > "$REPORT" << ENDOFMD
-# 🐳 Docker Build Report — Nook
-
-> Généré automatiquement par `Docker.yml`
-> **${RUN_DATE}**
-
----
-
-## Statut
-
-| Champ | Valeur |
-|-------|--------|
-| **Push GHCR** | ${PUSH_STATUS} |
-| **Version** | `${VERSION}` |
-| **Image** | `${IMAGE}` |
-| **Digest** | `${PUSH_DIGEST:-N/A}` |
-| **Branche** | `${BRANCH}` |
-| **Commit** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Run** | [Voir le run](${RUN_URL}) |
-
----
-
-## Artifacts intégrés
-
-| Composant | Taille | Statut |
-|-----------|--------|--------|
-| **Backend amd64** | ${AMD64_SIZE} | ${AMD64_STATUS} |
-| **Backend arm64** | ${ARM64_SIZE} | ${ARM64_STATUS} |
-| **Frontend** | ${FRONT_FILES} fichiers | ✅ |
-
----
-
-## Image Info & Platform Status
-
-```
-${LAYER_INFO}
-```
-
----
-
-## Tags publiés
-
-```
-${{ steps.meta.outputs.tags }}
-```
-
----
-
-## Plateformes
-
-| Platform | Statut | Cible |
-|----------|--------|-------|
-| `linux/amd64` | ${AMD64_STATUS} | Zimaboard x86 + CI GitHub |
-| `linux/arm64` | ${ARM64_STATUS} | Raspberry Pi, Apple M1/M2 |
-
----
-
-## Utilisation homeserver
-
-```bash
-# Mettre à jour le homeserver Zimaboard
-docker pull ${IMAGE}:${VERSION}
-# ou
-docker pull ${IMAGE}:latest
-```
-
----
-
-*Rapport généré par `.github/workflows/Docker.yml`*
-ENDOFMD
-
-          echo "✅ DOCKER-BUILD-REPORT.md généré"
-          cat "$REPORT"
+        env:
+          RUN_DATE: "${{ env.run_date }}"
+          COMMIT_SHA: "${{ github.sha }}"
+          BRANCH: "${{ github.ref_name }}"
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          VERSION: "${{ steps.version.outputs.tag }}"
+          AMD64_SIZE: "${{ steps.ctx.outputs.amd64_size }}"
+          ARM64_SIZE: "${{ steps.ctx.outputs.arm64_size }}"
+          FRONT_FILES: "${{ steps.ctx.outputs.front_files }}"
+          IMAGE: "ghcr.io/${{ github.repository }}"
+          PUSH_DIGEST: "${{ steps.push.outputs.digest }}"
+          BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
+        run: bash .github/scripts/generate-docker-report.sh
 
       - name: Commit DOCKER-BUILD-REPORT.md
         if: always()
