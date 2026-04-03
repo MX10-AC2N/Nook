@@ -12,8 +12,8 @@ cd "${GITHUB_WORKSPACE:-.}"
 
 # ARCH is set via workflow env
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHORT="${COMMIT_SHA:0:7}"
-RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+# COMMIT_SHORT passed via workflow env
+# RUN_URL passed via workflow env
 RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
 
 [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
@@ -91,7 +91,7 @@ if [ -f "backend/Cargo.toml" ]; then
     | head -30 || true)
 fi
 
-REPORT=".claude/BACKEND-BUILD-REPORT-${ARCH}.md"
+# REPORT passed via workflow env
 
 cat > "$REPORT" << ENDOFMD
 nd Build Report — ${ARCH} — Nook
