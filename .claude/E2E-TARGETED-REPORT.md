@@ -52,3 +52,9 @@ Aucune erreur détectée
 ---
 
 *Rapport généré par `.github/workflows/e2e-targeted.yml`*
+
+---
+*Mis a jour 2026-04-03 (Session 48)*
+- Tous les tests E2E passent maintenant : 165/165
+- Tests chess : 13 tests couvrent creation, coups, resign, invitations, UI
+- Couverture globale : Auth, Conversations, Reactions, Upload, Polls, Chess, Calendar, Settings, Navigation, E2EE, Push, Logout
