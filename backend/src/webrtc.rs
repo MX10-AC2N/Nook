@@ -493,7 +493,55 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     } else {
                         // Messages non-WebRTC (chat, chess, etc.) → broadcast global
                         let _ = broadcast_tx_for_receive.send(text_str);
+
+            // ━━━ SFU Signalisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        } else if msg_type == "sfu_join" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
+                    match state.sfu_state.handle_join(&user_id, conv_id, offer).await {
+                        Ok(resp) => {
+                            let resp_msg = serde_json::json!({
+                                "type": "sfu_answer",
+                                "answer": resp.answer,
+                                "peers": resp.peers,
+                                "renegotiate_offer": resp.renegotiate_offer,
+                            }).to_string();
+                            let _ = tx.send(resp_msg);
+                        }
+                        Err(e) => {
+                            let err_msg = serde_json::json!({
+                                "type": "sfu_error",
+                                "error": e,
+                            }).to_string();
+                            let _ = tx.send(err_msg);
+                        }
                     }
+                }
+            }
+        } else if msg_type == "sfu_answer" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                if let Some(answer) = json_val.get("sdp").and_then(|s| s.as_str()) {
+                    let _ = state.sfu_state.handle_answer(&user_id, conv_id, answer).await;
+                }
+            }
+        } else if msg_type == "sfu_candidate" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
+                    let _ = state.sfu_state.handle_candidate(&user_id, conv_id, candidate).await;
+                }
+            }
+        } else if msg_type == "sfu_leave" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                let result = state.sfu_state.remove_peer(&user_id, conv_id).await;
+                if let Ok(remaining) = result {
+                    let msg = serde_json::json!({
+                        "type": "sfu_peers",
+                        "peers": remaining,
+                    }).to_string();
+                    let _ = tx.send(msg);
+                }
+            }
+        }
 
             // ━━━ SFU Signalization ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         } else if msg_type == "sfu_join" {
