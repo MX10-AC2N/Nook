@@ -914,7 +914,7 @@ test.describe('Call page', () => {
     expect(title.toLowerCase()).toContain('appel');
   });
 
-  test('/call/default_global → page contient contenu call', async () => {
+  test('/call/default_global → page contient contenu call', async ({ page }) => {
     await clearSession(page);
     await loginAs(page, E2E_USER, E2E_PASS);
     await page.goto('/call/default_global');
