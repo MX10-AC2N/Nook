@@ -327,94 +327,67 @@ test.describe.serial('Admin — Flux complet', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 test.describe('Admin — Complément', () => {
 
-  test('Admin — DELETE /users/{id} → supprime un utilisateur', async ({ page }) => {
-    // Login as admin first
-    await page.goto(`${BASE.replace('/api', '')}/login`);
-    await page.fill('#username', 'admin');
-    await page.fill('#password', ADMIN_NEW_PASSWORD);
-    await page.getByRole('button', { name: 'Se connecter' }).click();
-    await page.waitForURL(/admin|chat/, { timeout: 15000 });
-
-    // Create & approve user, then delete via admin UI+API
-    const regRes = await page.request.post(`${BASE}/auth/register`, {
-      data: { username: 'del_test_user', password: 'DelTest123!', email: 'del@nook.local', name: 'Delete Test' },
+  test('Admin — DELETE /users/{id} → supprime un utilisateur', async () => {
+    // Register via admin's authenticated context
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: 'del_t3', password: 'DelTest123!', email: 'dt3@nook.local', name: 'Dt3' },
     });
     expect([200, 201, 409]).toContain(regRes.status());
-    await page.waitForTimeout(1500);
+    await adminPage.waitForTimeout(1500);
 
     // Approve via API
-    const pending = await page.request.get(`${BASE}/users/pending`);
-    const pendingBody = await pending.json();
-    const pendingList = Array.isArray(pendingBody) ? pendingBody : (pendingBody.users ?? []);
-    const found = pendingList.find((u: any) => u.username === 'del_test_user');
+    const pending = await adminPage.request.get(`${BASE}/users/pending`);
+    const pBody = await pending.json();
+    const pList = Array.isArray(pBody) ? pBody : (pBody.users ?? []);
+    const found = pList.find((u: any) => u.username === 'del_t3');
     if (found) {
-      await page.request.post(`${BASE}/users/approve`, { data: { user_id: found.id } });
+      await adminPage.request.post(`${BASE}/users/approve`, { data: { user_id: found.id } });
     }
+    await adminPage.waitForTimeout(500);
 
-    // Navigate admin members tab and delete
-    await page.goto(`${BASE.replace('/api', '')}/admin`);
-    await page.waitForTimeout(2000);
-    await page.locator('.admin-header').waitFor({ state: 'visible', timeout: 10000 });
-    await page.waitForTimeout(1000);
-
-    // Try to click on 'Membres' tab (might be text="Utilisateurs" or similar)
-    try {
-      await page.locator('.admin-tabs .tab').nth(1).click({ timeout: 5000 });
-    } catch { /* tab might already be active */ }
-    await page.waitForTimeout(1000);
-
-    // Verify via API
-    const usersRes = await page.request.get(`${BASE}/users`);
-    expect(usersRes.status()).toBe(200);
+    // Delete via API
+    const usersRes = await adminPage.request.get(`${BASE}/users`);
+    const users = await usersRes.json();
+    const uList = Array.isArray(users) ? users : (users.users ?? []);
+    const target = uList.find((u: any) => u.username === 'del_t3');
+    if (target) {
+      const delRes = await adminPage.request.delete(`${BASE}/users/${target.id}`);
+      expect([200, 204]).toContain(delRes.status());
+    }
   });
 
 
-  test('Admin — approve + login after approve → accès complet', async ({ browser, page }) => {
-    // Create new user via API (public endpoint)
-    const regRes = await page.request.post(`${BASE}/auth/register`, {
-      data: { username: 'approve_test', password: 'Approve123!', email: 'approve@nook.local', name: 'Approve Test' },
+  test('Admin — approve + login after approve → accès complet', async ({ browser }) => {
+    // Create user via admin's authenticated request
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: 'approve_t3', password: 'Approve123!', email: 'apt3@nook.local', name: 'Apt3' },
     });
-    expect([200, 409]).toContain(regRes.status());
+    expect([200, 201, 409]).toContain(regRes.status());
+    await adminPage.waitForTimeout(1500);
 
-    // Approve via admin's authenticated request (not UI to avoid page fixture isolation)
-    await page.waitForTimeout(1500);
-    const pending = await page.request.get(`${BASE}/users/pending`);
-    const pendingBody = await pending.json();
-    const pendingList = Array.isArray(pendingBody) ? pendingBody : (pendingBody.users ?? []);
-    const newUser = pendingList.find((u: any) => u.username === 'approve_test');
-
-    if (newUser) {
-      const approveRes = await page.request.post(`${BASE}/users/approve`, {
-        data: { user_id: newUser.id },
-      });
-      expect(approveRes.status()).toBe(200);
-      console.log(`✅ approve_test approuvé`);
+    // Approve via admin's authenticated context
+    const pending = await adminPage.request.get(`${BASE}/users/pending`);
+    const pBody = await pending.json();
+    const pList = Array.isArray(pBody) ? pBody : (pBody.users ?? []);
+    const found = pList.find((u: any) => u.username === 'approve_t3');
+    if (found) {
+      const aRes = await adminPage.request.post(`${BASE}/users/approve`, { data: { user_id: found.id } });
+      expect(aRes.status()).toBe(200);
     }
 
-    // Login avec le nouveau user
+    // Login with the new user via API (reliable)
     const newPage = await browser.newPage();
     await clearSession(newPage);
-    await newPage.goto(`${BASE.replace('/api', '')}/login`);
-    await newPage.fill('#username', 'approve_test');
-    await newPage.fill('#password', 'Approve123!');
-    await newPage.getByRole('button', { name: 'Se connecter' }).click();
-
-    // Retry once if still on login page
-    await page.waitForTimeout(500);
-    if (newPage.url().includes('/login')) {
-      await newPage.fill('#username', 'approve_test');
-      await newPage.fill('#password', 'Approve123!');
-      await newPage.getByRole('button', { name: 'Se connecter' }).click();
-    }
-
-    await expect(newPage).toHaveURL(/chat|admin|change-password|password-expired/, { timeout: 10000 })
-      .catch(() => expect(newPage.url()).not.toContain('/login'));
-
-    // Vérifier /auth/me
-    const meRes = await newPage.request.get(`${BASE}/auth/me`);
-    const meBody = await meRes.json();
-    expect(meBody.user?.approved).toBe(true);
-    console.log(`✅ approve_test login OK, approved=${meBody.user?.approved}`);
+    const lr = await newPage.request.post(`${BASE}/auth/login`, {
+      data: { username: 'approve_t3', password: 'Approve123!' },
+    });
+    expect(lr.status()).toBe(200);
+    await newPage.goto('/chat');
+    await newPage.waitForTimeout(500);
+    const me = await newPage.request.get(`${BASE}/auth/me`);
+    const mBody = await me.json();
+    expect(mBody.user?.approved).toBe(true);
+    expect(mBody.user?.username).toBe('approve_t3');
     await newPage.close();
   });
 
@@ -490,7 +463,7 @@ test.describe('Admin — Delete user', () => {
 test.describe('Admin — Analytics', () => {
 
   test('GET /analytics → contient user_count, message_count', async () => {
-    // Use adminPage which already has auth from loginAsAdmin in beforeAll
+    // adminPage already has auth from loginAsAdmin in beforeAll
     const res = await adminPage.request.get(`${BASE}/analytics`);
     expect(res.status()).toBe(200);
     const body = await res.json();
