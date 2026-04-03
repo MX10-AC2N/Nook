@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-03 07:31 UTC**
+> Généré par `test-nook.yml` · **2026-04-03 07:58 UTC**
 
 ---
 
@@ -9,11 +9,11 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 75 |
-| **Tests échoués** | 1 |
-| **Tests ignorés** | 69 |
-| **Total** | 145 |
-| **Durée** | 5s |
+| **Tests passés** | 139 |
+| **Tests échoués** | 5 |
+| **Tests ignorés** | 0 |
+| **Total** | 144 |
+| **Durée** | 1.0m 47s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -32,7 +32,7 @@
 
 ## 📋 Résultats par suite
 
-### ❌ api-sanity.spec.ts — 75/76 passés
+### ✅ api-sanity.spec.ts — 75/76 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -96,9 +96,9 @@
 | ✅ | Rename conversation → 200 | 0s |
 | ✅ | /call/fake-id sans auth → redirige vers /login | 0s |
 | ✅ | /call/fake-id avec auth → page charge | 1s |
-| ❌ | Créer partie → jouer e2→e4 → IA répond | 0s |
+| ✅ | Créer partie → jouer e2→e4 → IA répond | 0s |
 | ✅ | Chess coup illégal → 400 | 0s |
-| ✅ | Chess resign → status finished | 0s |
+| ⏭️ | Chess resign → status finished | 0s |
 | ✅ | 1 char → 400 | 0s |
 | ✅ | 5 chars → 400 | 0s |
 | ✅ | 8 chars → accepte | 0s |
@@ -113,127 +113,259 @@
 | ✅ | Supprimer message → 200/204 | 0s |
 | ✅ | Rename conversation → 200 (second block) | 0s |
 
-### ✅ admin.spec.ts — 0/25 passés
+### ❌ admin.spec.ts — 22/25 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
-| ⏭️ | Admin — page /admin chargée avec header | N/A |
-| ⏭️ | Admin — 3 onglets visibles | N/A |
-| ⏭️ | GET /auth/me avec session admin → role=admin | N/A |
-| ⏭️ | GET /users → liste complète (admin) | N/A |
-| ⏭️ | GET /users/pending → 200 | N/A |
-| ⏭️ | Onglet "Membres" → users visibles dans UI | N/A |
-| ⏭️ | Flux inscription : register → pending → approve → connecté | N/A |
-| ⏭️ | POST /invites → génère un invite_link valide | N/A |
-| ⏭️ | GET /invites → liste non vide | N/A |
-| ⏭️ | POST /invites/delete → supprime une invitation | N/A |
-| ⏭️ | GET /invite/validate?token=xxx → valide le token | N/A |
-| ⏭️ | Admin UI — invitation générée visible dans l'interface | N/A |
-| ⏭️ | GET /analytics → tous les champs requis | N/A |
-| ⏭️ | Page /admin/analytics → stat-cards + 2 charts | N/A |
-| ⏭️ | Admin — DELETE /polls/{id} → 200 | N/A |
-| ⏭️ | GET /analytics avec user normal → 403 | N/A |
-| ⏭️ | GET /users/pending avec user normal → 403 | N/A |
-| ⏭️ | Page /admin → non accessible pour user normal | N/A |
-| ⏭️ | Admin — DELETE /users/{id} → supprime un utilisateur | N/A |
-| ⏭️ | Admin — approve + login after approve → accès complet | N/A |
-| ⏭️ | Admin — analytics contient toutes les sections | N/A |
-| ⏭️ | DELETE /users/{id} → supprime un utilisateur | N/A |
-| ⏭️ | GET /analytics → contient user_count, message_count | N/A |
-| ⏭️ | GET /analytics sans auth → 401 | N/A |
-| ⏭️ | Register + Approve + Login → accès complet | N/A |
+| ✅ | Admin — page /admin chargée avec header | 0s |
+| ✅ | Admin — 3 onglets visibles | 0s |
+| ✅ | GET /auth/me avec session admin → role=admin | 0s |
+| ✅ | GET /users → liste complète (admin) | 0s |
+| ✅ | GET /users/pending → 200 | 0s |
+| ✅ | Onglet "Membres" → users visibles dans UI | 0s |
+| ✅ | Flux inscription : register → pending → approve → connecté | 0s |
+| ✅ | POST /invites → génère un invite_link valide | 0s |
+| ✅ | GET /invites → liste non vide | 0s |
+| ✅ | POST /invites/delete → supprime une invitation | 0s |
+| ✅ | GET /invite/validate?token=xxx → valide le token | 0s |
+| ✅ | Admin UI — invitation générée visible dans l'interface | 0s |
+| ✅ | GET /analytics → tous les champs requis | 0s |
+| ✅ | Page /admin/analytics → stat-cards + 2 charts | 0s |
+| ✅ | Admin — DELETE /polls/{id} → 200 | 0s |
+| ✅ | GET /analytics avec user normal → 403 | 0s |
+| ✅ | GET /users/pending avec user normal → 403 | 0s |
+| ✅ | Page /admin → non accessible pour user normal | 2s |
+| ❌ | Admin — DELETE /users/{id} → supprime un utilisateur | 0s |
+| ❌ | Admin — approve + login after approve → accès complet | 0s |
+| ✅ | Admin — analytics contient toutes les sections | 0s |
+| ✅ | DELETE /users/{id} → supprime un utilisateur | 1s |
+| ❌ | GET /analytics → contient user_count, message_count | 0s |
+| ✅ | GET /analytics sans auth → 401 | 0s |
+| ✅ | Register + Approve + Login → accès complet | 4s |
 
-### ✅ user.spec.ts — 0/44 passés
+### ❌ user.spec.ts — 42/44 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
-| ⏭️ | Login e2e_ci → redirigé vers /chat | N/A |
-| ⏭️ | GET /auth/me → username=e2e_ci | N/A |
-| ⏭️ | Login invalide → reste sur /login | N/A |
-| ⏭️ | GET /conversations → default_global présente | N/A |
-| ⏭️ | GET /conversations/default_global → détail de la conv | N/A |
-| ⏭️ | GET /conversations/default_global/participants → e2e_ci présent | N/A |
-| ⏭️ | Chat UI — sidebar et envoi message | N/A |
-| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A |
-| ⏭️ | POST /conversations → créer un groupe de test | N/A |
-| ⏭️ | GET /users/available → liste des membres disponibles | N/A |
-| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A |
-| ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A |
-| ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A |
-| ⏭️ | Réactions — DELETE → my_emoji null | N/A |
-| ⏭️ | Réactions — GET → structure {message_id, counts, my_emoji} | N/A |
-| ⏭️ | Réactions — message inexistant → 404 | N/A |
-| ⏭️ | Réactions UI — hover → picker → pill visible | N/A |
-| ⏭️ | Upload — fichier texte → file_id, url=/api/download/, download OK | N/A |
-| ⏭️ | Download — id inexistant → 404 | N/A |
-| ⏭️ | GET /polls → tableau de sondages | N/A |
-| ⏭️ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | N/A |
-| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A |
-| ⏭️ | GET /chess/list → 200 | N/A |
-| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A |
-| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A |
-| ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A |
-| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A |
-| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A |
-| ⏭️ | Flood /auth/login × 20 depuis même IP → au moins un 429 | N/A |
-| ⏭️ | /call/default_global → page charge avec titre "Appel" | N/A |
-| ⏭️ | /call/default_global → page call charge correctement | N/A |
-| ⏭️ | /call/[id] sans auth → redirige vers /login | N/A |
-| ⏭️ | Créer partie vs IA (facile) | N/A |
-| ⏭️ | Chess — UI plateau 8x8 (64 cases) avec sélection | N/A |
-| ⏭️ | Chess — coup illégal → message erreur | N/A |
-| ⏭️ | /call/default_global → page charge avec titres | N/A |
-| ⏭️ | /call/default_global → page contient contenu call | N/A |
-| ⏭️ | /call/[id] session → page appel chargee (sans auth first) | N/A |
-| ⏭️ | Créer partie vs IA (facile) → game_id | N/A |
-| ⏭️ | Chess — UI plateau 8x8 (64 cases) | N/A |
-| ⏭️ | Chess — coup légal e2→e4 | N/A |
-| ⏭️ | Chess — coup illégal → 400 | N/A |
-| ⏭️ | Chess — coups légaux depuis e2 → contient e3 et e4 | N/A |
-| ⏭️ | Chess — resign → status finished | N/A |
+| ✅ | Login e2e_ci → redirigé vers /chat | 0s |
+| ✅ | GET /auth/me → username=e2e_ci | 0s |
+| ✅ | Login invalide → reste sur /login | 6s |
+| ✅ | GET /conversations → default_global présente | 0s |
+| ✅ | GET /conversations/default_global → détail de la conv | 0s |
+| ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
+| ✅ | Chat UI — sidebar et envoi message | 0s |
+| ✅ | GET /conversations/default_global/messages → messages récupérés | 0s |
+| ✅ | POST /conversations → créer un groupe de test | 0s |
+| ✅ | GET /users/available → liste des membres disponibles | 0s |
+| ✅ | Réactions — POST emoji valide 👍 → counts mis à jour | 0s |
+| ✅ | Réactions — POST emoji non autorisé 🦄 → 400 | 0s |
+| ✅ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | 0s |
+| ✅ | Réactions — DELETE → my_emoji null | 0s |
+| ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
+| ✅ | Réactions — message inexistant → 404 | 0s |
+| ✅ | Réactions UI — hover → picker → pill visible | 2s |
+| ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
+| ✅ | Download — id inexistant → 404 | 0s |
+| ✅ | GET /polls → tableau de sondages | 0s |
+| ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
+| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 1s |
+| ✅ | GET /chess/list → 200 | 0s |
+| ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
+| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 5s |
+| ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
+| ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
+| ❌ | Chess UI — plateau 64 cases + sélection case + coup via UI | 50s |
+| ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0s |
+| ✅ | /call/default_global → page charge avec titre "Appel" | 1s |
+| ✅ | /call/default_global → page call charge correctement | 4s |
+| ✅ | /call/[id] sans auth → redirige vers /login | 0s |
+| ✅ | Créer partie vs IA (facile) | 0s |
+| ✅ | Chess — UI plateau 8x8 (64 cases) avec sélection | 0s |
+| ✅ | Chess — coup illégal → message erreur | 0s |
+| ✅ | /call/default_global → page charge avec titres | 1s |
+| ❌ | /call/default_global → page contient contenu call | 0s |
+| ✅ | /call/[id] session → page appel chargee (sans auth first) | 0s |
+| ✅ | Créer partie vs IA (facile) → game_id | 1s |
+| ✅ | Chess — UI plateau 8x8 (64 cases) | 0s |
+| ✅ | Chess — coup légal e2→e4 | 0s |
+| ✅ | Chess — coup illégal → 400 | 0s |
+| ✅ | Chess — coups légaux depuis e2 → contient e3 et e4 | 0s |
+| ✅ | Chess — resign → status finished | 0s |
 
 ---
 
 ## ❌ Échecs détaillés
 
-> 1 test(s) en échec
+> 5 test(s) en échec
 
-### Échec 1 — `Créer partie → jouer e2→e4 → IA répond`
+### Échec 1 — `Admin — DELETE /users/{id} → supprime un utilisateur`
 
-**Suite :** `api-sanity.spec.ts > Sécurité — Chess spécial`
+**Suite :** `admin.spec.ts > Admin — Complément`
 
 **Message :**
 ```
-Error: expect(received).toContain(expected) // indexOf
+ReferenceError: adminPage is not defined
 
-Expected value: 201
-Received array: [200, 409]
-
-  312 |         data: { opponent: 'easy', color: 'white', time_limit_secs: 0 },
-  313 |       });
-> 314 |       expect([200, 409]).toContain(create.status());
-      |                          ^
-  315 |       const body = await create.json();
-  316 |       chessGameId = body.game_id;
-  317 |       expect(chessGameId).toBeTruthy();
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:314:26
+  330 |   test('Admin — DELETE /users/{id} → supprime un utilisateur', async () => {
+  331 |     // Register via admin's authenticated context
+> 332 |     const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      |                    ^
+  333 |       data: { username: 'del_t3', password: 'DelTest123!', email: 'dt3@nook.local', name: 'Dt3' },
+  334 |     });
+  335 |     expect([200, 201, 409]).toContain(regRes.status());
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:332:20
 ```
 
 **Message :**
 ```
-Error: expect(received).toContain(expected) // indexOf
+ReferenceError: adminPage is not defined
 
-Expected value: 201
-Received array: [200, 409]
+  330 |   test('Admin — DELETE /users/{id} → supprime un utilisateur', async () => {
+  331 |     // Register via admin's authenticated context
+> 332 |     const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      |                    ^
+  333 |       data: { username: 'del_t3', password: 'DelTest123!', email: 'dt3@nook.local', name: 'Dt3' },
+  334 |     });
+  335 |     expect([200, 201, 409]).toContain(regRes.status());
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:332:20
+```
 
-  312 |         data: { opponent: 'easy', color: 'white', time_limit_secs: 0 },
-  313 |       });
-> 314 |       expect([200, 409]).toContain(create.status());
-      |                          ^
-  315 |       const body = await create.json();
-  316 |       chessGameId = body.game_id;
-  317 |       expect(chessGameId).toBeTruthy();
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:314:26
+### Échec 2 — `Admin — approve + login after approve → accès complet`
+
+**Suite :** `admin.spec.ts > Admin — Complément`
+
+**Message :**
+```
+ReferenceError: adminPage is not defined
+
+  360 |   test('Admin — approve + login after approve → accès complet', async ({ browser }) => {
+  361 |     // Create user via admin's authenticated request
+> 362 |     const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      |                    ^
+  363 |       data: { username: 'approve_t3', password: 'Approve123!', email: 'apt3@nook.local', name: 'Apt3' },
+  364 |     });
+  365 |     expect([200, 201, 409]).toContain(regRes.status());
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:362:20
+```
+
+**Message :**
+```
+ReferenceError: adminPage is not defined
+
+  360 |   test('Admin — approve + login after approve → accès complet', async ({ browser }) => {
+  361 |     // Create user via admin's authenticated request
+> 362 |     const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      |                    ^
+  363 |       data: { username: 'approve_t3', password: 'Approve123!', email: 'apt3@nook.local', name: 'Apt3' },
+  364 |     });
+  365 |     expect([200, 201, 409]).toContain(regRes.status());
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:362:20
+```
+
+### Échec 3 — `GET /analytics → contient user_count, message_count`
+
+**Suite :** `admin.spec.ts > Admin — Analytics`
+
+**Message :**
+```
+ReferenceError: adminPage is not defined
+
+  465 |   test('GET /analytics → contient user_count, message_count', async () => {
+  466 |     // adminPage already has auth from loginAsAdmin in beforeAll
+> 467 |     const res = await adminPage.request.get(`${BASE}/analytics`);
+      |                 ^
+  468 |     expect(res.status()).toBe(200);
+  469 |     const body = await res.json();
+  470 |     expect(body).toHaveProperty('user_count');
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:467:17
+```
+
+**Message :**
+```
+ReferenceError: adminPage is not defined
+
+  465 |   test('GET /analytics → contient user_count, message_count', async () => {
+  466 |     // adminPage already has auth from loginAsAdmin in beforeAll
+> 467 |     const res = await adminPage.request.get(`${BASE}/analytics`);
+      |                 ^
+  468 |     expect(res.status()).toBe(200);
+  469 |     const body = await res.json();
+  470 |     expect(body).toHaveProperty('user_count');
+    at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:467:17
+```
+
+### Échec 4 — `Chess UI — plateau 64 cases + sélection case + coup via UI`
+
+**Suite :** `user.spec.ts > User — Flux complet`
+
+**Message :**
+```
+Error: Playwright Test did not expect test() to be called here.
+Most common reasons include:
+- You are calling test() in a configuration file.
+- You are calling test() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+  581 |   // ══════════════════════════════════════════════════════════════
+  582 |
+> 583 |   test('Calendar — GET /events → 200', async () => {
+      |   ^
+  584 |     const res = await page.request.get(`${BASE}/events`);
+  585 |     expect(res.status()).toBe(200);
+  586 |     const body = await res.json();
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:583:3
+```
+
+**Message :**
+```
+Error: Playwright Test did not expect test() to be called here.
+Most common reasons include:
+- You are calling test() in a configuration file.
+- You are calling test() in a file that is imported by the configuration file.
+- You have two different versions of @playwright/test. This usually happens
+  when one of the dependencies in your package.json depends on @playwright/test.
+
+  581 |   // ══════════════════════════════════════════════════════════════
+  582 |
+> 583 |   test('Calendar — GET /events → 200', async () => {
+      |   ^
+  584 |     const res = await page.request.get(`${BASE}/events`);
+  585 |     expect(res.status()).toBe(200);
+  586 |     const body = await res.json();
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:583:3
+```
+
+### Échec 5 — `/call/default_global → page contient contenu call`
+
+**Suite :** `user.spec.ts > Call page`
+
+**Message :**
+```
+ReferenceError: page is not defined
+
+  916 |
+  917 |   test('/call/default_global → page contient contenu call', async () => {
+> 918 |     await clearSession(page);
+      |                        ^
+  919 |     await loginAs(page, E2E_USER, E2E_PASS);
+  920 |     await page.goto('/call/default_global');
+  921 |     await page.waitForTimeout(3000);
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:918:24
+```
+
+**Message :**
+```
+ReferenceError: page is not defined
+
+  916 |
+  917 |   test('/call/default_global → page contient contenu call', async () => {
+> 918 |     await clearSession(page);
+      |                        ^
+  919 |     await loginAs(page, E2E_USER, E2E_PASS);
+  920 |     await page.goto('/call/default_global');
+  921 |     await page.waitForTimeout(3000);
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:918:24
 ```
 
 ---
@@ -242,6 +374,10 @@ Received array: [200, 409]
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
 ```
 
 ---
@@ -266,4 +402,4 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 07:31 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 07:58 UTC*
