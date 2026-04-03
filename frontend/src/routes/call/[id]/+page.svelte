@@ -143,6 +143,10 @@
     callManager.toggleVideo();
   }
 
+  function toggleScreenShare() {
+    callManager.toggleScreenShare();
+  }
+
   function goBack() {
     goto('/chat');
   }
@@ -185,9 +189,26 @@
     {#if callStore.isInCall}
       <div class="call-active">
         <!-- Grille vidéo / audio -->
-        <div class="participants-grid" class:video-mode={isVideo}>
+        <div class="participants-grid" class:video-mode={isVideo} class:screen-share-mode={callStore.isScreenSharing}>
+          <!-- Screen share -->
+          {#if callStore.isScreenSharing}
+            <div class="participant-card screen-share">
+              <video
+                bind:this={callStore.screenShareLocalVideoElement}
+                autoplay
+                muted
+                playsinline
+                class="video-stream"
+              />
+              <div class="participant-overlay">
+                <span class="participant-name">🖥️ Partage d'ecran</span>
+                <button onclick={toggleScreenShare} class="stop-share-btn" aria-label="Arreter le partage">✕</button>
+              </div>
+            </div>
+          {/if}
+
           <!-- Local stream -->
-          <div class="participant-card local" class:without-video={!isVideo}>
+          <div class="participant-card local" class:without-video={!isVideo} class:share-pip={callStore.isScreenSharing}>
             {#if isVideo}
               <video
                 bind:this={callStore.localVideoElement}
@@ -255,6 +276,16 @@
           >
             <span class="ctrl-icon">{callStore.isVideoOff ? '📷❌' : '📹'}</span>
             <span class="ctrl-label">{callStore.isVideoOff ? 'Vidéo coupée' : 'Vidéo'}</span>
+          </button>
+
+          <button
+            onclick={toggleScreenShare}
+            class="ctrl-btn"
+            class:active={callStore.isScreenSharing}
+            aria-label={callStore.isScreenSharing ? 'Arreter partage ecran' : 'Partager ecran'}
+          >
+            <span class="ctrl-icon">{callStore.isScreenSharing ? '🖥️❌' : '🖥️'}</span>
+            <span class="ctrl-label">Ecran</span>
           </button>
 
           <button onclick={endCall} class="ctrl-btn hangup" aria-label="Raccrocher">
@@ -497,6 +528,69 @@
 
   .waiting-icon { font-size: 3rem; }
   .waiting-hint { font-size: 0.875rem; color: var(--text-muted); }
+
+  /* ════════════════════════════════════════════════
+     SCREEN SHARE MODE
+     ════════════════════════════════════════════════ */
+  .participants-grid.screen-share-mode {
+    grid-template-columns: 1fr;
+  }
+
+  .participant-card.screen-share {
+    grid-column: 1 / -1;
+    aspect-ratio: 16 / 9;
+    min-height: 300px;
+  }
+
+  .participant-card.screen-share .video-stream {
+    object-fit: contain;
+    background: #000;
+  }
+
+  .participant-card.local.share-pip {
+    position: fixed;
+    bottom: 80px;
+    right: 1rem;
+    width: 200px;
+    aspect-ratio: 16 / 9;
+    z-index: 50;
+    border: 2px solid var(--accent);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .participant-card.local .video-stream {
+    width: 100%;
+    height: 100%;
+  }
+
+  .stop-share-btn {
+    background: rgba(220, 38, 38, 0.9);
+    border: none;
+    color: white;
+    font-size: 1rem;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .stop-share-btn:hover {
+    background: #dc2626;
+  }
+
+  @media (max-width: 768px) {
+    .participant-card.local.share-pip {
+      width: 140px;
+      bottom: 70px;
+      right: 0.5rem;
+    }
+  }
 
   /* ════════════════════════════════════════════════
      CONTROLES

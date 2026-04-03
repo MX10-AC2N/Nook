@@ -38,6 +38,9 @@ export interface CallState {
   isMuted: boolean;
   isVideoOff: boolean;
   localVideoElement: HTMLVideoElement | null; // Ajout pour Svelte 5
+  isScreenSharing: boolean;
+  screenShareStream: MediaStream | null;
+  screenShareLocalVideoElement: HTMLVideoElement | null;
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
@@ -56,6 +59,9 @@ function createInitialState(): CallState {
     isMuted: false,
     isVideoOff: false,
     localVideoElement: null,
+    isScreenSharing: false,
+    screenShareStream: null,
+    screenShareLocalVideoElement: null,
   };
 }
 
@@ -214,6 +220,14 @@ class WebRTCCallManager {
     // Ajouter le flux local (audio/vidéo) à la connexion
     if (callStore.localStream) {
       callStore.localStream.getTracks().forEach((track) => pc.addTrack(track, callStore.localStream!));
+    }
+
+    // Si le partage d'ecran est actif, ajouter egalement la piste d'ecran
+    if (callStore.isScreenSharing && callStore.screenShareStream) {
+      const screenTrack = callStore.screenShareStream.getVideoTracks()[0];
+      if (screenTrack) {
+        pc.addTrack(screenTrack.clone(), callStore.screenShareStream);
+      }
     }
 
     // -------------------------------------------------------------
@@ -561,6 +575,81 @@ class WebRTCCallManager {
     this.applyMuteVideoState();
   }
 
+  /** Demarre le partage d'ecran via getDisplayMedia. */
+  public async startScreenShare(): Promise<void> {
+    if (callStore.isScreenSharing) return;
+
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { cursor: 'always', displaySurface: 'monitor' },
+      audio: false, // On ne capture pas l'audio systeme pour un appel familial
+    });
+
+    // Remplacer la piste video des peerConnections existantes
+    const videoTrack = displayStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Ecouter l'arret du partage (bouton navigateur)
+    videoTrack.onended = () => {
+      this.stopScreenShare();
+    };
+
+    // Remplacer la piste dans chaque RTCPeerConnection
+    callStore.peerConnections.forEach(async (pc, remoteUserId) => {
+      const senders = pc.getSenders();
+      const videoSender = senders.find((s) => s.track?.kind === 'video');
+      if (videoSender) {
+        await videoSender.replaceTrack(videoTrack.clone());
+      }
+    });
+
+    callStore.isScreenSharing = true;
+    callStore.screenShareStream = displayStream;
+
+    if (callStore.screenShareLocalVideoElement && displayStream) {
+      callStore.screenShareLocalVideoElement.srcObject = displayStream;
+    }
+  }
+
+  /** Arrete le partage d'ecran et restaure le flux camera local. */
+  public stopScreenShare(): void {
+    if (!callStore.isScreenSharing) return;
+
+    // Stopper les tracks du display
+    if (callStore.screenShareStream) {
+      callStore.screenShareStream.getTracks().forEach((t) => t.stop());
+      callStore.screenShareStream = null;
+    }
+
+    // Remettre le flux local (camera) dans les peerConnections
+    if (callStore.localStream && callStore.localStream.getVideoTracks().length > 0) {
+      const localVideoTrack = callStore.localStream.getVideoTracks()[0];
+      callStore.peerConnections.forEach(async (pc) => {
+        const senders = pc.getSenders();
+        const videoSender = senders.find((s) => s.track?.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(localVideoTrack);
+        }
+      });
+    }
+
+    if (callStore.screenShareLocalVideoElement) {
+      callStore.screenShareLocalVideoElement.srcObject = null;
+    }
+
+    callStore.isScreenSharing = false;
+  }
+
+  /** Toggle partage d'ecran. */
+  public toggleScreenShare(): void {
+    if (callStore.isScreenSharing) {
+      this.stopScreenShare();
+    } else {
+      this.startScreenShare().catch((err) => {
+        callStore.error = `Impossible de partager l'ecran: ${err.message}`;
+      });
+    }
+  }
+
   /** Applique les états `isMuted` et `isVideoOff` sur le flux local. */
   private applyMuteVideoState() {
     if (!callStore.localStream) return;
@@ -572,6 +661,11 @@ class WebRTCCallManager {
   public endCall(): void {
     // Arrêter la sonnerie (cas où on raccroche pendant que ça sonne)
     this.stopRingtone();
+
+    // Arreter le partage d'ecran si actif
+    if (callStore.isScreenSharing) {
+      this.stopScreenShare();
+    }
 
     // Prévenir les pairs qu'on part
     if (this.ws?.readyState === WebSocket.OPEN) {
