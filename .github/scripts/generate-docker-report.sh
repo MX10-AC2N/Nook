@@ -10,16 +10,16 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-# COMMIT_SHA is provided by workflow env
+COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-# BRANCH is provided by workflow env
-RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
-# VERSION is provided by workflow env
-# AMD64_SIZE is provided by workflow env
-# ARM64_SIZE is provided by workflow env
-# FRONT_FILES is provided by workflow env
-IMAGE="ghcr.io/$REPO"
-# PUSH_DIGEST is provided by workflow env
+BRANCH="$BRANCH"
+RUN_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+VERSION="$VERSION"
+AMD64_SIZE="$AMD64_SIZE"
+ARM64_SIZE="$ARM64_SIZE"
+FRONT_FILES="$FRONT_FILES"
+IMAGE="ghcr.io/$GITHUB_REPOSITORY"
+PUSH_DIGEST="$PUSH_DIGEST"
 
 [ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
 
@@ -56,7 +56,7 @@ n** | `${VERSION}` |
 * | `${IMAGE}` |
 ** | `${PUSH_DIGEST:-N/A}` |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHORT}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHA:0:7}`](https://github.com/$GITHUB_REPOSITORY/commit/${COMMIT_SHA}) |
 | [Voir le run](${RUN_URL}) |
 
 
