@@ -1113,6 +1113,49 @@ pub async fn decline_invitation(
 // ROUTES
 // ════════════════════════════════════════════════════════════════
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PGN EXPORT
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// GET /api/chess/{id}/pgn — Exporte une partie en format PGN
+pub async fn export_pgn(
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(_user)): Extension<CurrentUser>,
+    Path(game_id): Path<String>,
+) -> impl IntoResponse {
+    // Récupérer les coups de la partie
+    let moves = sqlx::query!("SELECT san FROM chess_moves WHERE game_id = ?", game_id)
+        .fetch_all(&state.db)
+        .await;
+    
+    match moves {
+        Ok(rows) => {
+            let mut pgn = String::new();
+            
+            // Header PGN
+            pgn.push_str(&format!("[Result "*"]\r\n\r\n"));
+            
+            // Corps: numroter les coups
+            for (i, row) in rows.iter().enumerate() {
+                if i % 2 == 0 {
+                    // Coup blanc
+                    pgn.push_str(&format!("{}. {} ", (i / 2) + 1, row.san));
+                } else {
+                    // Coup noir
+                    pgn.push_str(&format!("{} ", row.san));
+                }
+            }
+            pgn.push_str("*\r\n");
+            
+            (StatusCode::OK, pgn).into_response()
+        }
+        Err(e) => {
+            (StatusCode::NOT_FOUND, format!("Partie non trouvée: {}", e)).into_response()
+        }
+    }
+}
+
+
 pub fn chess_routes() -> Router<Arc<SharedState>> {
     Router::new()
         .route("/chess/create", post(create_game))
@@ -1127,4 +1170,6 @@ pub fn chess_routes() -> Router<Arc<SharedState>> {
         .route("/chess/{id}/resign", post(resign_game))
         .route("/chess/{id}/moves", get(legal_moves))
         .route("/chess/{id}/invite", post(invite_player))
+        .route("/chess/{id}/pgn", get(export_pgn))
+
 }
