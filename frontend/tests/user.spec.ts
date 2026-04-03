@@ -576,6 +576,7 @@ test.describe.serial('User — Flux complet', () => {
       console.log(`⚠️ Board not visible but page loaded (${text.length} chars)`);
     }
 
+  });
   // ══════════════════════════════════════════════════════════════
   // 7. CALENDRIER
   // ══════════════════════════════════════════════════════════════
@@ -765,7 +766,6 @@ test.describe.serial('User — Flux complet', () => {
     console.log('✅ Logout → /login');
   });
 
-});
 });
 
 // ══════════════════════════════════════════════════════════════
