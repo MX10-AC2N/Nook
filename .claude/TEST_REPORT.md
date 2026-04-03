@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-03 08:27 UTC**
+> Généré par `test-nook.yml` · **2026-04-03 08:38 UTC**
 
 ---
 
@@ -9,11 +9,11 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 160 |
-| **Tests échoués** | 4 |
+| **Tests passés** | 161 |
+| **Tests échoués** | 3 |
 | **Tests ignorés** | 0 |
 | **Total** | 164 |
-| **Durée** | 1.0m 12s |
+| **Durée** | 1.0m 15s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -143,7 +143,7 @@
 | ✅ | GET /analytics sans auth → 401 | 0s |
 | ✅ | Register + Approve + Login → accès complet | 4s |
 
-### ❌ user.spec.ts — 63/64 passés
+### ✅ user.spec.ts — 64/64 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
@@ -203,7 +203,7 @@
 | ✅ | Chess — UI plateau 8x8 (64 cases) avec sélection | 0s |
 | ✅ | Chess — coup illégal → message erreur | 0s |
 | ✅ | /call/default_global → page charge avec titres | 1s |
-| ❌ | /call/default_global → page contient contenu call | 0s |
+| ✅ | /call/default_global → page contient contenu call | 4s |
 | ✅ | /call/[id] session → page appel chargee (sans auth first) | 0s |
 | ✅ | Créer partie vs IA (facile) → game_id | 1s |
 | ✅ | Chess — UI plateau 8x8 (64 cases) | 0s |
@@ -216,7 +216,7 @@
 
 ## ❌ Échecs détaillés
 
-> 4 test(s) en échec
+> 3 test(s) en échec
 
 ### Échec 1 — `Admin — DELETE /users/{id} → supprime un utilisateur`
 
@@ -314,48 +314,16 @@ ReferenceError: adminPage is not defined
     at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:467:17
 ```
 
-### Échec 4 — `/call/default_global → page contient contenu call`
-
-**Suite :** `user.spec.ts > Call page`
-
-**Message :**
-```
-ReferenceError: page is not defined
-
-  916 |
-  917 |   test('/call/default_global → page contient contenu call', async () => {
-> 918 |     await clearSession(page);
-      |                        ^
-  919 |     await loginAs(page, E2E_USER, E2E_PASS);
-  920 |     await page.goto('/call/default_global');
-  921 |     await page.waitForTimeout(3000);
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:918:24
-```
-
-**Message :**
-```
-ReferenceError: page is not defined
-
-  916 |
-  917 |   test('/call/default_global → page contient contenu call', async () => {
-> 918 |     await clearSession(page);
-      |                        ^
-  919 |     await loginAs(page, E2E_USER, E2E_PASS);
-  920 |     await page.goto('/call/default_global');
-  921 |     await page.waitForTimeout(3000);
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:918:24
-```
-
 ---
 
 ## 🐳 Logs backend (warnings/erreurs)
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
 ```
 
 ---
@@ -380,4 +348,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=3
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 08:27 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 08:38 UTC*
