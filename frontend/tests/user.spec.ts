@@ -18,7 +18,7 @@
 //  14. Auth : logout → retour /login, login invalide
 
 import { test, expect, type Page } from '@playwright/test';
-import { loginAs, loginViaAPI, waitForAppReady, BASE, E2E_USER, E2E_PASS } from './helpers';
+import { loginAs, loginViaAPI, waitForAppReady, clearSession, BASE, E2E_USER, E2E_PASS } from './helpers';
 
 test.describe.serial('User — Flux complet', () => {
 
@@ -924,7 +924,7 @@ test.describe('Call page', () => {
     expect(hasAudioBtn || hasVideoBtn).toBe(true);
   });
 
-  test('/call/[id] avec session → page appel chargee', async ({ browser }) => {
+  test('/call/[id] sans auth → redirige vers /login', async ({ browser }) => {
     const page = await browser.newPage();
     await clearSession(page);
     await page.goto(`http://localhost:6300/call/some-id`);
