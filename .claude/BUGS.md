@@ -113,3 +113,11 @@ store.prop = newValue;
 | R_SEC07_WEBRTC | 46 | Routes WebRTC offer/answer sans auth | **A FAIRE** — ajouter CurrentUser |
 | R_SEC09_CSP | 46 | Pas de CSP dans app.html | **A FAIRE** — meta tag |
 | R_SEC10_HEADERS | 46 | Pas de headers sécu HTTP | **A FAIRE** — middleware ou Nginx |
+
+---
+*2026-04-03 Session 48 — Bugs corriges*
+- BUG-CI-001 : Titre test duplique dans api-sanity.spec.ts — ✅ FIXE
+- BUG-CI-002 : Chess UI test jamais ferme (user.spec.ts) — ✅ FIXE
+- BUG-CI-003 : adminPage non defini dans 3 describe blocks (admin.spec.ts) — ✅ FIXE
+- BUG-CI-004 : Page fixture manquant Call page (user.spec.ts) — ✅ FIXE
+- BUG-CI-005 : Status code attendu erronné (201 manquant) — ✅ FIXE
