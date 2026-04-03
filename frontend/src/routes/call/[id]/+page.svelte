@@ -25,6 +25,8 @@
   let callDuration = $state(0);
   let timerInterval: ReturnType<typeof setInterval> | null = null;
   let callStartedAt = $state(0);
+  let showDebugPanel = $state(false);
+  let qualityInterval: ReturnType<typeof setInterval> | null = null;
 
   // ════════════════════════════════════════════════════
   // Dérivés réactifs
@@ -85,6 +87,10 @@
     if (timerInterval) {
       clearInterval(timerInterval);
     }
+    if (qualityInterval) {
+      clearInterval(qualityInterval);
+      qualityInterval = null;
+    }
   });
 
   // Redémarrer le timer quand on passe en isInCall
@@ -102,6 +108,34 @@
       callStartedAt = 0;
       callDuration = 0;
     }
+  });
+  
+  // Start quality monitoring when in call
+  $effect(() => {
+    if (callStore.isInCall) {
+      qualityInterval = setInterval(() => {
+        callManager.updateCallQuality();
+      }, 2000);
+      // Initial call
+      callManager.updateCallQuality();
+    } else {
+      if (qualityInterval) {
+        clearInterval(qualityInterval);
+        qualityInterval = null;
+      }
+    }
+  });
+  
+  // Keyboard shortcut: Ctrl+D to toggle debug panel
+  $effect(() => {
+    function handleKeydown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === 'd') {
+        e.preventDefault();
+        showDebugPanel = !showDebugPanel;
+      }
+    }
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
   });
 
   // ════════════════════════════════════════════════════
@@ -178,6 +212,15 @@
         <h1 class="call-title">{callTitle}</h1>
         {#if callStore.isInCall || callStartedAt > 0}
           <span class="call-timer">{formattedDuration}</span>
+          {#if callStore.isInCall}
+            <span class="quality-badge" class:good={callStore.callQuality === 'good'} class:fair={callStore.callQuality === 'fair'} class:poor={callStore.callQuality === 'poor'}>
+              {#if callStore.callQuality === 'good'}✅
+              {:else if callStore.callQuality === 'fair'}⚠️
+              {:else if callStore.callQuality === 'poor'}🔴
+              {:else}⏳
+              {/if}
+            </span>
+          {/if}
         {/if}
       </div>
       <div class="call-type-icon">
@@ -331,6 +374,23 @@
       </div>
     {/if}
 
+    <!-- ═══ DEBUG PANEL ═══ -->
+    {#if showDebugPanel && callStore.isInCall}
+    <div class="debug-panel">
+      <h3>Qualite d'appel</h3>
+      <table>
+        <tr><td>Qualite:</td><td>{callStore.callQuality}</td></tr>
+        <tr><td>RTT (latence):</td><td>{callStore.rtt} ms</td></tr>
+        <tr><td>Jitter:</td><td>{callStore.jitter} ms</td></tr>
+        <tr><td>Pertes paquets:</td><td>{callStore.packetsLost}</td></tr>
+        <tr><td>Resolution distante:</td><td>{callStore.remoteResolution ?? '&mdash;'}</td></tr>
+        <tr><td>FPS distant:</td><td>{callStore.remoteFps}</td></tr>
+        <tr><td>Connexions paires:</td><td>{callStore.peerConnections.size}</td></tr>
+      </table>
+      <p class="debug-hint">Ctrl+D pour fermer</p>
+    </div>
+    {/if}
+
     <!-- ═══ ERREUR STORE ═══ -->
     {#if callStore.error}
       <div class="error-banner">
@@ -404,6 +464,67 @@
   .call-type-icon {
     font-size: 1.5rem;
     flex-shrink: 0;
+  }
+
+  /* ════════════════════════════════════════════════
+     QUALITY BADGE
+     ════════════════════════════════════════════════ */
+  .quality-badge {
+    font-size: 0.875rem;
+    margin-left: 0.5rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    background: var(--bg-tertiary);
+  }
+  .quality-badge.good { color: #22c55e; }
+  .quality-badge.fair { color: #f59e0b; }
+  .quality-badge.poor { color: #ef4444; }
+
+  /* ════════════════════════════════════════════════
+     DEBUG PANEL
+     ════════════════════════════════════════════════ */
+  .debug-panel {
+    position: fixed;
+    bottom: 5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 90vw;
+    min-width: 280px;
+  }
+  .debug-panel h3 {
+    margin: 0 0 0.5rem;
+    font-size: 0.875rem;
+    color: var(--accent);
+  }
+  .debug-panel table {
+    width: 100%;
+    font-size: 0.75rem;
+    border-collapse: collapse;
+  }
+  .debug-panel td {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border, rgba(255,255,255,0.1));
+  }
+  .debug-panel td:first-child {
+    color: var(--text-secondary);
+    font-weight: 500;
+    padding-right: 1rem;
+  }
+  .debug-panel td:last-child {
+    color: var(--text-primary);
+    font-family: monospace;
+  }
+  .debug-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.625rem;
+    color: var(--text-muted);
+    text-align: right;
   }
 
   /* ════════════════════════════════════════════════
