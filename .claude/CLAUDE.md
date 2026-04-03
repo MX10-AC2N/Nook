@@ -302,3 +302,11 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 | `/review` | 🔎 REVIEWER | `nook-review` | Rapport audit + verdict merge |
 | `/ship` | 🚀 DEVOPS | `nook-ship` | Pipeline CI/CD complet + Zimaboard |
 | `/retro` | 📐 ARCHITECT | `nook-retro` | Bilan sessions + priorités backlog |
+
+## Statut CI (2026-04-03)
+- **Dernier run** : 165/165 tests passes, 0 echec
+- **Fichiers tests** : admin.spec.ts (540L), user.spec.ts (1008L), api-sanity.spec.ts (534L)
+- **Backend** : build OK (nook-backend v0.5.0-beta.1, 2m46s)
+- **Docker** : image nook-ci:local OK
+- **Bugs connus** : scripts bash pre-tests CI ont des erreurs de syntaxe (non bloquant)
+- **Regles** : `npx playwright test --list` obligatoire avant chaque push
