@@ -41,6 +41,14 @@ export interface CallState {
   isScreenSharing: boolean;
   screenShareStream: MediaStream | null;
   screenShareLocalVideoElement: HTMLVideoElement | null;
+  // Call quality monitoring
+  callQuality: 'good' | 'fair' | 'poor' | 'unknown';
+  currentBitrate: number; // kbps average
+  packetsLost: number;
+  jitter: number; // ms
+  rtt: number; // round-trip ms
+  remoteResolution: string | null; // e.g. "1280x720"
+  remoteFps: number;
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
@@ -62,6 +70,14 @@ function createInitialState(): CallState {
     isScreenSharing: false,
     screenShareStream: null,
     screenShareLocalVideoElement: null,
+    // Call quality monitoring defaults
+    callQuality: 'unknown',
+    currentBitrate: 0,
+    packetsLost: 0,
+    jitter: 0,
+    rtt: 0,
+    remoteResolution: null,
+    remoteFps: 0,
   };
 }
 
@@ -77,6 +93,10 @@ class WebRTCCallManager {
   // ── Sonnerie ────────────────────────────────────────────────
   private ringtoneCtx: AudioContext | null = null;
   private ringtoneInterval: ReturnType<typeof setInterval> | null = null;
+  // ── Call quality monitoring ─────────────────────────────────
+  private prevBytesSent = new Map<string, number>();
+  private prevStatsTime = new Map<string, number>();
+  private callQualityInterval: ReturnType<typeof setInterval> | null = null;
 
   // userId est un getter réactif — toujours synchronisé avec authStore
   private get userId(): string {
@@ -650,6 +670,79 @@ class WebRTCCallManager {
     }
   }
 
+  /** Collect and update call quality stats every 2 seconds. */
+  public async updateCallQuality(): Promise<void> {
+    if (!callStore.isInCall || callStore.peerConnections.size === 0) return;
+
+    let totalPacketsLost = 0;
+    let maxJitter = 0;
+    let maxRtt = 0;
+    let totalBitrate = 0;
+    let resolution: string | null = null;
+    let fps = 0;
+
+    for (const [remoteUserId, pc] of callStore.peerConnections.entries()) {
+      try {
+        const stats = await pc.getStats();
+        
+        for (const report of stats.values()) {
+          // Inbound RTP (receiving remote media)
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            totalPacketsLost += (report.packetsLost ?? 0);
+            maxJitter = Math.max(maxJitter, report.jitter ?? 0);
+            if (report.frameWidth && report.frameHeight) {
+              resolution = `${report.frameWidth}x${report.frameHeight}`;
+              fps = report.framesPerSecond ?? 0;
+            }
+          }
+          
+          // Candidate pair (network quality)
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            maxRtt = Math.max(maxRtt, report.currentRoundTripTime ?? 0);
+          }
+        }
+      } catch (err) {
+        // Ignore stats errors
+      }
+    }
+
+    // Jitter in ms (WebRTC reports in seconds)
+    const jitterMs = maxJitter * 1000;
+    
+    // Determine quality level
+    let quality: 'good' | 'fair' | 'poor' = 'good';
+    if (maxRtt > 400 || jitterMs > 100 || totalPacketsLost > 100) {
+      quality = 'poor';
+    } else if (maxRtt > 200 || jitterMs > 30 || totalPacketsLost > 10) {
+      quality = 'fair';
+    }
+
+    callStore.callQuality = quality;
+    callStore.packetsLost = totalPacketsLost;
+    callStore.jitter = Math.round(jitterMs * 10) / 10;
+    callStore.rtt = Math.round(maxRtt * 1000);
+    callStore.remoteResolution = resolution;
+    callStore.remoteFps = fps;
+  }
+
+  /** Start call quality monitoring interval. */
+  private startQualityMonitoring(): void {
+    if (this.callQualityInterval) return;
+    this.callQualityInterval = setInterval(() => {
+      this.updateCallQuality();
+    }, 2000);
+    // Initial call
+    this.updateCallQuality();
+  }
+
+  /** Stop call quality monitoring interval. */
+  private stopQualityMonitoring(): void {
+    if (this.callQualityInterval) {
+      clearInterval(this.callQualityInterval);
+      this.callQualityInterval = null;
+    }
+  }
+
   /** Applique les états `isMuted` et `isVideoOff` sur le flux local. */
   private applyMuteVideoState() {
     if (!callStore.localStream) return;
@@ -690,6 +783,9 @@ class WebRTCCallManager {
       this.ws.close();
       this.ws = null;
     }
+
+    // Stop quality monitoring
+    this.stopQualityMonitoring();
 
     // Reset de l'état réactif
     Object.assign(callStore, createInitialState());
@@ -745,4 +841,15 @@ export function endCurrentCall(): void {
 /** Retourne l'état actuel (alias pour compatibilité). */
 export function getCallState(): CallState {
   return callStore;
+}
+
+/** Reset call quality monitoring state to defaults. */
+export function resetCallState(): void {
+  callStore.callQuality = 'unknown';
+  callStore.currentBitrate = 0;
+  callStore.packetsLost = 0;
+  callStore.jitter = 0;
+  callStore.rtt = 0;
+  callStore.remoteResolution = null;
+  callStore.remoteFps = 0;
 }
