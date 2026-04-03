@@ -55,3 +55,44 @@ Les 6 fichiers tools ont été réécrits pour être **actionnables** (pas juste
 |---|---|---|
 | S44 run1 (zip 51) | 97/98 | `.calendar-grid` absent |
 | S44 run2 | 98/98 | Attendu ✅ après fix classes |
+
+
+## Session LOT 6 — Intégration SFU rustrtc
+
+**Objectif:** Ajouter un SFU (Selective Forwarding Unit) pour les appels groupe 3+ participants.
+
+**Backend (`backend/src/sfu.rs`):**
+- Module `SfuState` avec rooms/peers/tracks management
+- `handle_join()`: crée PeerConnection, parse offer, crée answer, ajoute tracks existantes
+- `handle_answer()`: set remote answer pour renegotiation
+- `handle_candidate()`: parse ICE candidate (IceCandidate::from_sdp), add_ice_candidate (sync)
+- `remove_peer()`: cleanup PC, tracks, added_sources
+- `setup_peer_events()`: boucle events avec `pc.recv().await`
+  - `PeerConnectionEvent::Track(transceiver)` → MediaRelay → relay aux autres peers → PLI forwarding
+  - PLI periodique toutes les 3s via `track.request_key_frame().await`
+  - Forward loop: track.recv() -> source.send()
+  - Monitor ICE state → close PC on disconnect/fail
+- `negotiate()`: create_offer + set_local_description quand nouvelles tracks
+- `drain_pending_offer()`: récupère l'offer pending et la vide
+
+**Signalisation WS (`backend/src/webrtc.rs`):**
+- Messages: sfu_join, sfu_answer, sfu_candidate, sfu_leave
+- Routing dans le handler WS existant via `state_recv.sfu_state.*`
+- Réponses: sfu_answer (avec answer + peers + renegotiate_offer), sfu_error, sfu_peers
+
+**Frontend (`frontend/src/lib/webrtc-calls.svelte.ts`):**
+- CallState: useSfu, sfuAnswer, sfuRenegotiateOffer, sfuPeers, sfuPendingOffer
+- Méthodes: startSfuCall, handleSfuJoinResponse, handleSfuRenegotiateOffer, handleSfuPeers, stopSfuMode
+- Auto-SFU: `participantIds.length >= 3` dans startCall()
+- Types CallSignal: sfu_answer, sfu_renegotiate_offer, sfu_peers, sfu_error
+
+**Frontend UI (`frontend/src/routes/call/[id]/+page.svelte`):**
+- Badge SFU dans header: `🌐 SFU · N pairs`
+- Toggle P2P/SFU dans call-controls (visible si 3+ participants)
+- Fonction toggleSfuMode(): bascule entre SFU et P2P mesh
+
+**Architecture:**
+- Room → HashMap<user_id, Peer> → Vec<TrackInfo>
+- Peer → PeerConnection + added_sources: HashSet<String> + negotiation_pending: AtomicBool
+- TrackInfo → MediaRelay + remote_track + user_id + kind + RtpCodecParameters
+- MediaRelay::with_capacity(track, 500) pour chaque track entrante
