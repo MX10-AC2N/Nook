@@ -49,6 +49,18 @@ export interface CallState {
   rtt: number; // round-trip ms
   remoteResolution: string | null; // e.g. "1280x720"
   remoteFps: number;
+    // SFU state
+    useSfu: false,
+    sfuAnswer: null,
+    sfuRenegotiateOffer: null,
+    sfuPeers: [],
+    sfuPendingOffer: null,
+    // ═══ SFU state ═══
+    useSfu: boolean;
+    sfuAnswer: string | null;
+    sfuRenegotiateOffer: string | null;
+    sfuPeers: string[];
+    sfuPendingOffer: string | null; // offer from SFU for renegotiation
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
