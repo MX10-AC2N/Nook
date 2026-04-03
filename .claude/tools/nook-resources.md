@@ -13,7 +13,8 @@
 | 💬 Chat texte | ✅ Stable | 97/98 | scroll auto S43, badge S43 |
 | 📎 Upload fichiers | ✅ Fixé S43 | — | DefaultBodyLimit 52MB |
 | 🎙️ Messages vocaux | ⚠️ Fragile | — | iOS Safari à tester |
-| 📞 Appels audio/vidéo | ⚠️ WS fixé S42 | — | LAN à valider, WAN = TURN manquant |
+| 🌐 Appels SFU groupe | ✅ LOT 6 | — | rustrtc intégré, auto-activé 3+ participants |
+| 📞 Appels audio/vidéo | ✅ WS fixé S42 | — | P2P mesh + TURN, WAN fonctionnel |
 | ♟️ Échecs | ✅ Solide | — | Timer, IA, WS, noms joueurs |
 | 📅 Calendrier | ✅ Refait S43 | 97/98¹ | click/édition/suppression |
 | 📊 Sondages | ✅ Date clôture S43 | — | fermeture auto backend à faire |
@@ -58,7 +59,7 @@ Fichiers : backend/src/admin.rs (route GET /api/admin/metrics via sysinfo)
 - **Android TWA** — packager la PWA Nook pour le Play Store familial
 - **Export PGN échecs** — `GET /api/chess/{id}/pgn` via pgn.rs existant
 - **Backup chiffré SQLite** — cron quotidien dans le container
-- **SFU groupe** — rustrtc pour appels famille 4+ personnes
+- ~~**SFU groupe** — rustrtc pour appels famille 4+ personnes~~ ✅ FAIT LOT 6
 - **Sondages : notification WS** — `new_poll` broadcast à la création
 
 ---
