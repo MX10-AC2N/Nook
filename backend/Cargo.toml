@@ -57,3 +57,7 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Compatibilité
 home = "0.5"
+
+# SFU pour appels groupe 3+ participants
+rustrtc = "0.3.40"
+webrtc-sdp = "0.6"
