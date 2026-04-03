@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-03 09:01 UTC**
+> Généré par `test-nook.yml` · **2026-04-03 09:14 UTC**
 
 ---
 
@@ -13,7 +13,7 @@
 | **Tests échoués** | 3 |
 | **Tests ignorés** | 0 |
 | **Total** | 164 |
-| **Durée** | 1.0m 16s |
+| **Durée** | 1.0m 14s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -171,7 +171,7 @@
 | ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
 | ✅ | GET /chess/list → 200 | 0s |
 | ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
-| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 2s |
+| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 1s |
 | ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
 | ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
 | ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 25s |
@@ -320,10 +320,10 @@ ReferenceError: adminPage is not defined
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9e90e0e2-36fb-4119-af26-29fa2410d690 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9e90e0e2-36fb-4119-af26-29fa2410d690 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9e90e0e2-36fb-4119-af26-29fa2410d690 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=9e90e0e2-36fb-4119-af26-29fa2410d690 username=e2e_ci
 ```
 
 ---
@@ -348,4 +348,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 09:01 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 09:14 UTC*
