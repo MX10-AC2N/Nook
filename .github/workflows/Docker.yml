@@ -123,6 +123,8 @@ jobs:
           IMAGE: "ghcr.io/${{ github.repository }}"
           PUSH_DIGEST: "${{ steps.push.outputs.digest }}"
           BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-docker-report.sh
 
       - name: Commit DOCKER-BUILD-REPORT.md
