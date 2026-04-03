@@ -399,6 +399,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites/delete", post(admin::delete_invite))
         .route("/analytics", get(admin::get_analytics))
         .route("/users/{id}", axum::routing::delete(admin::delete_user))
+        .route("/metrics", get(admin::get_system_metrics))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
