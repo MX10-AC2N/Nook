@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-03 07:58 UTC**
+> Généré par `test-nook.yml` · **2026-04-03 08:27 UTC**
 
 ---
 
@@ -9,11 +9,11 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 139 |
-| **Tests échoués** | 5 |
+| **Tests passés** | 160 |
+| **Tests échoués** | 4 |
 | **Tests ignorés** | 0 |
-| **Total** | 144 |
-| **Durée** | 1.0m 47s |
+| **Total** | 164 |
+| **Durée** | 1.0m 12s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -143,13 +143,13 @@
 | ✅ | GET /analytics sans auth → 401 | 0s |
 | ✅ | Register + Approve + Login → accès complet | 4s |
 
-### ❌ user.spec.ts — 42/44 passés
+### ❌ user.spec.ts — 63/64 passés
 
 | Statut | Test | Durée |
 |--------|------|-------|
 | ✅ | Login e2e_ci → redirigé vers /chat | 0s |
 | ✅ | GET /auth/me → username=e2e_ci | 0s |
-| ✅ | Login invalide → reste sur /login | 6s |
+| ✅ | Login invalide → reste sur /login | 3s |
 | ✅ | GET /conversations → default_global présente | 0s |
 | ✅ | GET /conversations/default_global → détail de la conv | 0s |
 | ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0s |
@@ -163,18 +163,38 @@
 | ✅ | Réactions — DELETE → my_emoji null | 0s |
 | ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0s |
 | ✅ | Réactions — message inexistant → 404 | 0s |
-| ✅ | Réactions UI — hover → picker → pill visible | 2s |
+| ✅ | Réactions UI — hover → picker → pill visible | 1s |
 | ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0s |
 | ✅ | Download — id inexistant → 404 | 0s |
 | ✅ | GET /polls → tableau de sondages | 0s |
 | ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0s |
-| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 1s |
+| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0s |
 | ✅ | GET /chess/list → 200 | 0s |
 | ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0s |
-| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 5s |
+| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 2s |
 | ✅ | Chess — POST /chess/{id}/resign → 200 | 0s |
 | ✅ | Chess — invitations : créer, inviter, lister, décliner | 0s |
-| ❌ | Chess UI — plateau 64 cases + sélection case + coup via UI | 50s |
+| ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 25s |
+| ✅ | Calendar — GET /events → 200 | 0s |
+| ✅ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | 0s |
+| ✅ | Calendar UI — page, grille et bouton ajouter visibles | 0s |
+| ✅ | Settings UI — 3 onglets navigables | 0s |
+| ✅ | Settings — changement de thème (clic → sélectionné) | 0s |
+| ✅ | POST /user/update → mise à jour du nom | 0s |
+| ✅ | Navigation /chat → accessible sans erreur | 0s |
+| ✅ | Navigation /calendar → accessible sans erreur | 0s |
+| ✅ | Navigation /chess → accessible sans erreur | 0s |
+| ✅ | Navigation /polls → accessible sans erreur | 0s |
+| ✅ | Navigation /settings → accessible sans erreur | 0s |
+| ✅ | Navigation /help → accessible sans erreur | 0s |
+| ✅ | Navigation /events → accessible sans erreur | 0s |
+| ✅ | E2EE — POST /auth/public-key → enregistre la clé | 0s |
+| ✅ | E2EE — GET /auth/public-keys → objet avec clés des membres | 0s |
+| ✅ | Push — GET /push/vapid-public-key → 200 | 0s |
+| ✅ | Push — GET /push/preferences → prefs par défaut | 0s |
+| ✅ | Push — POST /push/preferences → mise à jour | 0s |
+| ✅ | Push — POST /push/subscribe → 200 | 0s |
+| ✅ | Logout UI → redirigé vers /login | 0s |
 | ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0s |
 | ✅ | /call/default_global → page charge avec titre "Appel" | 1s |
 | ✅ | /call/default_global → page call charge correctement | 4s |
@@ -196,7 +216,7 @@
 
 ## ❌ Échecs détaillés
 
-> 5 test(s) en échec
+> 4 test(s) en échec
 
 ### Échec 1 — `Admin — DELETE /users/{id} → supprime un utilisateur`
 
@@ -294,49 +314,7 @@ ReferenceError: adminPage is not defined
     at /home/runner/work/Nook/Nook/frontend/tests/admin.spec.ts:467:17
 ```
 
-### Échec 4 — `Chess UI — plateau 64 cases + sélection case + coup via UI`
-
-**Suite :** `user.spec.ts > User — Flux complet`
-
-**Message :**
-```
-Error: Playwright Test did not expect test() to be called here.
-Most common reasons include:
-- You are calling test() in a configuration file.
-- You are calling test() in a file that is imported by the configuration file.
-- You have two different versions of @playwright/test. This usually happens
-  when one of the dependencies in your package.json depends on @playwright/test.
-
-  581 |   // ══════════════════════════════════════════════════════════════
-  582 |
-> 583 |   test('Calendar — GET /events → 200', async () => {
-      |   ^
-  584 |     const res = await page.request.get(`${BASE}/events`);
-  585 |     expect(res.status()).toBe(200);
-  586 |     const body = await res.json();
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:583:3
-```
-
-**Message :**
-```
-Error: Playwright Test did not expect test() to be called here.
-Most common reasons include:
-- You are calling test() in a configuration file.
-- You are calling test() in a file that is imported by the configuration file.
-- You have two different versions of @playwright/test. This usually happens
-  when one of the dependencies in your package.json depends on @playwright/test.
-
-  581 |   // ══════════════════════════════════════════════════════════════
-  582 |
-> 583 |   test('Calendar — GET /events → 200', async () => {
-      |   ^
-  584 |     const res = await page.request.get(`${BASE}/events`);
-  585 |     expect(res.status()).toBe(200);
-  586 |     const body = await res.json();
-    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:583:3
-```
-
-### Échec 5 — `/call/default_global → page contient contenu call`
+### Échec 4 — `/call/default_global → page contient contenu call`
 
 **Suite :** `user.spec.ts > Call page`
 
@@ -374,10 +352,10 @@ ReferenceError: page is not defined
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=cca704c7-00ba-4462-9c4b-7aff2694931d username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=30f243c9-dc43-44de-8b20-b91235aab60e username=e2e_ci
 ```
 
 ---
@@ -402,4 +380,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=c
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 07:58 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 08:27 UTC*
