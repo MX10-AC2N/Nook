@@ -78,7 +78,7 @@ class WebRTCCallManager {
   }
 
   // ── Sonnerie : tonalité synthétisée (pas de fichier externe) ─
-  private playRingtone(): void {
+  public startRingtone(): void {
     if (this.ringtoneInterval) return; // déjà en cours
     this._ringOnce();
     this.ringtoneInterval = setInterval(() => this._ringOnce(), 3000);
