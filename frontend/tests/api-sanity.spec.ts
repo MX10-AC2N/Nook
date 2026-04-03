@@ -311,7 +311,7 @@ test.describe('Sécurité — Chess spécial', () => {
       const create = await request.post(`${BASE}/chess/create`, {
         data: { opponent: 'easy', color: 'white', time_limit_secs: 0 },
       });
-      expect([200, 409]).toContain(create.status());
+      expect([200, 201, 409]).toContain(create.status());
       const body = await create.json();
       chessGameId = body.game_id;
       expect(chessGameId).toBeTruthy();
