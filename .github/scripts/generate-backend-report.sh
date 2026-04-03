@@ -10,17 +10,17 @@
 set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
-ARCH=$(echo "$TARGET" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+# ARCH is set via workflow env
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="$COMMIT_SHA"
+# COMMIT_SHA is set via workflow env
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="$BRANCH"
-RUN_URL="$RUN_URL"
+# BRANCH is set via workflow env
+# RUN_URL is set via workflow env
 RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
-BUILD_STATUS="$BUILD_STATUS"
-BIN_SIZE="$BIN_SIZE"
-CHECK_EXIT="$CHECK_EXIT"
-CLIPPY_EXIT="$CLIPPY_EXIT"
+# BUILD_STATUS is set via workflow env
+# BIN_SIZE is set via workflow env
+# CHECK_EXIT is set via workflow env
+# CLIPPY_EXIT is set via workflow env
 
 [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
 [ "$CHECK_EXIT"  = "0" ]   && CHECK_ICON="✅"  || CHECK_ICON="❌"
