@@ -499,7 +499,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         } else if msg_type == "sfu_join" {
             if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
                 if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
-                    match handle_sfu_join_ws(&state.sfu_state, &user_id, conv_id, offer, &tx).await {
+                    match handle_sfu_join_ws(&state.sfu_state, &user_id, conv_id, offer.to_string()).await {
                         Ok(resp) => {
                             let resp_msg = serde_json::json!({
                                 "type": "sfu_answer",
