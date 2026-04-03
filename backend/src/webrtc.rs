@@ -544,38 +544,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         }
 
             // ━━━ SFU Signalization ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        } else if msg_type == "sfu_join" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
-                    match handle_sfu_join_ws(&state.sfu_state, &user_id, conv_id, offer.to_string()).await {
-                        Ok(resp) => {
-                            let resp_msg = serde_json::json!({
-                                "type": "sfu_answer",
-                                "answer": resp.answer,
-                                "peers": resp.peers,
-                            }).to_string();
-                            let _ = tx.send(resp_msg);
-                        }
-                        Err(e) => {
-                            let err_msg = serde_json::json!({
-                                "type": "sfu_error",
-                                "error": e,
-                            }).to_string();
-                            let _ = tx.send(err_msg);
-                        }
-                    }
-                }
-            }
-        } else if msg_type == "sfu_candidate" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
-                    let _ = handle_sfu_candidate_ws(&state.sfu_state, &user_id, conv_id, candidate).await;
-                }
-            }
-        } else if msg_type == "sfu_leave" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                let _ = handle_sfu_leave_ws(&state.sfu_state, &user_id, conv_id).await;
-            }
         }
 
                 Ok(axum::extract::ws::Message::Binary(data)) => {
