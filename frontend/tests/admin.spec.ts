@@ -15,7 +15,7 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import {
-  loginAsAdmin, loginViaAPI, waitForAppReady,
+  loginAsAdmin, loginAs, loginViaAPI, waitForAppReady, clearSession,
   BASE, ADMIN_NEW_PASSWORD, E2E_USER, E2E_PASS,
 } from './helpers';
 
