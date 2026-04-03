@@ -1,7 +1,7 @@
 # 🎨 Frontend Build Report — Nook
 
 > Généré automatiquement par `Frontend.yml`
-> **2026-04-03 06:14 UTC**
+> ****
 
 ---
 
@@ -11,11 +11,26 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | `develop` |
-| **Commit** | [`41f17c5`](https://github.com/MX10-AC2N/Nook/commit/41f17c5371715fd9167b8065d4cbb3d826e4085e) |
-| **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23936262621) |
+| **Commit** | [`f9019fe`](https://github.com/MX10-AC2N/Nook/commit/f9019fe8917f96fadb13d5780078c59d7b7be415) |
+| **Node.js** | `` |
+| **Vite time** | 5.27ms |
+| **Build Duration** |  |
+| **Output Size** |  |
+| **File Count** | 14 |
+| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23943456643) |
 
- ---
+---
+
+## Build Metrics (trend tracking)
+
+| Metric | Valeur |
+|--------|--------|
+| **Warnings** | 2 |
+| **Errors** | 0
+0 |
+| **Chunks** | 105 |
+
+---
 
 ## Erreurs TypeScript / Vite
 
@@ -43,11 +58,21 @@ rendering chunks...
 vite v7.3.1 building client environment for production...
 ✓ 224 modules transformed.
 rendering chunks...
-✓ built in 5.23s
+✓ built in 5.27s
 vite v7.3.1 building client environment for production...
 ✓ 1 modules transformed.
 rendering chunks...
 
+.svelte-kit/output/server/_app/immutable/assets/_layout.PITcqwYX.css      25.01 kB
+.svelte-kit/output/server/chunks/vendor.js                                 0.05 kB
+.svelte-kit/output/server/index.js                                         0.07 kB
+.svelte-kit/output/server/entries/fallbacks/error.svelte.js                0.09 kB
+.svelte-kit/output/server/remote-entry.js                                  0.12 kB
+.svelte-kit/output/server/chunks/ThemeStore.svelte.js                      0.14 kB
+.svelte-kit/output/server/chunks/file-transfer.svelte.js                   0.19 kB
+.svelte-kit/output/server/internal.js                                      0.27 kB
+.svelte-kit/output/server/entries/pages/_layout.ts.js                      0.55 kB
+.svelte-kit/output/server/entries/pages/_layout.svelte.js                  0.64 kB
 .svelte-kit/output/server/entries/pages/admin/_page.svelte.js              0.75 kB
 .svelte-kit/output/server/chunks/Icon.js                                   0.77 kB
 .svelte-kit/output/server/entries/pages/_page.svelte.js                    0.92 kB
@@ -75,9 +100,15 @@ rendering chunks...
 ## npm audit
 
 ```
-
+(non vérifié)
 ```
 
 ---
 
-*Rapport généré par `.github/workflows/Frontend.yml`*
+## Fichiers de build
+
+```
+build/ introuvable
+```
+
+*Rapport généré par `.github/scripts/generate-frontend-report.sh`*
