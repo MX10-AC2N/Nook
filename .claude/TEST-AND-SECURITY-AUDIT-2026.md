@@ -225,3 +225,10 @@ externe, exfiltrer des données, etc.
 ---
 
 *Rapport généré automatiquement — fix/notifications-and-chess-audit — 2026-04-02*
+
+---
+*2026-04-03 Session 48*
+- Tests E2E : 115 -> 165 (+50 tests) après corrections
+- 5 bugs CI corrigés : syntaxe TS, fixtures manquantes, scope adminPage, doublons
+- Coverage chess : 13 tests API + 2 tests UI
+- CI : 165/165 PASS, 0 fail, 1.8min
