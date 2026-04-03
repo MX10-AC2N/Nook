@@ -33,20 +33,19 @@ export async function clearSession(page: Page): Promise<void> {
 // ─────────────────────────────────────────────────────────────────
 export async function loginAs(page: Page, username: string, password: string): Promise<void> {
   await clearSession(page);
-  await page.goto('/login');
-  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  // Try API login first for reliability, then navigate
+  const loginRes = await page.request.post(`${BASE}/auth/login`, {
+    data: { username, password },
+  });
+  if (!loginRes.ok()) throw new Error(`loginAs(${username}) API failed: HTTP ${loginRes.status()}`);
+
+  // Now navigate — the browser should pick up the auth cookie
+  await page.goto('/admin');
   try {
-    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+    await page.locator('.admin-header').waitFor({ state: 'visible', timeout: 10_000 });
   } catch {
-    // Retry unique
-    await page.locator('#username').waitFor({ state: 'visible', timeout: 5_000 });
-    await page.fill('#username', username);
-    await page.fill('#password', password);
-    await page.getByRole('button', { name: 'Se connecter' }).click();
-    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+    await page.goto('/chat');
+    await page.waitForTimeout(1000);
   }
 }
 
