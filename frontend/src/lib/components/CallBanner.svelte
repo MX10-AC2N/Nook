@@ -1,198 +1,258 @@
 <script lang="ts">
+  /**
+   * CallBanner.svelte — Global notification banner for incoming WebRTC calls.
+   *
+   * Visible from any page (chat, settings, chess, etc.) when a call_request
+   * signal arrives.  Automatically hides when the user navigates to /call/*.
+   */
+
+  import { browser } from '$app/environment';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { browser } from '$app/environment';
   import { callStore, callManager } from '$lib/webrtc-calls.svelte.ts';
-  import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
 
-  interface PendingCall {
-    from_user_id: string;
-    from_user_name: string;
-    conversation_id: string;
+  interface PendingIncomingCall {
+    fromUserId: string;
+    fromUserName: string;
+    conversationId: string;
     callType: 'audio' | 'video';
   }
 
-  let pendingCall = $state<PendingCall | null>(null);
-  let isVisible = $state(false);
+  // ── Local state ──────────────────────────────────────────────────────
+  let incomingCall = $state<PendingIncomingCall | null>(null);
 
-  const isOnCallPage = $derived(
-    browser && ($page.url?.pathname?.startsWith('/call') ?? false)
+  const _hasPendingCall = $derived(incomingCall !== null);
+  const _onCallPage   = $derived(
+    $page.url.pathname.startsWith('/call/')
+  );
+  const _shouldShow   = $derived(
+    _hasPendingCall && !_onCallPage
   );
 
-  const callIcon = $derived(pendingCall?.callType === 'video' ? '\ud83d\udcf9' : '\ud83c\udfa4');
-  const callLabel = $derived(
-    pendingCall
-      ? (pendingCall.callType === 'video' ? 'Appel vid\u00e9o' : 'Appel audio')
-      : ''
-  );
+  // Icon based on call type
+  const _callIcon     = $derived(incomingCall?.callType === 'video' ? '📹' : '🎤');
+  const _callLabel    = $derived(incomingCall?.callType === 'video' ? 'Appel vidéo' : 'Appel audio');
 
-  $effect(() => {
-    if (pendingCall && !isOnCallPage) {
-      const t = setTimeout(() => { isVisible = true; }, 50);
-      callManager.startRingtone();
-      return () => clearTimeout(t);
-    } else {
-      isVisible = false;
-    }
-  });
-
-  $effect(() => {
-    if (!browser) return;
-
-    function handleIncomingCall(event: Event) {
-      const detail = (event as CustomEvent).detail;
-      if (detail && !callStore.isInCall) {
-        pendingCall = {
-          from_user_id: detail.from_user_id,
-          from_user_name: detail.from_user_name ?? detail.from_user_id,
-          conversation_id: detail.conversation_id ?? '',
-          callType: detail.callType ?? 'audio',
+  // ── Listen for the incoming-call custom event ─────────────────────────
+  if (browser) {
+    $effect(() => {
+      function onIncoming(e: Event) {
+        const ev = e as CustomEvent;
+        incomingCall = {
+          fromUserId:   ev.detail.from_user_id   ?? '',
+          fromUserName: ev.detail.from_user_name  ?? ev.detail.from_user_id ?? 'Inconnu',
+          conversationId: ev.detail.conversationId ?? '',
+          callType:     ev.detail.callType         ?? 'audio',
         };
+        // Start ringtone so the user hears it immediately
+        callManager.startRingtone();
       }
-    }
+      window.addEventListener('incoming-call', onIncoming);
+      return () => window.removeEventListener('incoming-call', onIncoming);
+    });
+  }
 
-    window.addEventListener('incoming-call', handleIncomingCall as EventListener);
-    return () => {
-      window.removeEventListener('incoming-call', handleIncomingCall as EventListener);
-    };
+  // ── Actions ───────────────────────────────────────────────────────────
+  function answerCall() {
+    if (!incomingCall) return;
+    const { conversationId, callType, fromUserId } = incomingCall;
+
+    // Stop ringtone — the call page will take over
+    callManager.stopRingtone();
+
+    // Set store state so downstream code knows we answered
+    callStore.isCalling = true;
+    callStore.callType  = callType;
+    callStore.currentConversationId = conversationId;
+
+    // Navigate to the call page (handles WebRTC negotiation)
+    goto(`/call/${conversationId}?type=${callType}`);
+
+    // Clear local state — banner hides because _onCallPage becomes true
+    incomingCall = null;
+  }
+
+  function declineCall() {
+    if (!incomingCall) return;
+    const { conversationId, fromUserId } = incomingCall;
+
+    // Stop ringtone
+    callManager.stopRingtone();
+
+    // Send rejection signal to caller
+    callManager.sendReject(conversationId, fromUserId);
+
+    // Clear local state -> banner disappears
+    incomingCall = null;
+  }
+
+  // If the user is already in an active call, clear any stale banner data
+  $effect(() => {
+    if (callStore.isInCall) {
+      incomingCall = null;
+    }
   });
-
-  async function handleAnswer() {
-    if (!pendingCall) return;
-    callManager.stopRingtone();
-    callStore.isAnswering = true;
-    callStore.currentConversationId = pendingCall.conversation_id;
-    callStore.callType = pendingCall.callType;
-
-    const localPc = pendingCall;
-    pendingCall = null;
-    isVisible = false;
-
-    try {
-      await callManager.startCall(
-        localPc.conversation_id,
-        [localPc.from_user_id],
-        localPc.callType
-      );
-      goto('/call/' + localPc.conversation_id + '?type=' + localPc.callType);
-    } catch (err) {
-      callStore.error = err instanceof Error ? err.message : 'Erreur lors de la r\u00e9ponse';
-      callStore.isAnswering = false;
-    }
-  }
-
-  async function handleReject() {
-    callManager.stopRingtone();
-    if (pendingCall) {
-      callManager.sendReject(pendingCall.from_user_id);
-      pendingCall = null;
-    }
-    isVisible = false;
-  }
 </script>
 
-{#if pendingCall && !isOnCallPage}
-  <div class="call-banner" class:visible={isVisible} data-theme={getCurrentTheme()}>
-    <div class="call-banner-ring">
-      <span class="ring-icon">{callIcon}</span>
-    </div>
-
-    <div class="call-banner-info">
-      <span class="call-banner-label">{callLabel}</span>
-      <span class="call-banner-caller">{pendingCall.from_user_name}</span>
-    </div>
-
-    <div class="call-banner-actions">
-      <button class="btn btn-answer" onclick={handleAnswer} aria-label="Decrocher">
-        Decrocher
-      </button>
-      <button class="btn btn-reject" onclick={handleReject} aria-label="Refuser">
-        Refuser
-      </button>
+{#if _shouldShow}
+  <div class="call-banner" role="alert" aria-live="polite">
+    <div class="banner-content">
+      <div class="banner-left">
+        <span class="ring-icon pulse">{_callIcon}</span>
+        <div class="caller-info">
+          <span class="caller-name">{incomingCall?.fromUserName}</span>
+          <span class="call-type">{_callLabel}</span>
+        </div>
+      </div>
+      <div class="banner-actions">
+        <button
+          class="btn-decline"
+          onclick={declineCall}
+          aria-label="Refuser l'appel"
+        >
+          ✕ Refuser
+        </button>
+        <button
+          class="btn-answer"
+          onclick={answerCall}
+          aria-label="Décrocher"
+        >
+          📞 Décrocher
+        </button>
+      </div>
     </div>
   </div>
 {/if}
 
 <style>
+  /* ── Banner shell ──────────────────────────────────────────────── */
   .call-banner {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 10000;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 1.25rem;
-    background: var(--bg-secondary, #1e1e2e);
+    z-index: 9999;
+    background: var(--bg-secondary, #ffffff);
     border-bottom: 2px solid var(--accent, #4ade80);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    transform: translateY(-100%);
-    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    animation: slideDown 0.35s ease-out;
   }
-  .call-banner.visible { transform: translateY(0); }
-  .call-banner-ring {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--accent, #4ade80);
+
+  @keyframes slideDown {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: translateY(0);        opacity: 1; }
+  }
+
+  .banner-content {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    animation: pulse-ring 1.5s ease-in-out infinite;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1.5rem;
+    max-width: 900px;
+    margin: 0 auto;
   }
-  .ring-icon { font-size: 2rem; }
-  @keyframes pulse-ring {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7); }
-    50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(74, 222, 128, 0); }
-  }
-  .call-banner-info {
-    flex: 1;
+
+  /* ── Left side: caller info ────────────────────────────────────── */
+  .banner-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     min-width: 0;
+  }
+
+  .ring-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .ring-icon.pulse {
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.6; transform: scale(1.15); }
+  }
+
+  .caller-info {
     display: flex;
     flex-direction: column;
-    gap: 0.125rem;
+    min-width: 0;
   }
-  .call-banner-label {
-    font-size: 0.75rem;
-    color: var(--text-muted, #666);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-  .call-banner-caller {
-    font-size: 1rem;
+
+  .caller-name {
+    font-size: 0.95rem;
     font-weight: 600;
-    color: var(--text-primary, #e0e0e0);
+    color: var(--text-primary, #1e293b);
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
   }
-  .call-banner-actions {
+
+  .call-type {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #64748b);
+  }
+
+  /* ── Right side: action buttons ────────────────────────────────── */
+  .banner-actions {
     display: flex;
     gap: 0.5rem;
     flex-shrink: 0;
   }
-  .btn {
-    padding: 0.5rem 1rem;
+
+  .btn-answer,
+  .btn-decline {
+    padding: 0.55rem 1rem;
     border: none;
     border-radius: 0.5rem;
-    font-size: 0.875rem;
-    font-weight: 700;
+    font-size: 0.9rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: all 0.2s ease;
     white-space: nowrap;
   }
-  .btn:hover { transform: translateY(-1px); }
-  .btn-answer { background: var(--accent, #4ade80); color: #000; }
-  .btn-answer:hover { background: #3cc66e; }
-  .btn-reject { background: var(--accent-danger, #ef4444); color: white; }
-  .btn-reject:hover { background: #dc2626; }
+
+  .btn-answer {
+    background: var(--accent, #4ade80);
+    color: #166534;
+  }
+  .btn-answer:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+
+  .btn-decline {
+    background: var(--accent-danger, #ef4444);
+    color: #ffffff;
+  }
+  .btn-decline:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+  }
+
+  /* ── Responsive ────────────────────────────────────────────────── */
   @media (max-width: 640px) {
-    .call-banner { flex-direction: column; gap: 0.5rem; padding: 0.75rem; }
-    .call-banner-ring { width: 40px; height: 40px; }
-    .call-banner-info { text-align: center; }
-    .call-banner-actions { width: 100%; }
-    .call-banner-actions .btn { flex: 1; }
+    .banner-content {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 0.75rem 1rem;
+      gap: 0.65rem;
+    }
+
+    .banner-left {
+      justify-content: center;
+    }
+
+    .banner-actions {
+      justify-content: center;
+    }
+
+    .btn-answer,
+    .btn-decline {
+      flex: 1;
+      text-align: center;
+    }
   }
 </style>
