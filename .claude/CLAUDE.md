@@ -302,6 +302,9 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 - **Bugs CI**: 5 corriges, 0 connu bloquant
 - **Coverage chess**: 34 tests, 67% categories couvertes
 
+### Commandes Chat Disponibles
+- `/fini` — Termine la session proprement: resume, update .claude docs, push state, exit.
+  *Voir `.claude/skills/nook-fin/SKILL.md` pour les details*
 ## 📖 Référence rapide des commandes slash
 
 | Commande | Agent | Skill lu | Résultat |
