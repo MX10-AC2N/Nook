@@ -800,6 +800,68 @@ class WebRTCCallManager {
     this.stopQualityMonitoring();
 
     // Reset de l'état réactif
+
+  // ══════════════════════════════════════════════════════════
+  // SFU CALLS — via backend SFU (rustrtc)
+  // ══════════════════════════════════════════════════════════
+
+  /** Demarre un appel SFU pour une conversation (3+ participants). */
+  public async startSfuCall(conversationId: string, participantIds: string[], type: 'audio' | 'video'): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
+
+    callStore.isCalling = true;
+    callStore.callType = type;
+    callStore.currentConversationId = conversationId;
+    callStore.useSfu = true;
+
+    // Obtenir le flux local
+    await this.setupLocalStream(type);
+
+    // Creer une PeerConnection locale pour le join SFU
+    await this.createPeerConnection(this.userId);
+    this.sendSignal({
+      type: 'sfu_join',
+      conversation_id: conversationId,
+      sdp: 'offer',
+    });
+  }
+
+  /** Le backend repond avec answer SDP + peers + renegotiate_offer. */
+  public handleSfuJoinResponse(data: { answer: string; peers: string[]; renegotiate_offer?: string }): void {
+    callStore.sfuAnswer = data.answer;
+    callStore.sfuPeers = data.peers;
+    callStore.sfuRenegotiateOffer = data.renegotiate_offer || null;
+    callStore.isCalling = false;
+    callStore.isInCall = true;
+  }
+
+  /** Le backend envoie une offre de renegotiation (nouvelles tracks). */
+  public handleSfuRenegotiateOffer(offer: string): void {
+    callStore.sfuPendingOffer = offer;
+    // On confirme la reception
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.sendSignal({
+        type: 'sfu_answer',
+        conversation_id: callStore.currentConversationId || '',
+        sdp: 'answer',
+      });
+    }
+  }
+
+  /** Le backend informe sur les peers actuels. */
+  public handleSfuPeers(data: { peers: string[] }): void {
+    callStore.sfuPeers = data.peers;
+  }
+
+  /** Arrete le mode SFU et retourne en P2P mesh. */
+  public async stopSfuMode(): Promise<void> {
+    callStore.useSfu = false;
+    callStore.sfuAnswer = null;
+    callStore.sfuRenegotiateOffer = null;
+    callStore.sfuPeers = [];
+    callStore.sfuPendingOffer = null;
+  }
+
     Object.assign(callStore, createInitialState());
   }
 
