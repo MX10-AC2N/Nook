@@ -2,130 +2,163 @@
 # generate-frontend-report.sh
 # Génère .claude/FRONTEND-BUILD-REPORT.md
 # Appelé par Frontend.yml
-# Variables d'environnement attendues :
-#   RUN_DATE, COMMIT_SHA, BRANCH, RUN_URL, BUILD_STATUS, NODE_VER
-#   BUILD_DURATION, OUTPUT_SIZE, FILE_COUNT
+# Variables d'env attendues : RUN_DATE, COMMIT_SHA, BRANCH, RUN_URL,
+#   BUILD_STATUS, NODE_VER, BUILD_DURATION, OUTPUT_SIZE, FILE_COUNT
 # Fichiers lus : /tmp/frontend-build.txt
 
 set -euo pipefail
-
 cd "${GITHUB_WORKSPACE:-.}"
 
-REPORT=".claude/FRONTEND-BUILD-REPORT.md"
-mkdir -p .claude
+RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+COMMIT_SHA="${{ github.sha }}"
+COMMIT_SHORT="${COMMIT_SHA:0:7}"
+BRANCH="${{ github.ref_name }}"
+RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+BUILD_STATUS="${{ steps.build.outputs.build_status }}"
+NODE_VER=$(node --version 2>/dev/null || echo "?")
+BUILD_DURATION="${{ steps.build.outputs.build_duration }}s"
+OUTPUT_SIZE="${{ steps.build.outputs.total_size }}"
+FILE_COUNT="${{ steps.build.outputs.file_count }}"
 
 [ "$BUILD_STATUS" = "OK" ] && STATUS_ICON="✅" || STATUS_ICON="❌"
 
-# ── Build Timing ──────────────────────────────────────────────────────
-VITE_MS=$(grep -oP 'built in \K[0-9.]+' /tmp/frontend-build.txt 2>/dev/null \| head -1 || echo "N/A")
+# ── Build Timing ────────────────────────────────────────────────
+VITE_MS=$(grep -oP 'built in \K[0-9.]+' /tmp/frontend-build.txt 2>/dev/null | head -1 || echo "N/A")
 [ -z "$VITE_MS" ] && VITE_MS="N/A"
 
-# ── Warnings ──────────────────────────────────────────────────────────
-WARNINGS=$(grep -E "WARNING|warning|\[WARNING\]" /tmp/frontend-build.txt 2>/dev/null \
-  | sed 's/\x1b\[[0-9;]*m//g' \
-  | grep -v "^$" | head -50 || echo "(aucun)")
+# ── Warning & Error Counts (trend tracking) ─────────────────────
+WARN_COUNT=$(grep -cE "WARNING|warning\b" /tmp/frontend-build.txt 2>/dev/null || echo "0")
+ERR_COUNT=$(grep -cE "^Error|error TS[0-9]+|✘ \[ERROR\]" /tmp/frontend-build.txt 2>/dev/null || echo "0")
+CHUNK_COUNT=$(grep -cE "kB|gzip" /tmp/frontend-build.txt 2>/dev/null || echo "0")
+[ ! -f /tmp/frontend-build.txt ] && WARN_COUNT="N/A"
+[ ! -f /tmp/frontend-build.txt ] && ERR_COUNT="N/A"
 
-# ── Erreurs ───────────────────────────────────────────────────────────
+# ── Route & Asset Listing ───────────────────────────────────────
+ASSET_LIST="(non disponible — build échoué ou absent)"
+if [ -d "frontend/build" ]; then
+  ASSET_LIST=$(find frontend/build -type f \( -name "*.html" -o -name "*.js" -o -name "*.css" \) \
+    -printf "%8s %P\n" 2>/dev/null | sort -rn | head -50 || echo "Aucun fichier trouvé")
+fi
+
+# ── Top 5 Largest Chunks (hotspots) ─────────────────────────────
+TOP_CHUNKS=$(grep -E "kB|gzip" /tmp/frontend-build.txt 2>/dev/null \
+  | sed 's/\x1b\[[0-9;]*m//g' | grep -v "^$" \
+  | sort -rn -k3 2>/dev/null | head -5 \
+  || echo "(non disponible)")
+
+# ── Warnings svelte-plugin-vite ─────────────────────────────────
+WARNINGS=$(grep -E "WARNING|warning\b|\[WARNING\]" /tmp/frontend-build.txt 2>/dev/null \
+  | sed 's/\x1b\[[0-9;]*m//g' \
+  | grep -v "^$" | head -30 || echo "(aucun)")
+
+# ── Erreurs TypeScript / Vite ───────────────────────────────────
 ERRORS=$(grep -E "^Error|error TS[0-9]+|✘ \[ERROR\]|SyntaxError|Cannot find|Module not found" \
   /tmp/frontend-build.txt 2>/dev/null \
-  | sed 's/\x1b\[[0-9;]*m//g' | head -50 || echo "(aucune)")
+  | sed 's/\x1b\[[0-9;]*m//g' | head -30 || echo "(aucune)")
 
-# ── Chunks (taille) ───────────────────────────────────────────────────
+# ── Chunks produits (taille finale du bundle) ───────────────────
 CHUNKS=$(grep -E "kB|gzip" /tmp/frontend-build.txt 2>/dev/null \
-  | sed 's/\x1b\[[0-9;]*m//g' | tail -30 || echo "(non disponible)")
+  | sed 's/\x1b\[[0-9;]*m//g' | tail -20 || echo "(non disponible)")
 
-# ── Résumé vite ───────────────────────────────────────────────────────
+# ── Résumé vite (modules transformés, timing) ───────────────────
 VITE_SUMMARY=$(grep -E "modules transformed|✓|vite v|rendering chunks|built in" \
   /tmp/frontend-build.txt 2>/dev/null \
   | sed 's/\x1b\[[0-9;]*m//g' | head -10 || echo "(non disponible)")
 
-# ── npm audit ─────────────────────────────────────────────────────────
+# ── npm audit (vulnérabilités) ──────────────────────────────────
 NPM_AUDIT=$(grep -E "vulnerabilit|high|critical|moderate|npm audit" \
   /tmp/frontend-build.txt 2>/dev/null \
   | sed 's/\x1b\[[0-9;]*m//g' | head -10 || echo "(non vérifié)")
 
-# ── Top 5 plus gros chunks ────────────────────────────────────────────
-TOP_CHUNKS=$(echo "$CHUNKS" | grep -E "[0-9]+\." | sort -t',' -k1 -rn | head -5 || echo "(non disponible)")
-
-# ── Liste fichiers de build ───────────────────────────────────────────
-BUILD_FILES="build/ introuvable"
-if [ -d build/ ]; then
-  BUILD_FILES=$(find build -type f | head -30)
-fi
-
+REPORT=".claude/FRONTEND-BUILD-REPORT.md"
 cat > "$REPORT" << ENDOFMD
-# 🎨 Frontend Build Report — Nook
+nd Build Report — Nook
 
-> Généré automatiquement par \`Frontend.yml\`
-> **${RUN_DATE}**
+utomatiquement par `Frontend.yml`
+DATE}**
 
----
 
-## Statut
 
-| Champ | Valeur |
-|-------|--------|
-| **Build** | ${STATUS_ICON} ${BUILD_STATUS:-INCONNU} |
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHA:0:7}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-| **Node.js** | \`${NODE_VER}\` |
-| **Build Time** | ${BUILD_DURATION} |
-| **Vite time** | ${VITE_MS} |
-| **Output Size** | ${OUTPUT_SIZE} |
-| **File Count** | ${FILE_COUNT} |
-| **Run** | [Voir le run](${RUN_URL}) |
 
----
 
-## Erreurs TypeScript / Vite
+Valeur |
+-------|
+* | ${STATUS_ICON} ${BUILD_STATUS:-INCONNU} |
+e** | `${BRANCH}` |
+** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+s** | `${NODE_VER}` |
+ Files** | ${FILE_COUNT} |
+| [Voir le run](${RUN_URL}) |
 
-\`\`\`
-${ERRORS}
-\`\`\`
 
----
 
-## Warnings svelte-vite-plugin (a11y, imports)
+d Metrics (AI Trend Tracking)
 
-\`\`\`
-${WARNINGS}
-\`\`\`
+ | Valeur |
+-|--------|
+Duration** | ${BUILD_DURATION} |
+uild Time** | ${VITE_MS}ms |
+Output Size** | ${OUTPUT_SIZE} |
+g Count** | ${WARN_COUNT} |
+Count** | ${ERR_COUNT} |
+Count** | ${CHUNK_COUNT} |
 
----
+ ces valeurs entre les runs pour détecter les régressions.*
 
-## Bundle — modules et tailles (gzip)
 
-\`\`\`
-${VITE_SUMMARY}
 
-${CHUNKS}
-\`\`\`
+argest Chunks (Hotspot Detection)
 
----
 
-## Top 5 plus gros chunks
+KS}
 
-\`\`\`
-${TOP_CHUNKS}
-\`\`\`
 
----
 
-## npm audit
 
-\`\`\`
-${NPM_AUDIT}
-\`\`\`
+ TypeScript / Vite
 
----
 
-## Fichiers de build
 
-\`\`\`
-${BUILD_FILES}
-\`\`\`
 
-*Rapport généré par \`.github/scripts/generate-frontend-report.sh\`*
-ENDOFMD
+
+
+
+s svelte-vite-plugin (a11y, imports)
+
+
+}
+
+
+
+
+— modules et tailles (gzip)
+
+
+MARY}
+
+
+
+
+
+
+Files & Routes
+
+
+ST}
+
+
+
+
+it
+
+
+T}
+
+
+
+
+énéré par `.github/workflows/Frontend.yml`*
+
 
 echo "✅ FRONTEND-BUILD-REPORT.md généré"
+cat "$REPORT"
