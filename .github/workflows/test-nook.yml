@@ -430,7 +430,7 @@ jobs:
           export COMMIT_SHA="${{ github.sha }}"
           export BRANCH="${{ github.ref_name }}"
           export REPO="${{ github.repository }}"
-          python3 scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
+          python3 .github/scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
           echo "Rapport généré"
           head -20 .claude/TEST_REPORT.md
 
