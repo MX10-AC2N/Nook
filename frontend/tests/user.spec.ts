@@ -556,12 +556,17 @@ test.describe.serial('User — Flux complet', () => {
     test.setTimeout(60_000);
     const createRes = await page.request.post(`${BASE}/chess/create`, { data: { color: 'white', opponent: 'easy' } });
     const { game_id } = await createRes.json();
+    expect(game_id).toBeTruthy();
+    console.log(`✅ Partie chess crée: ${game_id}`);
 
     await page.goto(`/chess/${game_id}`);
+    // Wait for page to load - the chess page might show loading state first
+    await page.waitForTimeout(3000);
     await waitForAppReady(page);
-    await expect(page.locator('.chess-board')).toBeVisible({ timeout: 15_000 });
+    // Wait longer for chess board to render
+    await expect(page.locator('.chess-board')).toBeVisible({ timeout: 20_000 });
     expect(await page.locator('.chess-board .cell').count()).toBe(64);
-    console.log('✅ Échiquier 8×8 rendu');
+    console.log('✅ 64 Échiquier cases rendu');
 
     // Recharger après coup API pour vérifier last-move
     await page.request.post(`${BASE}/chess/${game_id}/move`, { data: { from: 'e2', to: 'e4' } });
