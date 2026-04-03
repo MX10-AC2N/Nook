@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
-# ARCH is passed as env var from workflow
+ARCH=$(echo "$TARGET" | grep -q "aarch64" && echo "arm64" || echo "amd64")
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
 COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
@@ -102,7 +102,7 @@ REPORT=".claude/BACKEND-BUILD-REPORT-${ARCH}.md"
 cat > "$REPORT" << ENDOFMD
 nd Build Report — ${ARCH} — Nook
 
-utomatiquement par `Backend.yml` · target `${TARGET}`
+utomatiquement par `Backend.yml` · target `$TARGET`
 DATE}**
 
 
