@@ -10,8 +10,8 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHORT="${COMMIT_SHA:0:7}"
-RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+# COMMIT_SHORT passed via workflow env
+# RUN_URL passed via workflow env
 NODE_VER=$(node --version 2>/dev/null || echo "?")
 
 [ "$BUILD_STATUS" = "OK" ] && STATUS_ICON="✅" || STATUS_ICON="❌"
