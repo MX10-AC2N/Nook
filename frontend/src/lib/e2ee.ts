@@ -102,7 +102,6 @@ export class E2EE {
     );
     return new TextDecoder().decode(decrypted);
   }
-// Dans la classe E2EE
 async addMemberToConversation(convoId: string, newMemberPubkeyB64: string, newMemberUserId: string) {
   await initSodium();
   const groupKey = this.groupKeys.get(convoId) || await this.loadGroupKey(convoId);
@@ -127,7 +126,8 @@ async rotateGroupKey(convoId: string, remainingMembers: Record<string, string>) 
   this.groupKeys.set(convoId, newGroupKey);
 }
 
-// Utilisation dans ton store chat :
+
 }
+// Utilisation dans ton store chat :
 const e2ee = new E2EE();
 // Dans +layout.svelte ou après login : await e2ee.init(currentUser.id);
