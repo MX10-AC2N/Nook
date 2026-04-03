@@ -184,6 +184,20 @@
   function goBack() {
     goto('/chat');
   }
+
+  function toggleSfuMode() {
+    if (callStore.useSfu) {
+      callManager.stopSfuMode();
+    } else {
+      const nonSelf = participants.value.filter((p) => p.id !== authStore.user?.id);
+      if (nonSelf.length >= 2) {
+        callManager.startSfuCall(conversationId, nonSelf.map((p) => p.id), callType);
+      } else {
+        callStore.error = 'SFU requires at least 3 participants';
+      }
+    }
+  }
+
 </script>
 
 <svelte:head>
@@ -212,6 +226,16 @@
         <h1 class="call-title">{callTitle}</h1>
         {#if callStore.isInCall || callStartedAt > 0}
           <span class="call-timer">{formattedDuration}</span>
+
+          {#if callStore.useSfu}
+            <span class="sfu-badge" title="Mode SFU (serveur relais)">
+              🌐 SFU
+              {#if callStore.sfuPeers.length > 0}
+                · {callStore.sfuPeers.length} pairs
+              {/if}
+            </span>
+          {/if}
+
           {#if callStore.isInCall}
             <span class="quality-badge" class:good={callStore.callQuality === 'good'} class:fair={callStore.callQuality === 'fair'} class:poor={callStore.callQuality === 'poor'}>
               {#if callStore.callQuality === 'good'}✅
@@ -330,6 +354,19 @@
             <span class="ctrl-icon">{callStore.isScreenSharing ? '🖥️❌' : '🖥️'}</span>
             <span class="ctrl-label">Ecran</span>
           </button>
+
+
+          {#if callStore.sfuPeers.length >= 2}
+            <button
+              onclick={toggleSfuMode}
+              class="ctrl-btn"
+              class:active={callStore.useSfu}
+              aria-label={callStore.useSfu ? 'Mode P2P' : 'Mode SFU'}
+            >
+              <span class="ctrl-icon">{callStore.useSfu ? '🌐' : '🔗'}</span>
+              <span class="ctrl-label">{callStore.useSfu ? 'P2P' : 'SFU'}</span>
+            </button>
+          {/if}
 
           <button onclick={endCall} class="ctrl-btn hangup" aria-label="Raccrocher">
             <span class="ctrl-icon">📵</span>
@@ -888,4 +925,17 @@
       width: 100%;
     }
   }
+
+  .sfu-badge {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    background: var(--accent, #4ade80);
+    color: #000;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
 </style>
