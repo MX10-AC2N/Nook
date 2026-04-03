@@ -111,6 +111,8 @@ jobs:
           RUN_DATE: "${{ env.run_date }}"
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           RUSTC_VER: "${{ env.rustc_ver }}"
           BUILD_STATUS: "${{ steps.build.outputs.build_status }}"
@@ -121,9 +123,6 @@ jobs:
           WARNINGS_COUNT: "${{ steps.build.outputs.warnings_count }}"
           ERRORS_COUNT: "${{ steps.build.outputs.errors_count }}"
           NEW_WARNINGS: "${{ steps.build.outputs.new_warnings }}"
-          REPO: "${{ github.repository }}"
-          RUN_ID: "${{ github.run_id }}"
-          TARGET: "${{ matrix.target }}"
         run: bash .github/scripts/generate-backend-report.sh
 
       - name: Commit BACKEND-BUILD-REPORT-{arch}.md
