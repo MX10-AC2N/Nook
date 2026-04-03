@@ -160,8 +160,7 @@ test.describe('Sécurité — Mot de passe faible → rejeté', () => {
 });
 
 test.describe('Sécurité — Change password autre user → 403', () => {
-  test('User normal change pwd autre user → 403 (secuite)')
-    # Second occurrence renamed to avoid duplicate, async ({ request }) => {
+  test('User normal change pwd autre user → 403 (secuite)', async ({ request }) => {
     // Login e2e_ci
     const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'e2e_ci', password: 'E2eTest123!' },
