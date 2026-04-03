@@ -766,6 +766,7 @@ test.describe.serial('User — Flux complet', () => {
   });
 
 });
+});
 
 // ══════════════════════════════════════════════════════════════
 // RATE LIMITING — suite isolée
