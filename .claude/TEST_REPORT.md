@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-03 08:38 UTC**
+> Généré par `test-nook.yml` · **2026-04-03 09:01 UTC**
 
 ---
 
@@ -13,7 +13,7 @@
 | **Tests échoués** | 3 |
 | **Tests ignorés** | 0 |
 | **Total** | 164 |
-| **Durée** | 1.0m 15s |
+| **Durée** | 1.0m 16s |
 | **Branche** | `develop` |
 | **Commit** | [`unknown`](https://github.com/MX10-AC2N/Nook/commit/unknown) |
 | **Run CI** | [Voir le run complet](#) |
@@ -320,10 +320,10 @@ ReferenceError: adminPage is not defined
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6f3da287-e288-42ae-8756-1921a93593b5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2b24d08d-f4f2-4603-af48-64fa3f25ceb5 username=e2e_ci
 ```
 
 ---
@@ -348,4 +348,4 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=6
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 08:38 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-03 09:01 UTC*
