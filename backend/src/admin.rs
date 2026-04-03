@@ -55,6 +55,46 @@ pub struct DeleteInvitePayload {
 
 // ====================== HANDLERS (avec CurrentUser) ======================
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/metrics
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn get_system_metrics(
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> impl IntoResponse {
+    if user.role != "admin" {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin uniquement" }))).into_response();
+    }
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let cpu = sys.global_cpu_usage();
+    let mem_used = sys.used_memory();
+    let mem_total = sys.total_memory();
+    let uptime = System::uptime();
+    let la = System::load_average();
+    let mut disks = Vec::new();
+    for d in sys.disks() {
+        disks.push(json!({
+            "mount": d.mount_point().to_string_lossy().to_string(),
+            "total_mb": d.total_space() / 1_048_576,
+            "avail_mb": d.available_space() / 1_048_576,
+        }));
+    }
+    Json(json!({
+        "cpu_usage_percent": cpu,
+        "memory_used_mb": mem_used / 1_048_576,
+        "memory_total_mb": mem_total / 1_048_576,
+        "uptime_seconds": uptime,
+        "load_avg_one": la.one,
+        "load_avg_five": la.five,
+        "disks": disks,
+        "process_count": sys.processes().len(),
+    })).into_response()
+}
+
 pub async fn pending_users(
     AxumState(state): AxumState<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
