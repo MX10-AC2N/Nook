@@ -255,7 +255,7 @@ pub async fn list_polls(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
-    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls ORDER BY created_at DESC LIMIT 100")
+    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls WHERE (closed_at IS NULL OR closed_at > datetime('now')) ORDER BY created_at DESC LIMIT 100")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
