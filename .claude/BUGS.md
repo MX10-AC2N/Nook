@@ -121,3 +121,11 @@ store.prop = newValue;
 - BUG-CI-003 : adminPage non defini dans 3 describe blocks (admin.spec.ts) — ✅ FIXE
 - BUG-CI-004 : Page fixture manquant Call page (user.spec.ts) — ✅ FIXE
 - BUG-CI-005 : Status code attendu erronné (201 manquant) — ✅ FIXE
+---
+*2026-04-03 Session 48 — Tous les bugs CI corriges*
+- BUG-CI-001: Titre test duplique api-sanity.spec.ts — FIXE
+- BUG-CI-002: Test Chess UI jamais ferme user.spec.ts — FIXE
+- BUG-CI-003: adminPage non defini dans describe blocks admin.spec.ts — FIXE
+- BUG-CI-004: Page fixture manquante Call page user.spec.ts — FIXE
+- BUG-CI-005: Status code 201 manquant api-sanity.spec.ts — FIXE
+- **CI: 165/165 PASS** ✅
