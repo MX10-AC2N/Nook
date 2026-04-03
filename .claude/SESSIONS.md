@@ -797,3 +797,90 @@ async function loginAs(page: Page, username: string, password: string) {
 - **Validation systematique** : toujours un `npx playwright test --list` local avant push
 - **Fixer les fixtures Page** : si un test utilise `page`, il doit avoir `async ({ page }) =>` ou `async () =>` sans page
 - **adminPage scope** : chaque describe block qui utilise `adminPage` doit avoir son propre `let adminPage + beforeAll`
+<details>
+<summary><h3>Session 48 — Resume Complet (cliquer pour deployer)</h3></summary>
+
+## Contexte
+
+Session initiale: Audit de la couverture des tests E2E chess dans le projet Nook.
+Projet: **Nook** — messagerie familiale self-hebergee, Rust/Axum + SvelteKit + SQLite.
+Branche: `develop` | Repo: MX10-AC2N/Nook
+
+## Progres Realises
+
+### 🏁 Session Terminee — 165/165 tests E2E passent (0 echec, 1.8min)
+
+### Audit Tests Chess
+- **34 tests chess** identifies sur 3 fichiers (api-sanity, user, chess-extended)
+- **12/18 categories couvertes** (67% coverage)
+- Couvert: Creation IA/humain, coups legaux/illegaux, AI moves, resign, invitations, auth 401, 
+           UI plateau 64 cases, promotion API+UI, timer, navigation/historique, jeu en noir
+- Non couvert: Roque (castling), En passant, mat/pat, drag/drop UI, regles 50 coups, repetition position
+
+### Corrections CI (5 bugs critiques corriges)
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Titre test duplique | api-sanity.spec.ts:400 | Renomme en "Upload sec -- fichier vide refuse" |
+| Test Chess UI jamais ferme | user.spec.ts:555 | Ajoute `});` manquant apres try/catch |
+| Fixture {page} manquante | user.spec.ts:917 | `async () =>` → `async ({ page }) =>` |
+| adminPage scope | admin.spec.ts:330,360,465 | Ajoute `let + beforeAll` dans 3 describe blocks |
+| Status 201 manquant | api-sanity.spec.ts:314 | Ajoute 201 dans `[200, 201, 409]` |
+
+### Conventions E2E (nouvelles regles dans critical-pitfalls.md)
+1. `npx playwright test --list` obligatoire AVANT chaque push
+2. Tests avec `page` ⇒ `{ page }` obligatoire dans signature async
+3. Chaque `describe` utilisant `adminPage` ⇒ son propre `let + beforeAll`
+4. Titres de tests UNIQUES par describe scope
+5. Fermeture systematique de chaque test avec `});`
+
+## Decisions Cles
+- Validation locale systematique avant push (fin du cycle push-echec-repush)
+- Architecture tests: 3 fichiers spec (admin 540L, user 1008L, api-sanity 534L) + helpers.ts
+- Coverage chess a 67% — reste a couvrir: roque, en passant, mat/pat, drag/drop UI
+
+## Todo Prochaines Etapes
+### Priorite haute
+- [ ] Corriger scripts bash pre-tests CI (erreurs syntaxe upload/poll/WS) — non bloquant mais pollue les logs
+- [ ] Migration Node.js 24 (deprecation juin 2026)
+- [ ] Ajouter tests roque (castling)
+- [ ] Ajouter tests en passant
+- [ ] Ajouter tests mat/pat detection
+
+### Priorite moyenne
+- [ ] Tests UI drag/drop mouvement pieces
+- [ ] Tests validation coups cote UI (avant envoi API)
+- [ ] Tests regles speciales (50 coups, repetition triple)
+- [ ] Tests clock management UI (timer visible, timeout)
+- [ ] Audit SEC-07 (WebRTC sans auth), SEC-09 (CSP), SEC-10 (headers securite)
+
+### Backlog
+- [ ] Nettoyer 3 workflows candidats suppression
+- [ ] Fusionner 2 workflows duplicats (cargo-lock)
+- [ ] Decider ci-new2.yml vs Backend.yml+Docker.yml
+
+## Risques
+1. **Node.js 20 deprecation** — juin 2026, necessite migration actions
+2. **Scripts bash CI** — erreurs de syntaxe cachees par `|| true` (XSS, upload, polls, events, WS)
+3. **Test chess resign** — parfois flaky (401 au lieu de 200 si session expiree)
+4. **Pas de test E2E WebRTC** — webrtc.spec.ts existe mais non integre au CI
+
+## Fichiers Modifies (Session 48)
+- `frontend/tests/admin.spec.ts` (540L) — +28 lignes adminPage scope
+- `frontend/tests/user.spec.ts` (1008L) — +1 ligne fermeture test, +1 ligne fixture
+- `frontend/tests/api-sanity.spec.ts` (534L) — +1 titre unique, +1 status 201
+- `.claude/SESSIONS.md` — Session 48 ajoutee
+- `.claude/E2E-TARGETED-REPORT.md` — mis a jour 165/165
+- `.claude/BUGS.md` — 5 bugs marques fixes
+- `.claude/CLAUDE.md` — statut CI mis a jour
+- `.claude/rules/critical-pitfalls.md` — 6 nouvelles regles E2E
+- `.claude/TEST-AND-SECURITY-AUDIT-2026.md` — mis a jour
+
+## Etat Final
+- **Branche**: develop
+- **CI**: 165/165 PASS | 0 fail | 1.8min
+- **Backend**: build OK (nook-backend v0.5.0-beta.1, 2m46s)
+- **Docker**: image nook-ci:local OK
+- **Git**: Tout commit et push sur origin/develop
+- **Zero fichier modifie en attente** (clean state)
+
+</details>
