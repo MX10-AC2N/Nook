@@ -10,17 +10,11 @@
 set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
-ARCH=$(echo "$ARCH_TARGET" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+# ARCH is set via workflow env
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="$BRANCH"
-RUN_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
 RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
-BUILD_STATUS="$BUILD_STATUS"
-BIN_SIZE="$BIN_SIZE"
-CHECK_EXIT="$CHECK_EXIT"
-CLIPPY_EXIT="$CLIPPY_EXIT"
 
 [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
 [ "$CHECK_EXIT"  = "0" ]   && CHECK_ICON="✅"  || CHECK_ICON="❌"
@@ -113,7 +107,7 @@ Valeur |
 -------|
 ecture** | `${ARCH}` (`$ARCH_TARGET`) |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHA:0:7}`](https://github.com/$GITHUB_REPOSITORY/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHA:0:7}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
  | `${RUSTC_VER}` |
 ** | [Voir le run complet](${RUN_URL}) |
 
