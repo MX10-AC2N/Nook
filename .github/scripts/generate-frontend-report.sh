@@ -13,7 +13,7 @@ RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
 RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
 NODE_VER=$(node --version 2>/dev/null || echo "?")
-BUILD_DURATION="${BUILD_DURATION}s"
+# BUILD_DURATION is set via workflow env
 
 [ "$BUILD_STATUS" = "OK" ] && STATUS_ICON="✅" || STATUS_ICON="❌"
 
