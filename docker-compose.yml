@@ -61,6 +61,19 @@ services:
     networks:
       - nook-network
 
+  turn:
+    image: ghcr.io/mycrl/turn-rs:latest
+    container_name: nook-turn
+    restart: unless-stopped
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+    environment:
+      - TURN_REALM=nook.local
+      - TURN_SECRET=${TURN_SECRET:-change_this_secret}
+    networks:
+      - nook-network
+
 networks:
   nook-network:
     driver: bridge

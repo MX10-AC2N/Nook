@@ -4,6 +4,23 @@ import { goto } from '$app/navigation';
 import type { CallSignal } from './types';
 import { authStore } from './authStore.svelte.js';
 
+/** Génère les credentials TURN long-term (RFC 5389). */
+async function generateTurnCredentials(secret: string, validityHours = 24): Promise<{ username: string; credential: string }> {
+  const username = String(Math.floor(Date.now() / 1000) + (validityHours * 3600));
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const msgData = encoder.encode(username);
+  const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+  const credential = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return { username, credential };
+}
+
+// ── Configuration TURN/STUN (100% self-hosted via turn-rs) ────
+const TURN_SECRET = 'change_this_secret'; // TODO: read from env/config
+const TURN_HOST = '192.168.1.100'; // TODO: read from env/config (or window.location.hostname)
+const TURN_PORT = 3478;
+
 // -----------------------------------------------------------------
 // 1️⃣ Types & état réactif (Svelte 5)
 // -----------------------------------------------------------------
@@ -142,12 +159,18 @@ class WebRTCCallManager {
   }
 
   /** Crée (ou récupère) une RTCPeerConnection pour un participant distant. */
-  private createPeerConnection(remoteUserId: string): RTCPeerConnection {
+  private async createPeerConnection(remoteUserId: string): Promise<RTCPeerConnection> {
+    // Génère des credentials TURN dynamiques (expirent après validityHours)
+    const turnHost = (typeof window !== 'undefined' && window.location.hostname) || TURN_HOST;
+    const creds = await generateTurnCredentials(TURN_SECRET);
+    const iceServers: RTCIceServer[] = [
+      { urls: `stun:${turnHost}:${TURN_PORT}` },
+      { urls: `turn:${turnHost}:${TURN_PORT}?transport=udp`, username: creds.username, credential: creds.credential },
+      { urls: `turn:${turnHost}:${TURN_PORT}?transport=tcp`, username: creds.username, credential: creds.credential },
+    ];
+
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun.relay.metered.ca:80' },
-      ],
+      iceServers,
       iceCandidatePoolSize: 10,
     });
 
@@ -321,7 +344,7 @@ class WebRTCCallManager {
       }
     }
 
-    const pc = this.createPeerConnection(signal.from_user_id);
+    const pc = await this.createPeerConnection(signal.from_user_id);
     try {
       await pc.setRemoteDescription(
         new RTCSessionDescription({ type: 'offer', sdp: signal.sdp })
@@ -481,7 +504,7 @@ class WebRTCCallManager {
 
   /** Initialise un appel (offer) vers un utilisateur distant. */
   private async initiateCallWithUser(remoteUserId: string): Promise<void> {
-    const pc = this.createPeerConnection(remoteUserId);
+    const pc = await this.createPeerConnection(remoteUserId);
     try {
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
