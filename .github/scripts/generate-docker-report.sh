@@ -10,16 +10,16 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="$COMMIT_SHA"
+# COMMIT_SHA is set via workflow env
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="$BRANCH"
-RUN_URL="$RUN_URL"
-VERSION="$VERSION"
-AMD64_SIZE="$AMD64_SIZE"
-ARM64_SIZE="$ARM64_SIZE"
-FRONT_FILES="$FRONT_FILES"
-IMAGE="ghcr.io/$REPO"
-PUSH_DIGEST="$PUSH_DIGEST"
+# BRANCH is set via workflow env
+# RUN_URL is set via workflow env
+# VERSION is set via workflow env
+# AMD64_SIZE is set via workflow env
+# ARM64_SIZE is set via workflow env
+# FRONT_FILES is set via workflow env
+# IMAGE is set via workflow env
+# PUSH_DIGEST is set via workflow env
 
 [ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
 
