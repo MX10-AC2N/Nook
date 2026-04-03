@@ -10,16 +10,11 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="$BRANCH"
-RUN_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-VERSION="$VERSION"
+RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
 AMD64_SIZE="$AMD64_SIZE"
 ARM64_SIZE="$ARM64_SIZE"
-FRONT_FILES="$FRONT_FILES"
-IMAGE="ghcr.io/$GITHUB_REPOSITORY"
-PUSH_DIGEST="$PUSH_DIGEST"
+IMAGE="ghcr.io/$REPO"
 
 [ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
 
@@ -56,7 +51,7 @@ n** | `${VERSION}` |
 * | `${IMAGE}` |
 ** | `${PUSH_DIGEST:-N/A}` |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHA:0:7}`](https://github.com/$GITHUB_REPOSITORY/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHA:0:7}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
 | [Voir le run](${RUN_URL}) |
 
 
