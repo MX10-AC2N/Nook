@@ -10,3 +10,11 @@
 - Ne jamais utiliser `?` dans les queries SQLx sans `query!` macro
 - `tokio::spawn` sans `move` sur les closures qui capturent des variables
 - Oublier de mettre à jour `Cargo.lock` après un changement de dépendance
+---
+### Tests E2E — regles de validation (2026-04-03)
+1. **TOUJOURS** faire `npx playwright test --list` avant push pour valider la syntaxe
+2. Chaque `test()` utilise `page` DOIT avoir `async ({ page }) =>` (pas `async () =>`)
+3. Chaque `describe` qui utilise `adminPage` DOIT avoir son propre `let adminPage: Page;` + `test.beforeAll`
+4. Les titres de test doivent etre UNIQUES dans la meme scope describe — pas de doublons
+5. Chaque test doit se terminer par `});` — verifier les blocs try/catch ne laissent pas de test ouvert
+6. Quand le backend renvoie 201 au lieu de 200, inclure 201 dans les assertions `.toContain([200, 201, 409])`
