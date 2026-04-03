@@ -10,6 +10,7 @@ import CallBanner from '$lib/components/CallBanner.svelte';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
   import { cryptoStore } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
+  import CallBanner from '$lib/components/CallBanner.svelte';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -211,6 +212,8 @@ import CallBanner from '$lib/components/CallBanner.svelte';
       >🔌</button>
     {/if}
   </header>
+
+  <CallBanner />
 
   {#if showMenu}
     <button
