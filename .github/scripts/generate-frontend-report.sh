@@ -10,15 +10,15 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-# COMMIT_SHA is set via workflow env
+# COMMIT_SHA is provided by workflow env
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-# BRANCH is set via workflow env
-# RUN_URL is set via workflow env
-# BUILD_STATUS is set via workflow env
+# BRANCH is provided by workflow env
+RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
+# BUILD_STATUS is provided by workflow env
 NODE_VER=$(node --version 2>/dev/null || echo "?")
-# BUILD_DURATION is set via workflow env
-# OUTPUT_SIZE is set via workflow env
-# FILE_COUNT is set via workflow env
+# BUILD_DURATION is provided by workflow env
+# OUTPUT_SIZE is provided by workflow env
+# FILE_COUNT is provided by workflow env
 
 [ "$BUILD_STATUS" = "OK" ] && STATUS_ICON="✅" || STATUS_ICON="❌"
 
