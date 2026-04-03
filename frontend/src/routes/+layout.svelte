@@ -1,4 +1,6 @@
-<script lang="ts">
+<script
+import CallBanner from '$lib/components/CallBanner.svelte';
+ lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -441,3 +443,5 @@
     .error-content { padding: 1.5rem; }
   }
 </style>
+
+<CallBanner />
