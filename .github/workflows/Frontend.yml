@@ -62,6 +62,8 @@ jobs:
           BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
           OUTPUT_SIZE: "${{ steps.build.outputs.total_size }}"
           FILE_COUNT: "${{ steps.build.outputs.file_count }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-frontend-report.sh
 
       - name: Commit FRONTEND-BUILD-REPORT.md
