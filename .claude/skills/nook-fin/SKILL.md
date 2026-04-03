@@ -105,12 +105,97 @@ Pour CHAQUE fichier pertinent, verifier et mettre a jour:
 | `.claude/TEST-AND-SECURITY-AUDIT-2026.md` | ✅ Mettre a jour si audit fait |
 | `.claude/TEST_REPORT.md` | ✅ Mettre a jour si CI run |
 
-### 5. Creer/mettre a jour les skills
-Si de nouvelles conventions ou workflows ont ete etablis:
-- Verifier si un skill existant doit etre mis a jour (patch)
-- Sinon, proposer de creer un nouveau skill
+### 5. Creer/mettre a jour les skills pertinents
 
-### 6. Verification finale
+**Analyse : identifier ce qui a ete accompli pendant la session**
+
+Examiner les changements de la session et determiner quels skills doivent etre crees ou mis a jour :
+
+| Si la session a touche... | Skill a verifier/creer |
+|---------------------------|----------------------|
+| Tests E2E, CI, Playwright | `nook-e2e-testing` |
+| Backend Rust, Axum, API | `nook-rust-backend` |
+| Frontend Svelte, UI, CSS | `nook-svelte-frontend` |
+| DevOps, Docker, deploy | `nook-ci-devops` |
+| Review code, PR, audit | `nook-review` |
+| Planification, roadmap | `nook-plan-ceo` ou `nook-plan-eng` |
+| Retro, retrospective | `nook-retro` |
+| Ship, release, version | `nook-ship` |
+| Nouveau domaine non couvert | Creer un NOUVEAU skill |
+
+**Procedure pour chaque skill concerne :**
+
+```python
+# a) Charger le skill existant pour voir son contenu actuel
+# skill_view(name='nook-e2e-testing')
+
+# b) Identifier les sections qui doivent etre mises a jour :
+#    - Nouvelles conventions decouvertes pendant la session
+#    - Nouveaux patterns de code utilises
+#    - Nouveaux bugs/solutions documentes
+#    - Changements d'architecture
+
+# c) Mettre a jour avec skill_manage(action='patch', name='...', ...)
+#    ou skill_manage(action='edit', name='...', content='...') pour reecriture majeure
+
+# d) Creer un NOUVEAU skill si un domaine n'est pas couvert :
+#    skill_manage(action='create', name='nook-[domaine]', ...)
+```
+
+**Checklist skills :**
+- [ ] Lister tous les skills existants du projet (`skills/` dans `.claude/`)
+- [ ] Pour chaque skill, demander : "Est-ce que cette session a ajoute des connaissances pertinentes pour ce skill ?"
+- [ ] Si OUI → patcher le skill avec les nouvelles info
+- [ ] Si un domaine important n'a pas de skill → creer un nouveau skill
+- [ ] Pousser les skills modifies sur `origin/develop`
+
+### 5b. Enrichir la memoire persistante (Hermes memory)
+
+**C'est CRITIQUE** — sans ca, la prochaine session ne saura pas ce qui a ete fait.
+
+Utiliser le `memory` tool pour sauvegarder :
+
+```
+1. Memoriser les decisions d'architecture prises
+   → memory(action='add', target='memory', content='Decision: [quoi] pour [raison]')
+
+2. Memoriser les bugs et leurs solutions
+   → memory(action='add', target='memory', content='Bug [X]: [symptome] → Fix: [solution]')
+
+3. Memoriser les conventions etablies
+   → memory(action='add', target='memory', content='Convention: [regle] — etablie [date]')
+
+4. Memoriser l'etat actuel du projet
+   → memory(action='add', target='memory', content='Etat projet: [branches, CI, coverage, etc.]')
+
+5. Memoriser les prochaines etapes prioritaires
+   → memory(action='add', target='memory', content='Next: [tache 1], [tache 2]')
+
+6. Mettre a jour les entrees existantes si elles sont obsolete
+   → memory(action='replace', target='memory', old_text='[ancien]', content='[nouveau]')
+```
+
+**Regles pour la memoire :**
+- Garder compact — max 2000 chars total dans la section memory
+- Prioriser ce qui EVITE que l'agent refasse les memes erreurs
+- Inclure le contexte necessaire pour reprendre le travail
+- Supprimer les entrees devenues obsolete (action='remove')
+- TOUJOURS inclure la date dans les entrees
+
+**Exemple de ce a sauvegarder :**
+```
+Decision: `npx playwright test --list` obligatoire avant push tests — evite les push avec syntax errors
+Bug-CI: Test Chess UI (user.spec.ts:555) manquait `});` — verifier fermeture tests apres modif conventions
+E2E: 165/165 tests PASS, coverage chess 67% (roque, en passant, mat non couverts)
+Backend: nook-backend v0.5.0-beta.1, build 2m46s, SQLX_OFFLINE=true
+Next: Tests roque/en passant, scripts bash CI, migration Node 24
+```
+
+### 6. Pousser les skills modifies
+Pousser TOUS les skills qui ont ete crees ou modifies sur `origin/develop` via le push script.
+Verifier que chaque fichier `.claude/skills/*/SKILL.md` modifie est bien pousse.
+
+### 7. Verification finale
 ```bash
 # Git state
 cd /tmp/nook-repo
@@ -126,20 +211,22 @@ cd /tmp/nook-repo/backend
 cargo check --quiet
 ```
 
-### 7. Push final
+### 8. Push final
 Pousser TOUS les changements sur `origin/develop` en une seule operation batch si possible.
 
-### 8. Message de sortie
+### 9. Message de sortie
 ```
 ## 🚪 Session Terminee
 
 ✅ Resume: .claude/SESSIONS.md
 ✅ Bugs: .claude/BUGS.md
 ✅ Contexte: .claude/CLAUDE.md updated
-✅ Skills: mis a jour si necessaire
+✅ Skills: crees/mis a jour selon la session
+✅ Memoire: enrichie avec decisions, bugs, conventions, etat projet
 ✅ Git: tout commit et push sur origin/develop
 ✅ Etat: [165/165 PASS | 0 fail | clean]
 
+Prochaine session: dire `/fini` pour quitter proprement a nouveau.
 A la prochaine! 💪
 ```
 
