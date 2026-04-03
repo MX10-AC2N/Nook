@@ -454,7 +454,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
-                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
+                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate", "sfu_join", "sfu_candidate", "sfu_leave"];
 
                     if webrtc_types.contains(&msg_type) {
                         let to_user_id = json_val
@@ -494,7 +494,42 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                         // Messages non-WebRTC (chat, chess, etc.) → broadcast global
                         let _ = broadcast_tx_for_receive.send(text_str);
                     }
+
+            // ━━━ SFU Signalization ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        } else if msg_type == "sfu_join" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
+                    match handle_sfu_join_ws(&state.sfu_state, &user_id, conv_id, offer, &tx).await {
+                        Ok(resp) => {
+                            let resp_msg = serde_json::json!({
+                                "type": "sfu_answer",
+                                "answer": resp.answer,
+                                "peers": resp.peers,
+                            }).to_string();
+                            let _ = tx.send(resp_msg);
+                        }
+                        Err(e) => {
+                            let err_msg = serde_json::json!({
+                                "type": "sfu_error",
+                                "error": e,
+                            }).to_string();
+                            let _ = tx.send(err_msg);
+                        }
+                    }
                 }
+            }
+        } else if msg_type == "sfu_candidate" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
+                    let _ = handle_sfu_candidate_ws(&state.sfu_state, &user_id, conv_id, candidate).await;
+                }
+            }
+        } else if msg_type == "sfu_leave" {
+            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                let _ = handle_sfu_leave_ws(&state.sfu_state, &user_id, conv_id).await;
+            }
+        }
+
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
                 }
