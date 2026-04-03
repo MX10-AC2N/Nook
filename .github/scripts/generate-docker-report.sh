@@ -10,16 +10,16 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="${{ github.sha }}"
+COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="${{ github.ref_name }}"
-RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-VERSION="${{ steps.version.outputs.tag }}"
-AMD64_SIZE="${{ steps.ctx.outputs.amd64_size }}"
-ARM64_SIZE="${{ steps.ctx.outputs.arm64_size }}"
-FRONT_FILES="${{ steps.ctx.outputs.front_files }}"
-IMAGE="ghcr.io/${{ github.repository }}"
-PUSH_DIGEST="${{ steps.push.outputs.digest }}"
+BRANCH="$BRANCH"
+RUN_URL="$RUN_URL"
+VERSION="$VERSION"
+AMD64_SIZE="$AMD64_SIZE"
+ARM64_SIZE="$ARM64_SIZE"
+FRONT_FILES="$FRONT_FILES"
+IMAGE="ghcr.io/$REPO"
+PUSH_DIGEST="$PUSH_DIGEST"
 
 [ -n "$PUSH_DIGEST" ] && PUSH_STATUS="✅ OK" || PUSH_STATUS="❌ FAIL"
 
@@ -56,7 +56,7 @@ n** | `${VERSION}` |
 * | `${IMAGE}` |
 ** | `${PUSH_DIGEST:-N/A}` |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHORT}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
 | [Voir le run](${RUN_URL}) |
 
 
