@@ -10,17 +10,17 @@
 set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
-ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+ARCH=$(echo "$TARGET" | grep -q "aarch64" && echo "arm64" || echo "amd64")
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="${{ github.sha }}"
+COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="${{ github.ref_name }}"
-RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+BRANCH="$BRANCH"
+RUN_URL="$RUN_URL"
 RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
-BUILD_STATUS="${{ steps.build.outputs.build_status }}"
-BIN_SIZE="${{ steps.build.outputs.bin_size }}"
-CHECK_EXIT="${{ steps.check.outputs.check_exit }}"
-CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
+BUILD_STATUS="$BUILD_STATUS"
+BIN_SIZE="$BIN_SIZE"
+CHECK_EXIT="$CHECK_EXIT"
+CLIPPY_EXIT="$CLIPPY_EXIT"
 
 [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
 [ "$CHECK_EXIT"  = "0" ]   && CHECK_ICON="✅"  || CHECK_ICON="❌"
@@ -102,7 +102,7 @@ REPORT=".claude/BACKEND-BUILD-REPORT-${ARCH}.md"
 cat > "$REPORT" << ENDOFMD
 nd Build Report — ${ARCH} — Nook
 
-utomatiquement par `Backend.yml` · target `${{ matrix.target }}`
+utomatiquement par `Backend.yml` · target `$TARGET`
 DATE}**
 
 
@@ -111,9 +111,9 @@ global : ${GLOBAL_STATUS}
 
 Valeur |
 -------|
-ecture** | `${ARCH}` (`${{ matrix.target }}`) |
+ecture** | `${ARCH}` (`$TARGET`) |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHORT}`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHORT}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
  | `${RUSTC_VER}` |
 ** | [Voir le run complet](${RUN_URL}) |
 
@@ -227,7 +227,7 @@ nces (Cargo.toml)
 
 
 
-énéré par `.github/workflows/Backend.yml` · job `${{ matrix.target }}`*
+énéré par `.github/workflows/Backend.yml` · job `$TARGET`*
 
 
 echo "✅ ${REPORT} généré"
