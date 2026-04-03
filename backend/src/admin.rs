@@ -4,6 +4,7 @@
 //               à default_global → GET /api/conversations retournait [] après approbation
 
 use crate::{auth::CurrentUser, SharedState};
+use sysinfo::{System, SystemExt, CpuExt};
 use axum::{extract::{State as AxumState, Path}, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
