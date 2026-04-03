@@ -10,15 +10,10 @@ set -euo pipefail
 cd "${GITHUB_WORKSPACE:-.}"
 
 RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-COMMIT_SHA="$COMMIT_SHA"
 COMMIT_SHORT="${COMMIT_SHA:0:7}"
-BRANCH="$BRANCH"
-RUN_URL="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-BUILD_STATUS="$BUILD_STATUS"
+RUN_URL="https://github.com/$REPO/actions/runs/$RUN_ID"
 NODE_VER=$(node --version 2>/dev/null || echo "?")
 BUILD_DURATION="$BUILD_DURATIONs"
-OUTPUT_SIZE="$OUTPUT_SIZE"
-FILE_COUNT="$FILE_COUNT"
 
 [ "$BUILD_STATUS" = "OK" ] && STATUS_ICON="✅" || STATUS_ICON="❌"
 
@@ -85,7 +80,7 @@ Valeur |
 -------|
 * | ${STATUS_ICON} ${BUILD_STATUS:-INCONNU} |
 e** | `${BRANCH}` |
-** | [`${COMMIT_SHA:0:7}`](https://github.com/$GITHUB_REPOSITORY/commit/${COMMIT_SHA}) |
+** | [`${COMMIT_SHA:0:7}`](https://github.com/$REPO/commit/${COMMIT_SHA}) |
 s** | `${NODE_VER}` |
  Files** | ${FILE_COUNT} |
 | [Voir le run](${RUN_URL}) |
