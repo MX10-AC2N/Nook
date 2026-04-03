@@ -2,7 +2,7 @@
 // SFU (Selective Forwarding Unit) pour appels groupe 3+ participants.
 // Relais les flux media entre pairs via la crate rustrtc.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rustrtc::{
