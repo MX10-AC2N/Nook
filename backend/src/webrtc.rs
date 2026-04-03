@@ -454,7 +454,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
-                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate", "sfu_join", "sfu_candidate", "sfu_leave"];
+                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
 
                     if webrtc_types.contains(&msg_type) {
                         let to_user_id = json_val
@@ -463,7 +463,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                         match to_user_id {
                             Some(target) if !target.is_empty() => {
-                                // Routage direct vers le destinataire
                                 let guard = state_recv.webrtc_state.user_senders.lock().await;
                                 if let Some(target_tx) = guard.get(target) {
                                     let _ = target_tx.send(text_str.clone());
@@ -480,71 +479,63 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                                         "WebRTC signal : destinataire non connecté"
                                     );
                                 }
-                                // call_request : aussi envoyer à l'expéditeur pour confirmation
                             }
                             _ => {
-                                // Pas de to_user_id (ex: join/leave) → broadcast global
                                 let guard = state_recv.webrtc_state.broadcasts.lock().await;
                                 for (_, tx) in guard.iter() {
                                     let _ = tx.send(text_str.clone());
                                 }
                             }
                         }
+                    } else if msg_type == "sfu_join" {
+                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                            if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
+                                match state_recv.sfu_state.handle_join(&user_id_recv, conv_id, offer).await {
+                                    Ok(resp) => {
+                                        let resp_msg = serde_json::json!({
+                                            "type": "sfu_answer",
+                                            "answer": resp.answer,
+                                            "peers": resp.peers,
+                                            "renegotiate_offer": resp.renegotiate_offer,
+                                        }).to_string();
+                                        let _ = tx.send(resp_msg);
+                                    }
+                                    Err(e) => {
+                                        let err_msg = serde_json::json!({
+                                            "type": "sfu_error",
+                                            "error": e,
+                                        }).to_string();
+                                        let _ = tx.send(err_msg);
+                                    }
+                                }
+                            }
+                        }
+                    } else if msg_type == "sfu_answer" {
+                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                            if let Some(answer) = json_val.get("sdp").and_then(|s| s.as_str()) {
+                                let _ = state_recv.sfu_state.handle_answer(&user_id_recv, conv_id, answer).await;
+                            }
+                        }
+                    } else if msg_type == "sfu_candidate" {
+                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                            if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
+                                let _ = state_recv.sfu_state.handle_candidate(&user_id_recv, conv_id, candidate).await;
+                            }
+                        }
+                    } else if msg_type == "sfu_leave" {
+                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
+                            let result = state_recv.sfu_state.remove_peer(&user_id_recv, conv_id).await;
+                            if let Ok(remaining) = result {
+                                let msg = serde_json::json!({
+                                    "type": "sfu_peers",
+                                    "peers": remaining,
+                                }).to_string();
+                                let _ = tx.send(msg);
+                            }
+                        }
                     } else {
-                        // Messages non-WebRTC (chat, chess, etc.) → broadcast global
                         let _ = broadcast_tx_for_receive.send(text_str);
-
-            // ━━━ SFU Signalisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        } else if msg_type == "sfu_join" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
-                    match state.sfu_state.handle_join(&user_id, conv_id, offer).await {
-                        Ok(resp) => {
-                            let resp_msg = serde_json::json!({
-                                "type": "sfu_answer",
-                                "answer": resp.answer,
-                                "peers": resp.peers,
-                                "renegotiate_offer": resp.renegotiate_offer,
-                            }).to_string();
-                            let _ = tx.send(resp_msg);
-                        }
-                        Err(e) => {
-                            let err_msg = serde_json::json!({
-                                "type": "sfu_error",
-                                "error": e,
-                            }).to_string();
-                            let _ = tx.send(err_msg);
-                        }
                     }
-                }
-            }
-        } else if msg_type == "sfu_answer" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                if let Some(answer) = json_val.get("sdp").and_then(|s| s.as_str()) {
-                    let _ = state.sfu_state.handle_answer(&user_id, conv_id, answer).await;
-                }
-            }
-        } else if msg_type == "sfu_candidate" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
-                    let _ = state.sfu_state.handle_candidate(&user_id, conv_id, candidate).await;
-                }
-            }
-        } else if msg_type == "sfu_leave" {
-            if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                let result = state.sfu_state.remove_peer(&user_id, conv_id).await;
-                if let Ok(remaining) = result {
-                    let msg = serde_json::json!({
-                        "type": "sfu_peers",
-                        "peers": remaining,
-                    }).to_string();
-                    let _ = tx.send(msg);
-                }
-            }
-        }
-
-            // ━━━ SFU Signalization ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        }
 
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
