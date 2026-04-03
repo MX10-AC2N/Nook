@@ -129,3 +129,32 @@ store.prop = newValue;
 - BUG-CI-004: Page fixture manquante Call page user.spec.ts — FIXE
 - BUG-CI-005: Status code 201 manquant api-sanity.spec.ts — FIXE
 - **CI: 165/165 PASS** ✅
+
+
+## 🌐 SFU — Limitations connues
+
+### SFU-001: Pas de test E2E SFU
+- **Problème:** Aucune couverture test pour le flux SFU complet
+- **Impact:** Régression possible sur le signaling SFU
+- **Priorité:** Moyenne
+- **Fix proposé:** Ajouter tests dans call.spec.ts pour sfu_join/sfu_answer/sfu_candidate
+
+### SFU-002: Pas de gestion DataChannel dans le SFU
+- **Problème:** Les DataChannels sont ignorés dans setup_peer_events
+- **Impact:** Pas de chat texte via SFU DataChannel (mais géré par WS Nook)
+- **Priorité:** Basse — le chat texte utilise déjà le WS Nook
+
+### SFU-003: Pas de simulcast
+- **Problème:** Le SFU relaye une seule qualité de stream
+- **Impact:** Tous les participants reçoivent la même résolution
+- **Priorité:** Basse — acceptable pour usage familial
+
+### SFU-004: Pas de stats de call qualité côté serveur
+- **Problème:** Le backend ne track pas les stats SFU (bandwidth, fps, etc.)
+- **Impact:** Difficile de debugger les problèmes de qualité
+- **Priorité:** Moyenne
+
+### SFU-005: Renegotiation pas testée
+- **Problème:** Le flux sfu_renegotiate_offer → sfu_answer n'est pas testé en production
+- **Impact:** Possible échec quand un nouveau participant rejoint un appel en cours
+- **Priorité:** Haute — à tester ASAP
