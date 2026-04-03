@@ -368,7 +368,20 @@ pub async fn create_poll(
     }
 
     match load_poll(&state.db, &poll_id, &user.id).await {
-        Some(p) => (StatusCode::CREATED, Json(json!({ "poll": p }))).into_response(),
+        Some(p) => {
+            // Broadcast WS notification: new_poll created
+            let notif = serde_json::json!({
+                "type": "new_poll",
+                "poll_id": poll_id,
+                "title": question,
+                "options": options.len(),
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() {
+                let _ = tx.send(notif.clone());
+            }
+            (StatusCode::CREATED, Json(json!({ "poll": p }))).into_response()
+        }
         None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({}))).into_response(),
     }
 }
