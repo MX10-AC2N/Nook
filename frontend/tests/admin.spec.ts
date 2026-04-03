@@ -481,6 +481,13 @@ test.describe('Admin — Analytics', () => {
 });
 
 test.describe('Admin — Approve user + login flow', () => {
+
+  let adminPage: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    adminPage = await browser.newPage();
+    await loginAsAdmin(adminPage);
+  });
   let newUserId = '';
 
   test('Register + Approve + Login → accès complet', async ({ browser, request, page }) => {
