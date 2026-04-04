@@ -6,20 +6,7 @@
 //   2. Re-login avec nouveau mot de passe → arrivée sur /admin
 //   3. Parcourt toutes les fonctionnalités admin : membres, invitations, approbations, analytics
 //   4. Flux inscription d'un nouvel utilisateur → approbation admin
-//   5. Gestion des invitations (g
-// Shared admin page — module scope for all admin description blocks
-let adminPage: Page;
-
-test.beforeAll(async ({ browser }) => {
-    adminPage = await browser.newPage();
-    await loginAsAdmin(adminPage);
-});
-
-test.afterAll(async () => {
-    if (adminPage) await adminPage.close();
-});
-
-énération + suppression)
+//   5. Gestion des invitations (génération + suppression)
 //   6. Tests analytics complets
 //   7. Vérification isolation : user normal → 403 sur routes admin
 //
@@ -43,18 +30,28 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => {
     if (adminPage) await adminPage.close();
 });
+// frontend/tests/admin.spec.ts
+// Flux admin complet — reproduit le parcours réel d'un administrateur Nook.
+//
+// SÉQUENCE RÉELLE :
+//   1. Premier login → needs_password_change=true → change le mot de passe
+//   2. Re-login avec nouveau mot de passe → arrivée sur /admin
+//   3. Parcourt toutes les fonctionnalités admin : membres, invitations, approbations, analytics
+//   4. Flux inscription d'un nouvel utilisateur → approbation admin
+//   5. Gestion des invitations (génération + suppression)
+//   6. Tests analytics complets
+//   7. Vérification isolation : user normal → 403 sur routes admin
+//
+// OPTIMISATION RATE LIMIT :
+//   loginAsAdmin() dans beforeAll → 1 seul login pour toute la suite.
+
+import { test, expect, type Page } from '@playwright/test';
+import {
+  loginAsAdmin, loginAs, loginViaAPI, waitForAppReady, clearSession,
+  BASE, ADMIN_NEW_PASSWORD, E2E_USER, E2E_PASS,
+} from './helpers';
+
 test.describe.serial('Admin — Flux complet', () => {
-
-
-
-  test.beforeAll(async ({ browser }) => {
-    adminPage = await browser.newPage();
-    await loginAsAdmin(adminPage);
-  });
-
-  test.afterAll(async () => {
-    await adminPage.close();
-  });
 
   // ══════════════════════════════════════════════════════════════
   // 1. CONNEXION & PAGE ADMIN
@@ -506,12 +503,6 @@ test.describe('Admin — Analytics', () => {
 
 test.describe('Admin — Approve user + login flow', () => {
 
-  let adminPage: Page;
-
-  test.beforeAll(async ({ browser }) => {
-    adminPage = await browser.newPage();
-    await loginAsAdmin(adminPage);
-  });
   let newUserId = '';
 
   test('Register + Approve + Login → accès complet', async ({ browser, request, page }) => {
