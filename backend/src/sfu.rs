@@ -43,7 +43,7 @@ pub struct Peer {
 
 /// Une room SFU (liee a un conversation_id).
 pub struct Room {
-    pub room_id: String,
+    pub _room_id: String,
     pub peers: RwLock<HashMap<String, Arc<Peer>>>,
     pub tracks: RwLock<Vec<Arc<TrackInfo>>>,
 }
@@ -86,7 +86,7 @@ impl SfuState {
         rooms
             .entry(conversation_id.to_string())
             .or_insert_with(|| Arc::new(Room {
-                room_id: conversation_id.to_string(),
+                _room_id: conversation_id.to_string(),
                 peers: RwLock::new(HashMap::new()),
                 tracks: RwLock::new(Vec::new()),
             }))
