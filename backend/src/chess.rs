@@ -24,8 +24,7 @@ use crate::chess_engine::{
 };
 use crate::{auth::CurrentUser, SharedState};
 use axum::{
-use axum::extract::State;
-    extract::{Path, Query, State as AxumState},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -204,7 +203,7 @@ fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, St
 // ════════════════════════════════════════════════════════════════
 
 pub async fn create_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(req): Json<CreateGameRequest>,
 ) -> impl IntoResponse {
@@ -297,7 +296,7 @@ pub async fn create_game(
 }
 
 pub async fn list_games(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     type Row = (String, String, String, Option<String>, i64);
@@ -325,7 +324,7 @@ pub async fn list_games(
 }
 
 pub async fn get_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -396,7 +395,7 @@ pub async fn get_game(
 }
 
 pub async fn join_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -479,7 +478,7 @@ pub async fn join_game(
 }
 
 pub async fn make_move(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Json(req): Json<MakeMoveRequest>,
@@ -683,7 +682,7 @@ pub async fn make_move(
 }
 
 pub async fn ai_move(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     body: Option<axum::extract::Json<AiMoveRequest>>,
@@ -867,7 +866,7 @@ pub async fn ai_move(
 }
 
 pub async fn resign_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -931,7 +930,7 @@ pub async fn resign_game(
 }
 
 pub async fn legal_moves(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Query(params): Query<LegalMovesQuery>,
@@ -1005,7 +1004,7 @@ pub async fn legal_moves(
 // ════════════════════════════════════════════════════════════════
 
 pub async fn invite_player(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Json(req): Json<InvitePlayerRequest>,
@@ -1041,7 +1040,7 @@ pub async fn invite_player(
 }
 
 pub async fn my_invitations(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let rows: Vec<(String, String, i32, String)> = sqlx::query_as(
@@ -1056,7 +1055,7 @@ pub async fn my_invitations(
 }
 
 pub async fn accept_invitation(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(inv_id): Path<String>,
 ) -> impl IntoResponse {
@@ -1095,7 +1094,7 @@ pub async fn accept_invitation(
 }
 
 pub async fn decline_invitation(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(inv_id): Path<String>,
 ) -> impl IntoResponse {
