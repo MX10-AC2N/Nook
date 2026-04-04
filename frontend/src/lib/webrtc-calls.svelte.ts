@@ -364,34 +364,33 @@ class WebRTCCallManager {
               from_user_name: signal.from_user_name ?? signal.from_user_id,
               conversationId: signal.conversationId,
               callType: signal.callType ?? 'audio',
-        // ━━━ SFU Signalisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        case 'sfu_answer':
-          if (signal.answer) {
-            this.handleSfuJoinResponse({
-              answer: signal.answer as string,
-              peers: signal.peers as string[] || [],
-              renegotiate_offer: signal.renegotiate_offer as string,
-            });
-          }
-          break;
-        case 'sfu_renegotiate_offer':
-          if (signal.offer) {
-            this.handleSfuRenegotiateOffer(signal.offer as string);
-          }
-          break;
-        case 'sfu_peers':
-          if (signal.peers) {
-            this.handleSfuPeers({ peers: signal.peers as string[] });
-          }
-          break;
-        case 'sfu_error':
-          callStore.error = (signal.error as string) || 'SFU error';
-          callStore.isCalling = false;
-          break;
-
             }
           }));
         }
+        break;
+      // ━━━ SFU Signalisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      case 'sfu_answer':
+        if (signal.answer) {
+          this.handleSfuJoinResponse({
+            answer: signal.answer as string,
+            peers: signal.peers as string[] || [],
+            renegotiate_offer: signal.renegotiate_offer as string,
+          });
+        }
+        break;
+      case 'sfu_renegotiate_offer':
+        if (signal.offer) {
+          this.handleSfuRenegotiateOffer(signal.offer as string);
+        }
+        break;
+      case 'sfu_peers':
+        if (signal.peers) {
+          this.handleSfuPeers({ peers: signal.peers as string[] });
+        }
+        break;
+      case 'sfu_error':
+        callStore.error = (signal.error as string) || 'SFU error';
+        callStore.isCalling = false;
         break;
       case 'call_accepted':
         this.stopRingtone();
