@@ -102,14 +102,8 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
         "image/gif" if !magic.starts_with(b"GIF8") => {
             return Err("Fichier invalide : magic bytes GIF attendus");
         }
-        "image/webp" => {
-            // RIFF....WEBP
-            let is_webp = magic.len() >= 12
-                && magic.starts_with(b"RIFF")
-                && &magic[8..12] == b"WEBP";
-            if !is_webp {
-                return Err("Fichier invalide : magic bytes WebP attendus");
-            }
+        "image/webp" if !(magic.len() >= 12 && magic.starts_with(b"RIFF") && magic.len() >= 12 && &magic[8..12] == b"WEBP") => {
+            return Err("Fichier invalide : magic bytes WebP attendus");
         }
         "application/pdf" if !magic.starts_with(b"%PDF") => {
             return Err("Fichier invalide : magic bytes PDF attendus");
@@ -121,6 +115,7 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
             if !trimmed.starts_with("<?xml") && !trimmed.starts_with("<svg") {
                 return Err("Fichier invalide : contenu SVG/XML attendu");
             }
+            #[allow(clippy::collapsible_match)]
         }
         // Types non vérifiés : vidéo, audio, texte, octet-stream → permissif
         _ => {}
