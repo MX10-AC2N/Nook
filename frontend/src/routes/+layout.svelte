@@ -1,6 +1,4 @@
-<script
-import CallBanner from '$lib/components/CallBanner.svelte';
- lang="ts">
+<script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
