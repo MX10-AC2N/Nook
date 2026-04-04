@@ -105,7 +105,7 @@ pub async fn pending_users(
     let users: Vec<SimpleUser> = sqlx::query_as(
         "SELECT id, username, name, created_at, role, approved FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
-    .fetch_all(&state.db)
+    .fetch_all(&State.db)
     .await
     .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
     .into_iter()
