@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 // ================================================================
 // Structures
@@ -171,7 +171,7 @@ impl SfuState {
         };
 
         // Collecter les autres participants
-        let others = {
+        let others: Vec<String> = {
             let peers = room.peers.read().await;
             peers.keys().filter(|k| *k != user_id).cloned().collect()
         };
