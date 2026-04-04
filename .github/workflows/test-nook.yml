@@ -216,7 +216,7 @@ jobs:
 
           if [ -n "$ADMIN_COOKIE" ]; then
             echo "Login admin (changeme2026): OK"
-            ADMIN_ID=$(python3 /tmp/get_admin_id.py /tmp/admin-body.txt 2>/dev/null || echo "")
+            ADMIN_ID=$(python3 -c "import json;print(json.load(open('/tmp/admin-body.txt')).get('user',{}).get('id',''))" 2>/dev/null || echo "")
 
             if [ -n "$ADMIN_ID" ]; then
               CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password \
@@ -250,7 +250,7 @@ jobs:
           echo "=== auth/me ==="
           ME=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/auth/me)
           echo "/auth/me: $ME"
-          ADMIN_ID=$(echo "$ME" | python3 /tmp/get_admin_id.py - 2>/dev/null || echo "")
+          ADMIN_ID=$(echo "$ME" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("user",{}).get("id",""))' 2>/dev/null || echo "")
 
           # Register + approve
           echo "=== Register + approve ==="
@@ -261,7 +261,7 @@ jobs:
           sleep 2
           PENDING=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/users/pending)
           echo "Pending: $PENDING"
-          E2E_ID=$(echo "$PENDING" | python3 /tmp/get_e2e_id.py - 2>/dev/null || echo "")
+          E2E_ID=$(echo "$PENDING" | python3 -c 'import sys,json;d=json.load(sys.stdin);us=d if isinstance(d,list) else d.get("users",[]);[print(u["id"]) for u in us if u.get("username")=="e2e_ci"]' 2>/dev/null || echo "")
           if [ -n "$E2E_ID" ]; then
             curl -s -X POST http://localhost:6300/api/users/approve \
               -H "Content-Type: application/json" \
@@ -279,7 +279,7 @@ jobs:
           echo "XSS: $XSS"
 
           echo "=== Upload fichier vide ==="
-          MY_USER_ID=$(echo "$ME" | python3 /tmp/get_admin_id.py - 2>/dev/null || echo "")
+          MY_USER_ID=$(echo "$ME" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("user",{}).get("id",""))' 2>/dev/null || echo "")
           UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat \
             -H "Cookie: $ADMIN_COOKIE" \
             -F "file=@/dev/null" \
@@ -344,7 +344,7 @@ WS_EOF
             -H "Content-Type: application/json" \
             -H "Cookie: $ADMIN_COOKIE" \
             -d '{"question":"Test CI?","options":["Oui","Non"],"expires_in_hours":1}')
-          POLL_ID=$(echo "$POLL" | python3 /tmp/get_id.py - 2>/dev/null || echo "")
+          POLL_ID=$(echo "$POLL" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
           if [ -n "$POLL_ID" ]; then
             VOTE=$(curl -s -X POST "http://localhost:6300/api/polls/$POLL_ID/votes" \
               -H "Content-Type: application/json" \
@@ -360,7 +360,7 @@ WS_EOF
             -H "Content-Type: application/json" \
             -H "Cookie: $ADMIN_COOKIE" \
             -d '{"title":"Test CI","date":"2026-04-02","description":"Event CI","time":"10:00"}')
-          EVT_ID=$(echo "$EVT" | python3 /tmp/get_id.py - 2>/dev/null || echo "")
+          EVT_ID=$(echo "$EVT" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
           if [ -n "$EVT_ID" ]; then
             curl -s -X DELETE "http://localhost:6300/api/events/$EVT_ID" -H "Cookie: $ADMIN_COOKIE"
           fi
