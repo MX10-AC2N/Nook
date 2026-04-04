@@ -144,10 +144,6 @@ class WebRTCCallManager {
     } catch { /* AudioContext non disponible */ }
   }
 
-
-  public stopRingtone(): void {
-    if (this.ringtoneInterval) {
-      clearInterval(this.ringtoneInterval);
       this.ringtoneInterval = null;
     }
     if (this.ringtoneCtx) {
