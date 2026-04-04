@@ -62,7 +62,6 @@ services:
       - nook-network
 
   turn:
-    profiles: [production]
     image: ghcr.io/mycrl/turn-rs:latest
     container_name: nook-turn
     restart: unless-stopped
