@@ -24,6 +24,7 @@ use crate::chess_engine::{
 };
 use crate::{auth::CurrentUser, SharedState};
 use axum::{
+use axum::extract::State;
     extract::{Path, Query, State as AxumState},
     http::StatusCode,
     response::IntoResponse,
