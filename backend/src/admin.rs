@@ -92,7 +92,7 @@ pub async fn get_system_metrics(
 }
 
 pub async fn pending_users(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
