@@ -380,8 +380,8 @@ impl SfuState {
                         {
                             let peers = room_clone.peers.read().await;
                             for (other_id, other_peer) in peers.iter() {
-                                if *other_id == user_id { continue; }
-                                let source_key = format!("{}:{}:{:?}", user_id, peer_id, kind);
+                                if *other_id == uid { continue; }
+                                let source_key = format!("{}:{}:{:?}", uid, peer_id, kind);
                                 {
                                     let added = other_peer.added_sources.read().await;
                                     if added.contains(&source_key) {
@@ -401,7 +401,7 @@ impl SfuState {
                                             let mut added = other_peer.added_sources.write().await;
                                             added.insert(source_key.clone());
                                         }
-                                        info!(from=%user_id, to=%other_id, kind=?kind, "SFU track relayed to peer");
+                                        info!(from=%uid, to=%other_id, kind=?kind, "SFU track relayed to peer");
 
                                         // Forward PLI/RTCP de l autre peer vers la source
                                         let remote_track = track.clone();
@@ -447,7 +447,7 @@ impl SfuState {
                                 }
                                 if source.send(sample).await.is_err() { break; }
                             }
-                            info!(user=%user_id, kind=?kind, "SFU forward loop ended");
+                            info!(user=%uid, kind=?kind, "SFU forward loop ended");
                         });
 
                         // PLI periodique toutes les 3 secondes
