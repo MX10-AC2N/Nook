@@ -364,7 +364,7 @@ impl SfuState {
                         let track_info = Arc::new(TrackInfo {
                             relay,
                             remote_track: track.clone(),
-                            user_id: user_id.clone(),
+                            user_id: uid.clone(),
                             peer_id,
                             kind,
                             params: params.clone(),
