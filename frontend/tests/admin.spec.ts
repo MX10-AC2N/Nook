@@ -6,7 +6,20 @@
 //   2. Re-login avec nouveau mot de passe → arrivée sur /admin
 //   3. Parcourt toutes les fonctionnalités admin : membres, invitations, approbations, analytics
 //   4. Flux inscription d'un nouvel utilisateur → approbation admin
-//   5. Gestion des invitations (génération + suppression)
+//   5. Gestion des invitations (g
+// Shared admin page — module scope for all admin description blocks
+let adminPage: Page;
+
+test.beforeAll(async ({ browser }) => {
+    adminPage = await browser.newPage();
+    await loginAsAdmin(adminPage);
+});
+
+test.afterAll(async () => {
+    if (adminPage) await adminPage.close();
+});
+
+énération + suppression)
 //   6. Tests analytics complets
 //   7. Vérification isolation : user normal → 403 sur routes admin
 //
@@ -19,9 +32,19 @@ import {
   BASE, ADMIN_NEW_PASSWORD, E2E_USER, E2E_PASS,
 } from './helpers';
 
+// Shared admin page — module scope for all admin describe blocks
+let adminPage: Page;
+
+test.beforeAll(async ({ browser }) => {
+    adminPage = await browser.newPage();
+    await loginAsAdmin(adminPage);
+});
+
+test.afterAll(async () => {
+    if (adminPage) await adminPage.close();
+});
 test.describe.serial('Admin — Flux complet', () => {
 
-let adminPage: Page;
 
 
   test.beforeAll(async ({ browser }) => {
