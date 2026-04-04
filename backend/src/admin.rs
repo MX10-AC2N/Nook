@@ -62,7 +62,7 @@ pub struct DeleteInvitePayload {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub async fn get_system_metrics(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     if user.role != "admin" {
@@ -92,7 +92,7 @@ pub async fn get_system_metrics(
 }
 
 pub async fn pending_users(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -123,7 +123,7 @@ pub async fn pending_users(
 }
 
 pub async fn all_users(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -161,7 +161,7 @@ pub async fn all_users(
 }
 
 pub async fn approve_user(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<ApprovePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -206,7 +206,7 @@ pub async fn approve_user(
 }
 
 pub async fn list_invites(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<InvitesResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -227,7 +227,7 @@ pub async fn list_invites(
 }
 
 pub async fn delete_invite(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<DeleteInvitePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -277,7 +277,7 @@ pub struct AnalyticsResponse {
 }
 
 pub async fn get_analytics(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<AnalyticsResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -365,7 +365,7 @@ pub async fn get_analytics(
 /// Supprimer un membre (ADMIN ONLY)
 /// DELETE /api/users/{id}
 pub async fn delete_user(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(admin)): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> impl IntoResponse {
