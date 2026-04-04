@@ -796,44 +796,6 @@ test.describe.serial('Rate Limiting', () => {
 });
 
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CALL PAGE — UI et navigation (fix S45)
-// ─────────────────────────────────────────────────────────────────────────────
-test.describe('Call page', () => {
-
-  test('/call/default_global → page charge avec titre "Appel"', async ({ browser }) => {
-    const page = await browser.newPage();
-    await clearSession(page);
-    await loginAs(page, E2E_USER, E2E_PASS);
-    await page.waitForURL(/chat/);
-
-    await page.goto(`${BASE.replace('/api', '')}/call/default_global`);
-    await page.waitForLoadState('networkidle');
-    const title = await page.title();
-    expect(title.toLowerCase()).toContain('appel');
-  });
-
-  test('/call/default_global → page call charge correctement', async ({ browser }) => {
-    const cPage = await browser.newPage();
-    await clearSession(cPage);
-    await loginAs(cPage, E2E_USER, E2E_PASS);
-    await cPage.goto('/call/default_global');
-    await cPage.waitForTimeout(3000);
-    const text = await cPage.locator('body').textContent().catch(() => '');
-    expect(text.length).toBeGreaterThan(30);
-    console.log(`✅ /call/default_global OK (${text.length} chars)`);
-    await cPage.close();
-  });
-
-  test('/call/[id] sans auth → redirige vers /login', async ({ browser }) => {
-    const page = await browser.newPage();
-    await clearSession(page);
-    await page.goto(`${BASE.replace('/api', '')}/call/some-conv-id`);
-    await page.waitForURL(/login/, { timeout: 10000 });
-    expect(page.url()).toContain('login');
-  });
-
-
 // ═══════════════════════════════════════════════════════════
 // CALL PAGE — UI et navigation (fix S45)
 // ═══════════════════════════════════════════════════════════
