@@ -150,6 +150,13 @@ jobs:
           RATE_LIMIT_PER_MIN: 120
           ADMIN_INITIAL_PASSWORD: changeme2026
         run: |
+          # ── Build turn-rs from sources (GHCR image not publicly accessible) ──
+          git clone --depth 1 https://github.com/mycrl/turn-rs.git /tmp/turn-rs
+          cd /tmp/turn-rs
+          docker build -t ghcr.io/mycrl/turn-rs:latest .
+          cd $GITHUB_WORKSPACE
+          rm -rf /tmp/turn-rs
+
           docker compose up -d
           
           echo "Attente healthcheck..."
