@@ -58,9 +58,17 @@ jobs:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
           SQLX_OFFLINE: "false"
           # Permet la compilation des proc-macros même dans un env croisé
-          RUSTFLAGS: "--cfg proc_macro_span"
+          SQLX_OFFLINE: "false"
         run: |
-          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu
+          # First check if cargo can resolve dependencies
+          cargo metadata --format-version 1 > /dev/null 2>&1 || { echo "cargo metadata failed"; exit 1; }
+          
+          # Try sqlx prepare
+          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu 2>&1 || {
+            echo "sqlx prepare failed, checking for compile errors..."
+            cargo check 2>&1 | tail -50
+            exit 1
+          }
           echo "✅ queries.json régénéré"
           QUERY_COUNT=$(python3 -c "import json; data=json.load(open('.sqlx/queries.json')); print(len(data))" 2>/dev/null || echo "?")
           echo "Queries indexées : $QUERY_COUNT"
