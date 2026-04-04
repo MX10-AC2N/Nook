@@ -153,26 +153,31 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 ## Architecture (pour les curieux)
 
 ```
-Nook/
-├── backend/          Rust + Axum 0.8 — API REST, WebSocket, auth, crypto
-│   ├── src/          auth, chat, chess, polls, upload, push, e2ee...
-│   └── migrations/   6 migrations SQLite (users, conversations, chess, push...)
+Noo
+├── backend/            Rust + Axum 0.8 — API REST, WebSocket, auth, crypto, SFU
+│   ├── src/            18 modules : auth, chat, chess, polls, sfu, webrtc, push, e2ee, admin...
+│   ├── .sqlx/          Requêtes SQL pré-compilées pour compilation hors ligne (SQLX_OFFLINE=true)
+│   └── migrations/     7 migrations SQLite (users, chess, e2ee, polls, reactions, push, timer)
 │
-├── frontend/         SvelteKit 5 Runes + TypeScript
-│   ├── src/routes/   login, chat, admin, calendar, chess, polls, settings...
-│   ├── src/lib/      stores Svelte (auth, chat, chess, crypto, push...)
-│   └── tests/        115 tests Playwright E2E — tous verts ✅
+├── frontend/            SvelteKit 5 Runes + TypeScript
+│   ├── src/routes/     login, chat, admin, calendar, chess, call, polls, settings...
+│   ├── src/lib/        stores Svelte (auth, chat, chess, crypto, push, webrtc...)
+│   └── tests/          144 tests Playwright E2E (admin, user, chess, webrtc, calls, API sanité)
 │
-├── Dockerfile         Build depuis les sources (utilisé par les tests CI)
-├── Dockerfile.release Binaires pré-compilés → image distroless (production)
-└── docker-compose.yml Stack de production
+├── services/            Services additionnels
+│   └── turn-rs/        Serveur TURN/STUN pour relais WebRTC multi-appelants (edition 2024)
+│
+├── .github/workflows/  6 pipelines CI : Backend, Frontend, Docker, Tests, SQLx, Frontend Build
+├── Dockerfile           Build depuis les sources (utilisé par les tests CI)
+├── Dockerfile.release   Binaires pré-compilés → image Google Distroless (production)
+└── docker-compose.yml   Stack de production (nook + turn-rs)
 ```
 
 **Ce qui tourne réellement :**
-- Un binaire Rust dans une image [distroless](https://github.com/GoogleContainerTools/distroless) — pas de shell, pas d'outils inutiles, surface d'attaque minimale
+- Un binaire Rust dans une image [Google Distroless](https://github.com/GoogleContainerTools/distroless) — pas de shell, pas d'outils inutiles, surface d'attaque minimale
+- Un serveur TURN/STUN (`turn-rs`) pour le relais WebRTC quand la connexion directe échoue — également en Distroless
 - Une base SQLite dans le dossier `DATA_DIR`
 - Un dossier d'uploads chiffrés, nettoyés automatiquement toutes les 24h
-
 ---
 
 ## Questions fréquentes
