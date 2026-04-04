@@ -86,7 +86,7 @@ impl SfuState {
         rooms
             .entry(conversation_id.to_string())
             .or_insert_with(|| Arc::new(Room {
-                __room_id: conversation_id.to_string(),
+                _room_id: conversation_id.to_string(),
                 peers: RwLock::new(HashMap::new()),
                 tracks: RwLock::new(Vec::new()),
             }))
