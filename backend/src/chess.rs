@@ -1124,7 +1124,10 @@ pub async fn export_pgn(
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
     // Récupérer les coups de la partie
-    let moves = sqlx::query!("SELECT san FROM chess_moves WHERE game_id = ?", game_id)
+    struct SanRow { san: String }
+        let moves = sqlx::query_as::<_, SanRow>(
+            "SELECT san FROM chess_moves WHERE game_id = ? ORDER BY move_number"
+        ).bind(&game_id)
         .fetch_all(&state.db)
         .await;
     
@@ -1133,7 +1136,7 @@ pub async fn export_pgn(
             let mut pgn = String::new();
             
             // Header PGN
-            pgn.push_str(&format!("[Result "*"]\r\n\r\n"));
+            pgn.push_str("[Result *]\r\n\r\n");
             
             // Corps: numroter les coups
             for (i, row) in rows.iter().enumerate() {
