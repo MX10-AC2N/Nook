@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly  # edition 2024
         with:
           components: rustfmt, clippy
       
