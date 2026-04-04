@@ -432,6 +432,7 @@ impl SfuState {
 
                         // Forward loop: track distante -> relay source
                         let incoming = track.clone();
+                        let uid_fwd = uid.clone();
                         tokio::spawn(async move {
                             while let Ok(mut sample) = incoming.recv().await {
                                 match &mut sample {
@@ -447,7 +448,7 @@ impl SfuState {
                                 }
                                 if source.send(sample).await.is_err() { break; }
                             }
-                            info!(user=%uid, kind=?kind, "SFU forward loop ended");
+                            info!(user=%uid_fwd, kind=?kind, "SFU forward loop ended");
                         });
 
                         // PLI periodique toutes les 3 secondes
