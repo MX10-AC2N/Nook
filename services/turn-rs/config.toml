@@ -1,12 +1,11 @@
 # ── Turn-Server Configuration ──
-# This file is mounted as a volume by docker-compose
-# Variables are interpolated by docker-compose at startup
+# Éditer ce fichier pour personnaliser le serveur TURN/STUN
+# Après modification : docker compose restart turn
 
 [server]
-name = "${TURN_REALM:-nook.local}"
-secret = "${TURN_SECRET:-changeme2026}"
-max-bandwidth = ${TURN_MAX_BANDWIDTH:-1000000}
-max-threads = ${TURN_MAX_THREADS:-0}
+name = "nook.local"
+secret = "change_this_turn_secret_2026"
+max-threads = 0
 
 [[server.interfaces]]
 transport = "udp"
