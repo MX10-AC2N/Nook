@@ -153,7 +153,7 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 ## Architecture (pour les curieux)
 
 ```
-Noo
+Nook/
 ├── backend/            Rust + Axum 0.8 — API REST, WebSocket, auth, crypto, SFU
 │   ├── src/            18 modules : auth, chat, chess, polls, sfu, webrtc, push, e2ee, admin...
 │   ├── .sqlx/          Requêtes SQL pré-compilées pour compilation hors ligne (SQLX_OFFLINE=true)
