@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-04 11:55 UTC**
+> Généré par `test-nook.yml` · **2026-04-04 12:12 UTC**
 
 ---
 
@@ -14,10 +14,10 @@
 | **Tests flaky** | 0 |
 | **Tests ignorés** | 0 |
 | **Total** | 0 |
-| **Durée totale** | N/A |
+| **Durée totale** | 0.5s |
 | **Branche** | `develop` |
-| **Commit** | [`ba68ba8`](https://github.com/MX10-AC2N/Nook/commit/ba68ba8772a978d250ba382fc85eecab2464a418) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23978274571) |
+| **Commit** | [`089aa39`](https://github.com/MX10-AC2N/Nook/commit/089aa39cbb55cceb53925de93c12ecb075e51b0e) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23978555144) |
 
 ---
 
@@ -39,7 +39,9 @@ Tous les tests ont passé.
 
 ## 🐳 Logs backend (warnings/erreurs)
 
-Aucun warning ou erreur dans les logs backend. ✅
+```
+WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+```
 
 ---
 
@@ -48,11 +50,11 @@ Aucun warning ou erreur dans les logs backend. ✅
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/23978274571](https://github.com/MX10-AC2N/Nook/actions/runs/23978274571)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/23978555144](https://github.com/MX10-AC2N/Nook/actions/runs/23978555144)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/23978274571)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/23978555144)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -78,4 +80,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-04 11:55 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-04 12:12 UTC*
