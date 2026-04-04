@@ -136,6 +136,45 @@ Websockets Support : ON  ← obligatoire pour /ws
 SSL                : Let's Encrypt recommandé
 ```
 
+---
+
+## Debugging Checklist — Backend CI Failures
+
+| Error | Location | Fix | Verify |
+|-------|----------|-----|--------|
+| `cannot find tuple struct State` | handler signature | Add `State` to `use axum::{ extract::{..., State} }` | `extract::State` in imports |
+| `unresolved imports SystemExt, CpuExt` | sysinfo use | Remove both, keep `use sysinfo::System;` | No `SystemExt` anywhere |
+| `no method named disks` | sysinfo 0.32 API | Comment out or use `sys.refresh_all()` | No `sys.disks()` without refresh |
+| `variable does not need to be mutable` | unused_mut | Remove `mut` | No `let mut disks` in admin |
+| `cannot find value state in scope` | `&state.db` | Ensure `State(state)` not `State(_state)` | Only metrics func uses `_state` |
+| `borrow of moved value: user_id` | `tokio::spawn` | Clone at handler start: `let uid = user_id.clone()` | No `user_id` after `async move` |
+| `no field db on type fn() -> State` | `&State.db` | Never use `&State.db` (capital S) | Zero occurrences |
+| `no such table` | `sqlx::query!` | Use `query_as::<_, (String,)>()` | No `sqlx::query!` for new tables |
+| `expected identifier, found keyword use` | import block | Remove standalone `use` inside multi-line bloc | All imports at file top level |
+| `if can be collapsed into outer match` | match guards | Use arm guard: `"type" if !x.starts_with() => { return Err }` | No `if !` inside match arms |
+
+---
+
+## Frontend Build Errors
+
+### Missing closing brace — cascade effects
+**Symptom**: `Expected ";" but found "async"` at wrong line.
+**Root cause**: A method ~5-10 lines earlier is missing its closing `}`. All subsequent methods absorbed.
+**Fix**: Track brace balance from start. Find deviation at `public`/`private` declaration.
+**Verify**: Count `{` vs `}` — must be 0.
+
+### Switch case inside object literal
+**Symptom**: `Expected ":" but found "'case_value'"`.
+**Fix**: Close object literal properly (e.g. `}));` for CustomEvent), place case at switch level.
+
+### Duplicate test.describe in same file
+**Symptom**: Playwright runs wrong tests or throws duplicate errors.
+**Fix**: Scan for repeated describe names, remove flaky duplicates.
+
+### CI: Old runs on stale commits
+**Issue**: CI shows errors from commits before your fix.
+**Fix**: Get HEAD SHA, cancel ALL in_progress runs NOT on HEAD. Only trust matching SHA.
+
 ## Flux inter-agents
 
 ```
