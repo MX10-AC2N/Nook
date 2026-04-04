@@ -830,7 +830,7 @@ class WebRTCCallManager {
     this.stopQualityMonitoring();
 
     // Reset de l'état réactif
-
+  }
   // ══════════════════════════════════════════════════════════
   // SFU CALLS — via backend SFU (rustrtc)
   // ══════════════════════════════════════════════════════════
