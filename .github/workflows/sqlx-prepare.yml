@@ -58,7 +58,6 @@ jobs:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
           SQLX_OFFLINE: "false"
           # Permet la compilation des proc-macros même dans un env croisé
-          SQLX_OFFLINE: "false"
         run: |
           # First check if cargo can resolve dependencies
           cargo metadata --format-version 1 > /dev/null 2>&1 || { echo "cargo metadata failed"; exit 1; }
