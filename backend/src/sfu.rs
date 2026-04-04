@@ -334,13 +334,13 @@ impl SfuState {
                         let uid = user_id.clone();
                         let track = receiver.track();
                         let kind = track.kind();
-                        info!(user=%user_id, kind=?kind, "SFU track received from peer");
+                        info!(user=%uid, kind=?kind, "SFU track received from peer");
 
                         // Dedupliquer: une track par (user, kind)
                         {
                             let tracks = room_clone.tracks.read().await;
-                            if tracks.iter().any(|t| t.user_id == user_id && t.kind == kind) {
-                                info!(user=%user_id, kind=?kind, "SFU duplicate track, skipping");
+                            if tracks.iter().any(|t| t.user_id == uid && t.kind == kind) {
+                                info!(user=%uid, kind=?kind, "SFU duplicate track, skipping");
                                 continue;
                             }
                         }
