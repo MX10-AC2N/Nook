@@ -75,7 +75,7 @@ pub async fn get_system_metrics(
     let mem_total = sys.total_memory();
     let uptime = System::uptime();
     let la = System::load_average();
-    let mut disks: Vec<serde_json::Value> = Vec::new();
+    let disks: Vec<serde_json::Value> = Vec::new();
     // NOTE: In sysinfo 0.32, disk access requires specific refresh calls
     // For now, skip disk info (can be added back with correct 0.32 API later)
     sys.refresh_memory();
