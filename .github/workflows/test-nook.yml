@@ -321,7 +321,6 @@ jobs:
           fi
           if [ -n "$WS_COOKIE" ]; then
             echo "WS cookie ok, testing..."
-            python3 - "$WS_COOKIE" << 'WS_EOF'
             echo "WS cookie ok, testing..."
             cat > /tmp/ws_test.py << 'WS_EOF'
               import asyncio, websockets, sys
