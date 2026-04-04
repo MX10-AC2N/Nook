@@ -29,7 +29,8 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Nightly requis — rustrtc utilise edition = "2024" (Rust >= 1.85)
+      - uses: dtolnay/rust-toolchain@nightly
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -48,15 +49,20 @@ jobs:
           echo "✅ DB temporaire prête"
 
       # ── 3. Régénérer queries.json ─────────────────────────────────
+      # Note : sqlx prepare fait déjà un cargo check interne
       - name: cargo sqlx prepare
         env:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
           SQLX_OFFLINE: "false"
         run: |
-          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu 2>&1 || echo "⚠️ sqlx prepare had issues, continuing..."
+          set -o pipefail
+          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu 2>&1 | tee /tmp/sqlx-output.log || true
+          
+          # Vérifier si queries.json existe et est valide
           if [ -f .sqlx/queries.json ]; then
             QUERY_COUNT=$(python3 -c "import json; data=json.load(open('.sqlx/queries.json')); print(len(data))" 2>/dev/null || echo "0")
           else
+            echo "⚠️ queries.json non trouvé après sqlx prepare"
             QUERY_COUNT=0
           fi
           echo "Queries indexées : $QUERY_COUNT"
@@ -89,4 +95,3 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| **Queries indexées** | ${{ env.query_count }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Modifié** | ${{ env.changed }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
