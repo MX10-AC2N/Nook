@@ -498,14 +498,14 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                                             "peers": resp.peers,
                                             "renegotiate_offer": resp.renegotiate_offer,
                                         }).to_string();
-                                        let _ = tx.send(resp_msg);
+                                        let _ = broadcast_tx_for_receive.send(resp_msg);
                                     }
                                     Err(e) => {
                                         let err_msg = serde_json::json!({
                                             "type": "sfu_error",
                                             "error": e,
                                         }).to_string();
-                                        let _ = tx.send(err_msg);
+                                        let _ = broadcast_tx_for_receive.send(err_msg);
                                     }
                                 }
                             }
@@ -530,7 +530,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                                     "type": "sfu_peers",
                                     "peers": remaining,
                                 }).to_string();
-                                let _ = tx.send(msg);
+                                let _ = broadcast_tx_for_receive.send(msg);
                             }
                         }
                     } else {
