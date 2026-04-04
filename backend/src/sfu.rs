@@ -299,7 +299,7 @@ impl SfuState {
         let user_id = peer.user_id.clone();
         let peer_id = peer.id;
         let room_clone = room.clone();
-        let peer_clone = peer.clone();
+        let __peer_clone = peer.clone();
 
         // Surveiller l etat ICE
         let mut ice_rx = pc.subscribe_ice_connection_state();
@@ -331,6 +331,7 @@ impl SfuState {
                             Some(r) => r,
                             None => { warn!("SFU: no receiver on track event"); continue; }
                         };
+                        let uid = user_id.clone();
                         let track = receiver.track();
                         let kind = track.kind();
                         info!(user=%user_id, kind=?kind, "SFU track received from peer");
@@ -451,13 +452,14 @@ impl SfuState {
 
                         // PLI periodique toutes les 3 secondes
                         let pli_track = track.clone();
+                        let uid_pli = uid.clone();
                         tokio::spawn(async move {
                             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                             let mut interval = tokio::time::interval(std::time::Duration::from_secs(3));
                             loop {
                                 interval.tick().await;
                                 if let Err(e) = pli_track.request_key_frame().await {
-                                    warn!(user=%user_id, "SFU PLI failed: {}", e);
+                                    warn!(user=%uid_pli, "SFU PLI failed: {}", e);
                                 }
                             }
                         });
