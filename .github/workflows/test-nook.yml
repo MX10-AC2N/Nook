@@ -150,8 +150,7 @@ jobs:
           RATE_LIMIT_PER_MIN: 120
           ADMIN_INITIAL_PASSWORD: changeme2026
         run: |
-          docker compose build turn
-          docker compose up -d
+          docker compose up -d nook
           
           echo "Attente healthcheck..."
           TIMEOUT=0
