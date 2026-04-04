@@ -3,7 +3,7 @@
 # Après modification : docker compose restart turn
 
 [server]
-name = "nook.local"
+name = "nook.turn"
 secret = "change_this_turn_secret_2026"
 max-threads = 0
 
