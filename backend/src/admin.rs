@@ -92,7 +92,7 @@ pub async fn get_system_metrics(
 }
 
 pub async fn pending_users(
-    State(_state): State<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -105,7 +105,7 @@ pub async fn pending_users(
     let users: Vec<SimpleUser> = sqlx::query_as(
         "SELECT id, username, name, created_at, role, approved FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
-    .fetch_all(&State.db)
+    .fetch_all(&state.db)
     .await
     .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
     .into_iter()
