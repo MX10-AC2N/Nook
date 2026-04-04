@@ -156,12 +156,12 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 Nook/
 ├── backend/          Rust + Axum 0.8 — API REST, WebSocket, auth, crypto
 │   ├── src/          auth, chat, chess, polls, upload, push, e2ee...
-│   └── migrations/   7 migrations SQLite (users, conversations, chess, push...)
+│   └── migrations/   6 migrations SQLite (users, conversations, chess, push...)
 │
 ├── frontend/         SvelteKit 5 Runes + TypeScript
 │   ├── src/routes/   login, chat, admin, calendar, chess, polls, settings...
 │   ├── src/lib/      stores Svelte (auth, chat, chess, crypto, push...)
-│   └── tests/        144 tests Playwright E2E — tous verts ✅
+│   └── tests/        115 tests Playwright E2E — tous verts ✅
 │
 ├── Dockerfile         Build depuis les sources (utilisé par les tests CI)
 ├── Dockerfile.release Binaires pré-compilés → image distroless (production)
@@ -187,7 +187,7 @@ Oui. L'image est compilée nativement pour `arm64` — Raspberry Pi 4+, Zimaboar
 Oui depuis la v0.4.0-beta.2 : les clés X25519 sont générées à la première connexion de chaque membre et stockées chiffrées sur leur appareil. Les fichiers partagés sont chiffrés sur le disque depuis le début.
 
 **Les appels passent par ton serveur ?**
-Non pour 2 participants. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial. Pour les appels a 3+ participants, un mode SFU (via rustrtc) relaye le flux depuis le serveur.
+Non. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial.
 
 **Un membre a oublié son mot de passe ?**
 Depuis `/admin` → **Membres** → tu peux réinitialiser son mot de passe. Il devra le changer à la prochaine connexion.
