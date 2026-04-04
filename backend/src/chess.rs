@@ -1124,32 +1124,33 @@ pub async fn export_pgn(
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
     // Récupérer les coups de la partie
-    struct SanRow { san: String }
-        let moves = sqlx::query_as::<_, SanRow>(
-            "SELECT san FROM chess_moves WHERE game_id = ? ORDER BY move_number"
-        ).bind(&game_id)
-        .fetch_all(&state.db)
-        .await;
-    
+    let moves = sqlx::query_as::<_, (String,)>(
+        "SELECT san FROM chess_moves WHERE game_id = ? ORDER BY move_number"
+    )
+    .bind(&game_id)
+    .fetch_all(&state.db)
+    .await;
+
     match moves {
         Ok(rows) => {
             let mut pgn = String::new();
-            
+
             // Header PGN
             pgn.push_str("[Result *]\r\n\r\n");
-            
-            // Corps: numroter les coups
+
+            // Corps: numéroter les coups
             for (i, row) in rows.iter().enumerate() {
+                let san = &row.0;
                 if i % 2 == 0 {
                     // Coup blanc
-                    pgn.push_str(&format!("{}. {} ", (i / 2) + 1, row.san));
+                    pgn.push_str(&format!("{}. {} ", (i / 2) + 1, san));
                 } else {
                     // Coup noir
-                    pgn.push_str(&format!("{} ", row.san));
+                    pgn.push_str(&format!("{} ", san));
                 }
             }
             pgn.push_str("*\r\n");
-            
+
             (StatusCode::OK, pgn).into_response()
         }
         Err(e) => {
