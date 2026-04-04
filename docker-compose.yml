@@ -62,7 +62,9 @@ services:
       - nook-network
 
   turn:
-    image: ghcr.io/mycrl/turn-rs:latest
+    build:
+      context: ./services/turn-rs
+      dockerfile: Dockerfile
     container_name: nook-turn
     restart: unless-stopped
     ports:
