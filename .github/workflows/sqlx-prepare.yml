@@ -60,7 +60,12 @@ jobs:
           # Permet la compilation des proc-macros même dans un env croisé
         run: |
           # First check if cargo can resolve dependencies
-          cargo metadata --format-version 1 > /dev/null 2>&1 || { echo "cargo metadata failed"; exit 1; }
+          cargo metadata --format-version 1 2>&1 || {
+          echo "❌ cargo metadata failed — showing full error:"
+          cargo metadata --format-version 1 2>&1 | head -50 || true
+          cargo check 2>&1 | head -80 || true
+          exit 1
+        }
           
           # Try sqlx prepare
           cargo sqlx prepare -- --target x86_64-unknown-linux-gnu 2>&1 || {
