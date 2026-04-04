@@ -93,20 +93,14 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
     let ct_base = content_type.split(';').next().unwrap_or(content_type).trim();
 
     match ct_base {
-        "image/jpeg" => {
-            if !magic.starts_with(&[0xFF, 0xD8, 0xFF]) {
-                return Err("Fichier invalide : magic bytes JPEG attendus");
-            }
+        "image/jpeg" if !magic.starts_with(&[0xFF, 0xD8, 0xFF]) => {
+            return Err("Fichier invalide : magic bytes JPEG attendus");
         }
-        "image/png" => {
-            if !magic.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-                return Err("Fichier invalide : magic bytes PNG attendus");
-            }
+        "image/png" if !magic.starts_with(&[0x89, 0x50, 0x4E, 0x47]) => {
+            return Err("Fichier invalide : magic bytes PNG attendus");
         }
-        "image/gif" => {
-            if !magic.starts_with(b"GIF8") {
-                return Err("Fichier invalide : magic bytes GIF attendus");
-            }
+        "image/gif" if !magic.starts_with(b"GIF8") => {
+            return Err("Fichier invalide : magic bytes GIF attendus");
         }
         "image/webp" => {
             // RIFF....WEBP
@@ -117,10 +111,8 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
                 return Err("Fichier invalide : magic bytes WebP attendus");
             }
         }
-        "application/pdf" => {
-            if !magic.starts_with(b"%PDF") {
-                return Err("Fichier invalide : magic bytes PDF attendus");
-            }
+        "application/pdf" if !magic.starts_with(b"%PDF") => {
+            return Err("Fichier invalide : magic bytes PDF attendus");
         }
         "image/svg+xml" => {
             // SVG = XML → commence par <?xml ou <svg (après éventuel BOM)
