@@ -75,12 +75,8 @@ services:
     volumes:
       - ./services/turn-rs/config.toml:/etc/turn-server/config.toml:ro
 
-    environment:
-      # vars interpolated by docker-compose into config.toml
-      - TURN_REALM=nook.local
-      - TURN_SECRET=${TURN_SECRET:-change_this_secret}
-      - TURN_MAX_BANDWIDTH=1000000
-      - TURN_MAX_THREADS=0
+    environment: []
+      # Config géré via services/turn-rs/config.toml (monté en volume ci-dessous)
 
 networks:
   nook-network:
