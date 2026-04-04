@@ -67,14 +67,20 @@ services:
       dockerfile: Dockerfile
     container_name: nook-turn
     restart: unless-stopped
+
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
+
+    volumes:
+      - ./services/turn-rs/config.toml:/etc/turn-server/config.toml:ro
+
     environment:
+      # vars interpolated by docker-compose into config.toml
       - TURN_REALM=nook.local
       - TURN_SECRET=${TURN_SECRET:-change_this_secret}
-    networks:
-      - nook-network
+      - TURN_MAX_BANDWIDTH=1000000
+      - TURN_MAX_THREADS=0
 
 networks:
   nook-network:
