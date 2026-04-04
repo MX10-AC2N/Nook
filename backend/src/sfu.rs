@@ -260,7 +260,7 @@ impl SfuState {
 
         {
             let peers = room.peers.read().await;
-            for (uid, peer) in peers.iter() {
+            for (_uid, peer) in peers.iter() {
                 let mut added = peer.added_sources.write().await;
                 added.retain(|k| !k.starts_with(&format!("{}:", user_id)));
             }
@@ -331,10 +331,7 @@ impl SfuState {
                             Some(r) => r,
                             None => { warn!("SFU: no receiver on track event"); continue; }
                         };
-                        let track = match receiver.track() {
-                            Some(t) => t,
-                            None => { warn!("SFU: no track on receiver"); continue; }
-                        };
+                        let track = receiver.track();
                         let kind = track.kind();
                         info!(user=%user_id, kind=?kind, "SFU track received from peer");
 
