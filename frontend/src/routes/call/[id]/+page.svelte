@@ -416,6 +416,7 @@
     <div class="debug-panel">
       <h3>Qualite d'appel</h3>
       <table>
+        <tbody>
         <tr><td>Qualite:</td><td>{callStore.callQuality}</td></tr>
         <tr><td>RTT (latence):</td><td>{callStore.rtt} ms</td></tr>
         <tr><td>Jitter:</td><td>{callStore.jitter} ms</td></tr>
@@ -423,6 +424,7 @@
         <tr><td>Resolution distante:</td><td>{callStore.remoteResolution ?? '&mdash;'}</td></tr>
         <tr><td>FPS distant:</td><td>{callStore.remoteFps}</td></tr>
         <tr><td>Connexions paires:</td><td>{callStore.peerConnections.size}</td></tr>
+        </tbody>
       </table>
       <p class="debug-hint">Ctrl+D pour fermer</p>
     </div>
