@@ -21,7 +21,8 @@ import {
 
 test.describe.serial('Admin — Flux complet', () => {
 
-  let adminPage: Page;
+let adminPage: Page;
+
 
   test.beforeAll(async ({ browser }) => {
     adminPage = await browser.newPage();
