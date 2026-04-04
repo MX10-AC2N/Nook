@@ -5,7 +5,7 @@
 
 use crate::{auth::CurrentUser, SharedState};
 use sysinfo::System;
-use axum::{extract::{State as AxumState, Path}, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{extract::State, extract::Path, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -76,6 +76,7 @@ pub async fn get_system_metrics(
     let uptime = System::uptime();
     let la = System::load_average();
     let mut disks = Vec::new();
+    sys.refresh_disks();
     for d in sys.disks() {
         disks.push(json!({
             "mount": d.mount_point().to_string_lossy().to_string(),
@@ -96,7 +97,7 @@ pub async fn get_system_metrics(
 }
 
 pub async fn pending_users(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -127,7 +128,7 @@ pub async fn pending_users(
 }
 
 pub async fn all_users(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -165,7 +166,7 @@ pub async fn all_users(
 }
 
 pub async fn approve_user(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<ApprovePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -210,7 +211,7 @@ pub async fn approve_user(
 }
 
 pub async fn list_invites(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<InvitesResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -231,7 +232,7 @@ pub async fn list_invites(
 }
 
 pub async fn delete_invite(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<DeleteInvitePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -281,7 +282,7 @@ pub struct AnalyticsResponse {
 }
 
 pub async fn get_analytics(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<AnalyticsResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -369,7 +370,7 @@ pub async fn get_analytics(
 /// Supprimer un membre (ADMIN ONLY)
 /// DELETE /api/users/{id}
 pub async fn delete_user(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(admin)): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> impl IntoResponse {
