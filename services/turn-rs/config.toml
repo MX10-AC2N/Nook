@@ -1,0 +1,19 @@
+# ── Turn-Server Configuration ──
+# This file is mounted as a volume by docker-compose
+# Variables are interpolated by docker-compose at startup
+
+[server]
+name = "${TURN_REALM:-nook.local}"
+secret = "${TURN_SECRET:-changeme2026}"
+max-bandwidth = ${TURN_MAX_BANDWIDTH:-1000000}
+max-threads = ${TURN_MAX_THREADS:-0}
+
+[[server.interfaces]]
+transport = "udp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
+
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
