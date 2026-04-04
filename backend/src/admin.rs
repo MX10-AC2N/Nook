@@ -62,7 +62,7 @@ pub struct DeleteInvitePayload {
 // ─────────────────────────────────────────────────────────────────────────────
 
 pub async fn get_system_metrics(
-    State(state): State<Arc<SharedState>>,
+    State(_state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     if user.role != "admin" {
