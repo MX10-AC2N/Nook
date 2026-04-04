@@ -536,6 +536,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     } else {
                         let _ = broadcast_tx_for_receive.send(text_str);
                     }
+                }
 
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
