@@ -115,7 +115,6 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
             if !trimmed.starts_with("<?xml") && !trimmed.starts_with("<svg") {
                 return Err("Fichier invalide : contenu SVG/XML attendu");
             }
-            #[allow(clippy::collapsible_match)]
         }
         // Types non vérifiés : vidéo, audio, texte, octet-stream → permissif
         _ => {}
