@@ -74,6 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
+          prefix-key: v1-rust
       
       - name: Install libsodium dev
         run: sudo apt-get install -y libsodium-dev pkg-config
