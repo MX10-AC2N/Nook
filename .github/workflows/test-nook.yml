@@ -322,18 +322,21 @@ jobs:
           if [ -n "$WS_COOKIE" ]; then
             echo "WS cookie ok, testing..."
             python3 - "$WS_COOKIE" << 'WS_EOF'
-import asyncio, websockets, sys
-cookie = sys.argv[1]
-async def test():
-    try:
-        async with websockets.connect("ws://localhost:6300/ws", additional_headers={"Cookie": cookie}, open_timeout=5) as ws:
-            await ws.send('{"type":"test"}')
-            r = await asyncio.wait_for(ws.recv(), timeout=3)
-            print("WS OK: %s..." % r[:100])
-    except Exception as e:
-        print("WS error: %s" % e)
-asyncio.run(test())
-WS_EOF
+            echo "WS cookie ok, testing..."
+            cat > /tmp/ws_test.py << 'WS_EOF'
+              import asyncio, websockets, sys
+              cookie = sys.argv[1]
+              async def test():
+                  try:
+                      async with websockets.connect("ws://localhost:6300/ws", additional_headers={"Cookie": cookie}, open_timeout=5) as ws:
+                          await ws.send('{"type":"test"}')
+                          r = await asyncio.wait_for(ws.recv(), timeout=3)
+                          print("WS OK: %s..." % r[:100])
+                  except Exception as e:
+                      print("WS error: %s" % e)
+              asyncio.run(test())
+          WS_EOF
+            python3 /tmp/ws_test.py "$WS_COOKIE" || true
           else
             echo "Pas de cookie WS"
           fi
