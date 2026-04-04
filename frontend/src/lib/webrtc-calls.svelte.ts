@@ -144,10 +144,6 @@ class WebRTCCallManager {
     } catch { /* AudioContext non disponible */ }
   }
 
-  public startRingtone(): void {
-    // Public alias for playRingtone — used by UI components (e.g., CallBanner)
-    this.playRingtone();
-  }
 
   public stopRingtone(): void {
     if (this.ringtoneInterval) {
