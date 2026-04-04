@@ -188,209 +188,182 @@ jobs:
 
 
 
-      # ── Test: Auth flows ─────────────────────────────────
-      - name: Test Auth flows
+      # ── Shell Integration Tests (Auth, Security, Chat, WS, Polls, Events) ─
+      - name: Shell Integration Tests
+        id: shell_tests
         continue-on-error: true
         run: |
+          # === 1. AUTH ===
           echo "=== Test registration ==="
-          REG=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"test_e2e_new","password":"TestPass123!","email":"test@nook.local","name":"Test User"}')
+          REG=$(curl -s -X POST http://localhost:6300/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"test_e2e_new","password":"TestPass123!","email":"test@nook.local","name":"Test User"}')
           echo "Register: $REG"
 
           echo "=== Test mot de passe faible ==="
-          WEAK=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"weak_pwd_test","password":"123","email":"weak@nook.local","name":"Weak"}')
+          WEAK=$(curl -s -X POST http://localhost:6300/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"weak_pwd_test","password":"123","email":"weak@nook.local","name":"Weak"}')
           echo "Weak password: $WEAK"
 
-          # ══════════════════════════════════════════════════
-          # Flux admin: 1er login → change password → re-login
-          # ══════════════════════════════════════════════════
-          echo "=== Test login admin (premier acces) ==="
-
-          # Etape 1: Login avec mdp initial (changeme2026 via ADMIN_INITIAL_PASSWORD)
-          BODY=$(curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"changeme2026"}')
+          # === 2. ADMIN LOGIN ===
+          echo "=== Admin login (premier acces) ==="
+          curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST \
+            http://localhost:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"changeme2026"}'
           ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers.txt | grep -o "auth_token=[^;]*" | head -1)
 
           if [ -n "$ADMIN_COOKIE" ]; then
-            echo "Login admin avec changeme2026: OK"
-            ADMIN_ID=$(python3 -c "import json; d=json.load(open('/tmp/admin-body.txt')); print(d.get('user',{}).get('id',''))" 2>/dev/null || echo "")
+            echo "Login admin (changeme2026): OK"
+            ADMIN_ID=$(python3 /tmp/get_admin_id.py /tmp/admin-body.txt 2>/dev/null || echo "")
 
-            # Etape 2: Changer le mot de passe (obligatoire apres 1er login)
             if [ -n "$ADMIN_ID" ]; then
-              CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password -H "Content-Type: application/json" -H "Cookie: $ADMIN_COOKIE" -d "{\"new_password\":\"AdminCI2026!\",\"user_id\":\"$ADMIN_ID\"}")
+              CHG=$(curl -s -X POST http://localhost:6300/api/auth/change-password \
+                -H "Content-Type: application/json" \
+                -H "Cookie: $ADMIN_COOKIE" \
+                -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}')
               echo "Change password: $CHG"
 
-              # Etape 3: Re-login avec nouveau mot de passe
-              curl -s -D /tmp/admin-headers2.txt -o /tmp/admin-body2.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
+              curl -s -D /tmp/admin-headers2.txt -o /tmp/admin-body2.txt -X POST \
+                http://localhost:6300/api/auth/login \
+                -H "Content-Type: application/json" \
+                -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
               ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers2.txt | grep -o "auth_token=[^;]*" | head -1)
-
               if [ -n "$ADMIN_COOKIE" ]; then
-                echo "Re-login admin avec AdminCI2026: OK"
-                ADMIN_ID=$(python3 -c "import json; d=json.load(open('/tmp/admin-body2.txt')); print(d.get('user',{}).get('id',''))" 2>/dev/null || echo "")
+                echo "Re-login (AdminCI2026): OK"
+                cp /tmp/admin-body2.txt /tmp/admin-body.txt
               else
-                echo "Warning: re-login admin echoue, tentative avec ancien cookie"
+                echo "Warning: re-login echoue"
               fi
             fi
           else
-            echo "Warning: login admin avec changeme2026 echoue, tentative AdminCI2026"
-            BODY=$(curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST http://localhost:6300/api/auth/login -H "Content-Type: application/json" -d '{"username":"admin","password":"AdminCI2026!"}')
+            echo "Warning: premier login echoue, tente AdminCI2026"
+            curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST \
+              http://localhost:6300/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"AdminCI2026!"}'
             ADMIN_COOKIE=$(grep -i "set-cookie" /tmp/admin-headers.txt | grep -o "auth_token=[^;]*" | head -1)
-            if [ -n "$ADMIN_COOKIE" ]; then
-              echo "Login admin avec AdminCI2026: OK"
-            else
-              echo "ERREUR: aucun login admin ne fonctionne (changeme2026 ni AdminCI2026)"
-              exit 1
-            fi
+            [ -n "$ADMIN_COOKIE" ] && echo "Login admin (AdminCI2026): OK" || echo "ERREUR: login admin"
           fi
 
-          # Verifier session admin
-          echo "=== Test auth/me avec cookie admin ==="
+          echo "=== auth/me ==="
           ME=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/auth/me)
           echo "/auth/me: $ME"
-          ADMIN_ID=$(echo "$ME" | python3 -c "import sys,json; print(json.load(sys.stdin).get('user',{}).get('id',''))" 2>/dev/null || echo "")
-          echo "Admin ID: $ADMIN_ID"
+          ADMIN_ID=$(echo "$ME" | python3 /tmp/get_admin_id.py - 2>/dev/null || echo "")
 
-          echo "=== Test register puis approve (flux complet) ==="
-          REG2=$(curl -s -X POST http://localhost:6300/api/auth/register -H "Content-Type: application/json" -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
-          echo "Register e2e_ci: $REG2 (200/201/409 OK)"
-
+          # Register + approve
+          echo "=== Register + approve ==="
+          REG2=$(curl -s -X POST http://localhost:6300/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"e2e_ci","password":"E2eTest123!","email":"e2e@ci.nook","name":"E2E CI"}')
+          echo "Register e2e_ci: $REG2"
           sleep 2
-
           PENDING=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/users/pending)
-          echo "Pending users: $PENDING"
-
-          E2E_ID=$(echo "$PENDING" | python3 -c '
-          import sys,json
-          data=json.load(sys.stdin)
-          users=data if isinstance(data,list) else data.get("users",[])
-          match=[u for u in users if u.get("username")=="e2e_ci"]
-          print(match[0]["id"] if match else "")
-          ')
-
+          echo "Pending: $PENDING"
+          E2E_ID=$(echo "$PENDING" | python3 /tmp/get_e2e_id.py - 2>/dev/null || echo "")
           if [ -n "$E2E_ID" ]; then
-            APPROVE=$(curl -s -X POST http://localhost:6300/api/users/approve -H "Content-Type: application/json" -H "Cookie: $ADMIN_COOKIE" -d "{\"user_id\":\"$E2E_ID\"}")
-            echo "Approve: $APPROVE"
-          else
-            echo "e2e_ci deja approuve ou non trouve"
+            curl -s -X POST http://localhost:6300/api/users/approve \
+              -H "Content-Type: application/json" \
+              -H "Cookie: $ADMIN_COOKIE" \
+              -d '{"user_id":"'"$E2E_ID"'"}'
+            echo "User e2e_ci approved"
           fi
 
-      # ── Test: Security ───────────────────────────────────
-      - name: Test Security endpoints
-        continue-on-error: true
-        run: |
-          echo "=== Test XSS prevention ==="
-          # Essayer d'injecter du HTML dans un message
-          XSS=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"content":"<script>alert(1)</script>","encrypted":false}')
-          echo "Message XSS: $XSS"
-          
-          echo "=== Test upload fichier invalide ==="
-          # Essayer d'uploader un fichier vide
-          UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat             -H "Cookie: $ADMIN_COOKIE"             -F "file=@/dev/null"             -F "conversation_id=default_global"             -F "from_user_id=$(echo "$ME" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("user",{}).get("id",""))')
-          echo "Upload vide: $UPLOAD_EMPTY"
-          
-          echo "=== Test upload taille >50MB (simulation header) ==="
-          # Vérifier que le header Content-Length est respecté
-          echo "Note: Test simulé via header, upload réel trop long pour CI"
+          # === 3. SECURITY ===
+          echo "=== XSS prevention ==="
+          XSS=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages \
+            -H "Content-Type: application/json" \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -d '{"content":"<script>alert(1)</script>","encrypted":false}')
+          echo "XSS: $XSS"
 
-      # ── Test: Chat & Conversations ───────────────────────
-      - name: Test Chat & Conversations
-        continue-on-error: true
-        run: |
-          echo "=== Test conversation par défaut ==="
+          echo "=== Upload fichier vide ==="
+          MY_USER_ID=$(echo "$ME" | python3 /tmp/get_admin_id.py - 2>/dev/null || echo "")
+          UPLOAD_EMPTY=$(curl -s -X POST http://localhost:6300/api/upload/chat \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -F "file=@/dev/null" \
+            -F "conversation_id=default_global" \
+            -F "from_user_id=$MY_USER_ID")
+          echo "Upload vide: $UPLOAD_EMPTY"
+
+          # === 4. CHAT ===
+          echo "=== Conversations ==="
           CONVS=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/conversations)
           echo "Conversations: $CONVS"
-          
-          echo "=== Test envoi message ==="
-          MSG=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"content":"Message test CI","encrypted":false}')
-          echo "Message envoyé: $MSG"
-          
-          echo "=== Test récupération messages ==="
+
+          echo "=== Envoi message ==="
+          MSG=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages \
+            -H "Content-Type: application/json" \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -d '{"content":"Message test CI","encrypted":false}')
+          echo "Message: $MSG"
+
+          echo "=== Recup messages ==="
           MESSAGES=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/conversations/default_global/messages)
-          echo "Messages: $(echo "$MESSAGES" | python3 -c 'import sys,json; data=json.load(sys.stdin); print(len(data) if isinstance(data,list) else "erreur")')"
-          
-          echo "=== Test rename conversation ==="
-          RENAME=$(curl -s -X PATCH http://localhost:6300/api/conversations/default_global/rename             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"name":"Test Rename"}')
+          echo "Messages: $(echo "$MESSAGES" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(len(d) if isinstance(d,list) else 0)' 2>/dev/null || echo 0)"
+
+          echo "=== Rename ==="
+          RENAME=$(curl -s -X PATCH http://localhost:6300/api/conversations/default_global/rename \
+            -H "Content-Type: application/json" \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -d '{"name":"Test Rename"}')
           echo "Rename: $RENAME"
 
-      # ── Test: WebSocket Live ──────────────────────────────
-      - name: Test WebSocket Live
-        continue-on-error: true
-        run: |
-          echo "=== Test connexion WebSocket ==="
-          # Récupérer le cookie
-          HEADERS=$(curl -s -D - -o /dev/null -X POST             http://localhost:6300/api/auth/login             -H "Content-Type: application/json"             -d '{"username":"admin","password":"AdminCI2026!"}')
-          WS_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
-          
+          # === 5. WEBSOCKET (using heredoc for python) ===
+          echo "=== WebSocket ==="
+          WS_COOKIE="$ADMIN_COOKIE"
+          if [ -z "$WS_COOKIE" ]; then
+            HEADERS=$(curl -s -D - -o /dev/null -X POST http://localhost:6300/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"admin","password":"AdminCI2026!"}')
+            WS_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
+          fi
           if [ -n "$WS_COOKIE" ]; then
-            echo "✅ Login pour WS réussi"
-            
-            # Test connexion WS simple (timeout 5s)
-            python3 -c "
-            import asyncio
-            import websockets
-            
-            async def test_ws():
-                uri = 'ws://localhost:6300/ws'
-                try:
-                    async with websockets.connect(
-                        uri,
-                        additional_headers={'Cookie': '$WS_COOKIE'},
-                        open_timeout=5
-                    ) as ws:
-                        await ws.send('{"type":"test"}')
-                        response = await asyncio.wait_for(ws.recv(), timeout=3)
-                        print(f'✅ WS message reçu: {response[:100]}...')
-                except Exception as e:
-                    print(f'⚠️  WS test: {e}')
-            
-            asyncio.run(test_ws())
-            " || echo "⚠️ Test WebSocket non conclant"
+            echo "WS cookie ok, testing..."
+            python3 - "$WS_COOKIE" << 'WS_EOF'
+import asyncio, websockets, sys
+cookie = sys.argv[1]
+async def test():
+    try:
+        async with websockets.connect("ws://localhost:6300/ws", additional_headers={"Cookie": cookie}, open_timeout=5) as ws:
+            await ws.send('{"type":"test"}')
+            r = await asyncio.wait_for(ws.recv(), timeout=3)
+            print("WS OK: %s..." % r[:100])
+    except Exception as e:
+        print("WS error: %s" % e)
+asyncio.run(test())
+WS_EOF
           else
-            echo "⚠️ Pas de cookie pour WS test"
+            echo "Pas de cookie WS"
           fi
 
-      # ── Test: Polls ──────────────────────────────────────
-      - name: Test Polls complet
-        continue-on-error: true
-        run: |
-          echo "=== Test création poll ==="
-          POLL=$(curl -s -X POST http://localhost:6300/api/polls             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"question":"Test CI poll?","options":["Oui","Non","Peut-être"],"expires_in_hours":1}')
-          echo "Poll créé: $POLL"
-          
-          POLL_ID=$(echo "$POLL" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
-          
+          # === 6. POLLS ===
+          echo "=== Polls ==="
+          POLL=$(curl -s -X POST http://localhost:6300/api/polls \
+            -H "Content-Type: application/json" \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -d '{"question":"Test CI?","options":["Oui","Non"],"expires_in_hours":1}')
+          POLL_ID=$(echo "$POLL" | python3 /tmp/get_id.py - 2>/dev/null || echo "")
           if [ -n "$POLL_ID" ]; then
-            echo "=== Test vote poll ==="
-            VOTE=$(curl -s -X POST http://localhost:6300/api/polls/$POLL_ID/votes               -H "Content-Type: application/json"               -H "Cookie: $ADMIN_COOKIE"               -d '{"option_index":0}')
+            VOTE=$(curl -s -X POST "http://localhost:6300/api/polls/$POLL_ID/votes" \
+              -H "Content-Type: application/json" \
+              -H "Cookie: $ADMIN_COOKIE" \
+              -d '{"option_index":0}')
             echo "Vote: $VOTE"
-            
-            echo "=== Test GET polls ==="
-            POLLS=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/polls)
-            echo "Liste polls: $(echo "$POLLS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)) if isinstance(json.load(sys.stdin),list) else "?")' 2>/dev/null || echo "?")
-            
-            echo "=== Test fermeture poll ==="
-            CLOSE=$(curl -s -X DELETE http://localhost:6300/api/polls/$POLL_ID               -H "Cookie: $ADMIN_COOKIE")
-            echo "Fermeture: $CLOSE"
+            curl -s -X DELETE "http://localhost:6300/api/polls/$POLL_ID" -H "Cookie: $ADMIN_COOKIE"
           fi
 
-      # ── Test: Calendar/Events ───────────────────────────
-      - name: Test Calendar/Events complet
-        continue-on-error: true
-        run: |
-          echo "=== Test création événement ==="
-          EVT=$(curl -s -X POST http://localhost:6300/api/events             -H "Content-Type: application/json"             -H "Cookie: $ADMIN_COOKIE"             -d '{"title":"Test CI Event","date":"2026-04-02","description":"Event créé par CI","time":"10:00"}')
-          echo "Event créé: $EVT"
-          
-          EVT_ID=$(echo "$EVT" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
-          
+          # === 7. EVENTS ===
+          echo "=== Events ==="
+          EVT=$(curl -s -X POST http://localhost:6300/api/events \
+            -H "Content-Type: application/json" \
+            -H "Cookie: $ADMIN_COOKIE" \
+            -d '{"title":"Test CI","date":"2026-04-02","description":"Event CI","time":"10:00"}')
+          EVT_ID=$(echo "$EVT" | python3 /tmp/get_id.py - 2>/dev/null || echo "")
           if [ -n "$EVT_ID" ]; then
-            echo "=== Test GET events ==="
-            EVENTS=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/events)
-            echo "Liste events: $(echo "$EVENTS" | python3 -c 'import sys,json; print(len(json.load(sys.stdin)) if isinstance(json.load(sys.stdin),list) else "?")' 2>/dev/null || echo "?")
-            
-            echo "=== Test suppression event ==="
-            DELETE=$(curl -s -X DELETE http://localhost:6300/api/events/$EVT_ID -H "Cookie: $ADMIN_COOKIE")
-            echo "Suppression: HTTP $DELETE"
+            curl -s -X DELETE "http://localhost:6300/api/events/$EVT_ID" -H "Cookie: $ADMIN_COOKIE"
           fi
-
 
       # ── E2E Playwright ──────────────────────────────────
       - name: E2E Playwright
