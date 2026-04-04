@@ -192,7 +192,7 @@ Oui. L'image est compilée nativement pour `arm64` — Raspberry Pi 4+, Zimaboar
 Oui depuis la v0.4.0-beta.2 : les clés X25519 sont générées à la première connexion de chaque membre et stockées chiffrées sur leur appareil. Les fichiers partagés sont chiffrés sur le disque depuis le début.
 
 **Les appels passent par ton serveur ?**
-Non. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial.
+Non pour 2 participants. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial. Pour les appels a 3+ participants, un mode SFU (via rustrtc) relaye le flux depuis le serveur.
 
 **Un membre a oublié son mot de passe ?**
 Depuis `/admin` → **Membres** → tu peux réinitialiser son mot de passe. Il devra le changer à la prochaine connexion.
