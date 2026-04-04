@@ -48,31 +48,21 @@ jobs:
           echo "✅ DB temporaire prête"
 
       # ── 3. Régénérer queries.json ─────────────────────────────────
-      # Note : on passe RUSTFLAGS pour éviter l'erreur proc-macro sur displaydoc
-      # (tiré par url 2.5 → idna 1.x → icu_properties → displaydoc proc-macro).
-      # --no-default-features sur la vérification n'est pas possible ici,
-      # donc on utilise RUSTFLAGS=-Awarnings et on ignore les proc-macro crates
-      # en leur permettant de compiler sans erreur.
       - name: cargo sqlx prepare
         env:
           DATABASE_URL: sqlite:///tmp/nook-sqlx/nook.db
           SQLX_OFFLINE: "false"
-          # Permet la compilation des proc-macros même dans un env croisé
         run: |
-          # First check if cargo can resolve dependencies
-          cargo metadata --format-version 1 2>&1 || {
-          echo "❌ cargo metadata failed — showing full error:"
-          cargo metadata --format-version 1 2>&1 | head -50 || true
-          cargo check 2>&1 | head -80 || true
-          exit 1
-        }
-          
-          # Try sqlx prepare
-          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu 2>&1 || {
-            echo "sqlx prepare failed, checking for compile errors..."
-            cargo check 2>&1 | tail -50
+          set -e
+          echo "=== cargo metadata ==="
+          cargo metadata --format-version 1 || {
+            echo "ERROR: cargo metadata failed"
+            echo "=== cargo check output ==="
+            cargo check 2>&1 | head -80 || true
             exit 1
           }
+          echo "=== cargo sqlx prepare ==="
+          cargo sqlx prepare -- --target x86_64-unknown-linux-gnu
           echo "✅ queries.json régénéré"
           QUERY_COUNT=$(python3 -c "import json; data=json.load(open('.sqlx/queries.json')); print(len(data))" 2>/dev/null || echo "?")
           echo "Queries indexées : $QUERY_COUNT"
