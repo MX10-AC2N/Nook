@@ -892,6 +892,8 @@ class WebRTCCallManager {
     callStore.sfuPendingOffer = null;
   }
 
+  /** Reinitialise l'etat d'appel. */
+  resetState(): void {
     Object.assign(callStore, createInitialState());
   }
 
