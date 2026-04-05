@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-05 21:22 UTC**
+> Généré par `test-nook.yml` · **2026-04-05 21:43 UTC**
 
 ---
 
@@ -14,10 +14,10 @@
 | **Tests flaky** | 0 |
 | **Tests ignorés** | 83 |
 | **Total** | 159 |
-| **Durée totale** | 2m 26.0s |
+| **Durée totale** | 2m 27.0s |
 | **Branche** | `develop` |
-| **Commit** | [`9258947`](https://github.com/MX10-AC2N/Nook/commit/92589478fbfc2127050a60a019733a183d501131) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24010445456) |
+| **Commit** | [`f8ba469`](https://github.com/MX10-AC2N/Nook/commit/f8ba469eb0fe4d953ff5afee02d2f0ec92a50f5f) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24010805972) |
 
 ---
 
@@ -36,14 +36,14 @@
 | Rang | Test | Durée | Fichier |
 |------|------|-------|---------|
 | 1 | /call/fake-id avec auth → page charge | 2m 0.0s | `?` |
-| 2 | /call/fake-id sans auth → redirige vers /login | 20.2s | `?` |
-| 3 | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | `?` |
-| 4 | GET /api/health → "OK" | 0.0s | `?` |
+| 2 | /call/fake-id sans auth → redirige vers /login | 20.1s | `?` |
+| 3 | Envoyer message → 200 | 0.0s | `?` |
+| 4 | Download inexistant → 404 | 0.0s | `?` |
 | 5 | 8 chars → accepte | 0.0s | `?` |
-| 6 | Mot de passe 8 chars → accepte | 0.0s | `?` |
-| 7 | Download inexistant → 404 | 0.0s | `?` |
-| 8 | Envoyer message → 200 | 0.0s | `?` |
-| 9 | Upload fichier vide → 400 | 0.0s | `?` |
+| 6 | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | `?` |
+| 7 | Mot de passe 8 chars → accepte | 0.0s | `?` |
+| 8 | Upload fichier vide → 400 | 0.0s | `?` |
+| 9 | Upload fichier texte → file_id, puis download OK | 0.0s | `?` |
 | 10 | Download fichier inexistant → 404 | 0.0s | `?` |
 
 ---
@@ -55,81 +55,81 @@
 | Statut | Test | Durée | Retries |
 |--------|------|-------|---------|
 | ❌ | /call/fake-id avec auth → page charge | 2m 0.0s  +1 | |
-| ❌ | /call/fake-id sans auth → redirige vers /login | 20.2s  +1 | |
-| ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
-| ✅ | GET /api/health → "OK" | 0.0s | |
-| ✅ | 8 chars → accepte | 0.0s | |
-| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
-| ✅ | Download inexistant → 404 | 0.0s | |
+| ❌ | /call/fake-id sans auth → redirige vers /login | 20.1s  +1 | |
 | ✅ | Envoyer message → 200 | 0.0s | |
+| ✅ | Download inexistant → 404 | 0.0s | |
+| ✅ | 8 chars → accepte | 0.0s | |
+| ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
+| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
 | ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
 | ✅ | Download fichier inexistant → 404 | 0.0s | |
-| ✅ | Rename conversation → 200 | 0.0s | |
 | ✅ | Upload fichier texte → 200 | 0.0s | |
 | ✅ | Upload → Download end-to-end | 0.0s | |
 | ✅ | Rename conversation → 200 (second block) | 0.0s | |
-| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
 | ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | Rename conversation → 200 | 0.0s | |
+| ✅ | GET /api/health → "OK" | 0.0s | |
 | ✅ | Créer partie → jouer e2→e4 → IA répond | 0.0s | |
 | ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
-| ✅ | GET /auth/me → 401 | 0.0s | |
 | ✅ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | |
+| ✅ | GET /auth/me → 401 | 0.0s | |
 | ✅ | POST /auth/logout → 401 | 0.0s | |
 | ✅ | 1 char → 400 | 0.0s | |
+| ✅ | 5 chars → 400 | 0.0s | |
 | ✅ | POST /auth/change-password → 401 | 0.0s | |
 | ✅ | POST /auth/public-key → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
 | ✅ | GET /conversations → 401 | 0.0s | |
 | ✅ | GET /conversations/default_global → 401 | 0.0s | |
 | ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
-| ✅ | 5 chars → 400 | 0.0s | |
 | ✅ | User change pwd autre user → 403 (integration) | 0.0s | |
 | ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
 | ✅ | POST /conversations → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
-| ✅ | DELETE /events/fake-id → 401 | 0.0s | |
-| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
-| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
-| ✅ | POST /chess/create → 401 | 0.0s | |
-| ✅ | POST /user/update → 401 | 0.0s | |
-| ✅ | GET /users/pending → 401 | 0.0s | |
-| ✅ | GET /analytics → 401 | 0.0s | |
-| ✅ | Mot de passe 5 chars → 400 | 0.0s | |
 | ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
 | ✅ | PATCH /conversations/default_global/rename → 401 | 0.0s | |
-| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
 | ✅ | GET /events → 401 | 0.0s | |
-| ✅ | POST /events → 401 | 0.0s | |
-| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | DELETE /events/fake-id → 401 | 0.0s | |
 | ✅ | POST /polls → 401 | 0.0s | |
 | ✅ | GET /polls/fake-id → 401 | 0.0s | |
 | ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
+| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
 | ✅ | GET /chess/list → 401 | 0.0s | |
-| ✅ | GET /chess/invitations → 401 | 0.0s | |
+| ✅ | POST /chess/create → 401 | 0.0s | |
 | ✅ | GET /chess/fake-id → 401 | 0.0s | |
 | ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
-| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
 | ✅ | POST /chess/fake-id/resign → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | GET /users/pending → 401 | 0.0s | |
+| ✅ | GET /users → 401 | 0.0s | |
+| ✅ | Mot de passe 5 chars → 400 | 0.0s | |
+| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
+| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
+| ✅ | POST /events → 401 | 0.0s | |
+| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | GET /chess/invitations → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | POST /user/update → 401 | 0.0s | |
 | ✅ | GET /users/available → 401 | 0.0s | |
 | ✅ | GET /push/preferences → 401 | 0.0s | |
-| ✅ | GET /users → 401 | 0.0s | |
 | ✅ | POST /users/approve → 401 | 0.0s | |
+| ✅ | GET /invites → 401 | 0.0s | |
 | ✅ | POST /invites → 401 | 0.0s | |
 | ✅ | POST /invites/delete → 401 | 0.0s | |
-| ✅ | Mot de passe 1 char → 400 | 0.0s | |
+| ✅ | GET /analytics → 401 | 0.0s | |
 | ✅ | Mot de passe 7 chars → 400 | 0.0s | |
 | ✅ | User normal change pwd autre user → 403 | 0.0s | |
 | ✅ | Chess coup illégal → 400 | 0.0s | |
-| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
-| ✅ | GET /invites → 401 | 0.0s | |
+| ✅ | Mot de passe 1 char → 400 | 0.0s | |
 | ✅ | Chess resign → status finished | 0.0s | |
 | ✅ | Modifier message → 200 | 0.0s | |
-| ✅ | Supprimer message → 200/204 | 0.0s | |
 | ✅ | Lister messages → contient le message modifié | 0.0s | |
+| ✅ | Supprimer message → 200/204 | 0.0s | |
 
 ### ✅ **admin.spec.ts** — 0/25 passés
 
@@ -241,7 +241,7 @@
 ### Échec 1 — `/call/fake-id sans auth → redirige vers /login`
 
 **Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
-**Durée :** 20.2s
+**Durée :** 20.1s
 
 **Message :**
 ```
@@ -341,11 +341,11 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24010445456](https://github.com/MX10-AC2N/Nook/actions/runs/24010445456)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24010805972](https://github.com/MX10-AC2N/Nook/actions/runs/24010805972)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24010445456)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24010805972)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -371,4 +371,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-05 21:22 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-05 21:43 UTC*
