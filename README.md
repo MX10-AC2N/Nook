@@ -169,12 +169,12 @@ Nook/
 │
 ├── .github/workflows/  6 pipelines CI : Backend, Frontend, Docker, Tests, SQLx, Frontend Build
 ├── Dockerfile           Build depuis les sources (utilisé par les tests CI)
-├── Dockerfile.release   Binaires pré-compilés → image Google Distroless (production)
-└── docker-compose.yml   Stack de production (nook + turn-rs)
+├── Dockerfile.release   Binaires pré-compilés → image Alpine 3.21 (production)
+└── docker-compose.yml   Stack de production Alpine (nook + turn-rs)
 ```
 
 **Ce qui tourne réellement :**
-- Un binaire Rust dans une image [Google Distroless](https://github.com/GoogleContainerTools/distroless) — pas de shell, pas d'outils inutiles, surface d'attaque minimale
+- Un binaire Rust dans une image Alpine — pas de shell, pas d'outils inutiles, surface d'attaque minimale
 - Un serveur TURN/STUN (`turn-rs`) pour le relais WebRTC quand la connexion directe échoue — également en Distroless
 - Une base SQLite dans le dossier `DATA_DIR`
 - Un dossier d'uploads chiffrés, nettoyés automatiquement toutes les 24h
