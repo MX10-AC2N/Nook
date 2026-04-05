@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-05 16:40 UTC**
+> Généré par `test-nook.yml` · **2026-04-05 20:40 UTC**
 
 ---
 
@@ -16,8 +16,8 @@
 | **Total** | 0 |
 | **Durée totale** | N/A |
 | **Branche** | `develop` |
-| **Commit** | [`ab81910`](https://github.com/MX10-AC2N/Nook/commit/ab81910529541ead2f60286f107a01d6716f75a0) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24005803489) |
+| **Commit** | [`4000aa4`](https://github.com/MX10-AC2N/Nook/commit/4000aa47594540994391a82184af599a958f8b7f) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24009779992) |
 
 ---
 
@@ -39,7 +39,9 @@ Tous les tests ont passé.
 
 ## 🐳 Logs backend (warnings/erreurs)
 
-Aucun warning ou erreur dans les logs backend. ✅
+```
+WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+```
 
 ---
 
@@ -48,11 +50,11 @@ Aucun warning ou erreur dans les logs backend. ✅
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24005803489](https://github.com/MX10-AC2N/Nook/actions/runs/24005803489)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24009779992](https://github.com/MX10-AC2N/Nook/actions/runs/24009779992)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24005803489)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24009779992)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -78,4 +80,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-05 16:40 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-05 20:40 UTC*
