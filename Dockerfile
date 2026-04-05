@@ -49,7 +49,7 @@ RUN apk add --no-cache \
 
 # SQLite et libsodium (runtime only)
 RUN apk add --no-cache \
-    libsqlite3 \
+    sqlite-libs \
     libsodium
 
 # Dossiers applicatifs
