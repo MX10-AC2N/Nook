@@ -953,3 +953,34 @@ les images Docker de gcr.io/distroless/cc-debian12 vers alpine:3.21.
 | Cible aarch64 | linux-gnu | linux-musl |
 | Cross-linker | gcc-aarch64 (glibc) | zig cc 0.13 (musl) |
 | Google dep | gcr.io | AUCUNE |
+
+---
+
+## Session — 2026-04-05 (Migration Alpine + CI final)
+
+### Contexte
+L'utilisateur a exige ZERO dependance Google. Migration complete de toutes
+les images Docker de gcr.io/distroless/cc-debian12 vers alpine:3.21.
+
+### Progres Realises
+1. **Dockerfile + Dockerfile.release**: runtime Alpine 3.21, cibles musl, chmod 777 sur dirs
+2. **services/turn-rs/Dockerfile**: builder musl + zig 0.13, runtime Alpine 3.21
+3. **Backend.yml**: targets -musl, CC_x86_64-unknown-linux-musl=musl-gcc pour ring/aws-lc-sys,
+   zig cc pour aarch64 cross-compilation
+4. **.cargo/config.toml**: cibles musl uniquement, zig cc pour aarch64
+5. **README.md + docs .claude/**: toutes refs Distroless -> Alpine
+6. **BUGS.md**: 2 tests flaky documentes (chess resign 401, analytics 401)
+
+### Bugs Rencontres
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| zig URL YAML escaping | Backend.yml | `\$(uname -m)` -> `$(uname -m)` |
+| sqlite-libs vs libsqlite3 | Dockerfile Alpine | apk add sqlite-libs (pas libsqlite3) |
+| cc-rs cherche x86_64-linux-musl-gcc | ring, aws-lc-sys | CC_x86_64-unknown-linux-musl=musl-gcc env var |
+| PermissionDenied /app/data | Dockerfile | chmod 777 sur /app/data, /app/logs avant USER |
+
+### Etat Final
+- HEAD: `08015e3`
+- Backend: build musl avec ring/aws-lc-sys OK (musl-gcc)
+- aarch64 cross: zig cc 0.13 avec `-target aarch64-linux-musl`
+- CI: en attente de re-run sur 08015e3
