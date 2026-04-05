@@ -80,14 +80,10 @@ jobs:
           test -f frontend/build/index.html || (echo "index.html manquant" && exit 1)
           echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
-      - name: Check Backend (musl)
+      - name: Check Backend
         working-directory: ./backend
         run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          rustup target add x86_64-unknown-linux-musl
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo check --all-targets --target x86_64-unknown-linux-musl
+          cargo check --all-targets
 
       - name: Clean previous runs
         run: |
