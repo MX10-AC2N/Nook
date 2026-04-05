@@ -18,8 +18,6 @@ export default defineConfig({
   testDir: './tests',
   timeout: 60_000,           // timeout global par test (↑ de 30s pour les tests UI lents)
   expect: { timeout: 8_000 },
-  // webServer disabled in CI — Alpine container serves frontend on :6300
-  // webServer: {
   // //   command: 'npm run dev',
   // fullyParallel: false,      // OBLIGATOIRE — voir historique R21 dans helpers.ts
   // forbidOnly: !!process.env.CI,
@@ -52,9 +50,4 @@ export default defineConfig({
       dependencies: ['api-sanity'],
     },
   ],
-  webServer: {
-  // command: 'npm run dev',
-  // url: 'http://localhost:6300',
-  // reuseExistingServer: !!process.env.CI,
-  // },
 });
