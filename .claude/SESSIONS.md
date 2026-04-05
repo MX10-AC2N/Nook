@@ -928,3 +928,28 @@ et `ReferenceError: adminPage is not defined`. Objectif: tout reparer et documen
 - Backend build: ✅ OK
 - Docker build: ✅ OK
 - Git: propre, tout pousse
+
+---
+
+## Session — 2026-04-05 (Migration Distroless → Alpine 3.21)
+
+### Contexte
+L'utilisateur a exige ZERO dependance Google. Migration complete de toutes
+les images Docker de gcr.io/distroless/cc-debian12 vers alpine:3.21.
+
+### Changements
+- **Dockerfile**: Builder musl-tools, cible `x86_64-unknown-linux-musl`, runtime alpine:3.21
+- **Dockerfile.release**: Runtime alpine:3.21 (binaire musl, pas glibc)
+- **services/turn-rs/Dockerfile**: Builder musl + protobuf, runtime alpine:3.21
+- **Backend.yml**: Targets musl (x86_64 + aarch64), zig cc cross-linker arm64
+- **.cargo/config.toml**: Cibles musl, zig cc linker aarch64
+- **README.md**: distroless → Alpine 3.21
+
+### Stack technique finale
+| | Avant | Apres |
+|-|-------|-------|
+| Runtime | gcr.io/distroless/cc-debian12 | alpine:3.21 |
+| Cible x86_64 | linux-gnu | linux-musl |
+| Cible aarch64 | linux-gnu | linux-musl |
+| Cross-linker | gcc-aarch64 (glibc) | zig cc 0.13 (musl) |
+| Google dep | gcr.io | AUCUNE |
