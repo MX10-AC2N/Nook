@@ -117,6 +117,7 @@ jobs:
           echo " Stack demarree"
 
       - name: Install Playwright
+        working-directory: ./frontend
         run: |
           npm ci --legacy-peer-deps --no-audit --no-fund
           npx playwright install --with-deps chromium
