@@ -1021,3 +1021,32 @@ Migrate tous les Dockerfiles vers Alpine 3.21 (zero Google), corriger les erreur
 - HEAD: 50d268a26d — fix(docker): remove musl-tools
 - CI: run 24009717784 in_progress (Frontend OK, Integration Tests en cours)
 - Zero Google partout: Alpine 3.21 builder + runtime, debian:bookworm-slim nulle part
+## Session 9 - 2026-04-05 (Alpine Migration + CI Fix + Zero Google)
+
+### Contexte
+Migrer tous les Dockerfiles vers Alpine 3.21 (zero Google/distroless). Resoudre les erreurs CI en cascade.
+
+### Progres Realises
+- **Dockerfile**: Alpine 3.21 builder (rustup nightly) + Alpine 3.21 runtime (~15MB)
+- **Dockerfile.release**: Alpine 3.21 runtime (binaire musl natif)
+- **services/turn-rs/Dockerfile**: Alpine 3.21 builder + runtime
+- **Backend.yml**: targets gnu (x86_64/aarch64-unknown-linux-gnu) pour releases
+- **.cargo/config.toml**: linker aarch64-linux-gnu-gcc pour cross-compile
+- **test-nook.yml**: working-directory fix pour Playwright, NOOK_IMAGE env var
+- **playwright.config.ts**: webServer supprime (Alpine container sert deja frontend sur 6300)
+- **README.md**: references Distroless -> Alpine
+
+### Bugs Corriges
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| musl-tools sur Alpine | Dockerfile | retire (paquet Debian) |
+| Edition2024 + Alpine cargo 1.83 | Dockerfile | rustup nightly --profile minimal |
+| UTF-8 emoji corrompus | Backend.yml, test-nook.yml | remplaces par ASCII pur |
+| NOOK_IMAGE non defini | test-nook.yml | ajoute env: NOOK_IMAGE: nook-ci:local |
+| npm ci sans package-lock.json | test-nook.yml | working-directory: ./frontend |
+| Playwright timeout webServer | playwright.config.ts | supprime webServer block |
+
+### Etat Final
+- Docker CI: BUILD OK, healthcheck OK, container demarre OK
+- Playwright: webServer supprime (attente nouveau CI)
+- Zero Google partout (Alpine 3.21 Foundation)
