@@ -884,3 +884,47 @@ Branche: `develop` | Repo: MX10-AC2N/Nook
 - **Zero fichier modifie en attente** (clean state)
 
 </details>
+
+---
+
+## Session — 2026-04-04/05 (CI fixes massifs + docs update)
+
+### Contexte
+CI test-nook.yml cassee avec erreurs `cannot produce proc-macro for asn1-rs-derive`
+et `ReferenceError: adminPage is not defined`. Objectif: tout reparer et documenter.
+
+### Progres Realises
+- `.cargo/config.toml`: supprime section `[target.x86_64-unknown-linux-gnu]` cassant proc-macro
+- `Backend.yml`: rustup target add uniquement pour aarch64 (x86_64 = cible native runner)
+- `test-nook.yml`: 7 blocs shell consolides en 1 seul `run:` ($ADMIN_COOKIE persist)
+- `test-nook.yml`: supprime refs /tmp/*.py, remplace par python3 -c inline
+- `test-nook.yml`: supprime ligne heredoc orpheline cassant WS test
+- `admin.spec.ts`: adminPage deplace au scope module
+- `README.md`: update architecture, test count 144, 7 migrations, TURN, SFU
+- `.claude/BUGS.md`: 2 tests flaky documentes + cookie fix
+- `.claude/WORKFLOW-CATALOG.md`: stats test-nook.yml mises a jour
+- `.claude/roles/ci-devops.md`: targets musl->gnu, .cargo note mise a jour
+
+### Bugs Corriges
+| Bug | Fichier | Fix | Commit |
+|-----|---------|-----|--------|
+| proc-macro cannot produce (.cargo/config) | `.cargo/config.toml` | Supprimer section x86_64 | `84ee879` |
+| rustup target add corromp | `Backend.yml` | Conditionnel aarch64 seul | `b2bec48` |
+| $ADMIN_COOKIE perdu entre runs | `test-nook.yml` | 7 runs -> 1 block | `b55636b` |
+| RefError adminPage | `admin.spec.ts` | Module scope | `e9ae61a` |
+| Python IndentationError WS | `test-nook.yml` | Supprime ligne heredoc | `1108e89` |
+| YAML syntax L325 | `test-nook.yml` | Indenter heredoc | `541b481` |
+
+### Couverture Tests
+| Categorie | Status | Tests |
+|-----------|--------|-------|
+| E2E Playwright | ✅ | 157 passed, 0 failed, 2 flaky |
+| Shell Integration (7 sections) | ✅ | Tout passe avec cookie persistant |
+| Backend Build (Docker) | ✅ | ~3min27s |
+
+### Etat Final
+- HEAD: cb95173
+- CI test-nook: ✅ OK (157/159 pass, 2 flaky preexistants)
+- Backend build: ✅ OK
+- Docker build: ✅ OK
+- Git: propre, tout pousse
