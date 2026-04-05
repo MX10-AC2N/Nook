@@ -102,6 +102,8 @@ jobs:
           echo "Image nook-ci:local construite"
 
       - name: Start stack
+        env:
+          NOOK_IMAGE: nook-ci:local
         run: |
           docker compose up -d --force-recreate nook
 
