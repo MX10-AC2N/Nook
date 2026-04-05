@@ -984,3 +984,40 @@ les images Docker de gcr.io/distroless/cc-debian12 vers alpine:3.21.
 - Backend: build musl avec ring/aws-lc-sys OK (musl-gcc)
 - aarch64 cross: zig cc 0.13 avec `-target aarch64-linux-musl`
 - CI: en attente de re-run sur 08015e3
+
+## Session 8 — 2026-04-05 (Alpine Docker + UTF-8 CI Fix + Zero Google Migration)
+
+### Contexte
+Migrate tous les Dockerfiles vers Alpine 3.21 (zero Google), corriger les erreurs CI en cascade.
+
+### Decisions Cles
+- Docker: Alpine 3.21 builder (rustup nightly, edition2024) + Alpine 3.21 runtime
+- Backend.yml: targets gnu (x86_64/aarch64-unknown-linux-gnu) pour releases, pas Alpine/CI
+- `cc-rs` exige le linker exact (`x86_64-linux-musl-gcc` vs `musl-gcc`)
+- EMOJI CORRUPTION: Tous les emojies multi-octets dans les fichiers .yml workflow se corrompent via l'API GitHub — remplacent guillemets avec des caracteres casses (ðŸ" → quote rompue)
+- musl-tools = paquet Debian uniquement, inexistant sur Alpine
+
+### Progres
+- ✅ Dockerfile: Alpine builder (rustup nightly) + Alpine 3.21 runtime
+- ✅ Dockerfile.release: Alpine 3.21 runtime (consomme bins musl)
+- ✅ services/turn-rs/Dockerfile: Alpine 3.21 builder + runtime
+- ✅ Backend.yml: gnu targets, RUSTFLAGS=-C target-feature=+crt-static
+- ✅ .cargo/config.toml: linker aarch64-linux-gnu-gcc
+- ✅ test-nook.yml: NOOK_IMAGE env var fix, backend check step ajoute, UTF-8 nettoye
+- ✅ README.md: references Distroless remplacees par Alpine
+- ✅ Tous les emojies casses dans workflow files remplaces par ASCII pur
+
+### Bugs Corriges
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| musl-tools sur Alpine | Dockerfile | retire (paquet Debian) |
+| cc-rs cherche x86_64-linux-musl-gcc | Dockerfile | utilise musl-gcc via Alpine natif |
+| Edition2024 incompatible Alpine cargo 1.83 | Dockerfile | rustup nightly --default-toolchain nightly |
+| Emojis multi-octets cassent quotes bash | Backend.yml, test-nook.yml | remplaces par ASCII pur |
+| NOOK_IMAGE non defini dans Start stack | test-nook.yml | ajoute env: NOOK_IMAGE: nook-ci:local |
+| Start stack fail sur distroless bins | test-nook.yml | clean previous runs + force-recreate |
+
+### Etat Final (en attente CI)
+- HEAD: 50d268a26d — fix(docker): remove musl-tools
+- CI: run 24009717784 in_progress (Frontend OK, Integration Tests en cours)
+- Zero Google partout: Alpine 3.21 builder + runtime, debian:bookworm-slim nulle part
