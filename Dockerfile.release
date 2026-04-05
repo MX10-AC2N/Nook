@@ -1,54 +1,44 @@
-# ===============================================
-# Dockerfile.release – Image de production Nook
-# Utilisé par Docker.yml et ci-new2.yml
-# Les binaires sont pré-compilés par Backend.yml
-#
-# Contexte attendu (docker-context/) :
-#   backend/nook-backend-amd64
-#   backend/nook-backend-arm64
-#   frontend/           (build SvelteKit)
-# ===============================================
+# ============================================================
+# Nook — Backend (runtime only, pre-compiled binary)
+# ============================================================
+# Accepte un binaire pré-compilé pour amd64 ou arm64
+# Compatible Alpine — zero Google dependency
+# ============================================================
 
-# ===============================================
-# ÉTAPE 1 : Préparation (sélection binaire par arch)
-# ===============================================
-FROM debian:bookworm-slim AS prep
+# ── ÉTAPE 1 : Préparer les libs runtime ────────────────────────
+FROM alpine:3.21 AS runtime
 
-ARG TARGETARCH
+RUN apk add --no-cache \
+    libstdc++ \
+    libgcc \
+    ca-certificates \
+    libsqlite3 \
+    libsodium
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlite3-0 libsodium23 libssl3 ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Dossiers applicatifs
+RUN mkdir -p /app/data /app/static /app/logs
 
-RUN mkdir -p /app/data /app/static
+# ── ÉTAPE 2 : Copier le binaire ───────────────────────────────
+# Le binaire DOIT être compilé pour musl (compatible Alpine)
+ARG TARGETARCH=amd64
+COPY --chmod=755 ./artifacts/nook-backend-${TARGETARCH} /app/nook-backend
 
-# Copie du binaire correspondant à l'architecture cible
-COPY backend/nook-backend-${TARGETARCH} /app/nook-backend
-RUN chmod +x /app/nook-backend
-
-# Copie du frontend build
-COPY frontend/ /app/static/
-
-# ===============================================
-# ÉTAPE 2 : Image finale Distroless
-# ===============================================
-FROM gcr.io/distroless/cc-debian12:latest
-
-COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=prep /usr/lib/*/libsqlite3.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libsodium.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libssl.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
-
-COPY --from=prep /app /app
+COPY frontend/build /app/static 2>/dev/null || true
 
 WORKDIR /app
+
 EXPOSE 3000
 
-ENV RUST_LOG=info \
-    PORT=3000 \
-    DATABASE_URL=sqlite:/app/data/nook.db \
-    STATIC_FILES_DIR=/app/static \
-    UPLOADS_DIR=/app/data/uploads
+ENV DATA_DIR=/app/data
+ENV STATIC_DIR=/app/static
+ENV LOG_DIR=/app/logs
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+# Nook tourne sans privileges (Alpine nobody = 65534)
+RUN addgroup -S nook && adduser -S nook -G nook
+USER nook:nook
 
 ENTRYPOINT ["/app/nook-backend"]
