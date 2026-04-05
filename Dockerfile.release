@@ -1,19 +1,21 @@
 # ============================================================
 # Nook - Backend (runtime only, pre-compiled binary)
 # ============================================================
-# Consomme des binaires musl compilés par Backend.yml
-# Zero Google dependency — Alpine runtime (~15MB)
+# Binaire pre-compile depuis Backend.yml
+# Zero Google dependency
 # ============================================================
 
-FROM alpine:3.21 AS runtime
+# - ETAPE 1 : Runtime Debian bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
-RUN apk add --no-cache \
-    sqlite-libs \
-    libsodium \
-    ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsqlite3-0 \
+    libsodium23 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # User non-root
-RUN addgroup -S nook && adduser -S nook -G nook
+RUN addgroup --system nook && adduser --system --ingroup nook nook
 
 # Dossiers applicatifs
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
