@@ -18,7 +18,6 @@ export default defineConfig({
   testDir: './tests',
   timeout: 60_000,           // timeout global par test (↑ de 30s pour les tests UI lents)
   expect: { timeout: 8_000 },
-  // //   command: 'npm run dev',
   // fullyParallel: false,      // OBLIGATOIRE — voir historique R21 dans helpers.ts
   // forbidOnly: !!process.env.CI,
   // retries: process.env.CI ? 1 : 0,  // 1 seul retry en CI (était 2 → trop de logins)
