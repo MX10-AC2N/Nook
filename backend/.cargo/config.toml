@@ -1,8 +1,10 @@
-# Configuration de compilation cross aarch64 via gcc
-# x86_64: cible native du runner (pas besoin de config)
+# Configuration de compilation musl (Alpine)
+# x86_64: musl-gcc natif (pas besoin de config dans .cargo/config,
+#          le linker est passe via CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER)
+# aarch64: gcc cross-compiler
 
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
 
 [profile.release]
 lto = true
