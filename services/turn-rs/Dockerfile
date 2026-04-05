@@ -5,28 +5,31 @@
 # Zero Google dependency — Alpine builder + Alpine runtime
 # ============================================================
 
-# - ETAPE 1 : Builder Alpine 3.21
 FROM alpine:3.21 AS builder
 
 RUN apk add --no-cache \
-    rust \
-    cargo \
+    curl \
+    gcc \
+    g++ \
     musl-dev \
+    build-base \
     cmake \
     protobuf-dev \
     protobuf \
     git \
     pkgconfig
 
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain nightly --profile minimal
+ENV PATH="/root/.cargo/bin:$PATH"
+
 WORKDIR /src
 RUN git clone --depth 1 https://github.com/mycrl/turn-rs.git /src/turn-rs
 WORKDIR /src/turn-rs
 
-# Build avec features par defaut (udp, tcp, ssl, api, prometheus)
 RUN cargo build --release \
     && cp target/release/turn-server /usr/local/bin/turn-server
 
-# - ETAPE 2 : Runtime Alpine 3.21 (zero Google)
 FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache ca-certificates
