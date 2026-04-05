@@ -1,67 +1,80 @@
-# ===============================================
-# Dockerfile Nook – Build depuis sources
-# Utilisé par : test-nook.yml + docker-compose
-# ===============================================
+# ============================================================
+# Nook — Backend (build from sources)
+# ============================================================
+# Compatible Alpine — zero Google dependency
+# ============================================================
 
-# syntax=docker/dockerfile:1
-
-# ===============================================
-# ÉTAPE 1 : Build Rust
-# ⚠️ Copie EXPLICITE — on exclut .cargo/config.toml
-# qui force le linker x86_64-linux-gnu-gcc et met
-# Cargo en mode cross-compilation → crash proc-macros
-# ===============================================
+# ── ÉTAPE 1 : Compilateur (Debian bookworm → cible musl) ──────
 FROM rust:1.88-bookworm AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-tools \
+    musl-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Ajouter les cibles musl (cross-compilation depuis glibc builder vers musl)
+RUN rustup target add x86_64-unknown-linux-musl \
+    && rustup target add aarch64-unknown-linux-musl
 
 WORKDIR /usr/src/nook
 
+# Cache dependencies
 COPY backend/Cargo.toml backend/Cargo.lock ./
-COPY backend/src ./src
-COPY backend/migrations ./migrations
+RUN mkdir -p src && echo "fn main(){}" > src/main.rs
+# Dummy build pour le cache deps — cible musl
+RUN cargo build --target x86_64-unknown-linux-musl --release \
+    && rm -f target/x86_64-unknown-linux-musl/release/nook-backend
+
+# Build réel
 COPY backend/.sqlx ./.sqlx
+COPY backend/migrations ./migrations/
+COPY backend/src ./src/
 
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/usr/src/nook/target \
-    SQLX_OFFLINE=true cargo build --release --bin nook-backend && \
-    cp target/release/nook-backend /usr/local/bin/nook-backend
+ENV SQLX_OFFLINE=true
+ENV CARGO_PROFILE_RELEASE_LTO=true
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
+ENV CARGO_PROFILE_RELEASE_STRIP=true
+RUN cargo build --release --locked --target x86_64-unknown-linux-musl \
+    && cp target/x86_64-unknown-linux-musl/release/nook-backend /usr/local/bin/nook-backend
 
-# ===============================================
-# ÉTAPE 2 : Préparation des libs et permissions
-# ===============================================
-FROM debian:bookworm-slim AS prep
+# ── ÉTAPE 2 : Runtime Alpine 3.21 ─────────────────────────────
+FROM alpine:3.21 AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlite3-0 libsodium23 libssl3 ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    libstdc++ \
+    libgcc \
+    ca-certificates
 
+# SQLite et libsodium (runtime only)
+RUN apk add --no-cache \
+    libsqlite3 \
+    libsodium
+
+# Dossiers applicatifs
 RUN mkdir -p /app/data /app/static /app/logs
 
+# Binaire compilé en musl (compatible Alpine nativement)
 COPY --from=builder /usr/local/bin/nook-backend /app/nook-backend
 
-# ===============================================
-# ÉTAPE 3 : Image finale Distroless
-# ===============================================
-FROM gcr.io/distroless/cc-debian12:latest
-
-COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=prep /usr/lib/*/libsqlite3.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libsodium.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libssl.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
-
-COPY --from=prep /app /app
-
-# Frontend build (fourni par le job CI via artifact)
-COPY frontend/build /app/static
+# Frontend build (copié depuis l'artefact Frontend.yml)
+# COPY frontend/build /app/static  ← fait par le workflow CI
 
 WORKDIR /app
+
 EXPOSE 3000
 
-ENV RUST_LOG=info \
-    PORT=3000 \
-    DATABASE_URL=sqlite:/app/data/nook.db \
-    STATIC_FILES_DIR=/app/static \
-    UPLOADS_DIR=/app/data/uploads
+ENV DATA_DIR=/app/data
+ENV STATIC_DIR=/app/static
+ENV LOG_DIR=/app/logs
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+# Nook tourne sans privileges (Alpine nobody = 65534)
+RUN addgroup -S nook && adduser -S nook -G nook
+USER nook:nook
 
 ENTRYPOINT ["/app/nook-backend"]
