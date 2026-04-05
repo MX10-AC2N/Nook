@@ -138,7 +138,16 @@ jobs:
           test -f frontend/build/index.html || (echo "index.html manquant" && exit 1)
           echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
+
+          - name: Prepare bind mount dirs
+            run: |
+              mkdir -p data logs
+              chmod 0777 data logs
+
       # ── Build Docker image ────────────────────────────────
+      - name: Clean previous runs
+        run: |
+          docker compose down -v --remove-orphans 2>/dev/null || true
       - name: Build Docker image
         run: |
           docker build --tag nook-ci:local --file Dockerfile .
@@ -151,7 +160,7 @@ jobs:
           RATE_LIMIT_PER_MIN: 120
           ADMIN_INITIAL_PASSWORD: changeme2026
         run: |
-          docker compose up -d nook
+          docker compose up -d --force-recreate nook
           
           echo "Attente healthcheck..."
           TIMEOUT=0
