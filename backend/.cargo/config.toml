@@ -1,6 +1,10 @@
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
-rustflags = ["-C", "target-feature=+crt-static"]
+# Configuration de compilation pour cibles musl (compatible Alpine)
+# Les binaires musl tournent sur Alpine, Debian, et tout système Linux
+# Pas de dependance externe a l'installation — musl est bundle dans le binaire
+
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
+rustflags = []
 
 [profile.release]
 lto = true
