@@ -9,7 +9,7 @@
 
 | # | Fichier | Nom | Lignes | Déclencheurs | Critique |
 |---|---------|------|--------|-------------|----------|
-| 1 | `test-nook.yml` | test-nook | 441 | push/PR/dispatch | 🔴 OUI |
+| 1 | `test-nook.yml` | test-nook | ~382 | push/PR/dispatch | 🔴 OUI |
 | 2 | `Backend.yml` | Backend Build & Artifact | 255 | dispatch | 🟡 UTILE |
 | 3 | `Frontend.yml` | Frontend Build & Artifact | 177 | dispatch | 🟡 UTILE |
 | 4 | `Docker.yml` | Docker Build & Push | 223 | dispatch | 🟡 UTILE |
@@ -80,7 +80,7 @@ fusionnés en un seul `update-lockfiles.yml`.
 
 | Workflow | Pourquoi le garder |
 |----------|-------------------|
-| `test-nook.yml` | CI principale — indispensable (shell tests consolidés en un seul bloc run:) |
+| `test-nook.yml` | CI principale — 7 sections shell consolidees en 1 bloc — indispensable (shell tests consolidés en un seul bloc run:) |
 | `Backend.yml` | Build backend (artefact) — utile pour debug |
 | `Frontend.yml` | Build frontend (artefact) — utile pour debug |
 | `Docker.yml` | Build Docker multi-arch — critique pour deploy |
