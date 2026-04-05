@@ -138,7 +138,7 @@ jobs:
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "âœ" Rapport commitÃ©"
+            echo " Rapport commite"
           fi
 
       - uses: actions/upload-artifact@v4
