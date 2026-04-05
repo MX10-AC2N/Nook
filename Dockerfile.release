@@ -12,7 +12,7 @@ RUN apk add --no-cache \
     libstdc++ \
     libgcc \
     ca-certificates \
-    libsqlite3 \
+    sqlite-libs \
     libsodium
 
 # Dossiers applicatifs
