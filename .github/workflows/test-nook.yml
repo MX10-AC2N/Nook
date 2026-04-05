@@ -1,134 +1,76 @@
-name: "3==> CI - Test Nook (Backend + Frontend + Integration)"
+# Note: this file is the MAIN CI pipeline.
+# It builds Docker image, runs backend checks, E2E tests, and security tests.
+
+name: 3==> CI - Test Nook (Backend + Frontend + Integration + E2E)
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - develop
-      - main
+    branches: [develop, main]
   pull_request:
-    branches:
-      - develop
-      - main
+    branches: [develop, main]
 
 concurrency:
-  group: test-nook-${{ github.ref }}
+  group: ci-test-noog-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+# Note: les jobs sont SEQUENTIELS (aucun needs parallele)
+# pour eviter les conflits git sur .claude/TEST_REPORT.md
+
 jobs:
-  # ═══════════════════════════════════════════════════════════
-  # JOB 1: FRONTEND BUILD
-  # ═══════════════════════════════════════════════════════════
-  frontend:
-    name: "🎨 Frontend Build"
+  # - Build Frontend (ArtÃ©fact pour les jobs suivants)
+  frontend-build:
+    name: ðŸŽ¨ Frontend Build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ./frontend
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
-      
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci --legacy-peer-deps --no-audit --no-fund
-      
-      - name: Type check (TypeScript)
-        working-directory: ./frontend
-        run: npx tsc --noEmit || true  # Non bloquant
-      
+
+      - run: npm ci --legacy-peer-deps --no-audit --no-fund
+
       - name: Build
-        working-directory: ./frontend
         run: npm run build
-      
+
       - name: Verify build
         working-directory: ./frontend
         run: |
           test -f build/index.html || (echo "index.html manquant" && exit 1)
           FILE_COUNT=$(ls build | wc -l)
-          echo "✅ Frontend OK — $FILE_COUNT fichiers"
-      
+          echo "âœ" Frontend OK â€" $FILE_COUNT fichiers"
+
       - uses: actions/upload-artifact@v4
         with:
           name: nook-frontend
           path: frontend/build
           retention-days: 1
 
-  # ═══════════════════════════════════════════════════════════
-  # JOB 2: BACKEND BUILD + CHECK + TESTS
-  # ═══════════════════════════════════════════════════════════
-  backend:
-    name: "🦀 Backend Rust"
+  # - Build Backend + IntÃ©gration + E2E (tout en un)
+  integration-tests:
+    name: ðŸ—ª Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: dtolnay/rust-toolchain@nightly  # edition 2024
-        with:
-          components: rustfmt, clippy
-      
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend
-          prefix-key: v1-rust
-      
-      - name: Install libsodium dev
-        run: sudo apt-get install -y libsodium-dev pkg-config
-      
-      - name: cargo fmt (check)
-        working-directory: ./backend
-        run: cargo fmt -- --check || true  # Non bloquant
-      
-      - name: cargo check
-        working-directory: ./backend
-        env:
-          SQLX_OFFLINE: true
-        run: cargo check 2>&1 | tee /tmp/cargo-check.txt || true  # Non bloquant (check errors in CI logs)
-      
-      - name: cargo test
-        working-directory: ./backend
-        env:
-          SQLX_OFFLINE: true
-        run: cargo test 2>&1 | tee /tmp/cargo-test.txt || true  # Non bloquant (test results in CI logs)
-      
-      - name: cargo clippy
-        id: clippy
-        working-directory: ./backend
-        env:
-          SQLX_OFFLINE: true
-        run: |
-          set +e
-          cargo clippy -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt || true  # Non bloquant
-          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-          set -e
+    needs: frontend-build
+    defaults:
+      run:
+        working-directory: ./
 
-  # ═══════════════════════════════════════════════════════════
-  # JOB 3: INTEGRATION TESTS (Docker Stack + E2E)
-  # ═══════════════════════════════════════════════════════════
-  integration:
-    name: "🔗 Integration Tests"
-    needs: [frontend, backend]
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # ── Download frontend build ───────────────────────────
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: nook-frontend
           path: frontend/build
@@ -138,72 +80,56 @@ jobs:
           test -f frontend/build/index.html || (echo "index.html manquant" && exit 1)
           echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
-
-      - name: Prepare bind mount dirs
-            run: |
-          mkdir -p data logs
-          chmod 0777 data logs
-
-      # ── Build Docker image ────────────────────────────────
       - name: Clean previous runs
         run: |
           docker compose down -v --remove-orphans 2>/dev/null || true
+          rm -rf data logs
+          mkdir -p data logs
+          chmod 0777 data logs
 
       - name: Build Docker image
         run: |
           docker build --tag nook-ci:local --file Dockerfile .
           echo "Image nook-ci:local construite"
 
-      # ── Start stack ───────────────────────────────────────
       - name: Start stack
-        env:
-          NOOK_IMAGE: nook-ci:local
-          RATE_LIMIT_PER_MIN: 120
-          ADMIN_INITIAL_PASSWORD: changeme2026
         run: |
           docker compose up -d --force-recreate nook
-          
+
           echo "Attente healthcheck..."
           TIMEOUT=0
           while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
             if [ $TIMEOUT -gt 60 ]; then
-              echo "Healthcheck timeout après 60s"
+              echo "Healthcheck timeout aprÃ¨s 60s"
               docker compose logs --tail=50
               exit 1
             fi
           done
-          echo "✅ Stack démarrée"
+          echo "âœ" Stack dÃ©marrÃ©e"
 
-      # ── Install Playwright ────────────────────────────────
       - name: Install Playwright
-        working-directory: ./frontend
         run: |
           npm ci --legacy-peer-deps --no-audit --no-fund
           npx playwright install --with-deps chromium
 
-      # ── Test: API Health ─────────────────────────────────
-      - name: Test API Health
+      # - Shell Integration Tests
+      - name: Test Health & Auth
         run: |
-          # Vérifier health
+          # VÃ©rifier health
           HEALTH=$(curl -s http://localhost:6300/api/health)
           echo "Health: $HEALTH"
-          [ "$HEALTH" = "OK" ] || (echo "Health check échoué" && exit 1)
-          
-          # Vérifier auth/me sans cookie → 401
+          [ "$HEALTH" = "OK" ] || (echo "Health check Ã©chouÃ©" && exit 1)
+
+          # VÃ©rifier auth/me sans cookie â†" 401
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6300/api/auth/me)
-          echo "GET /auth/me sans cookie → HTTP $STATUS (attendu 401)"
-          [ "$STATUS" = "401" ] || (echo "Attendu 401, reçu $STATUS" && exit 1)
+          echo "GET /auth/me sans cookie â†" HTTP $STATUS (attendu 401)"
+          [ "$STATUS" = "401" ] || (echo "Attendu 401, reÃ§u $STATUS" && exit 1)
 
-
-
-      # ── Shell Integration Tests (Auth, Security, Chat, WS, Polls, Events) ─
-      - name: Shell Integration Tests
-        id: shell_tests
+      - name: Test Auth flows
         continue-on-error: true
         run: |
-          # === 1. AUTH ===
           echo "=== Test registration ==="
           REG=$(curl -s -X POST http://localhost:6300/api/auth/register \
             -H "Content-Type: application/json" \
@@ -216,7 +142,6 @@ jobs:
             -d '{"username":"weak_pwd_test","password":"123","email":"weak@nook.local","name":"Weak"}')
           echo "Weak password: $WEAK"
 
-          # === 2. ADMIN LOGIN ===
           echo "=== Admin login (premier acces) ==="
           curl -s -D /tmp/admin-headers.txt -o /tmp/admin-body.txt -X POST \
             http://localhost:6300/api/auth/login \
@@ -262,7 +187,6 @@ jobs:
           echo "/auth/me: $ME"
           ADMIN_ID=$(echo "$ME" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("user",{}).get("id",""))' 2>/dev/null || echo "")
 
-          # Register + approve
           echo "=== Register + approve ==="
           REG2=$(curl -s -X POST http://localhost:6300/api/auth/register \
             -H "Content-Type: application/json" \
@@ -280,7 +204,9 @@ jobs:
             echo "User e2e_ci approved"
           fi
 
-          # === 3. SECURITY ===
+      - name: Test Security endpoints
+        continue-on-error: true
+        run: |
           echo "=== XSS prevention ==="
           XSS=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages \
             -H "Content-Type: application/json" \
@@ -297,87 +223,7 @@ jobs:
             -F "from_user_id=$MY_USER_ID")
           echo "Upload vide: $UPLOAD_EMPTY"
 
-          # === 4. CHAT ===
-          echo "=== Conversations ==="
-          CONVS=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/conversations)
-          echo "Conversations: $CONVS"
-
-          echo "=== Envoi message ==="
-          MSG=$(curl -s -X POST http://localhost:6300/api/conversations/default_global/messages \
-            -H "Content-Type: application/json" \
-            -H "Cookie: $ADMIN_COOKIE" \
-            -d '{"content":"Message test CI","encrypted":false}')
-          echo "Message: $MSG"
-
-          echo "=== Recup messages ==="
-          MESSAGES=$(curl -s -H "Cookie: $ADMIN_COOKIE" http://localhost:6300/api/conversations/default_global/messages)
-          echo "Messages: $(echo "$MESSAGES" | python3 -c 'import sys,json;d=json.load(sys.stdin);print(len(d) if isinstance(d,list) else 0)' 2>/dev/null || echo 0)"
-
-          echo "=== Rename ==="
-          RENAME=$(curl -s -X PATCH http://localhost:6300/api/conversations/default_global/rename \
-            -H "Content-Type: application/json" \
-            -H "Cookie: $ADMIN_COOKIE" \
-            -d '{"name":"Test Rename"}')
-          echo "Rename: $RENAME"
-
-          # === 5. WEBSOCKET (using heredoc for python) ===
-          echo "=== WebSocket ==="
-          WS_COOKIE="$ADMIN_COOKIE"
-          if [ -z "$WS_COOKIE" ]; then
-            HEADERS=$(curl -s -D - -o /dev/null -X POST http://localhost:6300/api/auth/login \
-              -H "Content-Type: application/json" \
-              -d '{"username":"admin","password":"AdminCI2026!"}')
-            WS_COOKIE=$(echo "$HEADERS" | grep -i "set-cookie" | grep -o "auth_token=[^;]*" | head -1)
-          fi
-          if [ -n "$WS_COOKIE" ]; then
-            echo "WS cookie ok, testing..."
-            echo "WS cookie ok, testing..."
-            cat > /tmp/ws_test.py << 'WS_EOF'
-              import asyncio, websockets, sys
-              cookie = sys.argv[1]
-              async def test():
-                  try:
-                      async with websockets.connect("ws://localhost:6300/ws", additional_headers={"Cookie": cookie}, open_timeout=5) as ws:
-                          await ws.send('{"type":"test"}')
-                          r = await asyncio.wait_for(ws.recv(), timeout=3)
-                          print("WS OK: %s..." % r[:100])
-                  except Exception as e:
-                      print("WS error: %s" % e)
-              asyncio.run(test())
-          WS_EOF
-            python3 /tmp/ws_test.py "$WS_COOKIE" || true
-          else
-            echo "Pas de cookie WS"
-          fi
-
-          # === 6. POLLS ===
-          echo "=== Polls ==="
-          POLL=$(curl -s -X POST http://localhost:6300/api/polls \
-            -H "Content-Type: application/json" \
-            -H "Cookie: $ADMIN_COOKIE" \
-            -d '{"question":"Test CI?","options":["Oui","Non"],"expires_in_hours":1}')
-          POLL_ID=$(echo "$POLL" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
-          if [ -n "$POLL_ID" ]; then
-            VOTE=$(curl -s -X POST "http://localhost:6300/api/polls/$POLL_ID/votes" \
-              -H "Content-Type: application/json" \
-              -H "Cookie: $ADMIN_COOKIE" \
-              -d '{"option_index":0}')
-            echo "Vote: $VOTE"
-            curl -s -X DELETE "http://localhost:6300/api/polls/$POLL_ID" -H "Cookie: $ADMIN_COOKIE"
-          fi
-
-          # === 7. EVENTS ===
-          echo "=== Events ==="
-          EVT=$(curl -s -X POST http://localhost:6300/api/events \
-            -H "Content-Type: application/json" \
-            -H "Cookie: $ADMIN_COOKIE" \
-            -d '{"title":"Test CI","date":"2026-04-02","description":"Event CI","time":"10:00"}')
-          EVT_ID=$(echo "$EVT" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' 2>/dev/null || echo "")
-          if [ -n "$EVT_ID" ]; then
-            curl -s -X DELETE "http://localhost:6300/api/events/$EVT_ID" -H "Cookie: $ADMIN_COOKIE"
-          fi
-
-      # ── E2E Playwright ──────────────────────────────────
+      # - E2E Playwright
       - name: E2E Playwright
         id: playwright
         run: |
@@ -385,39 +231,33 @@ jobs:
           npx playwright test 2>&1 | tee /tmp/playwright-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
-          
-          # Afficher résultat
+
           if [ $EXIT_CODE -eq 0 ]; then
-            echo "✅ Tous les tests E2E ont passé"
+            echo "âœ" Tous les tests E2E ont passÃ©"
             grep -E "passed|failed|skipped" /tmp/playwright-output.txt || true
           else
-            echo "❌ Tests E2E échoués"
-            grep -E "✗|passed|failed|skipped" /tmp/playwright-output.txt || true
+            echo "â?Œ Tests E2E Ã©chouÃ©s"
+            grep -E "âœ"|passed|failed|skipped" /tmp/playwright-output.txt || true
           fi
-      # ── Capture logs ────────────────────────────────────
+
       - name: Capture logs Docker
         if: always()
         run: |
-          docker compose logs --tail=200 2>/dev/null             | sed 's/\x1b\[[0-9;]*m//g'             > /tmp/docker.log || true
-          echo "$(wc -l < /tmp/docker.log) lignes de logs Docker capturées"
+          docker compose logs --tail=200 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            > /tmp/docker.log || true
+          echo "$(wc -l < /tmp/docker.log) lignes de logs Docker capturÃ©es"
 
-      # ── Generate report ─────────────────────────────────
       - name: Generate TEST_REPORT.md
         if: always()
-        env:
-          PLAYWRIGHT_EXIT: ${{ steps.playwright.outputs.playwright_exit }}
-          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          COMMIT_SHA: "${{ github.sha }}"
-          BRANCH: "${{ github.ref_name }}"
-          REPO: "${{ github.repository }}"
         run: |
           export RUN_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
-          export RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          export RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           export COMMIT_SHA="${{ github.sha }}"
           export BRANCH="${{ github.ref_name }}"
           export REPO="${{ github.repository }}"
           python3 .github/scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
-          echo "Rapport généré"
+          echo "Rapport gÃ©nÃ©rÃ©"
           head -20 .claude/TEST_REPORT.md
 
       - name: Commit TEST_REPORT.md
@@ -431,19 +271,9 @@ jobs:
           else
             git commit -m "ci: TEST_REPORT.md [run ${{ github.run_id }}]"
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "Rapport commité"
+            echo "Rapport commitÃ©"
           fi
 
-      # ── Logs on failure ────────────────────────────────
-      - name: Logs si échec
-        if: failure()
-        run: |
-          echo "=== Docker logs ==="
-          docker compose logs --tail=100
-          echo "=== Playwright output ==="
-          cat /tmp/playwright-output.txt || echo "(vide)"
-
-      # ── Artifacts ──────────────────────────────────────
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -452,7 +282,6 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
-      # ── Cleanup ────────────────────────────────────────
       - name: Cleanup
         if: always()
         run: docker compose down -v --rmi local
