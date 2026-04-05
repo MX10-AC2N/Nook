@@ -45,6 +45,15 @@ jobs:
           workspaces: backend
           key: ${{ matrix.target }}
 
+      - name: Set musl linker flags
+        id: linker
+        run: |
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            echo "flags=-C linker=/usr/local/bin/zig cc -C link-args=-target aarch64-linux-musl" >> $GITHUB_OUTPUT
+          else
+            echo "flags=" >> $GITHUB_OUTPUT
+          fi
+
       - name: cargo check
         id: check
         env:
@@ -73,7 +82,7 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
-          RUSTFLAGS: "-C target-feature=+crt-static"
+          RUSTFLAGS: "-C target-feature=+crt-static ${{ steps.linker.outputs.flags }}"
         run: |
           set +e
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
