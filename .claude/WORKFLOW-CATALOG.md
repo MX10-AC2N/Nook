@@ -80,7 +80,7 @@ fusionnés en un seul `update-lockfiles.yml`.
 
 | Workflow | Pourquoi le garder |
 |----------|-------------------|
-| `test-nook.yml` | CI principale — indispensable |
+| `test-nook.yml` | CI principale — indispensable (shell tests consolidés en un seul bloc run:) |
 | `Backend.yml` | Build backend (artefact) — utile pour debug |
 | `Frontend.yml` | Build frontend (artefact) — utile pour debug |
 | `Docker.yml` | Build Docker multi-arch — critique pour deploy |
