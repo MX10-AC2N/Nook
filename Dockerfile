@@ -1,23 +1,26 @@
 # ============================================================
 # Nook - Backend (build from sources)
 # ============================================================
-# Zero Google dependency
+# Zero Google dependency — Alpine builder + Alpine runtime (~15MB)
 # ============================================================
 
-# - ETAPE 1 : Compilateur (Debian bookworm)
-FROM rust:1.88-bookworm AS builder
+# - ETAPE 1 : Builder Alpine 3.21 (musl natif)
+FROM alpine:3.21 AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
+    rust \
+    cargo \
+    musl-dev \
+    sqlite-dev \
     libsodium-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    pkgconfig
 
 WORKDIR /usr/src/nook
 
 # Cache dependencies
 COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir -p src && echo "fn main(){}" > src/main.rs
-RUN cargo build --release \
+RUN CARGO_BUILD_JOBS=$(nproc) cargo build --release \
     && rm -f target/release/nook-backend
 
 # Build reel
@@ -30,27 +33,25 @@ ENV CARGO_PROFILE_RELEASE_LTO=true
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
 ENV CARGO_PROFILE_RELEASE_STRIP=true
-ENV RUSTFLAGS="-C target-feature=+crt-static"
 RUN cargo build --release --locked \
     && cp target/release/nook-backend /usr/local/bin/nook-backend
 
-# - ETAPE 2 : Runtime Debian bookworm-slim (zero Google)
-FROM debian:bookworm-slim AS runtime
+# - ETAPE 2 : Runtime Alpine 3.21 (zero Google)
+FROM alpine:3.21 AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlite3-0 \
-    libsodium23 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    sqlite-libs \
+    libsodium \
+    ca-certificates
 
-# User non-root
-RUN addgroup --system nook && adduser --system --ingroup nook nook
+# User non-root (Alpine useradd/addgroup syntax)
+RUN addgroup -S nook && adduser -S nook -G nook
 
 # Dossiers applicatifs
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app
 
-# Binaire compile (avec +crt-static donc minimal deps)
+# Binaire statique musl (pas besoin de libc)
 COPY --from=builder /usr/local/bin/nook-backend /app/nook-backend
 RUN chmod 0755 /app/nook-backend
 
