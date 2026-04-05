@@ -1,14 +1,14 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit fe47466 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/23998928771)
+> **unknown** | commit da4df06 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24000732593)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ❌ unknown |
-| **cargo check** | ❌ exit=? |
-| **cargo clippy** | ❌ exit=? |
+| **cargo build** | ❌ FAIL |
+| **cargo check** | ❌ exit=101 |
+| **cargo clippy** | ❌ exit=101 |
 
 | Métrique | Valeur |
 |----------|--------|
