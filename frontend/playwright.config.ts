@@ -18,13 +18,16 @@ export default defineConfig({
   testDir: './tests',
   timeout: 60_000,           // timeout global par test (↑ de 30s pour les tests UI lents)
   expect: { timeout: 8_000 },
-  fullyParallel: false,      // OBLIGATOIRE — voir historique R21 dans helpers.ts
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,  // 1 seul retry en CI (était 2 → trop de logins)
-  workers: 1,                // toujours 1 worker — même contexte DB partagé
-  reporter: [
-    ['html'],
-    ['json', { outputFile: '/tmp/playwright-results.json' }],
+  // webServer disabled in CI — Alpine container serves frontend on :6300
+  // webServer: {
+  // //   command: 'npm run dev',
+  // fullyParallel: false,      // OBLIGATOIRE — voir historique R21 dans helpers.ts
+  // forbidOnly: !!process.env.CI,
+  // retries: process.env.CI ? 1 : 0,  // 1 seul retry en CI (était 2 → trop de logins)
+  // workers: 1,                // toujours 1 worker — même contexte DB partagé
+  // reporter: [
+  // ['html'],
+  // ['json', { outputFile: '/tmp/playwright-results.json' }],
   ],
   use: {
     baseURL: 'http://localhost:6300',
@@ -50,8 +53,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:6300',
-    reuseExistingServer: !!process.env.CI,
-  },
+  // command: 'npm run dev',
+  // url: 'http://localhost:6300',
+  // reuseExistingServer: !!process.env.CI,
+  // },
 });
