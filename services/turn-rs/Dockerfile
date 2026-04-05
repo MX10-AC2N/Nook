@@ -10,7 +10,7 @@
 FROM rustlang/rust:nightly-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git cmake protobuf-compiler pkg-config \
+    git cmake protobuf-compiler libprotobuf-dev pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
