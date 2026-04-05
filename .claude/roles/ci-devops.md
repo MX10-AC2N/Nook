@@ -133,17 +133,17 @@ strategy:
   matrix:
     include:
       - arch: amd64
-        target: x86_64-unknown-linux-musl
-        linker: x86_64-linux-musl-gcc
+        target: x86_64-unknown-linux-gnu
+        linker: x86_64-linux-gnu-gcc
         report: BACKEND-BUILD-REPORT-amd64.md
       - arch: arm64
-        target: aarch64-unknown-linux-musl
+        target: aarch64-unknown-linux-gnu
         linker: aarch64-linux-gnu-gcc
         report: BACKEND-BUILD-REPORT-arm64.md
 
-# ⚠️ .cargo/config.toml utilisé UNIQUEMENT dans ce workflow
-# Ne pas le copier dans Dockerfile
-# Il configure les linkers cross qui n'existent que sur les runners GitHub
+# ⚠️ .cargo/config.toml contient les linkers cross
+# NE PAS le copier dans Dockerfile ou l'image finale
+# Note: cible x86_64 supprimée du config (c'est la cible native du runner)
 ```
 
 ---
