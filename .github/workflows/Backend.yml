@@ -30,17 +30,15 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install cross-compilation tools
+      - name: Install cross-compilation tools (zig for musl)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
-            sudo apt-get install -y musl-tools musl-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-            rustup target add aarch64-unknown-linux-musl
-          else
-            sudo apt-get install -y musl-tools musl-dev
-            rustup target add x86_64-unknown-linux-musl
-          fi
+          sudo apt-get install -y libsodium-dev pkg-config xz-utils
+          # Zig fournit un linker universel musl pour toutes les cibles
+          # Remplace gcc-aarch64-linux-gnu (glibc) pour le cross-compilation musl
+          curl -sSfL "https://ziglang.org/download/0.13.0/zig-linux-\$(uname -m)-0.13.0.tar.xz" \
+            | sudo tar -xJ -C /usr/local --strip-components=1
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
