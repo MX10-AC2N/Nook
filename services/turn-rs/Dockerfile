@@ -2,10 +2,10 @@
 # Turn-Server (TURN/STUN pour WebRTC)
 # Build a partir des sources mycrl/turn-rs
 # ============================================================
-# Zero Google dependency
+# Zero Google dependency — Alpine runtime
 # ============================================================
 
-# - ETAPE 1 : Compilateur (nightly requis - edition 2024)
+# ── ETAPE 1 : Compileur (nightly requis -- edition 2024) ────────
 FROM rustlang/rust:nightly-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,14 +20,11 @@ WORKDIR /src/turn-rs
 RUN cargo build --release \
     && cp target/release/turn-server /usr/local/bin/turn-server
 
-# - ETAPE 2 : Runtime Debian bookworm-slim (zero Google)
-FROM debian:bookworm-slim AS runtime
+# ── ETAPE 2 : Runtime Alpine 3.21 (zero Google) ─────────────
+FROM alpine:3.21 AS runtime
 
-RUN apt-get update && apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates
 
 EXPOSE 3478/udp 3478/tcp
 
-# Le fichier de config est monte en volume par docker-compose
-CMD ["--config=/etc/turn-server/config.toml"]
+CMD ["/usr/local/bin/turn-server", "--config=/etc/turn-server/config.toml"]
