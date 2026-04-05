@@ -99,7 +99,7 @@ jobs:
           ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
-          echo "âœ" artifacts/nook-backend-${ARCH} pret"
+          echo "artifacts/nook-backend-${ARCH} pret"
 
       # - Generation BACKEND-BUILD-REPORT-{arch}.md
       - name: Generer BACKEND-BUILD-REPORT-{arch}.md
@@ -133,7 +133,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .claude/BACKEND-BUILD-REPORT-${ARCH}.md
           if git diff --staged --quiet; then
-            echo "Aucune modification â€" pas de commit"
+            echo "Aucune modification - pas de commit"
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
