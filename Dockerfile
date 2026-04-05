@@ -12,7 +12,6 @@ RUN apk add --no-cache \
     gcc \
     g++ \
     musl-dev \
-    musl-tools \
     build-base \
     sqlite-dev \
     libsodium-dev \
