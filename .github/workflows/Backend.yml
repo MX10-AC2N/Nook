@@ -17,7 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - x86_64-unknown-linux-musl
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
 
     steps:
       - uses: actions/checkout@v4
@@ -29,17 +30,16 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install cross-compilation tools (musl)
+      - name: Install cross-compilation tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config musl-tools xz-utils
-          rustup target add ${{ matrix.target }}
-
-      - name: Set musl linker for native builds (cc-rs needs this)
-        run: |
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> $GITHUB_ENV
+          sudo apt-get install -y libsodium-dev pkg-config
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+            rustup target add aarch64-unknown-linux-gnu
           fi
+          # x86_64-unknown-linux-gnu is the native target on ubuntu-latest;
+          # DO NOT add it via rustup (corrupts proc-macro support).
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -74,6 +74,7 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
+          RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           set +e
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
@@ -101,12 +102,11 @@ jobs:
           echo "✅ artifacts/nook-backend-${ARCH} pret"
 
       # ── Génération BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
-      # Un fichier PAR architecture → zéro race condition entre les deux jobs matrix.
       - name: Générer BACKEND-BUILD-REPORT-{arch}.md
         if: always()
         working-directory: ${{ github.workspace }}
         env:
-          ARCH: ${{ matrix.target == 'x86_64-unknown-linux-musl' && 'amd64' || 'arm64' }}
+          ARCH: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'amd64' || 'arm64' }}
           RUN_DATE: "${{ env.run_date }}"
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
