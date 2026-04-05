@@ -38,7 +38,9 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:3000/api/health || exit 1
 
 # Nook tourne sans privileges (Alpine nobody = 65534)
-RUN addgroup -S nook && adduser -S nook -G nook
+RUN addgroup -S nook && adduser -S nook -G nook \
+    && mkdir -p /app/data/uploads /app/logs \
+    && chown -R nook:nook /app
 USER nook:nook
 
 ENTRYPOINT ["/app/nook-backend"]
