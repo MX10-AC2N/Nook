@@ -1,11 +1,11 @@
-name: 1==>🏗️ Backend Build & Artifact
+name: 1==>ðŸ—º Backend Build & Artifact
 
 on:
   workflow_dispatch:
 
 jobs:
   backend:
-    name: 🏗️ Backend (${{ matrix.target }})
+    name: ðŸ—º Backend (${{ matrix.target }})
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -86,7 +86,7 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "📏 Taille : $BIN_SIZE"
+            echo "ðŸ" Taille : $BIN_SIZE"
             ls -lh $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
@@ -99,10 +99,10 @@ jobs:
           ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
-          echo "✅ artifacts/nook-backend-${ARCH} pret"
+          echo "âœ" artifacts/nook-backend-${ARCH} pret"
 
-      # ── Génération BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
-      - name: Générer BACKEND-BUILD-REPORT-{arch}.md
+      # - Generation BACKEND-BUILD-REPORT-{arch}.md
+      - name: Generer BACKEND-BUILD-REPORT-{arch}.md
         if: always()
         working-directory: ${{ github.workspace }}
         env:
@@ -133,15 +133,14 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .claude/BACKEND-BUILD-REPORT-${ARCH}.md
           if git diff --staged --quiet; then
-            echo "Aucune modification — pas de commit"
+            echo "Aucune modification â€" pas de commit"
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
+            echo "âœ" Rapport commitÃ©"
           fi
 
-      # Nom fixe par architecture → Docker.yml peut les télécharger simplement
       - uses: actions/upload-artifact@v4
         with:
           name: nook-backend-${{ matrix.target }}
