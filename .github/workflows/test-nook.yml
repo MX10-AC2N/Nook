@@ -139,15 +139,16 @@ jobs:
           echo "frontend/build pret ($(ls frontend/build | wc -l) fichiers)"
 
 
-          - name: Prepare bind mount dirs
+      - name: Prepare bind mount dirs
             run: |
-              mkdir -p data logs
-              chmod 0777 data logs
+          mkdir -p data logs
+          chmod 0777 data logs
 
       # ── Build Docker image ────────────────────────────────
       - name: Clean previous runs
         run: |
           docker compose down -v --remove-orphans 2>/dev/null || true
+
       - name: Build Docker image
         run: |
           docker build --tag nook-ci:local --file Dockerfile .
