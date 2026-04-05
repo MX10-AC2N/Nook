@@ -86,7 +86,7 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "ðŸ" Taille : $BIN_SIZE"
+            echo "Size: $BIN_SIZE"
             ls -lh $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
