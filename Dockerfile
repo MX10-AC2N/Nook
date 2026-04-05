@@ -1,29 +1,24 @@
 # ============================================================
 # Nook - Backend (build from sources)
 # ============================================================
-# Zero Google dependency — Alpine runtime (~15MB final)
+# Zero Google dependency
 # ============================================================
 
-# - ETAPE 1 : Compilateur (Debian bookworm -> cible musl statique)
+# - ETAPE 1 : Compilateur (Debian bookworm)
 FROM rust:1.88-bookworm AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libsodium-dev \
     pkg-config \
-    musl-tools \
-    && rm -rf /var/lib/apt/lists/* \
-    && echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> /etc/environment
-
-RUN rustup target add x86_64-unknown-linux-musl
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/nook
 
 # Cache dependencies
 COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir -p src && echo "fn main(){}" > src/main.rs
-RUN CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-    cargo build --release --target x86_64-unknown-linux-musl \
-    && rm -f target/x86_64-unknown-linux-musl/release/nook-backend
+RUN cargo build --release \
+    && rm -f target/release/nook-backend
 
 # Build reel
 COPY backend/.sqlx ./.sqlx
@@ -35,27 +30,27 @@ ENV CARGO_PROFILE_RELEASE_LTO=true
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
 ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=z
 ENV CARGO_PROFILE_RELEASE_STRIP=true
-RUN CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-    cargo build --release --locked --target x86_64-unknown-linux-musl \
-    && cp target/x86_64-unknown-linux-musl/release/nook-backend /usr/local/bin/nook-backend
+ENV RUSTFLAGS="-C target-feature=+crt-static"
+RUN cargo build --release --locked \
+    && cp target/release/nook-backend /usr/local/bin/nook-backend
 
-# - ETAPE 2 : Runtime Alpine 3.21 (zero Google, ~15MB total)
-FROM alpine:3.21 AS runtime
+# - ETAPE 2 : Runtime Debian bookworm-slim (zero Google)
+FROM debian:bookworm-slim AS runtime
 
-RUN apk add --no-cache \
-    sqlite-libs \
-    libsodium \
-    libc6-compat \
-    ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsqlite3-0 \
+    libsodium23 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
 # User non-root
-RUN addgroup -S nook && adduser -S nook -G nook
+RUN addgroup --system nook && adduser --system --ingroup nook nook
 
-# Dossiers applicatifs (permissifs car bind-mounts en CI)
+# Dossiers applicatifs
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app
 
-# Binaire full static musl (pas besoin de libc)
+# Binaire compile (avec +crt-static donc minimal deps)
 COPY --from=builder /usr/local/bin/nook-backend /app/nook-backend
 RUN chmod 0755 /app/nook-backend
 
