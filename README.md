@@ -175,7 +175,7 @@ Nook/
 
 **Ce qui tourne réellement :**
 - Un binaire Rust dans une image Alpine — pas de shell, pas d'outils inutiles, surface d'attaque minimale
-- Un serveur TURN/STUN (`turn-rs`) pour le relais WebRTC quand la connexion directe échoue — également en Distroless
+- Un serveur TURN/STUN (`turn-rs`) pour le relais WebRTC quand la connexion directe échoue — également en Alpine
 - Une base SQLite dans le dossier `DATA_DIR`
 - Un dossier d'uploads chiffrés, nettoyés automatiquement toutes les 24h
 ---
