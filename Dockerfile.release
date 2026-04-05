@@ -1,28 +1,28 @@
 # ============================================================
-# Nook — Backend (runtime only, pre-compiled binary)
+# Nook - Backend (runtime only, pre-compiled binary)
 # ============================================================
-# Accepte un binaire pré-compilé pour amd64 ou arm64
-# Compatible Alpine — zero Google dependency
+# Binaire pre-compile depuis Backend.yml
+# Zero Google dependency
 # ============================================================
 
-# ── ÉTAPE 1 : Préparer les libs runtime ────────────────────────
-FROM alpine:3.21 AS runtime
+# - ETAPE 1 : Runtime Debian bookworm-slim
+FROM debian:bookworm-slim AS runtime
 
-RUN apk add --no-cache \
-    libstdc++ \
-    libgcc \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libsqlite3-0 \
+    libsodium23 \
     ca-certificates \
-    sqlite-libs \
-    libsodium
+    && rm -rf /var/lib/apt/lists/*
+
+# User non-root
+RUN addgroup --system nook && adduser --system --ingroup nook nook
 
 # Dossiers applicatifs
-RUN mkdir -p /app/data /app/static /app/logs
+RUN mkdir -p /app/data/uploads /app/logs /app/static \
+    && chown -R nook:nook /app
 
-# ── ÉTAPE 2 : Copier le binaire ───────────────────────────────
-# Le binaire DOIT être compilé pour musl (compatible Alpine)
 ARG TARGETARCH=amd64
 COPY --chmod=755 ./artifacts/nook-backend-${TARGETARCH} /app/nook-backend
-
 COPY frontend/build /app/static 2>/dev/null || true
 
 WORKDIR /app
@@ -33,13 +33,9 @@ ENV DATA_DIR=/app/data
 ENV STATIC_DIR=/app/static
 ENV LOG_DIR=/app/logs
 
-# Health check
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:3000/api/health || exit 1
 
-# Nook tourne sans privileges (Alpine nobody = 65534)
-RUN chmod 755 /app \
-    && mkdir -p /app/data/uploads /app/logs /app/static \
-    && chmod -R 777 /app/data /app/logs /app/static /app/nook-backend
+USER nook
 
 ENTRYPOINT ["/app/nook-backend"]
