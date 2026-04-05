@@ -1,184 +1,294 @@
 ---
 name: nook-ci-devops
-description: Skill spécialisé pour la CI GitHub Actions, Docker et le déploiement Zimaboard du projet Nook. Utilise cette skill dès qu'un workflow .yml est impliqué, qu'un Dockerfile est modifié, que docker-compose est touché, que le rapport DOCKER-BUILD-REPORT.md signale des erreurs, ou que des artifacts CI sont manquants. Couvre : Backend.yml, Frontend.yml, test-nook.yml, Docker.yml, Release.yml, sqlx-prepare.yml, Dockerfile, Dockerfile.release, docker-compose.yml, GHCR, déploiement Zimaboard ARM64.
+description: Troubleshoot and fix Nook CI pipelines (test-nook.yml, Backend.yml, Frontend.yml). Use when CI runs fail, workflows refuse to dispatch, or test reports show 0/0 tests.
+version: 2.0.0
+author: Hermes Agent
+license: MIT
+metadata:
+  hermes:
+    tags: [CI, GitHub Actions, Playwright, Rust, Troubleshooting, API, Docker, Alpine]
+    related_skills: [github-pr-workflow]
 ---
 
-# 🚀 Nook — CI/DevOps Skill
+# Nook CI/CI DevOps — Troubleshooting Guide
 
-## Périmètre
-
-```
-.github/workflows/
-├── Backend.yml           → Rust compile amd64 + arm64 → artifacts 7j
-├── Frontend.yml          → SvelteKit build → artifact 7j
-├── test-nook.yml         → Docker build + E2E Playwright
-├── Docker.yml            → Assemble artifacts → GHCR multi-arch
-├── Release.yml           → Bump VERSION + tag git
-├── sqlx-prepare.yml      → Régénère .sqlx/queries.json
-└── e2e-targeted.yml      → Debug un seul test E2E
-
-Dockerfile                → Build depuis sources (cargo-chef) — test + dev
-Dockerfile.release        → Binaires pré-compilés — prod
-docker-compose.yml        → Production Zimaboard
-docker-compose.ci.yml     → Override CI (E2E_SETUP=1, named volumes)
-```
-
-## Ordre de la pipeline CI — respecter scrupuleusement
+## Quick Diagnostic Flow
 
 ```
-1. sqlx-prepare.yml     ← SI migration SQL ajoutée (sinon skip)
-2. Backend.yml          → artifacts: nook-backend-{amd64,arm64} (7j)
-3. Frontend.yml         → artifact: nook-frontend (7j)
-4. test-nook.yml        → compile Dockerfile + E2E Playwright
-5. Docker.yml           → assemble artifacts → GHCR (dawidd6/action-download-artifact@v6)
-6. ghcr-cleanup.yml     → auto après Docker.yml
-7. Release.yml          → bump VERSION + Cargo.toml + package.json + tag git
+1. Check latest run: GitHub API → /actions/runs?branch=develop&per_page=3
+2. Identify failed job → failed step number
+3. Check YAML for: escape bytes, indentation, continue-on-error misuse
+4. Fix via GitHub Contents API (PUT to /contents/.github/workflows/{file})
 ```
 
-> Si Docker.yml échoue avec "artifact not found" → vérifier que Backend.yml + Frontend.yml ont tourné et que les artifacts ne sont pas expirés (TTL 7j).
+## Stack Technique Actuelle (2026-04-05)
 
-## Deux Dockerfiles — ne pas confondre
+**Toutes les images sont Alpine 3.21 — ZERO dependance Google.**
 
-### `Dockerfile` — build complet depuis sources
-- Utilise `cargo-chef` pour le cache des deps
-- ⚠️ **NE PAS** `COPY .cargo/config.toml` dans le container : contient des linkers cross (musl-gcc, aarch64-linux-gnu-gcc) qui n'existent pas dans le container → crash linker
-- ✅ `COPY backend/src ...` (pas `COPY backend/ .`)
-- Utilisé par : `test-nook.yml`
+| Composant | Runtime | Cible build | Size estimée |
+|-----------|---------|-------------|-------------|
+| Nook backend | `alpine:3.21` | `x86_64-unknown-linux-musl` | ~15-25MB |
+| Turn-rs | `alpine:3.21` | `x86_64-unknown-linux-musl` | ~10-15MB |
 
-### `Dockerfile.release` — binaires pré-compilés
-- Copie les binaires depuis les artifacts `Backend.yml`
-- Image finale : `gcr.io/distroless/cc-debian12`
-- User : 65532 (nonroot distroless)
-- ⚠️ Volumes montés → **init container `alpine:3`** obligatoire pour `chown -R 65532:65532`
-- ⚠️ Pas de healthcheck `CMD-SHELL` (distroless = pas de shell)
-- Utilisé par : `Docker.yml` → GHCR
+**Cross-compilation aarch64**: `zig cc 0.13.0` comme linker musl universel.
 
-## Règles d'or CI
+## Common Issues Found
 
-### Heredoc dans les workflows
+### Issue: "No jobs were run"
+**Cause**: Raw ANSI escape byte (0x1b) embedded in YAML string → GitHub parser rejects entire file.
+**Fix**: Search for 0x1b bytes and replace with escaped text `\x1b`:
+```bash
+python3: content.count(b'\x1b')
+content.replace(b'\x1b\[[0-9;]*m//g', b'\x1b\[[0-9;]*m//g')
+```
+
+### Issue: Playwright tests run but show 0/0 in TEST_REPORT.md
+**Cause**: `--reporter=list --reporter=json` on CLI **overrides** the config's reporter array.
+**Fix**: DO NOT add `--reporter` flags. Let `playwright.config.ts` handle reporters.
+
+### Issue: `generate-test-report.py` produces 0/0 even when Playwright ran
+**Root causes (in order)**:
+1. **`--reporter` CLI flags override config** → remove ALL `--reporter` flags from CLI
+2. **`PIPESTATUS` capture error** → `npx playwright test 2>&1 | tee ...; EXIT_CODE=${PIPESTATUS[0]}`
+
+### Issue: workflow_dispatch returns 422
+**Cause**: GitHub Actions caches broken workflow definition.
+**Workaround**: Push to trigger auto-run instead of manual dispatch.
+
+## API Pattern — Push workflow/file without git clone
+
+```python
+import json, base64, urllib.request
+
+token = "YOUR_GITHUB_TOKEN"
+
+# 1. Get SHA
+req = urllib.request.Request(
+    f"https://api.github.com/repos/MX10-AC2N/Nook/contents/{path}?ref=develop",
+    headers={"Authorization": f"Bearer {token}"})
+with urllib.request.urlopen(req) as resp:
+    sha = json.loads(resp.read().decode())['sha']
+
+# 2. Push
+urllib.request.Request(f"https://api.github.com/repos/MX10-AC2N/Nook/contents/{path}",
+    data=json.dumps({"message": msg, "content": base64.b64encode(content.encode()).decode(),
+                     "sha": sha, "branch": "develop"}).encode(),
+    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    method="PUT")
+```
+
+## Playwright Test Architecture & Common Failure Patterns
+
+### Test File Organization
+- `api-sanity.spec.ts` — API-level security/CRUD tests using `{ request }` fixture
+- `user.spec.ts` — Full user flow: login, chat, chess, polls, calls, calendar
+- `admin.spec.ts` — Admin flows: user management, analytics, approvals
+- `helpers.ts` — Shared: `loginAs()`, `loginAsAdmin()`, `clearSession()`, constants
+
+### ⚠️ CRITICAL: Playwright `{ page }` Fixture Isolation
+Each `describe` block receives its **own** `{ page }` fixture. A page from one describe
+has **NO session/cookies** connection to another describe's page.
+
+**Fix**: Use module-scoped `adminPage` with `test.beforeAll`/`test.afterAll`:
+```typescript
+let adminPage: Page;
+test.beforeAll(async ({ browser }) => {
+    adminPage = await browser.newPage();
+    await loginAsAdmin(adminPage);
+});
+test.afterAll(async () => { if (adminPage) await adminPage.close(); });
+```
+
+### loginAsAdmin() — First-Run + Subsequent-Run
+Tries `ADMIN_NEW_PASSWORD` ('AdminCI2026!') first, falls back to `changeme2026`.
+After initial login, changes password and re-logins.
+
+### ⚠️ MANDATORY: Validate Before Pushing Test Files
+
+```bash
+cd frontend && npx playwright test --list
+```
+Exit 0 = structurally sound. Exit 1 = fix before pushing.
+
+### Duplicate Test Titles Crash Playwright
+If two tests share the same title, Playwright crashes with **zero tests run**.
+**Scan**: `python3 -c "from collections import Counter; import re; titles=re.findall(r\"test\\('([^']+)'\", open(f).read()); [print(t,c) for t,c in Counter(titles).items() if c>1]"`
+
+## test-nook.yml — Current Structure (after consolidation)
+
+| Step | Blocking? | Notes |
+|------|-----------|-------|
+| Frontend Build | ✅ yes | Must pass |
+| Backend: cargo fmt/check/test/clippy | ❌ `|| true` | Non-blocking |
+| **Shell Integration Tests** | ❌ `continue-on-error: true` | ALL 7 sections in ONE `run:` block |
+| **E2E Playwright** | ✅ **yes** | THE critical test, 157 tests |
+
+### ⚠️ $ADMIN_COOKIE Persists ONLY Within Single `run:` Block
+GitHub Actions spawns a **fresh shell** for every `- name:` step. Variables defined
+in one step are **lost** in the next. That's why the shell integration tests are
+all in one consolidated `run:` block — the cookie extracted during admin login
+must persist through Security, Chat, WS, Polls, and Events tests.
+
+### Admin Auth Flow (MUST match helpers.ts)
+```
+1. Login: changeme2026 → needs_password_change=true
+2. Change password → AdminCI2026!
+3. Re-login → AdminCI2026! → fresh session
+4. Verify: GET /auth/me → role=admin
+5. Register e2e_ci, approve, run other tests
+```
+If step 1 fails (password already changed), try AdminCI2026! directly.
+
+### Common Shell Gotchas
+- **Nested `$(...)` in curl `-d`**: Extract IDs first, use in next line
+- **Heredoc in YAML `run: |`**: `python3 - "$VAR" << 'EOF'` sends bash echo to python stdin. Write file first: `cat > file << 'EOF'` then `python3 file`
+- **YAML heredoc at col 0**: Heredoc content inside YAML `run: |` MUST be indented past the block indent, or YAML parser errors
+
+## Musl/Alpine Cross-Compilation — Known Pitfalls
+
+### `rustup target add x86_64-unknown-linux-musl` needs musl-tools FIRST
+**Error**: `linker 'cc' not found` when building musl target.
+**Fix**: `sudo apt-get install -y musl-tools musl-dev` THEN `rustup target add x86_64-unknown-linux-musl`
+
+### aarch64 musl cross-compilation needs zig
+**Error**: No usable linker for `aarch64-unknown-linux-musl` on x86_64 host.
+**Fix**: Install zig as universal musl linker:
+```bash
+curl -sSfL "https://ziglang.org/download/0.13.0/zig-linux-$(uname -m)-0.13.0.tar.xz" \
+  | sudo tar -xJ -C /usr/local --strip-components=1
+rustup target add aarch64-unknown-linux-musl
+# Set RUSTFLAGS: -C linker=/usr/local/bin/zig cc -C link-args=-target aarch64-linux-musl
+```
+
+### `rustup target add x86_64-unknown-linux-gnu` corrupts proc-macro
+**Error**: `cannot produce proc-macro for asn1-rs-derive`
+**Cause**: On `ubuntu-latest`, x86_64-gnu is the native host target. Adding it via rustup
+corrupts the proc-macro toolchain. **NEVER** add the host target via rustup.
+
+### .cargo/config.toml for musl targets
+For Alpine-compatible builds, use musl targets in `.cargo/config.toml`:
+```toml
+[target.aarch64-unknown-linux-musl]
+linker = "zig cc"
+rustflags = ["-C", "link-args=-target aarch64-linux-musl"]
+```
+x86_64 musl uses musl-gcc natively (no linker override needed in config).
+
+## Backend.yml — Current Configuration
+
 ```yaml
-# ❌ EOF dans run: avec indentation → le heredoc capture l'indentation
-- run: |
-    cat > file.md << EOF
-      contenu indenté  # ← espaces capturés dans le fichier !
-    EOF
+strategy:
+  matrix:
+    target:
+      - x86_64-unknown-linux-musl
+      - aarch64-unknown-linux-musl
 
-# ✅ ENDOFMD (marqueur unique) + pas d'indentation dans le heredoc
-- run: |
-    cat > file.md << ENDOFMD
-    contenu sans indentation parasite
-    ENDOFMD
+steps:
+  # x86_64: musl-tools native, aarch64: zig + musl-tools
+  - name: Install cross-compilation tools
+    run: |
+      sudo apt-get install -y libsodium-dev pkg-config musl-tools xz-utils
+      if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+        curl -sSfL "https://ziglang.org/download/..." | sudo tar -xJ -C /usr/local
+      fi
+      rustup target add ${{ matrix.target }}
 ```
 
-### Artifacts cross-workflow
-```yaml
-# ✅ seule action qui supporte les artifacts cross-workflow
-- uses: dawidd6/action-download-artifact@v6
-  with:
-    workflow: Backend.yml
-    name: nook-backend-aarch64-unknown-linux-gnu
+## Backend Compilation — Common Rust Errors
+
+### `E0425/E0432/E0433`: Unresolved import
+**Fix**: Add the type to the existing import block, don't create standalone imports.
+
+### `E0308/E0382`: Borrow of moved value in `async move`
+**Fix**: Clone before each `tokio::spawn(async move { ... })`.
+
+### `sqlx::query!` vs `sqlx::query_as`
+`query!` does compile-time table verification. Use `query_as` if tables don't exist
+in the build environment.
+
+### Rust CI Error Triage Flow
+1. Read from bottom up — first `error:` is the root cause
+2. Check `help:` suggestions — Rust compiler often gives exact fix
+3. Cancel old CI runs — `POST /runs/{id}/cancel` on stale commits
+4. Only the run on HEAD tells the truth
+
+### rustrtc edition = "2024" → ALL rust workflows use @nightly
+**NEVER revert to `@stable`** — it will fail on rustrtc.
+
+## Docker Build Architecture — Alpine (Zero Google)
+
+### Nook Backend (Dockerfile)
+```
+Stage 1: rust:1.88-bookworm + musl-tools
+  → cargo build --target x86_64-unknown-linux-musl
+Stage 2: alpine:3.21
+  → apk add libsqlite3 libsodium ca-certificates
+  → COPY binary from stage 1
 ```
 
-### Commits CI sans boucle infinie
+### Turn-rs (services/turn-rs/Dockerfile)
+```
+Stage 1: rustlang/rust:nightly-bookworm + musl + protobuf
+  → git clone + cargo build --target x86_64-unknown-linux-musl
+Stage 2: alpine:3.21
+  → COPY binary from stage 1
+```
+
+### Key Alpine Rules
+- Use `musl-tools` for static musl linking (no `+crt-static` needed, musl is inherently static)
+- `apk add --no-cache libsqlite3 libsodium ca-certificates` as runtime deps
+- Health check: `wget -qO- http://localhost:3000/api/health` (no curl in Alpine by default)
+- User: `addgroup -S nook && adduser -S nook -G nook` (alpine nobody = 65534)
+- **NEVER reference `gcr.io`, `distroless`, or any Google service**
+
+### turn-rs protobuf build deps
+- `protobuf-compiler` + `libprotobuf-dev` for protoc
+- `zig` for cross-compilation musl
+- `git` for cloning turn-rs sources
+
+## GitHub API Push Patterns
+
+### Always fetch fresh SHA before each push
+When pushing multiple files, call GET immediately before PUT. Never reuse SHA.
+
+### CI runs often show errors from BEFORE the latest fix
+Push triggers runs on each commit. Check `head_sha` vs current HEAD.
+Cancel stale runs: `POST /runs/{id}/cancel`.
+
+### Cancel-in-Progress
+The workflow has `cancel-in-progress: true`. Rapid pushes = no complete runs.
+Check `GET /runs` → wait if status=in_progress before pushing next fix.
+
+## test-nook.yml Shell Integration — Correct Pattern
+
+All integration tests in ONE `run:` block so variables persist:
 ```yaml
-# Pattern validé pour les commits CI (rapports, queries.json)
-- name: Commit rapport
+- name: Shell Integration Tests
+  continue-on-error: true
   run: |
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
-    git add .claude/BACKEND-BUILD-REPORT-${ARCH}.md
-    if git diff --staged --quiet; then
-      echo "Rien à committer"
-    else
-      git commit -m "ci: rapport [skip ci]"
-      git pull --rebase --autostash origin develop
-      git push --force-with-lease origin HEAD:develop
-    fi
+    # 1. AUTH (extracts ADMIN_COOKIE)
+    curl ... login → ADMIN_COOKIE=...
+    # 2. SECURITY (uses ADMIN_COOKIE from step 1)
+    curl -H "Cookie: $ADMIN_COOKIE" ...
+    # 3. CHAT (uses ADMIN_COOKIE from step 1)
+    curl -H "Cookie: $ADMIN_COOKIE" ...
+    # 4. WS, 5. POLLS, 6. EVENTS ...
 ```
 
-## Docker distroless — pièges
+## Report Generation — External Scripts Only
 
-```
-✅ Image finale sans shell → jamais de docker exec nook sh
-✅ Init container chown OBLIGATOIRE pour volumes bind-mounted
-✅ Pas de CMD-SHELL healthcheck
-✅ User 65532 doit pouvoir écrire dans /app/data + /app/data/uploads
-❌ NE PAS copier .cargo/ dans les stages Docker
-❌ NE PAS mettre E2E_SETUP=1 dans docker-compose.yml prod
-```
+All CI reports live in `.github/scripts/`:
+- `generate-frontend-report.sh`
+- `generate-backend-report.sh`
+- `generate-docker-report.sh`
+- `generate-test-report.py`
 
-## Variables d'environnement critiques
+**NEVER** keep report generation as inline `run: |` blocks > 30 lines.
+Scripts must NOT contain `${{ }}` — pass vars via `env:` in workflow.
 
-| Variable | Prod (Zimaboard) | CI |
-|----------|------------------|----|
-| `E2E_SETUP` | `0` ← JAMAIS `1` | `1` |
-| `DATA_DIR` | `/media/ac2n-cloud/volume_docker_Nook/nook-data` | `./data` |
-| `ALLOWED_ORIGINS` | `http://192.168.X.X:6300,https://nook.mondomaine.com` | `http://localhost:6300` |
-| `PUBLIC_SITE_URL` | `http://192.168.X.X:6300` | `http://localhost:6300` |
+## Svelte 5 Template Rules
 
-## Diagnostics rapides
-
-| Erreur CI | Cause | Fix |
-|-----------|-------|-----|
-| `permission denied 65532` | chown init container manquant | Ajouter init container alpine:3 |
-| `artifact not found` (dawidd6) | Backend.yml ou Frontend.yml n'a pas tourné | Lancer dans l'ordre |
-| `linker error aarch64` | `.cargo/config.toml` copié dans Docker | Ne jamais COPY .cargo/ |
-| `no such file: STATIC_FILES_DIR` | Chemin mal configuré | Vérifier env var dans compose |
-| Clippy `-D warnings` échoue | Warning = erreur | Corriger tous les warnings avant push |
-| `cargo clippy` OK, `cargo build` OK mais artifact vide | Binary strip a échoué | Vérifier le chemin `target/*/release/nook-backend` |
-
-## Nginx Proxy Manager → Nook (WAN)
-
-```
-Forward Hostname/IP : localhost (ou IP Zimaboard)
-Forward Port       : 6300
-Websockets Support : ON  ← obligatoire pour /ws
-SSL                : Let's Encrypt recommandé
-```
-
----
-
-## Debugging Checklist — Backend CI Failures
-
-| Error | Location | Fix | Verify |
-|-------|----------|-----|--------|
-| `cannot find tuple struct State` | handler signature | Add `State` to `use axum::{ extract::{..., State} }` | `extract::State` in imports |
-| `unresolved imports SystemExt, CpuExt` | sysinfo use | Remove both, keep `use sysinfo::System;` | No `SystemExt` anywhere |
-| `no method named disks` | sysinfo 0.32 API | Comment out or use `sys.refresh_all()` | No `sys.disks()` without refresh |
-| `variable does not need to be mutable` | unused_mut | Remove `mut` | No `let mut disks` in admin |
-| `cannot find value state in scope` | `&state.db` | Ensure `State(state)` not `State(_state)` | Only metrics func uses `_state` |
-| `borrow of moved value: user_id` | `tokio::spawn` | Clone at handler start: `let uid = user_id.clone()` | No `user_id` after `async move` |
-| `no field db on type fn() -> State` | `&State.db` | Never use `&State.db` (capital S) | Zero occurrences |
-| `no such table` | `sqlx::query!` | Use `query_as::<_, (String,)>()` | No `sqlx::query!` for new tables |
-| `expected identifier, found keyword use` | import block | Remove standalone `use` inside multi-line bloc | All imports at file top level |
-| `if can be collapsed into outer match` | match guards | Use arm guard: `"type" if !x.starts_with() => { return Err }` | No `if !` inside match arms |
-
----
-
-## Frontend Build Errors
-
-### Missing closing brace — cascade effects
-**Symptom**: `Expected ";" but found "async"` at wrong line.
-**Root cause**: A method ~5-10 lines earlier is missing its closing `}`. All subsequent methods absorbed.
-**Fix**: Track brace balance from start. Find deviation at `public`/`private` declaration.
-**Verify**: Count `{` vs `}` — must be 0.
-
-### Switch case inside object literal
-**Symptom**: `Expected ":" but found "'case_value'"`.
-**Fix**: Close object literal properly (e.g. `}));` for CustomEvent), place case at switch level.
-
-### Duplicate test.describe in same file
-**Symptom**: Playwright runs wrong tests or throws duplicate errors.
-**Fix**: Scan for repeated describe names, remove flaky duplicates.
-
-### CI: Old runs on stale commits
-**Issue**: CI shows errors from commits before your fix.
-**Fix**: Get HEAD SHA, cancel ALL in_progress runs NOT on HEAD. Only trust matching SHA.
-
-## Flux inter-agents
-
-```
-← 🦀 RUST  : nouvelles migrations SQL → lancer sqlx-prepare.yml AVANT Backend.yml
-← 🦀 RUST  : nouvelles env vars → mettre à jour docker-compose.yml + .env.example
-→ 🧪 E2E   : docker-compose.ci.yml modifié → tester test-nook.yml
-```
+- `<tr>` must be in `<tbody>`, `<thead>`, or `<tfoot>` — never direct child of `<table>`
+- NEVER inject imports between `<script` and its attributes — collapse tag first
+- Remove duplicate imports before adding new ones
+- Verify: `{}` balance = 0, no orphaned blocks
