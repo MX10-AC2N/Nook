@@ -131,6 +131,25 @@ store.prop = newValue;
 - **CI: 165/165 PASS** ✅
 
 
+
+### Flaky: Chess resign 401 (api-sanity.spec.ts:345) — 2026-04-04
+- **Symptome**: `Chess resign` test retourne 401 au lieu de 200
+- **Cause**: `request.post()` sans cookie auth — utilise `request` fixture sans storageState
+- **Impact**: Flaky, resoud au retry (2 retries suffisent)
+- **Statut**: Non critique, le backend fonctionne. Le test devrait utiliser une page avec session.
+
+### Flaky: GET /analytics 401 (admin.spec.ts:468) — 2026-04-04
+- **Symptome**: `GET /analytics → contient user_count` retourne 401
+- **Cause**: `adminPage.request.get` dans `Admin — Analytics` describe — la session expire ou n'est pas partagee
+- **Impact**: Flaky, resoud parfois au retry
+- **Statut**: Non critique, endpoint fonctionne. Le test devrait re-utiliser `loginAsAdmin` dans le describe.
+
+### Fixe : Cookie $ADMIN_COOKIE perdu entre steps (test-nook.yml) — 2026-04-04
+- **Symptome**: TOUS les tests shell (Security, Chat, WS, Polls, Events) echouent avec "Non authentifie"
+- **Cause**: GitHub Actions ne persiste PAS les variables shell entre deux `run:` blocks separes
+- **Fix**: Toutes les 7 sections de tests shell consolidees en un SEUL `run:` block
+- **Commits**: `541b481` (consolidation), `1108e89` (stray heredoc ligne)
+
 ## 🌐 SFU — Limitations connues
 
 ### SFU-001: Pas de test E2E SFU
