@@ -1,10 +1,10 @@
-# Configuration de compilation pour cibles musl (compatible Alpine)
-# Les binaires musl tournent sur Alpine, Debian, et tout système Linux
-# Pas de dependance externe a l'installation — musl est bundle dans le binaire
+# Configuration de compilation pour cibles musl (Alpine)
+# x86_64: musl-gcc natif (pas besoin de config)
+# aarch64: zig cc comme cross-linker (configure dans Backend.yml via RUSTFLAGS)
 
 [target.aarch64-unknown-linux-musl]
-linker = "aarch64-linux-musl-gcc"
-rustflags = []
+linker = "zig cc"
+rustflags = ["-C", "link-args=-target aarch64-linux-musl"]
 
 [profile.release]
 lto = true
