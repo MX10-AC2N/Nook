@@ -17,7 +17,7 @@ RUN apk add --no-cache \
     libsodium-dev \
     pkgconfig
 
-# Nightly rust via rustup (edition2024)
+# Nightly rust via rustup (edition2024 deps comme home-0.5.12 exigent Cargo >= 1.85)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -53,17 +53,20 @@ RUN apk add --no-cache \
 
 RUN addgroup -S nook && adduser -S nook -G nook
 
-RUN mkdir -p /app/data/uploads /app/logs /app/static \
+RUN mkdir -p /app/data/uploads /app/logs \
     && chown -R nook:nook /app
 
-# Binaire full static (pas besoin de libc)
+WORKDIR /app
+
+# Binaire compile (full static musl)
 COPY --from=builder /usr/local/bin/nook-backend /app/nook-backend
 RUN chmod 0755 /app/nook-backend
 
 # Frontend build (injecte par download-artifact en CI)
-COPY --chown=nook:nook frontend/build /app/static
-
-WORKDIR /app
+COPY frontend/build /app/static
+RUN chown -R nook:nook /app/static \
+    && find /app/static -type d -exec chmod 0755 {} \; \
+    && find /app/static -type f -exec chmod 0644 {} \;
 
 EXPOSE 3000
 
