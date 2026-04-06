@@ -1,11 +1,11 @@
-name: 1==>🏗️ Backend Build & Artifact
+name: 1 ==> Backend Build & Artifact
 
 on:
   workflow_dispatch:
 
 jobs:
   backend:
-    name: 🏗️ Backend (${{ matrix.target }})
+    name: Backend (${{ matrix.target }})
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,19 +26,33 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@nightly  # edition 2024 requires Rust >= 1.85
+      - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt, clippy
 
-      - name: Install musl build tools
+      - name: Install cross-compilation tools
         run: |
           sudo apt-get update
           sudo apt-get install -y libsodium-dev pkg-config musl-tools xz-utils
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
             curl -sSfL "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz" \
               | sudo tar -xJ -C /usr/local --strip-components=1
+            # Create linker wrapper for aarch64 musl
+            printf '#!/bin/sh\nexec zig cc -target aarch64-linux-musl "$@"\n' > /usr/local/bin/aarch64-linux-musl-gcc
+            chmod +x /usr/local/bin/aarch64-linux-musl-gcc
           fi
           rustup target add ${{ matrix.target }}
+
+      - name: Set linker env vars
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> $GITHUB_ENV
+            echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> $GITHUB_ENV
+          fi
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/aarch64-linux-musl-gcc" >> $GITHUB_ENV
+            echo "CC_aarch64_unknown_linux_musl=/usr/local/bin/aarch64-linux-musl-gcc" >> $GITHUB_ENV
+          fi
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -51,11 +65,6 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
-          else
-            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
-          fi
           cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
@@ -66,11 +75,6 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
-          else
-            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
-          fi
           cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
@@ -83,14 +87,8 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
-          RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           set +e
-          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
-          else
-            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
-          fi
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
@@ -100,7 +98,7 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "📏 Taille : $BIN_SIZE"
+            echo "Size: $BIN_SIZE"
             ls -lh $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
@@ -108,49 +106,44 @@ jobs:
 
           exit $BUILD_EXIT
 
-      - name: Preparer le binaire (amd64)
+      - name: Prepare binary (suffix amd64/arm64)
         run: |
-          mkdir -p artifacts
           ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+          mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
-          echo "✅ artifacts/nook-backend-${ARCH} pret
+          echo "artifacts/nook-backend-${ARCH} pret"
 
-      # ── Generation BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
-      - name: Generer BACKEND-BUILD-REPORT-amd64.md
+      - name: Generate BACKEND-BUILD-REPORT
         if: always()
         working-directory: ${{ github.workspace }}
         env:
-          RUN_DATE: "${{ env.run_date }}"
+          ARCH: ${{ matrix.target == 'x86_64-unknown-linux-musl' && 'amd64' || 'arm64' }}
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RUSTC_VER: "${{ env.rustc_ver }}"
           BUILD_STATUS: "${{ steps.build.outputs.build_status }}"
           BIN_SIZE: "${{ steps.build.outputs.bin_size }}"
           CHECK_EXIT: "${{ steps.check.outputs.check_exit }}"
           CLIPPY_EXIT: "${{ steps.clippy.outputs.clippy_exit }}"
-          BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
-          WARNINGS_COUNT: "${{ steps.build.outputs.warnings_count }}"
-          ERRORS_COUNT: "${{ steps.build.outputs.errors_count }}"
-          NEW_WARNINGS: "${{ steps.build.outputs.new_warnings }}"
           REPO: "${{ github.repository }}"
           RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-backend-report.sh
 
-      - name: Commit BACKEND-BUILD-REPORT-amd64.md
+      - name: Commit BACKEND-BUILD-REPORT
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
+          ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/BACKEND-BUILD-REPORT-amd64.md
+          git add .claude/BACKEND-BUILD-REPORT-${ARCH}.md
           if git diff --staged --quiet; then
-            echo "Aucune modification — pas de commit"
+            echo "No change - no commit"
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
+            echo "Report committed"
           fi
 
       - uses: actions/upload-artifact@v4
