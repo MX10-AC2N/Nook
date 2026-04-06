@@ -1,11 +1,11 @@
-name: 1==>ðŸ—º Backend Build & Artifact
+name: 1==>🏗️ Backend Build & Artifact
 
 on:
   workflow_dispatch:
 
 jobs:
   backend:
-    name: ðŸ—º Backend (${{ matrix.target }})
+    name: 🏗️ Backend (${{ matrix.target }})
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -17,8 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
 
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +29,11 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install cross-compilation tools
+      - name: Install musl build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-            rustup target add aarch64-unknown-linux-gnu
-          fi
-          # x86_64-unknown-linux-gnu is the native target on ubuntu-latest;
-          # DO NOT add it via rustup (corrupts proc-macro support).
+          sudo apt-get install -y libsodium-dev pkg-config musl-tools
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -52,7 +46,8 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+            cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -62,7 +57,8 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+            cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -77,7 +73,8 @@ jobs:
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           set +e
-          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+            cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
@@ -86,7 +83,7 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "Size: $BIN_SIZE"
+            echo "📏 Taille : $BIN_SIZE"
             ls -lh $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
@@ -94,19 +91,18 @@ jobs:
 
           exit $BUILD_EXIT
 
-      - name: Preparer le binaire (suffixe amd64/arm64)
+      - name: Preparer le binaire (suffixe amd64)
         run: |
-          ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+          ARCH="amd64"
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
-          echo "artifacts/nook-backend-${ARCH} pret"
+          echo "✅ artifacts/nook-backend-${ARCH} pret"
 
-      # - Generation BACKEND-BUILD-REPORT-{arch}.md
-      - name: Generer BACKEND-BUILD-REPORT-{arch}.md
+      # ── Generation BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
+      - name: Generer BACKEND-BUILD-REPORT-amd64.md
         if: always()
         working-directory: ${{ github.workspace }}
         env:
-          ARCH: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && 'amd64' || 'arm64' }}
           RUN_DATE: "${{ env.run_date }}"
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
@@ -124,21 +120,20 @@ jobs:
           RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-backend-report.sh
 
-      - name: Commit BACKEND-BUILD-REPORT-{arch}.md
+      - name: Commit BACKEND-BUILD-REPORT-amd64.md
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
-          ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/BACKEND-BUILD-REPORT-${ARCH}.md
+          git add .claude/BACKEND-BUILD-REPORT-amd64.md
           if git diff --staged --quiet; then
-            echo "Aucune modification - pas de commit"
+            echo "Aucune modification — pas de commit"
           else
-            git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
+            git commit -m "ci: BACKEND-BUILD-REPORT-amd64.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo " Rapport commite"
+            echo "✅ Rapport commité"
           fi
 
       - uses: actions/upload-artifact@v4
