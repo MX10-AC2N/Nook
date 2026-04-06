@@ -54,8 +54,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
             export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
           else
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
-            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
           fi
           cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
@@ -70,8 +69,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
             export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
           else
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
-            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
           fi
           cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
@@ -91,8 +89,7 @@ jobs:
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
             export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
           else
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
-            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+            # Linker configured via CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER env var
           fi
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
