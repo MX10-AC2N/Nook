@@ -1,7 +1,7 @@
 # ============================================================
 # Nook - Backend (runtime only, pre-compiled binary)
 # ============================================================
-# Binaire pre-compile depuis Backend.yml (musl)
+# Consomme le binaire musl compile par Backend.yml
 # Zero Google dependency — Alpine 3.21 (~15MB)
 # ============================================================
 
