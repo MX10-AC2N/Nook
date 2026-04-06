@@ -41,6 +41,14 @@ jobs:
           sudo apt-get install -y libsodium-dev pkg-config musl-tools
           rustup target add ${{ matrix.target }}
 
+      - name: Set linker for musl target
+        run: |
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> $GITHUB_ENV
+          elif [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> $GITHUB_ENV
+          fi
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
@@ -51,16 +59,20 @@ jobs:
         env:
           SQLX_OFFLINE: true
         run: |
-          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
+          set +e
           cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
 
       - name: cargo clippy
         id: clippy
         env:
           SQLX_OFFLINE: true
         run: |
-          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
+          set +e
           cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
 
       - name: cargo build --release
         id: build
@@ -71,15 +83,23 @@ jobs:
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
-          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
-          cargo build --release --locked --target ${{ matrix.target }}
+          set +e
+          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
 
-          BINARY="target/${{ matrix.target }}/release/nook-backend"
-          BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
-          echo "build_status=OK" >> $GITHUB_OUTPUT
-          echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-          echo "Size: $BIN_SIZE"
-          ls -lh $BINARY
+          if [ $BUILD_EXIT -eq 0 ]; then
+            BINARY="target/${{ matrix.target }}/release/nook-backend"
+            BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
+            echo "build_status=OK" >> $GITHUB_OUTPUT
+            echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
+            echo "Size: $BIN_SIZE"
+            ls -lh $BINARY
+          else
+            echo "build_status=FAIL" >> $GITHUB_OUTPUT
+          fi
+
+          exit $BUILD_EXIT
 
       - name: Prepare binary
         run: |
