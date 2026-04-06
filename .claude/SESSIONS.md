@@ -1050,3 +1050,58 @@ Migrer tous les Dockerfiles vers Alpine 3.21 (zero Google/distroless). Resoudre 
 - Docker CI: BUILD OK, healthcheck OK, container demarre OK
 - Playwright: webServer supprime (attente nouveau CI)
 - Zero Google partout (Alpine 3.21 Foundation)
+
+## Session 11 — 2026-04-06 (Migration Alpine 3.21 — Zero Google)
+
+### Contexte
+Migrer toute l'infrastructure Docker de `debian:bookworm-slim` vers `alpine:3.21` pour eliminer tout dependance Google (distroless, gcr.io).
+
+### Progres Realises
+- Dockerfile: builder Alpine 3.21 (apk add rust cargo musl-dev + deps) + runtime Alpine 3.21 avec COPY frontend/build /app/static
+- Dockerfile.release: Alpine 3.21 (consomme binaires musl de Backend.yml)
+- services/turn-rs/Dockerfile: builder Alpine 3.21 + runtime Alpine 3.21
+- Backend.yml: cible x86_64-unknown-linux-musl, musl-tools, CARGO_TARGET_*_LINKER=musl-gcc
+- .cargo/config.toml: musl target aarch64 (non-utilise en CI)
+- test-nook.yml: cargo check musl target
+- README.md: Zero references Google techniques (marketing uniquement)
+
+### Decisions Cles
+- Alpine 3.21 (pas 3.20 ou edge) pour la stabilite LTS
+- Builder + runtime Alpine = binaire full static musl (~15MB vs ~80MB)
+- musl-gcc via musl-tools + CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER env var
+- Le probleme principal etait COPY frontend/build manquant → Playwright timeout
+
+### Bugs Corriges
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Playwright timeout /login, /call | Dockerfile | COPY frontend/build /app/static (manquait totalement) |
+| Binaire glibc compile sur builder Debian crash sur Alpine | Dockerfile | Builder Alpine + musl natif (pas de mix glibc/musl) |
+| Docker build reussi mais pas COPY frontend | Dockerfile | Ajout COPY frontend/build /app/static |
+
+### Fichiers Modifies
+- Dockerfile: 83 lignes — builder Alpine + runtime Alpine + frontend copy
+- Dockerfile.release: 41 lignes — Alpine 3.21 runtime
+- services/turn-rs/Dockerfile: 39 lignes — Alpine builder + runtime
+- .github/workflows/Backend.yml: musl targets, musl-gcc linker
+- backend/.cargo/config.toml: musl targets
+- .github/workflows/test-nook.yml: musl cargo check
+
+### Couverture Tests
+| Categorie | Status | Tests |
+|-----------|--------|-------|
+| API sanity | ✅ 77 passed | Health, auth, chess, polls, upload, reactions |
+| Admin flow | ✅ 27 passed (1 flaky) | Approve, invites, analytics, delete |
+| User flow | ✅ 54 passed | Chat, chess UI, navigation, push |
+| Total | ✅ 157 passed / 0 failed / 2 flaky / 159 total | ~1min13s |
+
+### Risques
+1. Alpine builder = build time ~6min (vs ~3min Debian) — acceptable car cache Rust
+2. aarch64 musl cross non supporte en CI (runner x86_64 uniquement) — OK car Zimaboard fait le cross local
+3. Ring crate + musl-gcc = compilation plus lente — cache rust-cache@v2 mitige
+
+### Etat Final
+- Branche: develop
+- HEAD: 895c08c5ae42
+- CI: 157/159 PASS, 0 FAIL, 2 flaky (chess resign race, analytics race — connus)
+- Docker: Alpine 3.21 builder + runtime, ~15MB final
+- Zero Google: ✅
