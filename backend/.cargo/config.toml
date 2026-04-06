@@ -1,6 +1,6 @@
-# Configuration de compilation musl (Alpine)
-# x86_64: cible native du runner (musl natif — pas besoin de config)
-# aarch64: cross-compilation via zig cc (non utilise en CI x86_64)
+# Configuration de compilation musl (Alpine 3.21)
+# x86_64: cible native, musl-gcc fourni par musl-tools
+# aarch64: cross-compilation (non utilise en CI)
 
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-musl-gcc"
