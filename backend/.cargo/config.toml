@@ -1,8 +1,9 @@
-# Configuration cross-compilation aarch64 (glibc)
-# x86_64: cible native du runner (pas besoin de config)
+# Configuration de compilation musl (Alpine)
+# x86_64: cible native du runner (musl natif — pas besoin de config)
+# aarch64: cross-compilation via zig cc (non utilise en CI x86_64)
 
-[target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc"
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-gcc"
 
 [profile.release]
 lto = true
