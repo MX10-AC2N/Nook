@@ -91,14 +91,13 @@ jobs:
 
           exit $BUILD_EXIT
 
-      - name: Preparer le binaire (suffixe amd64)
+      - name: Preparer le binaire (amd64)
         run: |
-          ARCH="amd64"
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
-          echo "✅ artifacts/nook-backend-${ARCH} pret"
+          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-amd64
+          echo "✅ artifacts/nook-backend-amd64 pret"
 
-      # ── Generation BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
+      # ── Generation BACKEND-BUILD-REPORT-amd64.md ─────────────────────
       - name: Generer BACKEND-BUILD-REPORT-amd64.md
         if: always()
         working-directory: ${{ github.workspace }}
