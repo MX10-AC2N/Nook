@@ -36,7 +36,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
-          name: nook-backend-x86_64-unknown-linux-gnu
+          name: nook-backend-x86_64-unknown-linux-musl
           path: docker-context/backend
 
       - name: Download backend arm64
@@ -45,7 +45,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
-          name: nook-backend-aarch64-unknown-linux-gnu
+          name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
       - name: Download frontend
