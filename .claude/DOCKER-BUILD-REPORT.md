@@ -9,10 +9,10 @@
 | **Image** | ghcr.io/MX10-AC2N/Nook |
 | **Digest** | N/A |
 | **Branche** | develop |
-| **Commit** | 27d8d96 |
+| **Commit** | 6249626 |
 | **Duration** | N/A |
 | **Frontend** | N/A |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24048377826 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24049827034 |
 
 ---
 
@@ -20,7 +20,7 @@
 
 | Platform | Taille | Statut |
 |----------|--------|--------|
-| linux/amd64 | N/A | ❌ manquant |
+| linux/amd64 | N/A | ✅ |
 | linux/arm64 | N/A | ❌ manquant |
 
 ---
