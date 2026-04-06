@@ -7,12 +7,12 @@
 | **Push GHCR** | ✅ OK |
 | **Version** | v0.5.0-beta.1 |
 | **Image** | ghcr.io/MX10-AC2N/Nook |
-| **Digest** | sha256:556af5a2d63eed1a2aab481ab13b1c0af891813d5568250419d6e33878ccc5ca |
+| **Digest** | N/A |
 | **Branche** | develop |
-| **Commit** | 91a6737 |
+| **Commit** | 27d8d96 |
 | **Duration** | N/A |
-| **Frontend** | 14 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/23996760748 |
+| **Frontend** | N/A |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24048377826 |
 
 ---
 
@@ -20,8 +20,8 @@
 
 | Platform | Taille | Statut |
 |----------|--------|--------|
-| linux/amd64 | 14M | ✅ |
-| linux/arm64 | 11M | ✅ |
+| linux/amd64 | N/A | ❌ manquant |
+| linux/arm64 | N/A | ❌ manquant |
 
 ---
 
