@@ -280,6 +280,7 @@ test.describe('Sécurité — Call page access', () => {
   test('/call/fake-id sans auth → redirige vers /login', async ({ browser }) => {
     const page = await browser.newPage();
     await page.goto('http://localhost:6300/call/fake-id');
+    await page.waitForLoadState('networkidle');
     await page.waitForURL(/login/, { timeout: 10000 });
     expect(page.url()).toContain('login');
   });
@@ -287,6 +288,7 @@ test.describe('Sécurité — Call page access', () => {
   test('/call/fake-id avec auth → page charge', async ({ browser }) => {
     const page = await browser.newPage();
     await page.goto('http://localhost:6300/login');
+    await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });
     await page.fill('#username', 'e2e_ci');
     await page.fill('#password', 'E2eTest123!');
     await page.click('button[type="submit"]');
