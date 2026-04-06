@@ -18,6 +18,7 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +33,11 @@ jobs:
       - name: Install musl build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config musl-tools
+          sudo apt-get install -y libsodium-dev pkg-config musl-tools xz-utils
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            curl -sSfL "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz" \
+              | sudo tar -xJ -C /usr/local --strip-components=1
+          fi
           rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
@@ -46,8 +51,13 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          else
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
+            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+          fi
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -57,8 +67,13 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          else
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
+            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+          fi
+          cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -73,8 +88,13 @@ jobs:
           RUSTFLAGS: "-C target-feature=+crt-static"
         run: |
           set +e
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          if [ "${{ matrix.target }}" = "x86_64-unknown-linux-musl" ]; then
+            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc
+          else
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/bin/zig
+            export RUSTFLAGS="-C linker=zig -C link-args=-target aarch64-linux-musl"
+          fi
+          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
@@ -94,10 +114,11 @@ jobs:
       - name: Preparer le binaire (amd64)
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-amd64
-          echo "✅ artifacts/nook-backend-amd64 pret"
+          ARCH=$(echo "${{ matrix.target }}" | grep -q "aarch64" && echo "arm64" || echo "amd64")
+          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${ARCH}
+          echo "✅ artifacts/nook-backend-${ARCH} pret
 
-      # ── Generation BACKEND-BUILD-REPORT-amd64.md ─────────────────────
+      # ── Generation BACKEND-BUILD-REPORT-{arch}.md ─────────────────────
       - name: Generer BACKEND-BUILD-REPORT-amd64.md
         if: always()
         working-directory: ${{ github.workspace }}
@@ -129,7 +150,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "Aucune modification — pas de commit"
           else
-            git commit -m "ci: BACKEND-BUILD-REPORT-amd64.md [run ${{ github.run_id }}]"
+            git commit -m "ci: BACKEND-BUILD-REPORT-${ARCH}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité"
