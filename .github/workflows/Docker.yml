@@ -1,35 +1,19 @@
-name: 4==> 🐳 Docker Build & Push
+name: 2 ==> Docker Build and Push
 
 on:
   workflow_dispatch:
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
   docker:
-    name: 🐳 Docker Multi-Arch (Distroless)
+    name: Build and Push
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lire la version
-        id: version
-        run: |
-          VERSION=$(cat VERSION | tr -d '[:space:]')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 Version : $VERSION"
-
-      # ── Téléchargement des artifacts cross-workflow ───────────────────
+      # Download build artifacts
       - name: Download backend amd64
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -37,15 +21,6 @@ jobs:
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
           name: nook-backend-x86_64-unknown-linux-musl
-          path: docker-context/backend
-
-      - name: Download backend arm64
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: Backend.yml
-          branch: ${{ github.ref_name }}
-          name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
       - name: Download frontend
@@ -57,98 +32,46 @@ jobs:
           name: nook-frontend
           path: docker-context/frontend
 
-      - name: Vérification du contexte
+      - name: Verify context
         id: ctx
         run: |
           echo "=== Backend ==="
           ls -la docker-context/backend/
           echo "=== Frontend ==="
           ls -la docker-context/frontend/
-          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ amd64 manquant" && exit 1)
-          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ arm64 manquant" && exit 1)
-          test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
-          chmod +x docker-context/backend/nook-backend-amd64
-          chmod +x docker-context/backend/nook-backend-arm64
+          test -f docker-context/backend/nook-backend-amd64 || (echo "amd64 missing" && exit 1)
+          test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
 
           AMD64_SIZE=$(ls -lh docker-context/backend/nook-backend-amd64 | awk '{print $5}')
-          ARM64_SIZE=$(ls -lh docker-context/backend/nook-backend-arm64 | awk '{print $5}')
           FRONT_FILES=$(ls docker-context/frontend | wc -l)
           echo "amd64_size=$AMD64_SIZE" >> $GITHUB_OUTPUT
-          echo "arm64_size=$ARM64_SIZE" >> $GITHUB_OUTPUT
           echo "front_files=$FRONT_FILES" >> $GITHUB_OUTPUT
-          echo "✅ Contexte Docker prêt — v${{ steps.version.outputs.version }}"
+          echo "Docker context ready"
 
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.tag }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - name: Set version tag
+        id: version
+        run: |
+          VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-      - name: Build & Push
-        id: push
-        uses: docker/build-push-action@v6
+      # Build and push amd64
+      - uses: docker/build-push-action@v6
         with:
           context: docker-context
           file: Dockerfile.release
-          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # ── Génération DOCKER-BUILD-REPORT.md ────────────────────────────
-      - name: Générer DOCKER-BUILD-REPORT.md
-        if: always()
-        env:
-          RUN_DATE: "${{ env.run_date }}"
-          COMMIT_SHA: "${{ github.sha }}"
-          BRANCH: "${{ github.ref_name }}"
-          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          VERSION: "${{ steps.version.outputs.tag }}"
-          AMD64_SIZE: "${{ steps.ctx.outputs.amd64_size }}"
-          ARM64_SIZE: "${{ steps.ctx.outputs.arm64_size }}"
-          FRONT_FILES: "${{ steps.ctx.outputs.front_files }}"
-          IMAGE: "ghcr.io/${{ github.repository }}"
-          PUSH_DIGEST: "${{ steps.push.outputs.digest }}"
-          BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
-          REPO: "${{ github.repository }}"
-          RUN_ID: "${{ github.run_id }}"
-        run: bash .github/scripts/generate-docker-report.sh
-
-      - name: Commit DOCKER-BUILD-REPORT.md
-        if: always()
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/DOCKER-BUILD-REPORT.md
-          if git diff --staged --quiet; then
-            echo "Aucune modification — pas de commit"
-          else
-            git commit -m "ci: DOCKER-BUILD-REPORT.md [run ${{ github.run_id }}]"
-            git pull --rebase origin ${{ github.ref_name }}
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
-          fi
-
-      - name: Résumé GitHub
-        run: |
-          echo "## 🐳 Docker ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| | |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Image** | \`ghcr.io/${{ github.repository }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Platforms** | \`linux/amd64\` · \`linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Registry** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}-amd64
+            ghcr.io/${{ github.repository }}:latest
+          build-args: |
+            TARGETARCH=amd64
