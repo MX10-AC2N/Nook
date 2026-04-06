@@ -60,9 +60,8 @@ RUN mkdir -p /app/data/uploads /app/logs /app/static \
 COPY --from=builder /usr/local/bin/nook-backend /app/nook-backend
 RUN chmod 0755 /app/nook-backend
 
-# Frontend build (injecte depuis le build context en CI)
-# Ignore si absent (dev local sans frontend)
-COPY --chown=nook:nook frontend/build /app/static || true
+# Frontend build (injecte par download-artifact en CI)
+COPY --chown=nook:nook frontend/build /app/static
 
 WORKDIR /app
 
