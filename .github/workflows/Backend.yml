@@ -5,19 +5,25 @@ on:
 
 jobs:
   backend:
-    name: Backend (${{ matrix.target }})
-    runs-on: ubuntu-latest
+    name: Backend (${{ matrix.arch }})
     permissions:
       contents: write
-    defaults:
-      run:
-        working-directory: ./backend
 
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - x86_64-unknown-linux-musl
+        include:
+          - arch: amd64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - arch: arm64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: ./backend
 
     steps:
       - uses: actions/checkout@v4
@@ -29,30 +35,32 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install cross-compilation tools
+      - name: Install musl tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config musl-tools xz-utils
+          sudo apt-get install -y libsodium-dev pkg-config musl-tools
           rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}
+          key: ${{ matrix.target }}-${{ matrix.arch }}
 
       - name: cargo check
         id: check
         env:
           SQLX_OFFLINE: true
         run: |
-          cargo check --all-targets --target ${{ matrix.target }}
+          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
 
       - name: cargo clippy
         id: clippy
         env:
           SQLX_OFFLINE: true
         run: |
-          cargo clippy --target ${{ matrix.target }} -- -D warnings
+          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
+          cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
 
       - name: cargo build --release
         id: build
@@ -63,8 +71,7 @@ jobs:
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-          CC_x86_64_unknown_linux_musl=musl-gcc \
+          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
           cargo build --release --locked --target ${{ matrix.target }}
 
           BINARY="target/${{ matrix.target }}/release/nook-backend"
@@ -77,14 +84,14 @@ jobs:
       - name: Prepare binary
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-amd64
-          echo "artifacts/nook-backend-amd64 pret"
+          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
+          echo "artifacts/nook-backend-${{ matrix.arch }} pret"
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
         working-directory: ${{ github.workspace }}
         env:
-          ARCH: amd64
+          ARCH: ${{ matrix.arch }}
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -102,11 +109,11 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/BACKEND-BUILD-REPORT-amd64.md
+          git add .claude/BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
           if git diff --staged --quiet; then
             echo "No change - no commit"
           else
-            git commit -m "ci: BACKEND-BUILD-REPORT-amd64.md [run ${{ github.run_id }}]"
+            git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "Report committed"
@@ -114,7 +121,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-x86_64-unknown-linux-musl
+          name: nook-backend-${{ matrix.target }}
           path: backend/artifacts/nook-backend-*
           if-no-files-found: error
           retention-days: 7
