@@ -13,7 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download build artifacts
       - name: Download backend amd64
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -21,6 +20,15 @@ jobs:
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
           name: nook-backend-x86_64-unknown-linux-musl
+          path: docker-context/backend
+
+      - name: Download backend arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ github.ref_name }}
+          name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
       - name: Download frontend
@@ -40,11 +48,16 @@ jobs:
           echo "=== Frontend ==="
           ls -la docker-context/frontend/
           test -f docker-context/backend/nook-backend-amd64 || (echo "amd64 missing" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "arm64 missing" && exit 1)
           test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
+          chmod +x docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-arm64
 
           AMD64_SIZE=$(ls -lh docker-context/backend/nook-backend-amd64 | awk '{print $5}')
+          ARM64_SIZE=$(ls -lh docker-context/backend/nook-backend-arm64 | awk '{print $5}')
           FRONT_FILES=$(ls docker-context/frontend | wc -l)
           echo "amd64_size=$AMD64_SIZE" >> $GITHUB_OUTPUT
+          echo "arm64_size=$ARM64_SIZE" >> $GITHUB_OUTPUT
           echo "front_files=$FRONT_FILES" >> $GITHUB_OUTPUT
           echo "Docker context ready"
 
@@ -63,15 +76,15 @@ jobs:
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
-      # Build and push amd64
-      - uses: docker/build-push-action@v6
+      - name: Build and push multiarch
+        uses: docker/build-push-action@v6
         with:
           context: docker-context
           file: Dockerfile.release
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}-amd64
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
             ghcr.io/${{ github.repository }}:latest
           build-args: |
-            TARGETARCH=amd64
+            TARGETARCH
