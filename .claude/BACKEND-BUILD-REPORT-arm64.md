@@ -1,14 +1,14 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit fb6284f | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24049887753)
+> **unknown** | commit c533647 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24050669095)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ❌ FAIL |
-| **cargo check** | ❌ exit=101 |
-| **cargo clippy** | ❌ exit=101 |
+| **cargo build** | ❌ unknown |
+| **cargo check** | ❌ exit=? |
+| **cargo clippy** | ❌ exit=? |
 
 | Métrique | Valeur |
 |----------|--------|
