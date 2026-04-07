@@ -21,19 +21,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/build-push-action@v6
+      - name: Build turn-server on Alpine
+        uses: docker/build-push-action@v6
         with:
           context: services/turn-rs
           file: services/turn-rs/Dockerfile
           target: builder
-          outputs: type=local,dest=./turn-output-amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          outputs: type=local,dest=./turn-docker-output
+
+      - name: Extract turn-server binary
+        run: |
+          mkdir -p artifacts
+          cp turn-docker-output/usr/local/bin/turn-server artifacts/turn-server-${{ matrix.arch }}
+          ls -la artifacts/turn-server-${{ matrix.arch }}
 
       - name: Upload turn-server artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nook-turn-server-${{ matrix.arch }}
-          path: turn-output-amd64/usr/local/bin/turn-server
+          path: artifacts/turn-server-${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 7
