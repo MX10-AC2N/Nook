@@ -12,14 +12,24 @@ services:
       - ./nook-logs:/app/logs
 
     environment:
-      - TZ=${TZ:-Europe/Paris}
       - PORT=${PORT:-3000}
+      - TZ=${TZ:-Europe/Paris}
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/nook.db}
       - STATIC_FILES_DIR=${STATIC_FILES_DIR:-/app/static}
       - UPLOADS_DIR=${UPLOADS_DIR:-/app/data/uploads}
+      - GIFS_DIR=${GIFS_DIR:-/app/data/gifs}
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:${PORT:-6300}}
       - E2E_SETUP=${E2E_SETUP:-0}
+      - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-60}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
+      - TURN_SECRET=${TURN_SECRET:-}
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@nook.local}
 
     deploy:
       resources:
@@ -44,6 +54,10 @@ services:
 
     volumes:
       - ./turn-config:/etc/turn-server:ro
+
+    environment:
+      - TURN_SECRET=${TURN_SECRET:-}
+      - TURN_PORT=${TURN_PORT:-3478}
 
     networks:
       - nook-network
