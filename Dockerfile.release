@@ -2,7 +2,7 @@
 # Nook - Backend (runtime only, pre-compiled binary)
 # ============================================================
 # Consomme le binaire musl compile par Backend.yml
-# Zero Google dependency — Alpine 3.21 (~15MB)
+# Zero Google dependency - Alpine 3.21 (~15MB)
 # ============================================================
 
 FROM alpine:3.21 AS runtime
@@ -20,8 +20,8 @@ RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app
 
 ARG TARGETARCH=amd64
-COPY --chmod=755 ./artifacts/nook-backend-${TARGETARCH} /app/nook-backend
-COPY frontend/build /app/static 2>/dev/null || true
+COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
+COPY frontend/ /app/static/
 
 WORKDIR /app
 
