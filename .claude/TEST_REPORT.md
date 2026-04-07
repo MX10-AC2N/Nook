@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-07 17:03 UTC**
+> Généré par `test-nook.yml` · **2026-04-07 17:21 UTC**
 
 ---
 
@@ -16,8 +16,8 @@
 | **Total** | 0 |
 | **Durée totale** | N/A |
 | **Branche** | `develop` |
-| **Commit** | [`f37f507`](https://github.com/MX10-AC2N/Nook/commit/f37f5074fd5c9e2dbff2620a169acf311eb0afb0) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24093354579) |
+| **Commit** | [`8e4d5f3`](https://github.com/MX10-AC2N/Nook/commit/8e4d5f364637f566d044b25654b45a16a97c5e04) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24094176570) |
 
 ---
 
@@ -59,11 +59,11 @@ Error: Os { code: 13, kind: PermissionDenied, message: "Permission denied" }
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24093354579](https://github.com/MX10-AC2N/Nook/actions/runs/24093354579)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24094176570](https://github.com/MX10-AC2N/Nook/actions/runs/24094176570)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24093354579)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24094176570)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -89,4 +89,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-07 17:03 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-07 17:21 UTC*
