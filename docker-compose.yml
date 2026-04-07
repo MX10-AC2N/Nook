@@ -1,53 +1,25 @@
-# docker-compose.yml — Production Nook (Zimaboard homeserver)
-#
-# Utilisation :
-#   cp .env.homeserver .env          # adapter les valeurs
-#   docker compose up -d             # démarre avec ghcr.io/mx10-ac2n/nook:latest
-#   docker compose pull && docker compose up -d   # mise à jour
-#
-# CI (test-nook.yml) :
-#   NOOK_IMAGE=nook-ci:local docker compose up -d
-#   → la variable shell NOOK_IMAGE écrase ${NOOK_IMAGE} dans ce fichier,
-#     les autres variables viennent du .env committé dans le repo.
-#   Le CI n'utilise PAS le .env.homeserver
-
 services:
   nook:
-    image: ${NOOK_IMAGE:-ghcr.io/mx10-ac2n/nook:latest}
+    image: ghcr.io/mx10-ac2n/nook:latest
     container_name: nook
     restart: unless-stopped
 
     ports:
-      - "${HOST_PORT:-6300}:3000"
+      - "6300:3000"
 
     volumes:
-      # Bind mounts vers les paths absolus du Zimaboard.
-      # En CI (test-nook.yml) ces paths n'existent pas → docker crée des dossiers vides,
-      # ce qui est correct pour les tests (DB éphémère).
-      - ${DATA_DIR:-./data}:/app/data
-      - ${LOGS_DIR:-./logs}:/app/logs
+      - ./nook-data:/app/data
+      - ./nook-logs:/app/logs
 
     environment:
-      - RUST_LOG=${RUST_LOG:-info}
-      - RUST_BACKTRACE=${RUST_BACKTRACE:-1}
-      - TZ=${TZ:-Europe/Paris}
+      - TZ=Europe/Paris
       - PORT=3000
       - DATABASE_URL=sqlite:/app/data/nook.db
       - STATIC_FILES_DIR=/app/static
       - UPLOADS_DIR=/app/data/uploads
       - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:6300}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
-      # Variable utilisée par le backend pour créer le compte E2E en CI
-      - E2E_SETUP=${E2E_SETUP:-0}
-      # Mot de passe initial de l'admin (override en CI pour tests, sinon aléatoire)
-      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
-      # Push notifications VAPID (optionnel — no-op si absent)
-      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
-      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
-      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@nook.local}
-      # GIFs Giphy (optionnel — no-op si absent)
+      - E2E_SETUP=0
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
-      - GIFS_DIR=${GIFS_DIR:-/app/data/gifs}
 
     deploy:
       resources:
@@ -62,9 +34,7 @@ services:
       - nook-network
 
   turn:
-    build:
-      context: ./services/turn-rs
-      dockerfile: Dockerfile
+    image: ghcr.io/mx10-ac2n/nook/turn-server:latest
     container_name: nook-turn
     restart: unless-stopped
 
@@ -73,12 +43,11 @@ services:
       - "3478:3478/tcp"
 
     volumes:
-      - ./services/turn-rs/config.toml:/etc/turn-server/config.toml:ro
+      - ./turn-config:/etc/turn-server:ro
 
-    environment: []
-      # Config géré via services/turn-rs/config.toml (monté en volume ci-dessous)
+    networks:
+      - nook-network
 
 networks:
   nook-network:
     driver: bridge
-    name: nook-network
