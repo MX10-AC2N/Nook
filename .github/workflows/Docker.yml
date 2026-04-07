@@ -117,7 +117,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ steps.info.outputs.repo }}/turn-server:${{ steps.info.outputs.tag }}
-            ghcr.io/${{ steps.info.outputs.repo }}/turn-server:latest
+            ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
+            ghcr.io/mx10-ac2n/turn-server:latest
           build-args: |
             TARGETARCH
