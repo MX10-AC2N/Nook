@@ -21,20 +21,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build turn-server on Alpine
-        uses: docker/build-push-action@v6
-        with:
-          context: services/turn-rs
-          file: services/turn-rs/Dockerfile
-          target: builder
-          outputs: type=local,dest=./turn-docker-output
+      - name: Build turn-server on Alpine (Docker)
+        run: |
+          docker build \
+            --target builder \
+            --tag turn-builder:latest \
+            -f services/turn-rs/Dockerfile \
+            services/turn-rs
 
       - name: Extract turn-server binary
         run: |
           mkdir -p artifacts
-          cp turn-docker-output/usr/local/bin/turn-server artifacts/turn-server-${{ matrix.arch }}
+          # Run the builder image just to copy the binary out
+          id=$(docker create turn-builder:latest /bin/sh -c "cat /usr/local/bin/turn-server")
+          docker start -a $id > artifacts/turn-server-${{ matrix.arch }}
+          docker rm $id
           chmod +x artifacts/turn-server-${{ matrix.arch }}
           file artifacts/turn-server-${{ matrix.arch }}
           ls -la artifacts/turn-server-${{ matrix.arch }}
