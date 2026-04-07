@@ -1,46 +1,46 @@
 services:
   nook:
-    image: ghcr.io/mx10-ac2n/nook:latest
+    image: ghcr.io/mx10-ac2n/nook:v0.5.0-beta.1
     container_name: nook
     restart: unless-stopped
 
     ports:
-      - "6300:3000"
+      - "${PORT:-6300}:3000"
 
     volumes:
       - ./nook-data:/app/data
       - ./nook-logs:/app/logs
 
     environment:
-      - TZ=Europe/Paris
-      - PORT=3000
-      - DATABASE_URL=sqlite:/app/data/nook.db
-      - STATIC_FILES_DIR=/app/static
-      - UPLOADS_DIR=/app/data/uploads
-      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:6300}
-      - E2E_SETUP=0
+      - TZ=${TZ:-Europe/Paris}
+      - PORT=${PORT:-3000}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/nook.db}
+      - STATIC_FILES_DIR=${STATIC_FILES_DIR:-/app/static}
+      - UPLOADS_DIR=${UPLOADS_DIR:-/app/data/uploads}
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:${PORT:-6300}}
+      - E2E_SETUP=${E2E_SETUP:-0}
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
 
     deploy:
       resources:
         limits:
-          cpus: "1.5"
-          memory: 1028M
+          cpus: "${CPUS_LIMIT:-1.5}"
+          memory: "${MEMORY_LIMIT:-1028M}"
         reservations:
-          cpus: "0.5"
-          memory: 256M
+          cpus: "${CPUS_RESERVATION:-0.5}"
+          memory: "${MEMORY_RESERVATION:-256M}"
 
     networks:
       - nook-network
 
   turn:
-    image: ghcr.io/mx10-ac2n/nook/turn-server:latest
+    image: ghcr.io/mx10-ac2n/turn-server:v0.5.0-beta.1
     container_name: nook-turn
     restart: unless-stopped
 
     ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
+      - "${TURN_PORT:-3478}:3478/udp"
+      - "${TURN_PORT:-3478}:3478/tcp"
 
     volumes:
       - ./turn-config:/etc/turn-server:ro
