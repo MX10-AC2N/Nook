@@ -2,9 +2,10 @@
 # Turn-Server (TURN/STUN pour WebRTC)
 # Build a partir des sources mycrl/turn-rs
 # ============================================================
-# Zero Google dependency — Alpine builder + Alpine runtime
+# Zero Google dependency - Alpine builder + Alpine runtime
 # ============================================================
 
+# - ETAPE 1 : Builder Alpine 3.21
 FROM alpine:3.21 AS builder
 
 RUN apk add --no-cache \
@@ -30,9 +31,13 @@ WORKDIR /src/turn-rs
 RUN cargo build --release \
     && cp target/release/turn-server /usr/local/bin/turn-server
 
+# - ETAPE 2 : Runtime Alpine 3.21
 FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache ca-certificates
+
+# Copy the compiled binary from builder stage
+COPY --from=builder /usr/local/bin/turn-server /usr/local/bin/turn-server
 
 EXPOSE 3478/udp 3478/tcp
 
