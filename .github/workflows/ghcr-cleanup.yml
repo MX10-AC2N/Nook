@@ -1,4 +1,4 @@
-name: cleanup ghcr
+name: 5 ==> Cleanup ghcr
 
 on:
   workflow_run:
@@ -59,11 +59,11 @@ jobs:
             COUNT=$(echo "$RESP" | python3 -c "import sys,json;print(len(json.load(sys.stdin) or []))")
             [ "$COUNT" = "0" ] && break
             echo "$RESP" | python3 -c "
-import sys, json
-for v in json.load(sys.stdin):
-    tags = [v['metadata']['container']['tags']][0] if 'tags' in v.get('metadata',{}).get('container',{}) else []
-    print(f\"{v['id']}|{v['created_at']}|{','.join(tags)}\")
-"
+            import sys, json
+            for v in json.load(sys.stdin):
+            tags = [v['metadata']['container']['tags']][0] if 'tags' in v.get('metadata',{}).get('container',{}) else []
+            print(f\"{v['id']}|{v['created_at']}|{','.join(tags)}\")
+            "
             PAGE=$((PAGE + 1))
             sleep 0.5
           done
