@@ -15,9 +15,10 @@ RUN apk add --no-cache \
 # User non-root
 RUN addgroup -S nook && adduser -S nook -G nook
 
-# Dossiers applicatifs
+# Dossiers applicatifs - world-writable car les bind mounts
+# cteent par l'hote appartiennent a root
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
-    && chown -R nook:nook /app
+    && chmod 0777 /app/data /app/data/uploads /app/logs /app/static
 
 ARG TARGETARCH=amd64
 COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
