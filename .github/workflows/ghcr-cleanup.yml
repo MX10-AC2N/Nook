@@ -1,4 +1,4 @@
-name: 5 ==> Cleanup GHCR
+name: 5 ==> GHCR Cleanup
 
 on:
   workflow_run:
@@ -18,14 +18,12 @@ on:
         default: false
 
 jobs:
-  cleanup:
+  ghcr-cleanup:
     name: GHCR Cleanup
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
 
     steps:
       - name: Set params
@@ -39,124 +37,141 @@ jobs:
             echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Cleanup GHCR packages
+      - name: Cleanup GHCR (nook)
         env:
+          PACKAGE: nook
           KEEPN: ${{ steps.params.outputs.keep }}
           DRY_RUN: ${{ steps.params.outputs.dry_run }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          KEEPN=${KEEPN:-8}
 
-          for PACKAGE in nook turn-server; do
-            echo "=== Cleaning ghcr.io/${{ github.repository_owner }}/$PACKAGE ==="
+          python3 -c "
+          import sys, json, subprocess, os
 
-            # Clean orphan tags (not 'latest' and not versioned from the current release)
-            # Fetch all versions
-            VERSIONS=$(curl -sf \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/user/packages/container/$PACKAGE/versions?per_page=100") || true
+          token = os.environ['GITHUB_TOKEN']
+          package = os.environ['PACKAGE']
+          keepn = int(os.environ['KEEPN'])
+          dry_run = os.environ['DRY_RUN'] == 'true'
 
-            if [ -z "$VERSIONS" ] || [ "$VERSIONS" = "[]" ]; then
-              echo "  No versions found for $PACKAGE"
-              continue
-            fi
+          def api(method, path):
+              import urllib.request
+              url = 'https://api.github.com' + path
+              req = urllib.request.Request(
+                  url, method=method,
+                  headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  }
+              )
+              if method == 'DELETE':
+                  try:
+                      urllib.request.urlopen(req)
+                      return None
+                  except Exception as e:
+                      return e
+              else:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read().decode())
 
-            # Use Python to sort and process
-            echo "$VERSIONS" | python3 -c "
-import sys, json, os
+          # Fetch all versions (paginate)
+          versions = []
+          page = 1
+          while True:
+              resp = api('GET', f'/user/packages/container/{package}/versions?per_page=100&page={page}')
+              if not resp:
+                  break
+              versions.extend(resp)
+              page += 1
 
-data = json.load(sys.stdin)
-keepn = int(os.environ.get('KEEPN', 8))
-dry_run = os.environ.get('DRY_RUN', 'false') == 'true'
+          versions.sort(key=lambda v: v['created_at'], reverse=True)
 
-# Sort newest first
-data.sort(key=lambda v: v['created_at'], reverse=True)
+          kept = 0
+          for v in versions:
+              tags = v.get('metadata', {}).get('container', {}).get('tags', [])
+              is_latest = 'latest' in tags
+              if is_latest or kept < keepn:
+                  kept += 1
+                  print(f'  KEEP  id={v['id']}  tags={tags}')
+              else:
+                  if dry_run:
+                      print(f'  DRY   id={v['id']}  tags={tags}')
+                  else:
+                      err = api('DELETE', f'/user/packages/container/{package}/versions/{v['id']}')
+                      if err:
+                          print(f'  FAIL  id={v['id']}  {err}')
+                      else:
+                          print(f'  DEL   id={v['id']}  tags={tags}')
 
-latest_version = None
-for v in data:
-    tags = v.get('metadata', {}).get('container', {}).get('tags', [])
-    if 'latest' in tags:
-        latest_version = v['id']
-        break
+          print(f'Done: {len(versions)} versions, kept {kept}')
+          "
 
-kept = 0
-for v in data:
-    vid = v['id']
-    tags = v.get('metadata', {}).get('container', {}).get('tags', [])
-    created = v['created_at']
-    is_latest = 'latest' in tags
+      - name: Cleanup GHCR (turn-server)
+        env:
+          PACKAGE: turn-server
+          KEEPN: ${{ steps.params.outputs.keep }}
+          DRY_RUN: ${{ steps.params.outputs.dry_run }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
 
-    # Always keep 'latest'
-    if is_latest:
-        print(f'  KEEP latest  id={vid} tags={",".join(tags)}')
-        continue
+          python3 -c "
+          import sys, json, subprocess, os
 
-    # Keep N newest non-latest versions
-    if kept < keepn:
-        kept += 1
-        print(f'  KEEP ({kept}/{keepn}) id={vid} tags={",".join(tags)}')
-        continue
+          token = os.environ['GITHUB_TOKEN']
+          package = os.environ['PACKAGE']
+          keepn = int(os.environ['KEEPN'])
+          dry_run = os.environ['DRY_RUN'] == 'true'
 
-    # Delete the rest
-    if dry_run:
-        print(f'  DRY_RUN delete id={vid} tags={",".join(tags)}')
-    else:
-        print(f'id={vid}', flush=True)
-"
+          def api(method, path):
+              import urllib.request
+              url = 'https://api.github.com' + path
+              req = urllib.request.Request(
+                  url, method=method,
+                  headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  }
+              )
+              if method == 'DELETE':
+                  try:
+                      urllib.request.urlopen(req)
+                      return None
+                  except Exception as e:
+                      return e
+              else:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read().decode())
 
-            if [ "$DRY_RUN" = "true" ]; then
-              echo "  Dry run mode - nothing deleted"
-              continue
-            fi
+          versions = []
+          page = 1
+          while True:
+              resp = api('GET', f'/user/packages/container/{package}/versions?per_page=100&page={page}')
+              if not resp:
+                  break
+              versions.extend(resp)
+              page += 1
 
-            # Get IDs to delete (second pass: actual deletion)
-            TO_DELETE=$(echo "$VERSIONS" | python3 -c "
-import sys, json, os
+          versions.sort(key=lambda v: v['created_at'], reverse=True)
 
-data = json.load(sys.stdin)
-keepn = int(os.environ.get('KEEPN', 8))
+          kept = 0
+          for v in versions:
+              tags = v.get('metadata', {}).get('container', {}).get('tags', [])
+              is_latest = 'latest' in tags
+              if is_latest or kept < keepn:
+                  kept += 1
+                  print(f'  KEEP  id={v['id']}  tags={tags}')
+              else:
+                  if dry_run:
+                      print(f'  DRY   id={v['id']}  tags={tags}')
+                  else:
+                      err = api('DELETE', f'/user/packages/container/{package}/versions/{v['id']}')
+                      if err:
+                          print(f'  FAIL  id={v['id']}  {err}')
+                      else:
+                          print(f'  DEL   id={v['id']}  tags={tags}')
 
-data.sort(key=lambda v: v['created_at'], reverse=True)
-
-kept = 0
-latest_seen = False
-to_delete = []
-
-for v in data:
-    tags = v.get('metadata', {}).get('container', {}).get('tags', [])
-    is_latest = 'latest' in tags
-
-    if is_latest:
-        latest_seen = True
-        continue
-
-    if kept < keepn:
-        kept += 1
-        continue
-
-    to_delete.append(str(v['id']))
-
-print(' '.join(to_delete))
-")
-
-            if [ -z "$TO_DELETE" ]; then
-              echo "  Nothing to delete for $PACKAGE"
-              continue
-            fi
-
-            for VID in $TO_DELETE; do
-              echo -n "  Deleting version $VID... "
-              if curl -sf -X DELETE \
-                -H "Authorization: Bearer $GH_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "https://api.github.com/user/packages/container/$PACKAGE/versions/$VID"; then
-                echo "OK"
-              else
-                echo "FAILED"
-              fi
-              sleep 1
-            done
-          done
+          print(f'Done: {len(versions)} versions, kept {kept}')
+          "
