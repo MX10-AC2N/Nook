@@ -1,6 +1,6 @@
 on:
   workflow_run:
-    workflows: ["2 ==> Docker Build and Push"]
+    workflows: ["4 ==> Docker Build and Push"]
     types: [completed]
 
   workflow_dispatch:
