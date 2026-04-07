@@ -19,13 +19,13 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Install tools
+      - name: Install musl tools
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools protobuf-compiler
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+          # On both native runners (x86_64 and arm64), musl-gcc works natively
+          # No cross-compilation needed since each runner matches its target arch
+          musl-gcc --version
 
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -36,13 +36,8 @@ jobs:
           rustup target add ${{ matrix.target }}
           git clone --depth 1 https://github.com/mycrl/turn-rs.git /tmp/turn-rs
           cd /tmp/turn-rs
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo build --release --target ${{ matrix.target }}
-          else
-            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc \
-            cargo build --release --target ${{ matrix.target }}
-          fi
+          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
+          cargo build --release --target ${{ matrix.target }}
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
 
