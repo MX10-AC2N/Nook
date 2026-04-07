@@ -8,8 +8,8 @@ services:
       - "${PORT:-6300}:3000"
 
     volumes:
-      - ./nook-data:/app/data
-      - ./nook-logs:/app/logs
+      - "${DATA_DIR:-./nook-data}:/app/data"
+      - "${LOGS_DIR:-./nook-logs}:/app/logs"
 
     environment:
       - PORT=${PORT:-3000}
