@@ -19,31 +19,21 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Install musl tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools protobuf-compiler
-          # On both native runners (x86_64 and arm64), musl-gcc works natively
-          # No cross-compilation needed since each runner matches its target arch
-          musl-gcc --version
+      - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: docker/build-push-action@v6
         with:
-          components: rustfmt, clippy
+          context: services/turn-rs
+          file: services/turn-rs/Dockerfile
+          target: builder
+          outputs: type=local,dest=./turn-output-amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build turn-server
-        run: |
-          rustup target add ${{ matrix.target }}
-          git clone --depth 1 https://github.com/mycrl/turn-rs.git /tmp/turn-rs
-          cd /tmp/turn-rs
-          CARGO_TARGET_$(echo ${{ matrix.target }} | tr '[:lower:]' '[:upper:]' | tr '-' '_')_LINKER=musl-gcc \
-          cargo build --release --target ${{ matrix.target }}
-          mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload turn-server artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: nook-turn-server-${{ matrix.arch }}
-          path: /tmp/turn-rs/artifacts/
+          path: turn-output-amd64/usr/local/bin/turn-server
           if-no-files-found: error
           retention-days: 7
