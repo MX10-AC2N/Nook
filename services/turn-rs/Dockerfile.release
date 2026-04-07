@@ -1,0 +1,17 @@
+# ============================================================
+# Turn-Server (runtime only, pre-compiled binary)
+# ============================================================
+# Consomme le binaire compile par turn.yml
+# Zero Google dependency - Alpine 3.21
+# ============================================================
+
+FROM alpine:3.21 AS runtime
+
+RUN apk add --no-cache ca-certificates
+
+ARG TARGETARCH=amd64
+COPY --chmod=755 turn-server-${TARGETARCH} /usr/local/bin/turn-server
+
+EXPOSE 3478/udp 3478/tcp
+
+CMD ["/usr/local/bin/turn-server", "--config=/etc/turn-server/config.toml"]
