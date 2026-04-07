@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-buildx-action@v3
+
       - name: Build turn-server on Alpine
         uses: docker/build-push-action@v6
         with:
@@ -33,6 +35,8 @@ jobs:
         run: |
           mkdir -p artifacts
           cp turn-docker-output/usr/local/bin/turn-server artifacts/turn-server-${{ matrix.arch }}
+          chmod +x artifacts/turn-server-${{ matrix.arch }}
+          file artifacts/turn-server-${{ matrix.arch }}
           ls -la artifacts/turn-server-${{ matrix.arch }}
 
       - name: Upload turn-server artifacts
