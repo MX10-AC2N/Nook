@@ -1,4 +1,4 @@
-name: 4 ==> Docker Build and Push
+name: 2 ==> Docker Build and Push
 
 on:
   workflow_dispatch:
@@ -40,6 +40,15 @@ jobs:
           name: nook-frontend
           path: docker-context/frontend
 
+      - name: Set lowercase repo name and version
+        id: info
+        run: |
+          echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          echo "Image: ghcr.io/$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]'):v$VERSION"
+
       - name: Verify context
         id: ctx
         run: |
@@ -69,13 +78,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set version tag
-        id: version
-        run: |
-          VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
-          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-
       - name: Build and push multiarch
         uses: docker/build-push-action@v6
         with:
@@ -84,7 +86,7 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
+            ghcr.io/${{ steps.info.outputs.repo }}:latest
           build-args: |
             TARGETARCH
