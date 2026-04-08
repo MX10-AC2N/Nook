@@ -90,3 +90,18 @@ Pour examiner visuellement les échecs :
 ---
 
 *Rapport généré par `scripts/generate-test-report.py` — 2026-04-08 11:35 UTC*
+
+## Session 48 — 2026-04-08
+### Frontend
+- notificationStore.svelte.ts (nouveau)
+- NotificationToast.svelte (nouveau)
+- chatStore.svelte.ts (réfactoré pour notifications)
+- chessStore.svelte.ts (notifications ajoutées)
+- polls/+page.svelte (notifications ajoutées)
+- calendar/+page.svelte (notifications ajoutées)
+- admin/+page.svelte (notifications ajoutées)
+- webrtc-calls.svelte.ts (notification appel entrant)
+
+### Build
+- Fix: Svelte 5 syntax `onclick|stopPropagation` → `onclick` handler
+- Status: ✅ Build pass (après fix)
