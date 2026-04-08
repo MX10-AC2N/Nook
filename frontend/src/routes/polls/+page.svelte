@@ -104,6 +104,7 @@
       }
 
       polls = [data.poll, ...polls];
+    notifyPoll('Sondage créé', `"${question.trim().slice(0, 40)}" est en ligne`);
       newQuestion = ''; newOptions = ['', '', '', ''];
       audienceMode = 'all'; selectedMemberIds = []; closingDate = '';
       showCreate = false;
@@ -129,6 +130,7 @@
   async function closePoll(pollId: string) {
     try {
       const res = await fetch(`/api/polls/${pollId}/close`, { method: 'POST', credentials: 'include' });
+    if (res.ok) notifyPoll('Sondage fermé', 'Le sondage a été clôturé');
       if (!res.ok) return;
       const data = await res.json();
       polls = polls.map(p => p.id === pollId ? data.poll : p);
