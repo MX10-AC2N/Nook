@@ -1,4 +1,5 @@
 // src/lib/webrtc-calls.ts (Svelte 5 avec runes)
+import { notifyCall } from '$lib/notificationStore.svelte';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import type { CallSignal } from './types';
@@ -352,7 +353,8 @@ class WebRTCCallManager {
         this.stopRingtone();
         this.playRingtone();
         if (browser) {
-          window.dispatchEvent(new CustomEvent('incoming-call', {
+          notifyCall(signal.from_user_name || 'Quelqu un');
+        window.dispatchEvent(new CustomEvent('incoming-call', {
             detail: {
               from_user_id: signal.from_user_id,
               from_user_name: signal.from_user_name ?? signal.from_user_id,
