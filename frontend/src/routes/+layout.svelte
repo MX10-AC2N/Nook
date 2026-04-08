@@ -195,7 +195,7 @@
   </div>
 
 {:else}
-  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
+  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && $page.url.pathname.startsWith('/chat')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
     </div>
