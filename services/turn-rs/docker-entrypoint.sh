@@ -14,5 +14,5 @@ else
     echo "Using existing turnserver.conf at $CONFIG_FILE"
 fi
 
-# Execute the original command (turn-server)
-exec "$@"
+# Execute turn-server with config path
+exec /usr/local/bin/turn-server --config "$CONFIG_FILE"
