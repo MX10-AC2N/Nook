@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | db0ca41 |
+| **Commit** | f47c449 |
 | **Node.js** | unknown |
-| **Vite time** | 5.53ms |
+| **Vite time** | 5.27ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 107 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24148697129 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24149228917 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 196 modules transformed.
 [32m✓[39m 229 modules transformed.
-[32m✓ built in 5.53s[39m
+[32m✓ built in 5.27s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 14ms[39m
-[32m✓ built in 8.82s[39m
+[32m✓ built in 19ms[39m
+[32m✓ built in 8.56s[39m
 
 [2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.Cmz_bTU7.css     [39m[1m[2m 30.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/vendor.js                               [39m[1m[2m  0.05 kB[22m[1m[22m
