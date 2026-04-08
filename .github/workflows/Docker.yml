@@ -67,12 +67,6 @@ jobs:
           echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          # Only push :latest on main branch
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "latest_tag=:latest" >> $GITHUB_OUTPUT
-          else
-            echo "latest_tag=" >> $GITHUB_OUTPUT
-          fi
 
       - name: Copy turn-rs config files to docker context
         run: |
@@ -110,6 +104,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Build and push nook (version tag + latest only on main)
       - name: Build and push nook (backend + frontend)
         uses: docker/build-push-action@v6
         with:
@@ -119,10 +114,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
-            ghcr.io/${{ steps.info.outputs.repo }}${{ steps.info.outputs.latest_tag }}
           build-args: |
             TARGETARCH
 
+      - name: Push nook latest (main only)
+        if: github.ref_name == 'main'
+        run: |
+          docker buildx imagetools create -t ghcr.io/${{ steps.info.outputs.repo }}:latest ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
+
+      # Build and push turn-server (version tag + latest only on main)
       - name: Build and push turn-server
         uses: docker/build-push-action@v6
         with:
@@ -132,6 +132,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
-            ghcr.io/mx10-ac2n/turn-server${{ steps.info.outputs.latest_tag }}
           build-args: |
             TARGETARCH
+
+      - name: Push turn-server latest (main only)
+        if: github.ref_name == 'main'
+        run: |
+          docker buildx imagetools create -t ghcr.io/mx10-ac2n/turn-server:latest ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
