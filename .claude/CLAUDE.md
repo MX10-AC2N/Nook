@@ -1,7 +1,7 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.5.0-beta.1** | Session courante : **47** | Mis à jour : **2026-04-08**
+> Version projet : **0.5.0-beta.1** | Session courante : **48** | Mis à jour : **2026-04-08**
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
 > Déploiement : Docker multi-arch (Alpine 3.21), Zimaboard via docker-compose
