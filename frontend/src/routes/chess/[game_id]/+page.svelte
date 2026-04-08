@@ -79,12 +79,21 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     pageLoading = true;
+
+    // Safety timeout — force pageLoading=false after 5s even if loadGame hangs
+    const safetyTimer = setTimeout(() => {
+      console.warn('[Chess] loadGame timeout — forcing display');
+      pageLoading = false;
+    }, 5000);
+
     try {
       await chessStore.loadGame(gameId);
+      console.log('[Chess] Game loaded:', chessStore.currentGame?.id, 'status:', chessStore.currentGame?.status);
     } catch (e) {
       console.error('[Chess] loadGame threw:', e);
       chessStore.error = 'Erreur inattendue lors du chargement';
     } finally {
+      clearTimeout(safetyTimer);
       pageLoading = false;
     }
   });
@@ -125,6 +134,12 @@
     <div class="loading-full">
       <div class="spinner-lg"></div>
       <p>Chargement de la partie…</p>
+    </div>
+
+  {:else if chessStore.error}
+    <div class="error-state">
+      <p>⚠️ {chessStore.error}</p>
+      <a href="/chess" class="btn-back">← Retour au lobby</a>
     </div>
 
   {:else if !chessStore.currentGame}
