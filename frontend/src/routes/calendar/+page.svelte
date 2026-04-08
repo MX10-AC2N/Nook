@@ -11,6 +11,7 @@
   let currentDate  = $state(new Date());
   let events       = $state<CalEvent[]>([]);
   let loading      = $state(true);
+  import { notifyCalendar } from '$lib/notificationStore.svelte';
   let error        = $state<string | null>(null);
   let showAddModal = $state(false);
   let newEvent     = $state({ title: '', date: '', time: '', description: '' });
