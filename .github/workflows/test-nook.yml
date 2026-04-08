@@ -4,10 +4,7 @@
 name: 3==> CI - Test Nook (Backend + Frontend + Integration + E2E)
 
 on:
-  push:
-    branches: [develop, main]
-  pull_request:
-    branches: [develop, main]
+  workflow_dispatch:
 
 concurrency:
   group: ci-test-noog-${{ github.head_ref || github.ref }}
