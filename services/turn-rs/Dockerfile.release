@@ -5,7 +5,8 @@
 FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache \
-    ca-certificates
+    ca-certificates \
+    su-exec
 
 # User non-root with UID/GID 1000 (matches host casaos user)
 RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
@@ -31,5 +32,6 @@ EXPOSE 3478/tcp 3478/udp
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD pgrep turn-server || exit 1
 
+USER nook
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/turn-server"]
