@@ -235,3 +235,8 @@ rate limiting strict (1 requête / 10 minutes par utilisateur).
 | 6 | [SEC-02] Rate limit par IP | 4h | Faible en contexte familial | S38 |
 | 7 | [SEC-06] Emergency module auth | 1h | Avant activation | Avant S36 si activé |
 
+
+### Session 48 — 2026-04-08
+- NotificationToast.svelte: aucun risque XSS (contenu échappé par Svelte)
+- notificationStore.svelte.ts: AudioContext sandboxé, pas d'accès réseau
+- Pas de nouvelles vulnérabilités introduites
