@@ -446,3 +446,10 @@
 </style>
 
 <CallBanner />
+
+  // Clear cryptoError when crypto becomes ready (e.g., after login)
+  $effect(() => {
+    if (cryptoStore.ready && cryptoError) {
+      cryptoError = null;
+    }
+  });
