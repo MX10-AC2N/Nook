@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | e09ec58 |
+| **Commit** | ff7367d |
 | **Node.js** | unknown |
-| **Vite time** | 5.29ms |
+| **Vite time** | 5.44ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
-| **Chunks** | 106 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24144219995 |
+| **Chunks** | 107 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24146732702 |
 
 ---
 
@@ -35,14 +35,14 @@
 ## Bundle
 
 ```
-[32m✓[39m 193 modules transformed.
-[32m✓[39m 226 modules transformed.
-[32m✓ built in 5.29s[39m
+[32m✓[39m 196 modules transformed.
+[32m✓[39m 229 modules transformed.
+[32m✓ built in 5.44s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 13ms[39m
-[32m✓ built in 8.73s[39m
+[32m✓ built in 19ms[39m
+[32m✓ built in 9.10s[39m
 
-[2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.DwJ-5WYq.css     [39m[1m[2m 27.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.Cmz_bTU7.css     [39m[1m[2m 30.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/vendor.js                               [39m[1m[2m  0.05 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mindex.js                                       [39m[1m[2m  0.07 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js              [39m[1m[2m  0.09 kB[22m[1m[22m
@@ -58,7 +58,6 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_game_id_/_page.svelte.js  [39m[1m[2m  0.98 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/invite/_page.svelte.js           [39m[1m[2m  1.04 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/polls/_page.svelte.js            [39m[1m[2m  1.06 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                [39m[1m[2m  2.23 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/login/_page.svelte.js            [39m[1m[2m  2.53 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/register/_page.svelte.js         [39m[1m[2m  2.55 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js         [39m[1m[2m  2.64 kB[22m[1m[22m
@@ -66,6 +65,7 @@
 [2m.svelte-kit/output/server/[22m[36mchunks/authStore.svelte.js                     [39m[1m[2m  2.99 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_page.svelte.js            [39m[1m[2m  3.68 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js           [39m[1m[2m  3.84 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                [39m[1m[2m  4.18 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js         [39m[1m[2m  5.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js             [39m[1m[2m 10.41 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js             [39m[1m[2m 12.68 kB[22m[1m[22m
