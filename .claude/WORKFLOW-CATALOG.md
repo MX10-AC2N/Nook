@@ -155,3 +155,8 @@ for r in data.get('workflow_runs', []):
 ---
 
 *Catalogue généré automatiquement — S46 — 2026-04-02*
+
+### Notifications (Session 48)
+- `frontend/src/lib/notificationStore.svelte.ts` — Store central avec types de notification
+- `frontend/src/lib/components/NotificationToast.svelte` — Composant toast + historique
+- Fonctions disponibles: notify(), notifyMessage(), notifyChess(), notifyPoll(), notifyCalendar(), notifyCall(), notifyAdmin()
