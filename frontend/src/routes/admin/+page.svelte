@@ -99,6 +99,7 @@
         const data = await response.json();
         const inviteToken = data.invite_link?.split('token=')[1] ?? data.token;
         inviteLink = `${window.location.origin}/invite?token=${inviteToken}`;
+    notifyAdmin('Invitation generee', 'Un nouveau lien d invitation a ete cree');
         try { await navigator.clipboard.writeText(inviteLink); alert('✅ Lien copié dans le presse-papiers !'); }
         catch { console.warn('Clipboard non disponible'); }
         await loadInvites();
