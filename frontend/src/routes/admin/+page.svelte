@@ -11,6 +11,7 @@
 
   let pendingUsers     = $state<any[]>([]);
   let allUsers         = $state<any[]>([]);
+  import { notifyAdmin } from '$lib/notificationStore.svelte';
   let invites          = $state<any[]>([]);
   let loading          = $state(true);
   let activeTab        = $state<'pending' | 'all' | 'invites'>('pending');
