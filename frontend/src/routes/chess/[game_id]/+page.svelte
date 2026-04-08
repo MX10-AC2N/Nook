@@ -24,7 +24,7 @@
 
   // ── Trouver la case du roi en échec ───────────────────────────
   function findKingSquare(color: 'w' | 'b'): string | null {
-    const board = chessStore.board();
+    const board = chessStore.board;
     const king  = color + 'K';
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
@@ -56,7 +56,7 @@
     let cls = `cell ${isLight ? 'cell-light' : 'cell-dark'}`;
     if (chessStore.selected?.algebraic === alg)        cls += ' cell-selected';
     if (chessStore.legalTargets.includes(alg)) {
-      const hasPiece = (chessStore.board()[row]?.[col] ?? '') !== '';
+      const hasPiece = (chessStore.board[row]?.[col] ?? '') !== '';
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
@@ -344,7 +344,7 @@
             <div class="chess-board">
               {#each rows as row}
                 {#each cols as col}
-                  {@const piece   = chessStore.board()[row]?.[col] ?? ''}
+                  {@const piece   = chessStore.board[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
                   <div
                     class={cellClass(row, col)}
