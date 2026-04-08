@@ -9,6 +9,7 @@
   import { cryptoStore } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
   import CallBanner from '$lib/components/CallBanner.svelte';
+  import NotificationToast from '$lib/components/NotificationToast.svelte';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -220,6 +221,7 @@
   </header>
 
   <CallBanner />
+  <NotificationToast />
 
   {#if showMenu}
     <button
@@ -454,3 +456,4 @@
 </style>
 
 <CallBanner />
+  <NotificationToast />
