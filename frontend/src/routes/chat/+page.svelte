@@ -435,6 +435,7 @@
     sending = true;
     const content = newMessage;
     newMessage = '';
+    chatStore.showEmojiPicker = false;
     await sendMessage(content, activeConvId);
     sending = false;
   }
