@@ -1,17 +1,36 @@
 # ============================================================
-# Turn-Server (runtime only, pre-compiled binary)
+# Nook - Turn Server (runtime only, pre-compiled binary)
 # ============================================================
-# Consomme le binaire compile par turn.yml
-# Zero Google dependency - Alpine 3.21
+# Consomme le binaire musl compile par turn.yml
+# Zero Google dependency - Alpine 3.21 (~15MB)
 # ============================================================
 
 FROM alpine:3.21 AS runtime
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache     ca-certificates
 
+# User non-root
+RUN addgroup -S nook && adduser -S nook -G nook
+
+# Create turn config directory
+RUN mkdir -p /etc/turn-server
+
+# Copy default configuration template
+COPY turnserver.conf.template /etc/turn-server/turnserver.conf.template
+
+# Copy the entrypoint script
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# Copy the pre-compiled turn-server binary
 ARG TARGETARCH=amd64
 COPY --chmod=755 turn-server-${TARGETARCH} /usr/local/bin/turn-server
 
-EXPOSE 3478/udp 3478/tcp
+WORKDIR /etc/turn-server
 
-CMD ["/usr/local/bin/turn-server", "--config=/etc/turn-server/config.toml"]
+EXPOSE 3478/tcp 3478/udp
+
+HEALTHCHECK --interval=10s --timeout=5s --retries=3     CMD wget -qO- http://localhost:3478/health || exit 1
+
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/usr/local/bin/turn-server"]
