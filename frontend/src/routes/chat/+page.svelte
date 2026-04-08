@@ -184,11 +184,18 @@
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
 
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
-  function isSingleEmoji(content: string): boolean {
+  /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
+  function isEmojiOnly(content: string): boolean {
     const t = content.trim();
-    if (t.length > 8) return false;
-    const emojiRe = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-    return emojiRe.test(t);
+    if (t.length === 0 || t.length > 30) return false;
+    // Match: one or more emoji sequences, optionally separated by zero-width joiners
+    const emojiRe = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Extended_Pictographic})(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Extended_Pictographic}))*$/u;
+    // Allow sequences of emojis (up to ~10)
+    const multiEmojiRe = new RegExp(
+      '^((?:[\p{Emoji_Presentation}\p{Emoji}\uFE0F\p{Extended_Pictographic}])(?:\u200D[\p{Emoji_Presentation}\p{Emoji}\uFE0F\p{Extended_Pictographic}])*){1,10}$',
+      'u'
+    );
+    return multiEmojiRe.test(t);
   }
 
   async function toggleReaction(msgId: string, emoji: string) {
@@ -782,7 +789,7 @@
                   ></video>
                 </div>
               {:else}
-                {#if isSingleEmoji(msg.content)}
+                {#if isEmojiOnly(msg.content)}
                   <div class="message-content emoji-only">{msg.content}</div>
                 {:else}
                   <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
@@ -1494,7 +1501,7 @@
   }
   .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
   .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
-  :global(.chat-gif) { max-width: 300px; max-height: 300px; border-radius: .4rem; display: block; }
+  :global(.chat-gif) { max-width: 400px; max-height: 400px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
