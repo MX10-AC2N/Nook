@@ -2,6 +2,62 @@
 
 ---
 
+
+## Session 48 — 2026-04-08 : Déploiement Docker Zimaboard + Fixes UI + Notifications
+
+**Objectif** : Finaliser le déploiement Nook v0.5.0-beta.1 sur Zimaboard. Corriger les bugs UI signalés par l'utilisateur. Implémenter un système de notifications in-app fonctionnel sur HTTP/LAN.
+
+### Réalisations :
+
+#### Déploiement Docker
+- ✅ Correction UID/GID 1000 dans Dockerfile.release (nook + turn)
+- ✅ Simplification .env — chemins conteneur hardcodés dans docker-compose.yml
+- ✅ Template turnserver.conf en TOML dans /opt/turn-server/
+- ✅ Entrypoint avec --config pour turn-server
+- ✅ Docker.yml : tags dev (develop) / latest (main), copy turn-rs files, Node.js 24
+
+#### Fixes UI
+- ✅ Emoji : toujours ajouté au champ de saisie, picker ouvert pour multi-sélection, fermeture à l'envoi
+- ✅ isEmojiOnly() : détecte plusieurs emojis (ex: 😂😂😂)
+- ✅ GIF : max-width 400px, inline 350px
+- ✅ Chess : board() → board ($derived pas fonction), onMount robuste avec try/finally
+- ✅ E2EE banner : visible uniquement sur /chat/*, $effect clear cryptoError
+- ✅ Chat : chat-main avec min-height: 0 pour éviter débordement input
+
+#### Système Notifications In-App (HTTP/LAN)
+- ✅ notificationStore.svelte.ts — store central avec notify(), notifyMessage(), notifyChess(), notifyPoll(), notifyCalendar(), notifyCall(), notifyAdmin()
+- ✅ NotificationToast.svelte — bulles slide-in, badge compteur, historique
+- ✅ Intégration dans : chat, chess, polls, calendar, admin, webrtc-calls
+- ✅ Son via AudioContext (fonctionne sans HTTPS)
+- ✅ Badge titre page avec nombre de non-lus
+
+### Commits : 32 commits (voir tableau ci-dessus)
+
+### Bugs Corrigés (session 48)
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| UID 100 != 1000 | Dockerfile.release | addgroup -g 1000, adduser -u 1000 |
+| .env contient chemins conteneur | docker-compose.yml | Hardcode DATABASE_URL etc. |
+| turnserver.conf coturn ≠ TOML | turnserver.conf.template | Format TOML |
+| chessStore.board() TypeError | chess/[game_id]/+page.svelte | board() → board |
+| Emoji envoi immédiat | chat/+page.svelte | handleSelectEmoji append toujours |
+| GIF trop petit (200px) | chat/+page.svelte | CSS 400px |
+| E2EE banner sur chess | +layout.svelte | Condition /chat/* seulement |
+| Picker emoji reste ouvert | chat/+page.svelte | Fermeture dans handleSendMessage |
+
+### État Final
+- Branche: develop
+- Backend: v0.5.0-beta.1, Docker multi-arch OK
+- Frontend: Svelte 5, build OK
+- Docker: images :dev sur GHCR, déployé sur Zimaboard
+- Notifications: système in-app fonctionnel sur HTTP/LAN
+
+### Prochaines Étapes
+- [ ] Intégrer notifications dans échecs (événements jeu, invitations)
+- [ ] Tester notifications cross-LAN/WAN
+- [ ] Configurer nginx reverse proxy + HTTPS pour push Web Push
+- [ ] Générer clés VAPID pour push notifications HTTPS
+
 ## Session 47 — 2026-04-08 : Déploiement Docker Zimaboard + Fixes UI
 
 **Objectif** : Déployer Nook v0.5.0-beta.1 sur Zimaboard via Docker multi-arch. Corriger les bugs de déploiement et les bugs UI signalés par l'utilisateur.
