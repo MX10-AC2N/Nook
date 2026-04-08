@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | ff7367d |
+| **Commit** | db0ca41 |
 | **Node.js** | unknown |
-| **Vite time** | 5.44ms |
+| **Vite time** | 5.53ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 107 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24146732702 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24148697129 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 196 modules transformed.
 [32m✓[39m 229 modules transformed.
-[32m✓ built in 5.44s[39m
+[32m✓ built in 5.53s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 19ms[39m
-[32m✓ built in 9.10s[39m
+[32m✓ built in 14ms[39m
+[32m✓ built in 8.82s[39m
 
 [2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.Cmz_bTU7.css     [39m[1m[2m 30.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/vendor.js                               [39m[1m[2m  0.05 kB[22m[1m[22m
@@ -69,7 +69,7 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js         [39m[1m[2m  5.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js             [39m[1m[2m 10.41 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js             [39m[1m[2m 12.68 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                    [39m[1m[2m 15.90 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                    [39m[1m[2m 15.89 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js        [39m[1m[2m 25.58 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                               [39m[1m[2m302.82 kB[22m[1m[22m
 ```
