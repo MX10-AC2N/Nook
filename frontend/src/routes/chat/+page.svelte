@@ -439,14 +439,10 @@
   function handleSubmit(e: Event) { e.preventDefault(); handleSendMessage(); }
 
   function handleSelectEmoji(emoji: string) {
-    // Si l'input a le focus et qu'il y a du texte en cours → insérer l'emoji
-    // Sinon → envoyer l'emoji comme message standalone
-    if (newMessage.trim()) {
-      newMessage = newMessage + emoji;
-    } else {
-      sendEmoji(emoji, activeConvId);
-    }
-    chatStore.showEmojiPicker = false;
+    // Toujours ajouter l'emoji au champ de saisie
+    // L'utilisateur peut empiler plusieurs emojis puis envoyer
+    newMessage = newMessage + emoji;
+    // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
 
   async function handleFileUpload(event: Event) {
@@ -1498,7 +1494,7 @@
   }
   .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
   .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
-  :global(.chat-gif) { max-width: 200px; max-height: 200px; border-radius: .4rem; display: block; }
+  :global(.chat-gif) { max-width: 300px; max-height: 300px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
