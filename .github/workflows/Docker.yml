@@ -68,6 +68,12 @@ jobs:
           VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Copy turn-rs config files to docker context
+        run: |
+          cp services/turn-rs/turnserver.conf.template docker-context/turn/
+          cp services/turn-rs/docker-entrypoint.sh docker-context/turn/
+          chmod +x docker-context/turn/docker-entrypoint.sh
+
       - name: Verify context
         id: ctx
         run: |
@@ -82,6 +88,8 @@ jobs:
           test -f docker-context/turn/turn-server-amd64 || (echo "turn amd64 missing" && exit 1)
           test -f docker-context/turn/turn-server-arm64 || (echo "turn arm64 missing" && exit 1)
           test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
+          test -f docker-context/turn/turnserver.conf.template || (echo "turn template missing" && exit 1)
+          test -f docker-context/turn/docker-entrypoint.sh || (echo "entrypoint missing" && exit 1)
           chmod +x docker-context/backend/nook-backend-amd64
           chmod +x docker-context/backend/nook-backend-arm64
           chmod +x docker-context/turn/turn-server-amd64
