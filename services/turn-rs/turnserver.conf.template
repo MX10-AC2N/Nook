@@ -1,19 +1,18 @@
-# Turnserver configuration for Nook
-# This is a basic configuration that should work for most deployments.
-# Edit this file in ./turn-config on the host to customize.
+# ── Turn-Server Configuration (TOML) ──
+# Éditer ce fichier pour personnaliser le serveur TURN/STUN
+# Après modification : docker compose restart nook-turn
 
-listening-port=3478
-listening-ip=0.0.0.0
-relay-ip=0.0.0.0
-min-port=49152
-max-port=65535
-fingerprint
-lt-cred-mech
-realm=nook
-server-name=nook
-total-quota=100
-bps-capacity=0
-stale-nonce=600
-noclient-log
-nosyslog
-simple-log
+[server]
+name = "nook.turn"
+secret = "change_this_turn_secret_2026"
+max-threads = 0
+
+[[server.interfaces]]
+transport = "udp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
+
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
