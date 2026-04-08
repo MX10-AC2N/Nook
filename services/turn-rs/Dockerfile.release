@@ -29,7 +29,7 @@ WORKDIR /etc/turn-server
 EXPOSE 3478/tcp 3478/udp
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
-    CMD wget -qO- http://localhost:3478/health || exit 1
+    CMD pgrep turn-server || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/turn-server"]
