@@ -1,3 +1,4 @@
+import { notifyChess } from '$lib/notificationStore.svelte';
 // src/lib/chessStore.svelte.ts
 // Store Svelte 5 Runes — moteur d'échecs FIDE (backend Rust)
 //
@@ -619,6 +620,7 @@ class ChessStore {
         const gameId = this.wsGameId!;
         if (msg.game_id !== gameId) return; // autre partie ou autre type
         if (msg.type === 'chess_move' || msg.type === 'chess_ai_move') {
+          if (msg.type === 'chess_ai_move') notifyChess('Tour de l\'IA', 'L\'IA a joué', gameId);
           // Don't clobber user's pending selection during their turn
           if (!this.selected) {
             this.refreshGame(gameId).catch(console.error);
@@ -634,6 +636,7 @@ class ChessStore {
         }
         if (msg.type === 'chess_player_joined') {
           this.refreshGame(gameId).catch(console.error);
+          notifyChess('Adversaire rejoint', 'Un joueur a rejoint la partie', gameId);
         }
       } catch { /* non-JSON ok */ }
     };
