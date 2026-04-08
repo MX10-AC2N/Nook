@@ -1,10 +1,10 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.4.0-beta.2** | Session courante : **46** | Mis à jour : **2026-04-02**
-> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `fix/notifications-and-chess-audit`
-> Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/fix/notifications-and-chess-audit/`
-> PR en cours : [#23](https://github.com/MX10-AC2N/Nook/pull/23) — tests E2E chess+WebRTC + audit sécurité
+> Version projet : **0.5.0-beta.1** | Session courante : **47** | Mis à jour : **2026-04-08**
+> Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
+> Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
+> Déploiement : Docker multi-arch (Alpine 3.21), Zimaboard via docker-compose
 
 ---
 
