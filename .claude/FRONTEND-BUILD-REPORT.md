@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 480bbcd |
+| **Commit** | e09ec58 |
 | **Node.js** | unknown |
-| **Vite time** | 5.49ms |
+| **Vite time** | 5.29ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 106 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24142893914 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24144219995 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 193 modules transformed.
 [32m✓[39m 226 modules transformed.
-[32m✓ built in 5.49s[39m
+[32m✓ built in 5.29s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 17ms[39m
-[32m✓ built in 8.95s[39m
+[32m✓ built in 13ms[39m
+[32m✓ built in 8.73s[39m
 
 [2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.DwJ-5WYq.css     [39m[1m[2m 27.04 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/vendor.js                               [39m[1m[2m  0.05 kB[22m[1m[22m
@@ -68,7 +68,7 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js           [39m[1m[2m  3.84 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js         [39m[1m[2m  5.33 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js             [39m[1m[2m 10.41 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js             [39m[1m[2m 12.62 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js             [39m[1m[2m 12.68 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                    [39m[1m[2m 15.90 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js        [39m[1m[2m 25.58 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                               [39m[1m[2m302.82 kB[22m[1m[22m
