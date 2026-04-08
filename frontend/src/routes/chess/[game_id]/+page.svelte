@@ -79,8 +79,14 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     pageLoading = true;
-    await chessStore.loadGame(gameId);
-    pageLoading = false;
+    try {
+      await chessStore.loadGame(gameId);
+    } catch (e) {
+      console.error('[Chess] loadGame threw:', e);
+      chessStore.error = 'Erreur inattendue lors du chargement';
+    } finally {
+      pageLoading = false;
+    }
   });
 
   // Auto-show result modal when game finishes
