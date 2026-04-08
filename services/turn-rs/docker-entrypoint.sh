@@ -14,5 +14,10 @@ else
     echo "Using existing config.toml at $CONFIG_FILE"
 fi
 
-# Execute turn-server with config path
-exec /usr/local/bin/turn-server --config "$CONFIG_FILE"
+# Execute turn-server with config path (drop to nook user if root)
+if [ "$(id -u)" = "0" ]; then
+    chown -R nook:nook /etc/turn-server 2>/dev/null || true
+    exec su-exec nook /usr/local/bin/turn-server --config "$CONFIG_FILE"
+else
+    exec /usr/local/bin/turn-server --config "$CONFIG_FILE"
+fi
