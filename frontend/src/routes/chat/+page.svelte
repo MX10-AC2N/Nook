@@ -1502,7 +1502,7 @@
   }
   .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
   .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
-  :global(.chat-gif) { max-width: 400px; max-height: 400px; border-radius: .4rem; display: block; }
+  :global(.chat-gif) { max-width: 500px; max-height: 500px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
