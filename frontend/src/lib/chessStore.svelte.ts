@@ -374,7 +374,7 @@ class ChessStore {
     const alg   = toAlgebraic(row, col);
     const piece  = this.currentGame.engine.board[row]?.[col] ?? '';
     const color  = piece ? piece[0] : '';
-    const myColorChar = this.myColor() === 'white' ? 'w' : 'b';
+    const myColorChar = this.myColor === 'white' ? 'w' : 'b';
 
     // Clic sur une cible légale → jouer le coup
     if (this.selected && this.legalTargets.includes(alg)) {
@@ -470,7 +470,7 @@ class ChessStore {
     this.aiThinking = true;
 
     // Démarrer le timer du camp adverse (IA) PENDANT qu'il réfléchit
-    const myColor = this.myColor();
+    const myColor = this.myColor;
     const aiColor = myColor === 'white' ? 'black' : 'white';
     this.switchTimer(aiColor);
 
@@ -548,7 +548,7 @@ class ChessStore {
     if (!game || game.status !== 'playing') return;
     tracing: console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
     // Si c'est notre tour qui expire → on abandonne automatiquement
-    const myColor = this.myColor();
+    const myColor = this.myColor;
     if (myColor === side) {
       this.resign().catch(() => {});
     }
