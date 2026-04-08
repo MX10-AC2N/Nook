@@ -12,6 +12,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { notifyPoll } from '$lib/notificationStore.svelte';
 
   interface PollOption {
     id: string; text: string; position: number; votes: number; voters: string[];
