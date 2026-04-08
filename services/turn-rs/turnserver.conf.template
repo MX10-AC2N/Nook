@@ -1,0 +1,19 @@
+# Turnserver configuration for Nook
+# This is a basic configuration that should work for most deployments.
+# Edit this file in ./turn-config on the host to customize.
+
+listening-port=3478
+listening-ip=0.0.0.0
+relay-ip=0.0.0.0
+min-port=49152
+max-port=65535
+fingerprint
+lt-cred-mech
+realm=nook
+server-name=nook
+total-quota=100
+bps-capacity=0
+stale-nonce=600
+noclient-log
+nosyslog
+simple-log
