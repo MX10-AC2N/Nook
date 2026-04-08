@@ -155,6 +155,14 @@
       loading = false;
     }
   });
+
+  // Clear cryptoError when crypto becomes ready (e.g., after login)
+  $effect(() => {
+    if (cryptoStore.ready && cryptoError) {
+      cryptoError = null;
+    }
+  });
+
 </script>
 
 {#if loading}
@@ -446,10 +454,3 @@
 </style>
 
 <CallBanner />
-
-  // Clear cryptoError when crypto becomes ready (e.g., after login)
-  $effect(() => {
-    if (cryptoStore.ready && cryptoError) {
-      cryptoError = null;
-    }
-  });
