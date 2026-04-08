@@ -7,8 +7,8 @@ FROM alpine:3.21 AS runtime
 RUN apk add --no-cache \
     ca-certificates
 
-# User non-root
-RUN addgroup -S nook && adduser -S nook -G nook
+# User non-root with UID/GID 1000 (matches host casaos user)
+RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
 # Create config directories
 RUN mkdir -p /etc/turn-server /opt/turn-server
