@@ -2,6 +2,36 @@
 
 ---
 
+## Session 47 — 2026-04-08 : Déploiement Docker Zimaboard + Fixes UI
+
+**Objectif** : Déployer Nook v0.5.0-beta.1 sur Zimaboard via Docker multi-arch. Corriger les bugs de déploiement et les bugs UI signalés par l'utilisateur.
+
+### Réalisations :
+- ✅ Correction Dockerfile.release (nook + turn) : UID/GID 1000 pour matcher `casaos`
+- ✅ Simplification .env : chemins conteneur hardcodés dans docker-compose.yml
+- ✅ Template turnserver.conf déplacé vers /opt/turn-server/ (survit au volume mount)
+- ✅ Entrypoint turn-server : `--config /etc/turn-server/turnserver.conf`
+- ✅ Docker.yml : copie fichiers turn-rs dans contexte Docker, tags dev/latest par branche, opt-in Node.js 24
+- ✅ docker-compose.yml : volume turn-config en :rw, images :dev sur develop
+- ✅ Emoji fix : handleSelectEmoji ajoute toujours au champ de saisie, picker reste ouvert
+- ✅ GIF fix : CSS max-width/max-height augmenté de 200px → 300px
+- ✅ Chess fix : onMount avec try/finally pour garantir pageLoading=false
+- ✅ BUGS.md mis à jour avec les fixes
+- ✅ CLAUDE.md mis à jour (v0.5.0-beta.1, branche develop)
+
+### Commits :
+- 173192d532d4 : docker-compose.yml hardcode chemins conteneur
+- bd3fc873ba89 : .env.example simplifié
+- fc7cd3f0785c : Dockerfile.release (turn) template dans /opt
+- bb2e1e1d3582 : docker-entrypoint.sh --config flag
+- 887c21763653 : Dockerfile.release (nook) UID 1000
+- cc61233fb28e : Dockerfile.release (turn) UID 1000
+- f2a146ce0ce8 : chat/+page.svelte emoji+GIF fix
+- 026706216881 : chess/[game_id]/+page.svelte onMount robust
+- 4f038aba8830 : CLAUDE.md mis à jour
+- a20cda1c3c70 : BUGS.md mis à jour
+
+
 ## Session 46 — 2026-04-02 (audit tests + sécurité)
 
 ### Tests E2E étendus
