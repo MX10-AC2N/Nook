@@ -61,7 +61,7 @@
           <strong>{n.title}</strong>
           <span>{n.body}</span>
         </div>
-        <button class="notif-dismiss" onclick|stopPropagation={() => dismissNotification(n.id)}>✕</button>
+        <button class="notif-dismiss" onclick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}>✕</button>
       </div>
     {/each}
   </div>
@@ -81,7 +81,7 @@
         <strong>{n.title}</strong>
         <p>{n.body}</p>
       </div>
-      <button class="toast-close" onclick|stopPropagation={() => dismissNotification(n.id)}>✕</button>
+      <button class="toast-close" onclick={(e) => { e.stopPropagation(); dismissNotification(n.id); }}>✕</button>
     </div>
   {/each}
 </div>
