@@ -192,63 +192,12 @@ export async function requestNotificationPermission(): Promise<void> {
   }
 }
 
-const _originalTitle = typeof document !== 'undefined' ? document.title : 'Nook';
-let _titleTimer: ReturnType<typeof setTimeout> | null = null;
+import { notifyMessage } from '$lib/notificationStore.svelte';
 
-/** Joue un son de notification (AudioContext — fonctionne en HTTP/LAN) */
-function _playNotificationSound(): void {
-  try {
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);      // A5
-    osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1); // C#6
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
-  } catch { /* silent */ }
-}
-
-/** Met à jour le titre de la page avec le nombre total de messages non lus */
-function _updatePageTitle(): void {
-  if (typeof document === 'undefined') return;
-  const total = Object.values(chatStore.unreadCounts).reduce((s, n) => s + n, 0);
-  if (total > 0) {
-    document.title = `(${total}) ${_originalTitle}`;
-  } else {
-    document.title = _originalTitle;
-  }
-}
-
-/** Réinitialise le titre quand l'utilisateur revient sur l'onglet */
-function _resetTitleOnFocus(): void {
-  if (typeof document === 'undefined') return;
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      document.title = _originalTitle;
-    }
-  });
-}
-_resetTitleOnFocus();
-
-/** Notification complète : son + titre + navigateur (si HTTPS) */
 function _sendBrowserNotification(sender: string, content: string): void {
-  // Toujours jouer le son et mettre à jour le titre (fonctionne en HTTP/LAN)
-  _playNotificationSound();
-  _updatePageTitle();
-
-  // Notification navigateur (nécessite HTTPS sauf localhost)
-  if (typeof Notification === 'undefined') return;
-  if (Notification.permission !== 'granted') return;
+  const text = content.startsWith('<img') ? '📷 Image' : content.startsWith('<audio') ? '🎙️ Message vocal' : content.slice(0, 80);
   if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
-  const text = content.startsWith('<img') ? '📷 Image' : content.slice(0, 80);
-  try {
-    new Notification(`Nook — ${sender}`, { body: text, icon: '/favicon.png', tag: 'nook-msg', renotify: true });
-  } catch { /* silent */ }
+  notifyMessage(sender, text);
 }
 
 // -----------------------------------------------------------------
