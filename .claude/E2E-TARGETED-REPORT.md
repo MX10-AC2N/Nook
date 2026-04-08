@@ -64,3 +64,9 @@ Aucune erreur détectée
 - 5 bugs CI corriges apres 40+ iterations debug
 - Tests E2E: 165/165 PASS, 0 fail, 1.8min
 - Tout commit et pousse sur origin/develop
+
+### Notifications (Session 48)
+- NotificationToast.svelte: Composant toast + historique
+- notificationStore.svelte.ts: Store central (notify, notifyMessage, notifyChess, etc.)
+- Intégré dans: chat, chess, polls, calendar, admin, webrtc-calls
+- Fonctionne sur HTTP/LAN (AudioContext)
