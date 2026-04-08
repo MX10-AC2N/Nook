@@ -63,3 +63,20 @@
 - **Piège:** Ne pas forward les PLI/FIR des peers → video freeze
 - **Solution:** `sender.subscribe_rtcp()` → spawn task → `remote_track.request_key_frame().await`
 - **Bonus:** PLI périodique toutes les 3s pour forcer les keyframes
+
+## Svelte 5 Syntax (Session 48)
+- **NE PAS** utiliser `onclick|stopPropagation` (syntaxe Svelte 4)
+- Utiliser `onclick={(e) => { e.stopPropagation(); ... }}` (Svelte 5)
+- Les `$derived` sont des propriétés, PAS des fonctions — `chessStore.board` pas `chessStore.board()`
+
+## Docker
+- TOUS les containers doivent utiliser UID/GID 1000 (match host casaos user)
+- turn-server : `--config /etc/turn-server/config.toml` obligatoire (TOML format, pas coturn)
+- Volume turn-config doit être `:rw` (pas `:ro`) pour l'init automatique
+- Template dans `/opt/turn-server/` (survit au volume mount)
+
+## Notifications
+- Système in-app fonctionne sur HTTP/LAN via AudioContext
+- Web Push nécessite HTTPS — non disponible en LAN HTTP
+- notificationStore.svelte.ts : store central, NotificationToast.svelte : composant
+- Chaque module importe ses helpers: notifyMessage, notifyChess, notifyPoll, etc.
