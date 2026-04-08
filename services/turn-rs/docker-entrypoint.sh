@@ -3,7 +3,7 @@ set -e
 
 CONFIG_DIR=/etc/turn-server
 CONFIG_FILE="$CONFIG_DIR/turnserver.conf"
-TEMPLATE_FILE="$CONFIG_DIR/turnserver.conf.template"
+TEMPLATE_FILE="/opt/turn-server/turnserver.conf.template"
 
 # If config file does not exist, copy from template
 if [ ! -f "$CONFIG_FILE" ]; then
