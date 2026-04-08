@@ -82,7 +82,8 @@
     try {
       const res = await fetch(`/api/events/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      events = events.filter(e => e.id !== id); closeDetail();
+      events = events.filter(e => e.id !== id);
+    notifyCalendar('Evenement supprime', 'L evenement a ete retire du calendrier'); closeDetail();
     } catch (e) { alert(e instanceof Error ? e.message : 'Erreur'); }
   }
 
