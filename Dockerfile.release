@@ -12,8 +12,8 @@ RUN apk add --no-cache \
     libsodium \
     ca-certificates
 
-# User non-root
-RUN addgroup -S nook && adduser -S nook -G nook
+# User non-root with UID/GID 1000 (matches host casaos user)
+RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
 # Dossiers applicatifs - world-writable car les bind mounts
 # cteent par l'hote appartiennent a root
