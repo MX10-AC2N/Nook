@@ -32,6 +32,5 @@ EXPOSE 3478/tcp 3478/udp
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD pgrep turn-server || exit 1
 
-USER nook
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/turn-server"]
