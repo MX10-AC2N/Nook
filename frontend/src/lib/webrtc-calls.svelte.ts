@@ -198,13 +198,12 @@ class WebRTCCallManager {
 
   /** Crée (ou récupère) une RTCPeerConnection pour un participant distant. */
   private async createPeerConnection(remoteUserId: string): Promise<RTCPeerConnection> {
-    // Génère des credentials TURN dynamiques (expirent après validityHours)
-    const turnHost = (typeof window !== 'undefined' && window.location.hostname) || TURN_HOST;
-    const creds = await generateTurnCredentials(TURN_SECRET);
+    // Fetch ICE config from backend (credentials generated server-side)
+    const iceConfig = await fetchIceConfig();
     const iceServers: RTCIceServer[] = [
-      { urls: `stun:${turnHost}:${TURN_PORT}` },
-      { urls: `turn:${turnHost}:${TURN_PORT}?transport=udp`, username: creds.username, credential: creds.credential },
-      { urls: `turn:${turnHost}:${TURN_PORT}?transport=tcp`, username: creds.username, credential: creds.credential },
+      { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+      { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+      { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential },
     ];
 
     const pc = new RTCPeerConnection({
