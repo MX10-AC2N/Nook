@@ -521,6 +521,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
         )
         .fallback_service(static_service)
+
+        // 🛡️ Security headers middleware
+        .layer(axum::middleware::from_fn(|req, next: axum::middleware::Next| async move {
+            let mut response = next.run(req).await;
+            let headers = response.headers_mut();
+            // Prevent clickjacking
+            headers.insert("X-Frame-Options", "DENY".parse().unwrap());
+            // Prevent MIME type sniffing
+            headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+            // XSS protection (legacy browsers)
+            headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
+            // Referrer policy
+            headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
+            // Permissions policy (disable unused features)
+            headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
+            // Content Security Policy
+            headers.insert("Content-Security-Policy",
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
+            response
+        }))
         .layer(CompressionLayer::new())
         .layer(cors_layer)
         .with_state(shared_state)
