@@ -1191,3 +1191,65 @@ Migrer toute l'infrastructure Docker de `debian:bookworm-slim` vers `alpine:3.21
 - CI: 157/159 PASS, 0 FAIL, 2 flaky (chess resign race, analytics race — connus)
 - Docker: Alpine 3.21 builder + runtime, ~15MB final
 - Zero Google: ✅
+
+---
+
+## Session — 2026-04-09 (Écosystème agents .claude/ + Audit global Nook)
+
+### Contexte
+L'utilisateur souhaitait créer un écosystème complet d'agents spécialisés dans `.claude/` pour couvrir tous les domaines de Nook, puis effectuer un audit global du projet avec ces agents.
+
+### Progrès Réalisés
+
+#### Agents créés (16 rôles + 12 skills)
+| Rôle | Domaine | Skill |
+|------|---------|-------|
+| agent-manager.md | Gestion agents/skills | nook-agent-manager |
+| token-optimizer.md | Réduction coûts tokens | nook-token-optimizer |
+| uiux-tester.md | Tests UI/UX | nook-uiux-test |
+| security-auditor-pro.md | Audit sécurité OWASP | nook-security-audit |
+| performance-specialist.md | Optimisation performances | — |
+| documentation-specialist.md | Maintenance docs | — |
+| accessibility-specialist.md | Conformité WCAG 2.1 | — |
+| api-specialist.md | Conception/test API | — |
+| database-specialist.md | SQLite, migrations, index | nook-database |
+| webrtc-specialist.md | Appels audio/vidéo | nook-webrtc |
+| mobile-specialist.md | PWA, responsive, touch | nook-mobile |
+| i18n-specialist.md | Traductions, formats | nook-i18n |
+| design-system-specialist.md | Tokens UI, cohérence | nook-design-system |
+| test-automation-specialist.md | Playwright E2E | nook-test-automation |
+| release-manager.md | Versioning, changelog | nook-release |
+| backup-specialist.md | Sauvegardes, disaster recovery | nook-backup |
+
+#### Guides créés (3)
+- QUICK-REFERENCE.md — Commandes essentielles
+- TROUBLESHOOTING.md — Dépannage
+- DEPLOYMENT-CHECKLIST.md — Déploiement
+
+#### Doublons supprimés (2)
+- security-auditor.md (→ security-auditor-pro.md)
+- ui-optimizer.md (→ design-system-specialist.md)
+
+#### Audit global Nook (5 domaines)
+Rapports créés dans `.claude/`:
+- GLOBAL-AUDIT-2026-04-09.md — Résumé global (77/100)
+- SECURITY-REPORT.md — 17 vulnérabilités (78/100)
+- UIUX-REPORT.md — 6 problèmes (72/100)
+- PERFORMANCE-REPORT.md — 4 problèmes (81/100)
+- DOCKER-REPORT.md — 3 problèmes (85/100)
+
+### Décisions Clés
+- Structure `.claude/` : roles/ + skills/ + rules/ pour organiser les agents
+- Chaque agent spécialisé a un SKILL.md associé pour les procédures
+- Audit global avec sous-agents parallèles pour couvrir 5 domaines simultanément
+
+### Problèmes critiques trouvés
+1. Secret TURN hardcodé dans frontend JS (CRITIQUE)
+2. vite 7.3.1 — 3 CVE (2 HIGH)
+3. security-audit.yml cassé (référence pnpm au lieu de npm)
+4. Pas de headers sécurité (CSP, HSTS)
+
+### État Final .claude/
+- 30 rôles | 24 skills | 12 rules | 14 root files
+- Total : ~72 fichiers
+- Tout poussé sur origin/develop
