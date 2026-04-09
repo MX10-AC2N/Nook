@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 0f5a808 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24203013498)
+> **unknown** | commit aab7bb9 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24203365788)
 
 ## Récapitulatif statuts
 
@@ -37,6 +37,7 @@ error[E0425]: cannot find function `validate_session` in module `crate::auth`
 error[E0609]: no field `pool` on type `Arc<SharedState>`
 error[E0609]: no field `config` on type `Arc<SharedState>`
 error[E0034]: multiple applicable items in scope
+error[E0107]: missing generics for struct `http::Request`
 ```
 
 ## ❌ Erreurs cargo build
@@ -46,6 +47,7 @@ error[E0425]: cannot find function `validate_session` in module `crate::auth`
 error[E0609]: no field `pool` on type `Arc<SharedState>`
 error[E0609]: no field `config` on type `Arc<SharedState>`
 error[E0034]: multiple applicable items in scope
+error[E0107]: missing generics for struct `http::Request`
 ```
 
 ## 🔧 Clippy warnings
