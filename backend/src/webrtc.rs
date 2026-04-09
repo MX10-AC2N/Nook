@@ -640,13 +640,17 @@ async fn handle_ice_config(
     (StatusCode::OK, AxumJson(response)).into_response()
 }
 
-pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
+/// Routes API WebRTC — à merger dans protected_routes (auth requise).
+pub fn webrtc_api_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
         .route("/api/webrtc/ice-config", get(handle_ice_config))
         .route("/api/webrtc/offer", post(handle_offer))
         .route("/api/webrtc/answer", post(handle_answer))
+}
+
+/// Route WebSocket — authentifiée via cookie dans ws_handler lui-même.
+/// Doit rester hors middleware auth pour ne pas bloquer l'upgrade WebSocket.
+pub fn webrtc_ws_routes() -> Router<Arc<crate::SharedState>> {
+    Router::new()
         .route("/ws", get(ws_handler))
-    // Note : /ws est authentifié via cookie dans ws_handler lui-même.
-    // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
-    // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
 }
