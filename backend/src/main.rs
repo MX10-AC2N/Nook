@@ -444,6 +444,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
         .merge(reactions::reactions_routes())
+        .merge(webrtc::webrtc_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
@@ -519,7 +520,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServeDir::new(&config.gifs_dir)
                 .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
         )
-        .merge(webrtc::webrtc_routes())
         .fallback_service(static_service)
         .layer(CompressionLayer::new())
         .layer(cors_layer)
