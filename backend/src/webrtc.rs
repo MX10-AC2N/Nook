@@ -583,24 +583,44 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
 /// GET /api/webrtc/ice-config
 /// Returns ICE server configuration with short-lived TURN credentials.
-/// Requires authentication via cookie.
+/// Requires authentication via cookie (same pattern as verify_ws_auth).
 async fn handle_ice_config(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    // Auth check
-    let cookie_header = headers.get(COOKIE).and_then(|v| v.to_str().ok());
-    let auth_cookie = cookie_header.and_then(|c| {
-        c.split(';')
-            .find(|s| s.trim().starts_with("auth_token="))
-            .map(|s| s.trim().replace("auth_token=", ""))
-    });
+    // Auth check — same pattern as verify_ws_auth
+    let cookie_header = match headers.get(COOKIE).and_then(|v| v.to_str().ok()) {
+        Some(c) => c,
+        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
 
-    match auth_cookie {
-        Some(token) if crate::auth::validate_session(&state.pool, &token).is_ok() => {}
-        _ => {
-            return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response();
-        }
+    let token_value = match cookie_header
+        .split(';')
+        .find(|c| c.trim().starts_with("auth_token="))
+        .and_then(|c| c.trim().strip_prefix("auth_token="))
+    {
+        Some(t) => t,
+        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
+
+    let (user_id, token) = match token_value.split_once(':') {
+        Some((u, t)) if !u.is_empty() && !t.is_empty() => (u, t),
+        _ => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
+
+    // DB verification
+    let valid: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND token = ? AND approved = 1)"
+    )
+        .bind(user_id)
+        .bind(token)
+        .fetch_one(&state.db)
+        .await
+        .map(|v: i64| v == 1)
+        .unwrap_or(false);
+
+    if !valid {
+        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response();
     }
 
     let config = &state.config;
@@ -625,7 +645,7 @@ async fn handle_ice_config(
     use hmac::{Hmac, Mac};
     type HmacSha1 = Hmac<Sha1>;
 
-    let mut mac = HmacSha1::new_from_slice(config.turn_secret.as_bytes())
+    let mut mac = <HmacSha1 as hmac::Mac>::new_from_slice(config.turn_secret.as_bytes())
         .expect("HMAC can take key of any size");
     mac.update(username.to_string().as_bytes());
     let credential = base64ct::Base64Unpadded::encode_string(&mac.finalize().into_bytes());
