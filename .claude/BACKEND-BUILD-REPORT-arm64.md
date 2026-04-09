@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit 1cb544d | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24203970594)
+> **unknown** | commit cb4ed23 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24204302261)
 
 ## Récapitulatif statuts
 
@@ -35,7 +35,6 @@
 ```
 error[E0425]: cannot find function `validate_session` in module `crate::auth`
 error[E0609]: no field `pool` on type `Arc<SharedState>`
-error[E0609]: no field `config` on type `Arc<SharedState>`
 error[E0034]: multiple applicable items in scope
 ```
 
@@ -44,7 +43,6 @@ error[E0034]: multiple applicable items in scope
 ```
 error[E0425]: cannot find function `validate_session` in module `crate::auth`
 error[E0609]: no field `pool` on type `Arc<SharedState>`
-error[E0609]: no field `config` on type `Arc<SharedState>`
 error[E0034]: multiple applicable items in scope
 ```
 
