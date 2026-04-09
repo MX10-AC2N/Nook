@@ -32,15 +32,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install pnpm
-        run: corepack enable && corepack prepare pnpm@latest --activate
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       # ── 1. npm audit ──
       - name: npm audit (frontend)
