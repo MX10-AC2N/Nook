@@ -70,6 +70,7 @@ pub struct SharedState {
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
     pub sfu_state: SfuState,
+    pub config: Config,
 }
 
 // ---------------------------------------------------------------------
@@ -339,6 +340,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         webrtc_state,
         file_manager,
         sfu_state,
+        config: config.clone(),
     });
 
     // ============================================================
