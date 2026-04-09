@@ -575,8 +575,74 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 // ROUTES
 // ════════════════════════════════════════════════════════════════
 
+
+// ════════════════════════════════════════════════════════════════
+// ICE CONFIG — Returns TURN/STUN credentials (short-lived)
+// This replaces the hardcoded TURN_SECRET in the frontend bundle
+// ════════════════════════════════════════════════════════════════
+
+/// GET /api/webrtc/ice-config
+/// Returns ICE server configuration with short-lived TURN credentials.
+/// Requires authentication via cookie.
+async fn handle_ice_config(
+    AxumState(state): AxumState<Arc<crate::SharedState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    // Auth check
+    let cookie_header = headers.get(COOKIE).and_then(|v| v.to_str().ok());
+    let auth_cookie = cookie_header.and_then(|c| {
+        c.split(';')
+            .find(|s| s.trim().starts_with("auth_token="))
+            .map(|s| s.trim().replace("auth_token=", ""))
+    });
+
+    match auth_cookie {
+        Some(token) if crate::auth::validate_session(&state.pool, &token).is_ok() => {}
+        _ => {
+            return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response();
+        }
+    }
+
+    let config = &state.config;
+
+    if config.turn_secret.is_empty() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            AxumJson(json!({"error": "TURN_SECRET non configuré"})),
+        ).into_response();
+    }
+
+    // Generate short-lived TURN credentials (RFC 5389 — 24h validity)
+    let validity_hours: u64 = 24;
+    let username = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + (validity_hours * 3600);
+
+    // HMAC-SHA1 credential generation (compatible with turn-rs)
+    use sha1::Sha1;
+    use hmac::{Hmac, Mac};
+    type HmacSha1 = Hmac<Sha1>;
+
+    let mut mac = HmacSha1::new_from_slice(config.turn_secret.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(username.to_string().as_bytes());
+    let credential = base64ct::Base64Unpadded::encode_string(&mac.finalize().into_bytes());
+
+    let response = json!({
+        "host": config.turn_host,
+        "port": config.turn_port,
+        "username": username.to_string(),
+        "credential": credential,
+    });
+
+    (StatusCode::OK, AxumJson(response)).into_response()
+}
+
 pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
+        .route("/api/webrtc/ice-config", get(handle_ice_config))
         .route("/api/webrtc/offer", post(handle_offer))
         .route("/api/webrtc/answer", post(handle_answer))
         .route("/ws", get(ws_handler))
