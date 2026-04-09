@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-08 11:35 UTC**
+> Généré par `test-nook.yml` · **2026-04-09 23:08 UTC**
 
 ---
 
@@ -16,8 +16,8 @@
 | **Total** | 0 |
 | **Durée totale** | N/A |
 | **Branche** | `develop` |
-| **Commit** | [`6a1bab3`](https://github.com/MX10-AC2N/Nook/commit/6a1bab3a58f7c98232059b1a2d46d5e6cb5f73d1) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24132631906) |
+| **Commit** | [`a99faee`](https://github.com/MX10-AC2N/Nook/commit/a99faeef33a303727139b2fe739b1e5c1d301ff6) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24217192230) |
 
 ---
 
@@ -59,11 +59,11 @@ Error: Os { code: 13, kind: PermissionDenied, message: "Permission denied" }
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24132631906](https://github.com/MX10-AC2N/Nook/actions/runs/24132631906)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24217192230](https://github.com/MX10-AC2N/Nook/actions/runs/24217192230)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24132631906)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24217192230)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -89,19 +89,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-08 11:35 UTC*
-
-## Session 48 — 2026-04-08
-### Frontend
-- notificationStore.svelte.ts (nouveau)
-- NotificationToast.svelte (nouveau)
-- chatStore.svelte.ts (réfactoré pour notifications)
-- chessStore.svelte.ts (notifications ajoutées)
-- polls/+page.svelte (notifications ajoutées)
-- calendar/+page.svelte (notifications ajoutées)
-- admin/+page.svelte (notifications ajoutées)
-- webrtc-calls.svelte.ts (notification appel entrant)
-
-### Build
-- Fix: Svelte 5 syntax `onclick|stopPropagation` → `onclick` handler
-- Status: ✅ Build pass (après fix)
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-09 23:08 UTC*
