@@ -523,7 +523,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fallback_service(static_service)
 
         // 🛡️ Security headers middleware
-        .layer(middleware::from_fn(|req: Request, next: Next| async move {
+        .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
             let mut response = next.run(req).await;
             let headers = response.headers_mut();
             headers.insert("X-Frame-Options", "DENY".parse().unwrap());
