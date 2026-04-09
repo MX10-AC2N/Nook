@@ -14,6 +14,10 @@ pub struct Config {
     /// Exemple : "http://192.168.1.10:6300,https://nook.mondomaine.com"
     /// Si vide, seules localhost:5173 et localhost:6300 sont autorisées.
     pub allowed_origins: Vec<String>,
+    /// Configuration TURN pour WebRTC
+    pub turn_host: String,
+    pub turn_port: u16,
+    pub turn_secret: String,
 }
 
 impl Config {
@@ -43,6 +47,26 @@ impl Config {
         // Dédoublonnage
         origins.dedup();
 
+        let turn_host = env::var("TURN_HOST")
+            .unwrap_or_else(|_| {
+                // Fallback: utiliser l'hôte PUBLIC_SITE_URL si TURN_HOST non défini
+                public_site_url
+                    .replace("http://", "")
+                    .replace("https://", "")
+                    .split(':')
+                    .next()
+                    .unwrap_or("localhost")
+                    .to_string()
+            });
+
+        let turn_port: u16 = env::var("TURN_PORT")
+            .unwrap_or_else(|_| "3478".to_string())
+            .parse()
+            .unwrap_or(3478);
+
+        let turn_secret = env::var("TURN_SECRET")
+            .unwrap_or_else(|_| String::new());
+
         Self {
             port: env::var("PORT")
                 .unwrap_or_else(|_| "3000".to_string())
@@ -63,6 +87,9 @@ impl Config {
 
             public_site_url,
             allowed_origins: origins,
+            turn_host,
+            turn_port,
+            turn_secret,
         }
     }
 }
