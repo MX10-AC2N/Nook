@@ -471,6 +471,7 @@
     gap: 1.5rem;
     padding: 1.25rem;
     align-items: start;
+    min-height: calc(100vh - 60px);
   }
 
   /* ── Sidebar ── */
@@ -547,13 +548,13 @@
   .rbtn-no  { flex: 1; padding: .35rem; background: #f1f5f9; color: #475569; border: none; border-radius: .35rem; font-size: .78rem; cursor: pointer; }
 
   /* ── Plateau ── */
-  .board-wrap { display: flex; justify-content: center; align-items: flex-start; }
+  .board-wrap { display: flex; justify-content: center; align-items: center; flex: 1; padding: 1rem 0; }
   .board-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .board-and-ranks { display: flex; align-items: stretch; gap: 2px; }
 
   .coords-top, .coords-bottom {
     display: grid; grid-template-columns: repeat(8, 1fr);
-    width: min(74vw, 560px); padding: 0 2px;
+    width: min(85vw, 720px); padding: 0 2px;
   }
   .coords-top span, .coords-bottom span { text-align: center; font-size: .6rem; font-weight: 700; color: #94a3b8; line-height: 1.6; }
   .coords-left, .coords-right { display: flex; flex-direction: column; }
@@ -563,7 +564,7 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: min(74vw, 560px);
+    width: min(85vw, 720px);
     aspect-ratio: 1;
     border: 2.5px solid #374151;
     border-radius: 3px;
@@ -581,7 +582,7 @@
   .cell-last     { background: rgba(255,196,0,0.35) !important; }
   .cell:not(.cell-selected):hover { filter: brightness(1.08); }
 
-  .piece { font-size: clamp(1rem, 4.5vw, 2.2rem); line-height: 1; z-index: 1; transition: transform .1s; cursor: pointer; }
+  .piece { font-size: clamp(1.8rem, 6.5vw, 3.8rem); line-height: 1; z-index: 1; transition: transform .1s; cursor: pointer; }
   .piece.piece-mine:hover { transform: scale(1.12); }
   .piece.piece-selected   { transform: scale(1.25); filter: drop-shadow(0 0 6px rgba(245,158,11,.9)); }
 
@@ -637,6 +638,23 @@
   .mt-side.mt-low    { color: #dc2626; animation: blink-low 1s infinite; }
 
   /* ══════════════════════════════════════════
+     RESPONSIVE TABLET
+  ══════════════════════════════════════════ */
+  @media (min-width: 721px) and (max-width: 1024px) {
+    .game-layout {
+      grid-template-columns: 180px 1fr;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .chess-board {
+      width: min(80vw, 600px);
+    }
+    .coords-top, .coords-bottom {
+      width: min(80vw, 600px);
+    }
+    .piece { font-size: clamp(1.6rem, 5.5vw, 3rem); }
+  }
+  /* ══════════════════════════════════════════
      RESPONSIVE MOBILE
   ══════════════════════════════════════════ */
   @media (max-width: 720px) {
@@ -667,12 +685,12 @@
 
     /* Board occupe toute la largeur disponible */
     .chess-board {
-      width: calc(100vw - 2.5rem); /* 100vw - padding (.35rem × 2) - coords (.9rem × 2) */
-      max-width: 460px;
+      width: calc(100vw - 1.5rem);
+      max-width: 600px;
     }
     .coords-top, .coords-bottom {
-      width: calc(100vw - 2.5rem);
-      max-width: 460px;
+      width: calc(100vw - 1.5rem);
+      max-width: 600px;
     }
 
     /* Badges statut */
