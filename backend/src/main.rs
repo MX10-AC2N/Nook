@@ -197,7 +197,12 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
         if e2e_count.0 == 0 {
             let e2e_id = uuid::Uuid::new_v4().to_string();
-            let e2e_hash = crate::auth::hash_password("E2eTest123!");
+            let e2e_password = std::env::var("E2E_PASSWORD")
+            .unwrap_or_else(|_| {
+                eprintln!("[E2E] ATTENTION: E2E_PASSWORD non défini, utilisation d'un mot de passe aléatoire");
+                uuid::Uuid::new_v4().to_string()
+            });
+        let e2e_hash = crate::auth::hash_password(&e2e_password);
             let now = Utc::now().timestamp();
             sqlx::query(
                 r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
