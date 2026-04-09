@@ -1192,7 +1192,9 @@
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
     background: var(--bg-primary, #fff);
-    overflow: hidden; /* empêche les images/GIFs de pousser input-area hors écran */
+    overflow: hidden;
+    position: relative;
+    height: 100%;
   }
   .chat-header {
     padding: .75rem 1rem;
@@ -1238,10 +1240,14 @@
 
   /* ─── Messages ─── */
   .messages-container {
-    flex: 1; min-height: 0; /* min-height: 0 OBLIGATOIRE en flexbox colonne pour éviter débordement */
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 1rem;
-    display: flex; flex-direction: column; gap: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    scroll-behavior: smooth;
   }
   .empty-state {
     flex: 1;
@@ -1275,7 +1281,7 @@
   }
   .message-content :global(img.uploaded-image),
   .message-content :global(img.chat-gif) {
-    max-width: 260px; border-radius: 8px; margin-top: .3rem; display: block;
+    max-width: 400px; border-radius: 8px; margin-top: .3rem; display: block;
   }
   .message-time {
     font-size: .68rem; color: var(--text-secondary, #94a3b8);
@@ -1435,7 +1441,7 @@
 
   /* ─── Saisie ─── */
   .emoji-only {
-    font-size: 2.5rem !important;
+    font-size: 4rem !important;
     line-height: 1.2;
     background: transparent !important;
     padding: 0 !important;
@@ -1448,6 +1454,10 @@
     padding: .7rem 1rem;
     border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    width: 100%;
   }
   .icon-btn {
     padding: .45rem; background: none; border: none;
@@ -1502,7 +1512,7 @@
   }
   .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
   .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
-  :global(.chat-gif) { max-width: 500px; max-height: 500px; border-radius: .4rem; display: block; }
+  :global(.chat-gif) { max-width: 600px; max-height: 600px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
