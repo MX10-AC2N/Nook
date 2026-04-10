@@ -28,6 +28,7 @@ use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
+    set_header::SetResponseHeaderLayer,
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
@@ -538,6 +539,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
             response
         }))
+        // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("public, max-age=3600"),
+        ))
         .layer(CompressionLayer::new())
         .layer(cors_layer)
         .with_state(shared_state)
