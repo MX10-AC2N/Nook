@@ -744,7 +744,7 @@
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each chatStore.messages as msg (msg.id)}
+        {#virtual each chatStore.messages as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
