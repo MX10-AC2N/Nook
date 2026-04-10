@@ -89,9 +89,9 @@ jobs:
           mkdir -p nook-data nook-logs
           chmod 0777 nook-data nook-logs
 
-      - name: Build Docker image
+      - name: Build Docker image (with cache)
         run: |
-          docker build --tag nook-ci:local --file Dockerfile .
+          docker build             --tag nook-ci:local             --file Dockerfile             --cache-from type=gha             --cache-to type=gha,mode=max             .
           echo "Image nook-ci:local construite"
 
       - name: Start stack
@@ -106,7 +106,7 @@ jobs:
           while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
-            if [ $TIMEOUT -gt 60 ]; then
+            if [ $TIMEOUT -gt 30 ]; then
               echo "Healthcheck timeout apres 60s"
               docker compose logs --tail=50
               exit 1
@@ -114,10 +114,9 @@ jobs:
           done
           echo " Stack demarree"
 
-      - name: Install Playwright
+      - name: Install Playwright only (skip full npm ci — deps from artifact)
         working-directory: ./frontend
         run: |
-          npm ci --legacy-peer-deps --no-audit --no-fund
           npx playwright install --with-deps chromium
 
       # - Shell Integration Tests
