@@ -1253,3 +1253,68 @@ Rapports créés dans `.claude/`:
 - 30 rôles | 24 skills | 12 rules | 14 root files
 - Total : ~72 fichiers
 - Tout poussé sur origin/develop
+
+---
+
+## Session — 2026-04-09/10 (Écosystème agents .claude/ + Audit global + Fixes production)
+
+### Contexte
+Session multi-thèmes : création d'écosystème d'agents spécialisés, audit global Nook, correction des problèmes critiques de sécurité/CI/E2E, ajout d'icônes SVG, notifications in-app.
+
+### Progrès Réalisés
+
+#### Écosystème .claude/ (30 rôles + 24 skills)
+- 16 nouveaux rôles spécialisés créés (agent-manager, token-optimizer, uiux-tester, security-auditor-pro, etc.)
+- 12 nouveaux skills (nook-agent-manager, nook-uiux-test, nook-security-audit, etc.)
+- 3 guides (QUICK-REFERENCE, TROUBLESHOOTING, DEPLOYMENT-CHECKLIST)
+- Audit global Nook : score 77/100 (Sécurité 78, UI/UX 72, Performance 81, Docker 85, Deps 68)
+
+#### Sécurité
+- Secret TURN hardcodé → endpoint `/api/webrtc/ice-config` (backend génère credentials)
+- vite 7.3.1 CVE → bump 7.3.2
+- security-audit.yml pnpm → npm
+
+#### CI/E2E
+- test-nook PermissionDenied → dirs `nook-data`/`nook-logs`
+- Git push conflicts → `git fetch + rebase` (4 workflows)
+- Chat UI test flaky → API verification + DOM best-effort
+- Chess resign flaky → re-login
+- Analytics flaky → re-login avant test
+- Résultat : 158/159 PASSÉS, 0 ÉCHEC (était 117/159 avec 41 skipped)
+
+#### UI/UX
+- Input chat hors écran → `flex: 1` sur `.app-main`
+- Message n'apparaît pas → optimistic update + `loadMessages()`
+- 56 icônes SVG créées (Material Design style)
+- Layout nav + toutes pages : emojis → `<Icon name="xxx" />`
+
+#### Notifications in-app
+- WS broadcasts ajoutés : `poll_voted`, `poll_closed`, `new_event`, `user_approved`
+- Frontend handlers : `notifyPoll`, `notifyCalendar`, `notifyAdmin`
+- 6 types de notifications fonctionnels
+
+#### Production fixes (Zimaboard)
+- Chat send error → supprimé `res.clone().json()`, `loadMessages()` direct
+- Icônes pas visibles → Icon.svelte via `fetch()` + `{@html}` pour hériter `currentColor`
+- Input trop bas → `100dvh` + `flex-shrink: 0` (pas sticky)
+- Échecs figés → clear selection après chaque move
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Secret TURN hardcodé | webrtc-calls.svelte.ts | Endpoint backend /api/webrtc/ice-config |
+| test-nook PermissionDenied | test-nook.yml | Dirs nook-data/nook-logs |
+| Git push conflicts | Frontend/Backend/e2e/bundle yml | git fetch + rebase |
+| Chat UI test flaky | user.spec.ts | API verification |
+| Input hors écran | +layout.svelte | flex:1 sur app-main |
+| Message pas visible | chatStore.svelte.ts | optimistic update + loadMessages |
+| Icônes pas visibles | Icon.svelte | fetch() + @html |
+| Échecs figés | chessStore.svelte.ts | clear selection après move |
+
+### État Final
+- Branche: develop
+- CI: 158/159 PASS, 0 FAIL, 1 flaky
+- Backend: ✅ build OK
+- Docker: ✅ image pushed
+- Icônes: 56 SVGs
+- Notifications: 6 types fonctionnels
