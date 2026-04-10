@@ -135,6 +135,8 @@ jobs:
           else
             git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]"
             git pull --rebase --autostash origin ${{ github.ref_name }}
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "Report committed"
           fi
