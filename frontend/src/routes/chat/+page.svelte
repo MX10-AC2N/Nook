@@ -1090,7 +1090,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100svh - var(--header-h, 60px));
+    height: calc(100dvh - var(--header-h, 60px));
     overflow: hidden;
     max-width: 100%;
   }
@@ -1193,8 +1193,8 @@
     display: flex; flex-direction: column;
     background: var(--bg-primary, #fff);
     overflow: hidden;
-    position: relative;
     height: 100%;
+    position: relative;
   }
   .chat-header {
     padding: .75rem 1rem;
@@ -1248,6 +1248,7 @@
     flex-direction: column;
     gap: .5rem;
     scroll-behavior: smooth;
+    overscroll-behavior: contain;
   }
   .empty-state {
     flex: 1;
@@ -1454,9 +1455,6 @@
     padding: .7rem 1rem;
     border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
     width: 100%;
   }
   .icon-btn {
