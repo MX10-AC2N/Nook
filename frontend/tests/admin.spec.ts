@@ -463,7 +463,8 @@ test.describe('Admin — Delete user', () => {
 test.describe('Admin — Analytics', () => {
 
   test('GET /analytics → contient user_count, message_count', async () => {
-    // adminPage already has auth from loginAsAdmin in beforeAll
+    // Re-login in case previous tests invalidated the session
+    await loginAsAdmin(adminPage);
     const res = await adminPage.request.get(`${BASE}/analytics`);
     expect(res.status()).toBe(200);
     const body = await res.json();
