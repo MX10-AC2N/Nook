@@ -10,6 +10,7 @@
   import { chatStore } from '$lib/chatStore.svelte.ts';
   import CallBanner from '$lib/components/CallBanner.svelte';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   let { children } = $props();
   let showMenu        = $state(false);
@@ -25,13 +26,13 @@
   );
 
   const navItems = [
-    { path: '/chat',      label: '💬 Chat',           requiresAuth: true  },
-    { path: '/chess',     label: '♟️ Échecs',          requiresAuth: true  },
-    { path: '/calendar',  label: '📅 Calendrier',      requiresAuth: true  },
-    { path: '/polls',     label: '📊 Sondages',        requiresAuth: true  },
-    { path: '/admin',     label: '👑 Administration',   requiresAuth: true, requiresAdmin: true },
-    { path: '/settings',  label: '⚙️ Paramètres',      requiresAuth: true  },
-    { path: '/help',      label: '❓ Aide',             requiresAuth: false },
+    { path: '/chat',      label: 'Chat',            icon: 'chat',       requiresAuth: true  },
+    { path: '/chess',     label: 'Échecs',           icon: 'home',       requiresAuth: true  },
+    { path: '/calendar',  label: 'Calendrier',       icon: 'calendar',   requiresAuth: true  },
+    { path: '/polls',     label: 'Sondages',         icon: 'check-circle', requiresAuth: true  },
+    { path: '/admin',     label: 'Administration',   icon: 'user',       requiresAuth: true, requiresAdmin: true },
+    { path: '/settings',  label: 'Paramètres',       icon: 'settings',   requiresAuth: true  },
+    { path: '/help',      label: 'Aide',             icon: 'help',       requiresAuth: false },
   ];
 
   function toggleMenu() {
@@ -207,7 +208,7 @@
       ☰
     </button>
 
-    <h1>🌱 Nook</h1>
+    <h1><Icon name="logo" size="24" /> Nook</h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -216,7 +217,7 @@
         class="logout-btn"
         data-testid="logout-button"
         aria-label="Déconnexion"
-      >🔌</button>
+      ><Icon name="logout" size="20" /></button>
     {/if}
   </header>
 
@@ -256,7 +257,7 @@
           {:else}
             <li>
               <a href={item.path} onclick={closeMenu} class:active={$page.url.pathname.startsWith(item.path)}>
-                {item.label}
+                {#if item.icon}<Icon name={item.icon} size="18" /> {/if}{item.label}
                 {#if item.path === '/chat' && totalUnread > 0}
                   <span class="nav-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
                 {/if}
@@ -270,7 +271,7 @@
         <p class="version">Nook v0.5 • Svelte 5 + Rust</p>
         {#if authStore.isAuthenticated}
           <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
-            🔌 Déconnexion
+            <Icon name="logout" size="18" /> Déconnexion
           </button>
         {/if}
       </div>
