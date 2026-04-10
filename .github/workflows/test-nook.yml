@@ -114,9 +114,16 @@ jobs:
           done
           echo " Stack demarree"
 
-      - name: Install Playwright only (skip full npm ci — deps from artifact)
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install dependencies + Playwright
         working-directory: ./frontend
         run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
           npx playwright install --with-deps chromium
 
       # - Shell Integration Tests
