@@ -27,7 +27,7 @@
 
   const navItems = [
     { path: '/chat',      label: 'Chat',            icon: 'chat',       requiresAuth: true  },
-    { path: '/chess',     label: 'Échecs',           icon: 'home',       requiresAuth: true  },
+    { path: '/chess',     label: 'Échecs',           icon: 'chess',      requiresAuth: true  },
     { path: '/calendar',  label: 'Calendrier',       icon: 'calendar',   requiresAuth: true  },
     { path: '/polls',     label: 'Sondages',         icon: 'check-circle', requiresAuth: true  },
     { path: '/admin',     label: 'Administration',   icon: 'user',       requiresAuth: true, requiresAdmin: true },
