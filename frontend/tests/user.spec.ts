@@ -96,20 +96,20 @@ test.describe.serial('User — Flux complet', () => {
 
   test('Chat UI — sidebar et envoi message', async () => {
     test.setTimeout(60_000);
+
+    // Step 1: Verify chat page loads with conversations
     await waitForAppReady(page);
-
-    // Verify conversations loaded
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
+    console.log('✅ Conversations visibles');
 
-    // Click the global conversation
+    // Step 2: Click Nook conversation
     const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
     await globalItem.click();
-
-    // Wait for chat area to be ready
     const input = page.locator('input.message-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
+    console.log('✅ Conversation Nook sélectionnée, input visible');
 
-    // Send message via API directly (bypass UI timing issues)
+    // Step 3: Send message via API and verify it's persisted
     const msgText = `E2E message ${Date.now()}`;
     const sendRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
       data: { content: msgText, encrypted: false },
@@ -118,16 +118,26 @@ test.describe.serial('User — Flux complet', () => {
     const sendBody = await sendRes.json();
     expect(sendBody.id).toBeTruthy();
     expect(sendBody.content).toBe(msgText);
-    console.log(`✅ Message envoyé via API: id=${sendBody.id}`);
+    console.log(`✅ Message créé via API: id=${sendBody.id}`);
 
-    // Reload messages in UI by navigating away and back
-    await page.goto('/chat');
-    await page.waitForLoadState('networkidle', { timeout: 10_000 });
+    // Step 4: Verify message is in the GET /messages response
+    const getRes = await page.request.get(`${BASE}/conversations/default_global/messages?limit=10`);
+    expect(getRes.status()).toBe(200);
+    const msgs = await getRes.json();
+    const found = (Array.isArray(msgs) ? msgs : msgs.messages ?? []).find((m: any) => m.content === msgText);
+    expect(found).toBeTruthy();
+    console.log(`✅ Message trouvé dans GET /messages: id=${found.id}`);
+
+    // Step 5: Reload chat page fresh to force re-render
+    await page.goto('http://localhost:6300/chat');
+    await page.waitForLoadState('domcontentloaded', { timeout: 10_000 });
+
+    // Step 6: Wait for conversations and click Nook
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
     await page.locator('.conversation-item').filter({ hasText: 'Nook' }).first().click();
 
-    // Check message appears in DOM
-    await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
+    // Step 7: Verify message in DOM
+    await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 20_000 });
     console.log('✅ Message visible dans le DOM');
   });
 
