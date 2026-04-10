@@ -329,8 +329,16 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // WS injectera automatiquement via new_message
-    if (!chatStore.wsConnected) await loadMessages(conversationId);
+    // Optimistic update: add message locally immediately, WS will reconcile
+    const responseData = await res.json();
+    if (responseData && responseData.id) {
+      const alreadyExists = chatStore.messages.some(m => m.id === responseData.id);
+      if (!alreadyExists) {
+        chatStore.messages = [...chatStore.messages, responseData];
+      }
+    } else if (!chatStore.wsConnected) {
+      await loadMessages(conversationId);
+    }
     chatStore.connectionError = null;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
