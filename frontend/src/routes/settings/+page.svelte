@@ -2,6 +2,7 @@
      Ajout : section notifications push dans l'onglet Sécurité
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -140,13 +141,13 @@
 
 <div class="settings-container">
   <header class="page-header">
-    <h1>⚙️ Paramètres</h1>
+    <h1><Icon name="settings" size="24" /> Paramètres</h1>
   </header>
 
   <div class="tabs" role="tablist">
-    <button role="tab" class="tab" class:active={activeTab === 'profile'}    onclick={() => (activeTab = 'profile')}>👤 Profil</button>
-    <button role="tab" class="tab" class:active={activeTab === 'security'}   onclick={() => (activeTab = 'security')}>🔒 Sécurité</button>
-    <button role="tab" class="tab" class:active={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>🎨 Apparence</button>
+    <button role="tab" class="tab" class:active={activeTab === 'profile'}    onclick={() => (activeTab = 'profile')}>Profil</button>
+    <button role="tab" class="tab" class:active={activeTab === 'security'}   onclick={() => (activeTab = 'security')}><Icon name="lock" size="18" /> Sécurité</button>
+    <button role="tab" class="tab" class:active={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>Apparence</button>
   </div>
 
   <!-- PROFIL -->
