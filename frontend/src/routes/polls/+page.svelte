@@ -9,6 +9,7 @@
      NOTE : Une migration complète (table poll_invitations) est prévue.
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -192,7 +193,7 @@
   <!-- En-tête -->
   <div class="page-header">
     <div class="header-left">
-      <h1>📊 Sondages</h1>
+      <h1><Icon name="check-circle" size="24" /> Sondages</h1>
       <p class="subtitle">Décidez ensemble</p>
     </div>
     <button class="btn-create" onclick={() => showCreate = !showCreate}>
@@ -221,7 +222,7 @@
 
       <!-- Date de clôture automatique -->
       <label class="form-label" style="margin-top:.5rem;">
-        📅 Fermeture automatique (optionnel)
+        Fermeture automatique (optionnel)
         <input type="date" class="form-input" bind:value={closingDate}
           min={new Date().toISOString().slice(0,10)}
           style="margin-top:.3rem;" />

@@ -5,6 +5,7 @@
        - Couleurs via variables CSS thème (var(--accent) etc.)
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -150,7 +151,7 @@
 
   {:else}
     <div class="admin-header">
-      <h1>👑 Administration</h1>
+      <h1><Icon name="user" size="24" /> Administration</h1>
       <div class="auth-status">
         <span class="admin-badge">
           Connecté en tant que {authStore.user?.name || authStore.user?.username || 'admin'}
@@ -182,7 +183,7 @@
           🔗 Invitations ({invites.length})
         </button>
         <button class="tab tab-analytics" onclick={() => goto('/admin/analytics')}>
-          📊 Analytics ↗
+          <Icon name="check-circle" size="18" /> Analytics ↗
         </button>
       </div>
 

@@ -7,6 +7,7 @@
      - Chess IA temps réel (WS broadcast)
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   let searchQuery = $state('');
   let openFaq     = $state<number | null>(null);
 
@@ -157,7 +158,7 @@
 <div class="help-page">
 
   <header class="help-header">
-    <h1>❓ Aide</h1>
+    <h1><Icon name="help" size="24" /> Aide</h1>
     <p class="subtitle">Questions fréquentes sur Nook</p>
   </header>
 
@@ -207,7 +208,7 @@
 
   <!-- Contact admin -->
   <div class="contact-card">
-    <h2>💬 Besoin d'aide supplémentaire ?</h2>
+    <h2><Icon name="chat" size="24" /> Besoin d'aide supplémentaire ?</h2>
     <p>Envoyez un message à votre administrateur familial directement dans le chat Nook (conversation Groupe Global), ou demandez-lui de régénérer votre accès.</p>
   </div>
 

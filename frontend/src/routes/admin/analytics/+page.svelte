@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -134,7 +135,7 @@
 </svelte:head>
 
 <div class="analytics-page">
-  <h1>📊 Analytics</h1>
+  <h1><Icon name="check-circle" size="24" /> Analytics</h1>
   <p class="subtitle">Tableau de bord — {new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' })}</p>
 
   {#if loading}
@@ -152,7 +153,7 @@
         <span class="stat-label">Utilisateurs</span>
       </div>
       <div class="stat-card">
-        <span class="stat-icon">💬</span>
+        <span class="stat-icon"><Icon name="chat" size="24" /></span>
         <span class="stat-value">{analytics.message_count}</span>
         <span class="stat-label">Messages</span>
       </div>
@@ -162,7 +163,7 @@
         <span class="stat-label">Conversations</span>
       </div>
       <div class="stat-card">
-        <span class="stat-icon">📊</span>
+        <span class="stat-icon"><Icon name="check-circle" size="24" /></span>
         <span class="stat-value">{analytics.poll_count}</span>
         <span class="stat-label">Sondages</span>
       </div>
