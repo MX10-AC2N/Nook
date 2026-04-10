@@ -268,6 +268,8 @@ jobs:
           else
             git commit -m "ci: E2E-TARGETED-REPORT — ${{ needs.resolve.outputs.label }} [run ${{ github.run_id }}]"
             git pull --rebase origin ${{ github.ref_name }}
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "Rapport commite et pousse"
           fi
