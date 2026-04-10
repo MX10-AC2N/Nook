@@ -1268,6 +1268,7 @@
     align-self: flex-start;
     word-break: break-word;
     animation: pop .18s ease;
+    min-height: 60px; /* Consistent height for virtual scrolling */
   }
   .message.mine {
     background: var(--chat-mine, #dcfce7);
