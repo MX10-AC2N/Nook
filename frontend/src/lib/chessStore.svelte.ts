@@ -621,18 +621,15 @@ class ChessStore {
         if (msg.game_id !== gameId) return; // autre partie ou autre type
         if (msg.type === 'chess_move' || msg.type === 'chess_ai_move') {
           if (msg.type === 'chess_ai_move') notifyChess('Tour de l\'IA', 'L\'IA a joué', gameId);
-          // Don't clobber user's pending selection during their turn
-          if (!this.selected) {
-            this.refreshGame(gameId).catch(console.error);
-          } else {
-            // Just update board state without clearing selection
-            this.refreshGame(gameId).then(() => {
-              // Restore selection if it was a legal target before refresh
-              if (this.selected && this.lastMove) {
-                this._restoreLegalTargets(this.wsGameId!);
-              }
-            }).catch(console.error);
-          }
+          // Refresh game state from server (updates board, legal_moves, etc.)
+          this.refreshGame(gameId).then(() => {
+            // After board update, clear stale selection if it exists
+            // The user can reselect their piece to see updated legal moves
+            if (this.selected) {
+              this.selected = null;
+              this.legalTargets = [];
+            }
+          }).catch(console.error);
         }
         if (msg.type === 'chess_player_joined') {
           this.refreshGame(gameId).catch(console.error);
