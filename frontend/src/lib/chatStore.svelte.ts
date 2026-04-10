@@ -147,6 +147,38 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
     };
     return;
   }
+
+  // ── Poll notifications ──
+  if (type === 'new_poll') {
+    const title = msg.title as string || 'Nouveau sondage';
+    notifyPoll('📊 Sondage créé', title, '/polls');
+    return;
+  }
+
+  if (type === 'poll_voted') {
+    const voter = msg.voter as string || 'Quelqu\'un';
+    notifyPoll('🗳️ Nouveau vote', `${voter} a voté`, '/polls');
+    return;
+  }
+
+  if (type === 'poll_closed') {
+    notifyPoll('📊 Sondage fermé', 'Un sondage est terminé', '/polls');
+    return;
+  }
+
+  // ── Calendar notifications ──
+  if (type === 'new_event') {
+    const title = msg.title as string || 'Nouvel événement';
+    const creator = msg.creator as string || 'Quelqu\'un';
+    notifyCalendar('📅 Événement créé', `${creator}: ${title}`, '/calendar');
+    return;
+  }
+
+  // ── Admin notifications ──
+  if (type === 'user_approved') {
+    notifyAdmin('✅ Utilisateur approuvé', 'Votre compte a été approuvé !', '/chat');
+    return;
+  }
 }
 
 async function _injectMessage(raw: ChatMessage): Promise<void> {
@@ -192,7 +224,7 @@ export async function requestNotificationPermission(): Promise<void> {
   }
 }
 
-import { notifyMessage } from '$lib/notificationStore.svelte';
+import { notifyMessage, notifyPoll, notifyCalendar, notifyAdmin } from '$lib/notificationStore.svelte';
 
 function _sendBrowserNotification(sender: string, content: string): void {
   const text = content.startsWith('<img') ? '📷 Image' : content.startsWith('<audio') ? '🎙️ Message vocal' : content.slice(0, 80);
