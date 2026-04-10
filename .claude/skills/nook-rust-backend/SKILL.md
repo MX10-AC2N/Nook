@@ -161,3 +161,96 @@ use governor::state::keyed::DefaultKeyedStateStore;
 type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
 // RateLimiter::keyed(Quota::per_minute(...)) → retourne ce type
 ```
+
+## ⚠️ TURN Credential Generation Pattern (RFC 5389)
+
+Never hardcode TURN secrets in the frontend. Generate short-lived credentials server-side.
+
+### Backend endpoint — `/api/webrtc/ice-config`
+
+```rust
+use sha1::Sha1;
+use hmac::{Hmac, Mac};
+type HmacSha1 = Hmac<Sha1>;
+
+async fn handle_ice_config(
+    AxumState(state): AxumState<Arc<crate::SharedState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    // Auth — inline SQL query (no validate_session function exists)
+    let cookie_header = match headers.get(COOKIE).and_then(|v| v.to_str().ok()) {
+        Some(c) => c,
+        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
+    let token_value = match cookie_header
+        .split(';').find(|c| c.trim().starts_with("auth_token="))
+        .and_then(|c| c.trim().strip_prefix("auth_token="))
+    {
+        Some(t) => t,
+        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
+    let (user_id, token) = match token_value.split_once(':') {
+        Some((u, t)) if !u.is_empty() && !t.is_empty() => (u, t),
+        _ => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
+    };
+    let valid: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND token = ? AND approved = 1)"
+    ).bind(user_id).bind(token).fetch_one(&state.db)
+        .await.map(|v: i64| v == 1).unwrap_or(false);
+    if !valid {
+        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response();
+    }
+
+    // Generate HMAC-SHA1 TURN credentials (24h validity)
+    let username = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs() + 86400;
+    let mut mac = <HmacSha1 as hmac::Mac>::new_from_slice(state.config.turn_secret.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(username.to_string().as_bytes());
+    let credential = base64ct::Base64Unpadded::encode_string(&mac.finalize().into_bytes());
+
+    (StatusCode::OK, AxumJson(json!({
+        "host": state.config.turn_host,
+        "port": state.config.turn_port,
+        "username": username.to_string(),
+        "credential": credential,
+    }))).into_response()
+}
+```
+
+### Config struct — add TURN fields
+```rust
+pub struct Config {
+    // ... existing fields ...
+    pub turn_host: String,   // env: TURN_HOST (fallback: PUBLIC_SITE_URL hostname)
+    pub turn_port: u16,      // env: TURN_PORT (default: 3478)
+    pub turn_secret: String, // env: TURN_SECRET
+}
+```
+
+### Cargo.toml deps
+```toml
+hmac = "0.12"
+sha1 = "0.10"
+```
+
+### Frontend — fetch don't hardcode
+```typescript
+// ❌ NEVER — secret exposed in JS bundle
+const TURN_SECRET = 'change...cret';
+
+// ✅ CORRECT — fetch from backend
+const resp = await fetch('/api/webrtc/ice-config', { credentials: 'include' });
+const { host, port, username, credential } = await resp.json();
+```
+
+## ⚠️ Auth Pattern — Inline SQL, No validate_session
+
+The `auth` module does NOT export `validate_session`. Session validation is done inline:
+```rust
+// ❌ WRONG
+crate::auth::validate_session(&state.pool, &token)
+
+// ✅ CORRECT — direct SQL with state.db (not state.pool)
+sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND token = ? AND approved = 1)")
+    .bind(user_id).bind(token).fetch_one(&state.db).await
+```
