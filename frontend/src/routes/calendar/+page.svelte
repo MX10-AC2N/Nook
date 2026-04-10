@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -130,13 +131,13 @@
 <div class="cal-page">
   <div class="cal-header">
     <div>
-      <h1>📅 Calendrier</h1>
+      <h1><Icon name="calendar" size="24" /> Calendrier</h1>
       <p class="subtitle">Événements familiaux</p>
     </div>
     <button class="add-event-btn" onclick={() => { newEvent.date = todayStr; showAddModal = true; }}>＋ Ajouter</button>
   </div>
 
-  {#if error}<div class="error-banner">⚠️ {error}</div>{/if}
+  {#if error}<div class="error-banner"><Icon name="warning" size="18" /> {error}</div>{/if}
 
   <div class="cal-container">
     <div class="cal-nav">
