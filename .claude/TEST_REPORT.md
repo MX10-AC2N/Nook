@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-10 04:55 UTC**
+> Généré par `test-nook.yml` · **2026-04-10 05:40 UTC**
 
 ---
 
@@ -9,15 +9,15 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** · ⚠️ **2 flaky** |
-| **Tests passés** | 157 |
-| **Tests échoués** | 0 |
+| **Tests passés** | 115 |
+| **Tests échoués** | 1 |
 | **Tests flaky** | 2 |
-| **Tests ignorés** | 0 |
+| **Tests ignorés** | 41 |
 | **Total** | 159 |
-| **Durée totale** | 55.0s |
+| **Durée totale** | 1m 16.9s |
 | **Branche** | `develop` |
-| **Commit** | [`fc989a0`](https://github.com/MX10-AC2N/Nook/commit/fc989a0cffcdd06e22bce68ba26acf9f6449da42) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24226620315) |
+| **Commit** | [`12bf920`](https://github.com/MX10-AC2N/Nook/commit/12bf9209c52d9300c850e81ecafc9c415b27b89b) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24227868409) |
 
 ---
 
@@ -35,20 +35,83 @@
 
 | Rang | Test | Durée | Fichier |
 |------|------|-------|---------|
-| 1 | Chess UI — plateau 64 cases + sélection case + coup via UI | 5.0s | `?` |
-| 2 | Register + Approve + Login → accès complet | 4.3s | `?` |
-| 3 | /call/default_global → page contient contenu call | 4.1s | `?` |
-| 4 | Login invalide → reste sur /login | 3.4s | `?` |
-| 5 | Créer partie → jouer e2→e4 → IA répond | 3.4s | `?` |
-| 6 | Chess — POST /chess/{id}/ai-move → 200 | 2.9s | `?` |
-| 7 | Admin — approve + login after approve → accès complet | 2.2s | `?` |
-| 8 | Page /admin → non accessible pour user normal | 2.1s | `?` |
-| 9 | Admin — DELETE /users/{id} → supprime un utilisateur | 2.1s | `?` |
-| 10 | /call/default_global → page charge avec titres | 1.7s | `?` |
+| 1 | Chat UI — sidebar et envoi message | 30.3s | `?` |
+| 2 | Login invalide → reste sur /login | 7.1s | `?` |
+| 3 | Register + Approve + Login → accès complet | 4.3s | `?` |
+| 4 | /call/default_global → page contient contenu call | 4.2s | `?` |
+| 5 | Créer partie → jouer e2→e4 → IA répond | 3.6s | `?` |
+| 6 | Admin — approve + login after approve → accès complet | 2.2s | `?` |
+| 7 | Page /admin → non accessible pour user normal | 2.1s | `?` |
+| 8 | Admin — DELETE /users/{id} → supprime un utilisateur | 2.1s | `?` |
+| 9 | /call/default_global → page charge avec titres | 1.7s | `?` |
+| 10 | Créer partie vs IA (facile) → game_id | 1.1s | `?` |
 
 ---
 
 ## 📋 Résultats par catégorie
+
+### ❌ **user.spec.ts** — 16/58 passés · ❌ 1 failed
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ❌ | Chat UI — sidebar et envoi message | 30.3s  +1 | |
+| ✅ | Login invalide → reste sur /login | 7.1s  +1 | |
+| ✅ | /call/default_global → page contient contenu call | 4.2s | |
+| ✅ | /call/default_global → page charge avec titres | 1.7s | |
+| ✅ | Créer partie vs IA (facile) → game_id | 1.1s | |
+| ✅ | /call/[id] session → page appel chargee (sans auth first) | 0.3s | |
+| ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0.1s | |
+| ✅ | Login e2e_ci → redirigé vers /chat | 0.1s  +1 | |
+| ✅ | Chess — resign → status finished | 0.0s | |
+| ✅ | Chess — coup illégal → 400 | 0.0s | |
+| ✅ | Chess — coups légaux depuis e2 → contient e3 et e4 | 0.0s | |
+| ✅ | Chess — UI plateau 8x8 (64 cases) | 0.0s | |
+| ✅ | Chess — coup légal e2→e4 | 0.0s | |
+| ✅ | GET /auth/me → username=e2e_ci | 0.0s  +1 | |
+| ✅ | GET /conversations → default_global présente | 0.0s  +1 | |
+| ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0.0s  +1 | |
+| ✅ | GET /conversations/default_global → détail de la conv | 0.0s  +1 | |
+| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A  +1 | |
+| ⏭️ | POST /conversations → créer un groupe de test | N/A  +1 | |
+| ⏭️ | GET /users/available → liste des membres disponibles | N/A  +1 | |
+| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A  +1 | |
+| ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A  +1 | |
+| ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A  +1 | |
+| ⏭️ | Réactions — DELETE → my_emoji null | N/A  +1 | |
+| ⏭️ | Réactions — GET → structure {message_id, counts, my_emoji} | N/A  +1 | |
+| ⏭️ | Réactions — message inexistant → 404 | N/A  +1 | |
+| ⏭️ | Réactions UI — hover → picker → pill visible | N/A  +1 | |
+| ⏭️ | Upload — fichier texte → file_id, url=/api/download/, download OK | N/A  +1 | |
+| ⏭️ | Download — id inexistant → 404 | N/A  +1 | |
+| ⏭️ | GET /polls → tableau de sondages | N/A  +1 | |
+| ⏭️ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | N/A  +1 | |
+| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A  +1 | |
+| ⏭️ | GET /chess/list → 200 | N/A  +1 | |
+| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A  +1 | |
+| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A  +1 | |
+| ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A  +1 | |
+| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A  +1 | |
+| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A  +1 | |
+| ⏭️ | Calendar — GET /events → 200 | N/A  +1 | |
+| ⏭️ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | N/A  +1 | |
+| ⏭️ | Calendar UI — page, grille et bouton ajouter visibles | N/A  +1 | |
+| ⏭️ | Settings UI — 3 onglets navigables | N/A  +1 | |
+| ⏭️ | Settings — changement de thème (clic → sélectionné) | N/A  +1 | |
+| ⏭️ | POST /user/update → mise à jour du nom | N/A  +1 | |
+| ⏭️ | Navigation /chat → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /calendar → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /chess → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /polls → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /settings → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /help → accessible sans erreur | N/A  +1 | |
+| ⏭️ | Navigation /events → accessible sans erreur | N/A  +1 | |
+| ⏭️ | E2EE — POST /auth/public-key → enregistre la clé | N/A  +1 | |
+| ⏭️ | E2EE — GET /auth/public-keys → objet avec clés des membres | N/A  +1 | |
+| ⏭️ | Push — GET /push/vapid-public-key → 200 | N/A  +1 | |
+| ⏭️ | Push — GET /push/preferences → prefs par défaut | N/A  +1 | |
+| ⏭️ | Push — POST /push/preferences → mise à jour | N/A  +1 | |
+| ⏭️ | Push — POST /push/subscribe → 200 | N/A  +1 | |
+| ⏭️ | Logout UI → redirigé vers /login | N/A  +1 | |
 
 ### ❌ **admin.spec.ts** — 24/25 passés · ⚠️ 1 flaky
 
@@ -61,22 +124,22 @@
 | ✅ | Admin — DELETE /users/{id} → supprime un utilisateur | 2.1s | |
 | ✅ | DELETE /users/{id} → supprime un utilisateur | 1.1s | |
 | ✅ | Admin — analytics contient toutes les sections | 1.0s | |
-| ✅ | Flux inscription : register → pending → approve → connecté | 0.2s | |
-| ✅ | Admin UI — invitation générée visible dans l'interface | 0.1s | |
+| ✅ | Page /admin/analytics → stat-cards + 2 charts | 0.2s | |
 | ✅ | Onglet "Membres" → users visibles dans UI | 0.1s | |
-| ✅ | Page /admin/analytics → stat-cards + 2 charts | 0.1s | |
+| ✅ | Flux inscription : register → pending → approve → connecté | 0.1s | |
+| ✅ | Admin UI — invitation générée visible dans l'interface | 0.1s | |
 | ✅ | GET /analytics avec user normal → 403 | 0.1s | |
 | ✅ | GET /users/pending avec user normal → 403 | 0.1s | |
-| ✅ | Admin — DELETE /polls/{id} → 200 | 0.0s | |
 | ✅ | Admin — 3 onglets visibles | 0.0s | |
-| ✅ | GET /auth/me avec session admin → role=admin | 0.0s | |
+| ✅ | Admin — DELETE /polls/{id} → 200 | 0.0s | |
 | ✅ | Admin — page /admin chargée avec header | 0.0s | |
 | ✅ | GET /invite/validate?token=xxx → valide le token | 0.0s | |
 | ✅ | GET /analytics → tous les champs requis | 0.0s | |
-| ✅ | GET /users → liste complète (admin) | 0.0s | |
-| ✅ | POST /invites/delete → supprime une invitation | 0.0s | |
-| ✅ | GET /users/pending → 200 | 0.0s | |
 | ✅ | POST /invites → génère un invite_link valide | 0.0s | |
+| ✅ | POST /invites/delete → supprime une invitation | 0.0s | |
+| ✅ | GET /auth/me avec session admin → role=admin | 0.0s | |
+| ✅ | GET /users → liste complète (admin) | 0.0s | |
+| ✅ | GET /users/pending → 200 | 0.0s | |
 | ✅ | GET /analytics sans auth → 401 | 0.0s | |
 | ✅ | GET /invites → liste non vide | 0.0s | |
 
@@ -85,144 +148,81 @@
 | Statut | Test | Durée | Retries |
 |--------|------|-------|---------|
 | ⚠️ | Chess resign → status finished | 0.0s  +1 | |
-| ✅ | Créer partie → jouer e2→e4 → IA répond | 3.4s | |
+| ✅ | Créer partie → jouer e2→e4 → IA répond | 3.6s | |
 | ✅ | /call/fake-id avec auth → page charge | 1.1s | |
 | ✅ | /call/fake-id sans auth → redirige vers /login | 0.9s | |
-| ✅ | 8 chars → accepte | 0.1s | |
 | ✅ | User change pwd autre user → 403 (integration) | 0.1s | |
 | ✅ | User normal change pwd autre user → 403 | 0.0s | |
+| ✅ | 8 chars → accepte | 0.0s | |
 | ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
-| ✅ | Download fichier inexistant → 404 | 0.0s | |
-| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
-| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
-| ✅ | Rename conversation → 200 | 0.0s | |
-| ✅ | Upload fichier texte → 200 | 0.0s | |
 | ✅ | Upload → Download end-to-end | 0.0s | |
 | ✅ | Download inexistant → 404 | 0.0s | |
-| ✅ | Envoyer message → 200 | 0.0s | |
-| ✅ | Rename conversation → 200 (second block) | 0.0s | |
-| ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | Download fichier inexistant → 404 | 0.0s | |
+| ✅ | Upload fichier texte → 200 | 0.0s | |
+| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
 | ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | Rename conversation → 200 | 0.0s | |
+| ✅ | Envoyer message → 200 | 0.0s | |
+| ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | Rename conversation → 200 (second block) | 0.0s | |
+| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
 | ✅ | GET /api/health → "OK" | 0.0s | |
 | ✅ | 1 char → 400 | 0.0s | |
-| ✅ | GET /auth/me → 401 | 0.0s | |
 | ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
-| ✅ | 5 chars → 400 | 0.0s | |
+| ✅ | GET /auth/me → 401 | 0.0s | |
 | ✅ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | |
-| ✅ | POST /auth/change-password → 401 | 0.0s | |
 | ✅ | POST /auth/logout → 401 | 0.0s | |
+| ✅ | 5 chars → 400 | 0.0s | |
 | ✅ | POST /auth/public-key → 401 | 0.0s | |
-| ✅ | POST /events → 401 | 0.0s | |
-| ✅ | GET /polls/fake-id → 401 | 0.0s | |
-| ✅ | POST /invites → 401 | 0.0s | |
-| ✅ | GET /conversations → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
-| ✅ | GET /polls → 401 | 0.0s | |
-| ✅ | POST /polls → 401 | 0.0s | |
 | ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
-| ✅ | GET /users → 401 | 0.0s | |
-| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
-| ✅ | POST /conversations → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | POST /auth/change-password → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global → 401 | 0.0s | |
 | ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /events → 401 | 0.0s | |
+| ✅ | POST /invites → 401 | 0.0s | |
+| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
+| ✅ | GET /conversations → 401 | 0.0s | |
+| ✅ | POST /conversations → 401 | 0.0s | |
 | ✅ | PATCH /conversations/default_global/rename → 401 | 0.0s | |
-| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
-| ✅ | GET /events → 401 | 0.0s | |
 | ✅ | DELETE /events/fake-id → 401 | 0.0s | |
-| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
-| ✅ | GET /chess/list → 401 | 0.0s | |
-| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
-| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
-| ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
-| ✅ | GET /users/pending → 401 | 0.0s | |
-| ✅ | GET /invites → 401 | 0.0s | |
-| ✅ | GET /analytics → 401 | 0.0s | |
+| ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
 | ✅ | Mot de passe 5 chars → 400 | 0.0s | |
 | ✅ | Chess coup illégal → 400 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
+| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
+| ✅ | GET /events → 401 | 0.0s | |
+| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | POST /polls → 401 | 0.0s | |
+| ✅ | GET /polls/fake-id → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
 | ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
+| ✅ | GET /chess/list → 401 | 0.0s | |
 | ✅ | POST /chess/create → 401 | 0.0s | |
-| ✅ | GET /chess/invitations → 401 | 0.0s | |
 | ✅ | GET /chess/fake-id → 401 | 0.0s | |
-| ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
 | ✅ | POST /chess/fake-id/resign → 401 | 0.0s | |
+| ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | POST /user/update → 401 | 0.0s | |
 | ✅ | GET /users/available → 401 | 0.0s | |
 | ✅ | GET /push/preferences → 401 | 0.0s | |
+| ✅ | GET /users/pending → 401 | 0.0s | |
+| ✅ | GET /users → 401 | 0.0s | |
 | ✅ | POST /users/approve → 401 | 0.0s | |
 | ✅ | POST /invites/delete → 401 | 0.0s | |
+| ✅ | GET /analytics → 401 | 0.0s | |
 | ✅ | Mot de passe 1 char → 400 | 0.0s | |
 | ✅ | Mot de passe 7 chars → 400 | 0.0s | |
+| ✅ | GET /chess/invitations → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | GET /invites → 401 | 0.0s | |
 | ✅ | Modifier message → 200 | 0.0s | |
-| ✅ | Lister messages → contient le message modifié | 0.0s | |
 | ✅ | Supprimer message → 200/204 | 0.0s | |
-
-### ✅ **user.spec.ts** — 58/58 passés
-
-| Statut | Test | Durée | Retries |
-|--------|------|-------|---------|
-| ✅ | Chess UI — plateau 64 cases + sélection case + coup via UI | 5.0s | |
-| ✅ | /call/default_global → page contient contenu call | 4.1s | |
-| ✅ | Login invalide → reste sur /login | 3.4s | |
-| ✅ | Chess — POST /chess/{id}/ai-move → 200 | 2.9s | |
-| ✅ | /call/default_global → page charge avec titres | 1.7s | |
-| ✅ | Créer partie vs IA (facile) → game_id | 1.1s | |
-| ✅ | Réactions UI — hover → picker → pill visible | 1.1s | |
-| ✅ | Navigation /polls → accessible sans erreur | 0.6s | |
-| ✅ | Navigation /chat → accessible sans erreur | 0.6s | |
-| ✅ | Navigation /events → accessible sans erreur | 0.6s | |
-| ✅ | Navigation /chess → accessible sans erreur | 0.6s | |
-| ✅ | Navigation /calendar → accessible sans erreur | 0.5s | |
-| ✅ | Navigation /help → accessible sans erreur | 0.5s | |
-| ✅ | Navigation /settings → accessible sans erreur | 0.5s | |
-| ✅ | Polls UI — créer sondage via formulaire → visible dans liste | 0.4s | |
-| ✅ | /call/[id] session → page appel chargee (sans auth first) | 0.3s | |
-| ✅ | Settings UI — 3 onglets navigables | 0.2s | |
-| ✅ | Logout UI → redirigé vers /login | 0.2s | |
-| ✅ | Settings — changement de thème (clic → sélectionné) | 0.1s | |
-| ✅ | Chat UI — sidebar et envoi message | 0.1s | |
-| ✅ | Chess — invitations : créer, inviter, lister, décliner | 0.1s | |
-| ✅ | Calendar UI — page, grille et bouton ajouter visibles | 0.1s | |
-| ✅ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | 0.1s | |
-| ✅ | Flood /auth/login × 20 depuis même IP → au moins un 429 | 0.1s | |
-| ✅ | Chess — coup légal e2→e4 | 0.0s | |
-| ✅ | Chess — UI plateau 8x8 (64 cases) | 0.0s | |
-| ✅ | Chess — coup illégal → 400 | 0.0s | |
-| ✅ | Chess — resign → status finished | 0.0s | |
-| ✅ | Chess — coups légaux depuis e2 → contient e3 et e4 | 0.0s | |
-| ✅ | Login e2e_ci → redirigé vers /chat | 0.0s | |
-| ✅ | Upload — fichier texte → file_id, url=/api/download/, download OK | 0.0s | |
-| ✅ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | 0.0s | |
-| ✅ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | 0.0s | |
-| ✅ | Chess — POST /chess/{id}/resign → 200 | 0.0s | |
-| ✅ | Réactions — DELETE → my_emoji null | 0.0s | |
-| ✅ | GET /auth/me → username=e2e_ci | 0.0s | |
-| ✅ | Réactions — GET → structure {message_id, counts, my_emoji} | 0.0s | |
-| ✅ | Réactions — POST emoji valide 👍 → counts mis à jour | 0.0s | |
-| ✅ | Réactions — POST emoji non autorisé 🦄 → 400 | 0.0s | |
-| ✅ | POST /user/update → mise à jour du nom | 0.0s | |
-| ✅ | GET /conversations/default_global/messages → messages récupérés | 0.0s | |
-| ✅ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | 0.0s | |
-| ✅ | GET /conversations/default_global/participants → e2e_ci présent | 0.0s | |
-| ✅ | POST /conversations → créer un groupe de test | 0.0s | |
-| ✅ | E2EE — GET /auth/public-keys → objet avec clés des membres | 0.0s | |
-| ✅ | GET /conversations → default_global présente | 0.0s | |
-| ✅ | GET /conversations/default_global → détail de la conv | 0.0s | |
-| ✅ | GET /users/available → liste des membres disponibles | 0.0s | |
-| ✅ | GET /chess/list → 200 | 0.0s | |
-| ✅ | Push — GET /push/preferences → prefs par défaut | 0.0s | |
-| ✅ | Push — POST /push/preferences → mise à jour | 0.0s | |
-| ✅ | Réactions — message inexistant → 404 | 0.0s | |
-| ✅ | GET /polls → tableau de sondages | 0.0s | |
-| ✅ | Calendar — GET /events → 200 | 0.0s | |
-| ✅ | E2EE — POST /auth/public-key → enregistre la clé | 0.0s | |
-| ✅ | Push — GET /push/vapid-public-key → 200 | 0.0s | |
-| ✅ | Push — POST /push/subscribe → 200 | 0.0s | |
-| ✅ | Download — id inexistant → 404 | 0.0s | |
+| ✅ | Lister messages → contient le message modifié | 0.0s | |
 
 ---
 
@@ -230,13 +230,66 @@
 
 | Fichier | ✅ Passés | ❌ Échoués | ⚠️ Flaky | Total |
 |---------|-----------|-------------|-----------|-------|
-| ❌ `unknown` | 157 | 0 | 2 | 159 |
+| ❌ `unknown` | 115 | 1 | 2 | 159 |
 
 ---
 
-## ✅ Aucun échec
+## ❌ Échecs détaillés
 
-Tous les tests ont passé.
+> 1 test(s) en échec
+
+### Échec 1 — `Chat UI — sidebar et envoi message`
+
+**Suite :** `user.spec.ts > User — Flux complet`
+**Durée :** 30.3s
+
+**Message :**
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1775799606630' })
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1775799606630' })
+
+
+  113 |     ]);
+  114 |     expect(res.status()).toBe(200);
+> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
+      |                                                                                 ^
+  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
+  117 |   });
+  118 |
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+```
+
+**Message :**
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('.message-content').filter({ hasText: 'E2E message 1775799627851' })
+Expected: visible
+Timeout: 15000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 15000ms
+  - waiting for locator('.message-content').filter({ hasText: 'E2E message 1775799627851' })
+
+
+  113 |     ]);
+  114 |     expect(res.status()).toBe(200);
+> 115 |     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
+      |                                                                                 ^
+  116 |     console.log('✅ Message envoyé et affiché dans le DOM');
+  117 |   });
+  118 |
+    at /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts:115:81
+```
 
 ---
 
@@ -244,10 +297,8 @@ Tous les tests ont passé.
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=268baa05-792a-44f4-b89c-4c83c59770a6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=268baa05-792a-44f4-b89c-4c83c59770a6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=268baa05-792a-44f4-b89c-4c83c59770a6 username=e2e_ci
-WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=268baa05-792a-44f4-b89c-4c83c59770a6 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=e4e16755-9750-4152-bc13-0a40623dbbb3 username=e2e_ci
+WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=e4e16755-9750-4152-bc13-0a40623dbbb3 username=e2e_ci
 ```
 
 ---
@@ -257,11 +308,11 @@ WARN nook_backend::auth: Tentative d'accès admin refusée (non-admin) user_id=2
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24226620315](https://github.com/MX10-AC2N/Nook/actions/runs/24226620315)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24227868409](https://github.com/MX10-AC2N/Nook/actions/runs/24227868409)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24226620315)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24227868409)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -287,4 +338,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-10 04:55 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-10 05:40 UTC*
