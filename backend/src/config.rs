@@ -22,7 +22,7 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         let public_site_url =
             env::var("PUBLIC_SITE_URL").unwrap_or_else(|_| "http://localhost:6300".to_string());
