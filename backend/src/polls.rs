@@ -522,7 +522,17 @@ pub async fn close_poll(
         .ok();
 
     match load_poll(&state.db, &poll_id, &user.id).await {
-        Some(p) => Json(json!({ "poll": p })).into_response(),
+        Some(p) => {
+            // Broadcast WS: poll_closed
+            let notif = serde_json::json!({
+                "type": "poll_closed",
+                "poll_id": poll_id,
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() { let _ = tx.send(notif.clone()); }
+
+            Json(json!({ "poll": p })).into_response()
+        },
         None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({}))).into_response(),
     }
 }
