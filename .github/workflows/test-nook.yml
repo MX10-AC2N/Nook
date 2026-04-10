@@ -85,9 +85,9 @@ jobs:
       - name: Clean previous runs
         run: |
           docker compose down -v --remove-orphans 2>/dev/null || true
-          rm -rf data logs
-          mkdir -p data logs
-          chmod 0777 data logs
+          rm -rf nook-data nook-logs
+          mkdir -p nook-data nook-logs
+          chmod 0777 nook-data nook-logs
 
       - name: Build Docker image
         run: |
