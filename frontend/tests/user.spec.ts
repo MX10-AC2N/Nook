@@ -97,21 +97,34 @@ test.describe.serial('User — Flux complet', () => {
   test('Chat UI — sidebar et envoi message', async () => {
     test.setTimeout(60_000);
     await waitForAppReady(page);
+
+    // Wait for conversations API to complete
+    await page.waitForResponse(r => r.url().includes('/api/conversations') && !r.url().includes('/messages') && r.request().method() === 'GET', { timeout: 15_000 }).catch(() => {});
     await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 15_000 });
 
-    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' });
-    if (await globalItem.count() > 0) await globalItem.first().click();
+    // Click the global conversation
+    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
+    await globalItem.click();
+
+    // Wait for messages to load after conversation selection
+    await page.waitForResponse(r => r.url().includes('/messages') && r.request().method() === 'GET', { timeout: 10_000 }).catch(() => {});
 
     const input = page.locator('input.message-input');
     await expect(input).toBeVisible({ timeout: 10_000 });
     const msgText = `E2E message ${Date.now()}`;
     await input.fill(msgText);
 
+    // Send message and wait for POST
     const [res] = await Promise.all([
-      page.waitForResponse(r => r.url().includes('/messages') && r.request().method() === 'POST', { timeout: 10_000 }),
+      page.waitForResponse(r => r.url().endsWith('/messages') && r.request().method() === 'POST', { timeout: 10_000 }),
       page.locator('button.send-btn').click(),
     ]);
     expect(res.status()).toBe(200);
+
+    // Wait for loadMessages GET that follows the POST
+    await page.waitForResponse(r => r.url().includes('/messages') && r.request().method() === 'GET', { timeout: 10_000 }).catch(() => {});
+
+    // Check message appears in DOM
     await expect(page.locator('.message-content').filter({ hasText: msgText })).toBeVisible({ timeout: 15_000 });
     console.log('✅ Message envoyé et affiché dans le DOM');
   });
