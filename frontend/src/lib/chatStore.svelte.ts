@@ -329,7 +329,17 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // Always reload messages to ensure DOM is updated (WS broadcast may be delayed)
+    // Optimistic: add response to local state immediately
+    try {
+      const responseData = await res.clone().json();
+      if (responseData && responseData.id) {
+        const alreadyExists = chatStore.messages.some(m => m.id === responseData.id);
+        if (!alreadyExists) {
+          chatStore.messages = [...chatStore.messages, responseData];
+        }
+      }
+    } catch { /* response already consumed or not JSON */ }
+    // Also reload from server to get authoritative state (WS may have additional data)
     await loadMessages(conversationId);
     chatStore.connectionError = null;
   } catch (err) {
