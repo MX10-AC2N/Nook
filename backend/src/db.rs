@@ -799,7 +799,20 @@ pub async fn create_event(
     .execute(&state.db)
     .await
     {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "id": id }))),
+        Ok(_) => {
+            // Broadcast WS: new_event
+            let notif = serde_json::json!({
+                "type": "new_event",
+                "event_id": id,
+                "title": req.title.trim(),
+                "date": req.date.trim(),
+                "creator": user.username,
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() { let _ = tx.send(notif.clone()); }
+
+            (StatusCode::OK, Json(json!({ "success": true, "id": id })))
+        },
         Err(e) => {
             eprintln!("[events] INSERT error: {}", e);
             (
