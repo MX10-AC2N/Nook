@@ -46,7 +46,7 @@ export async function loginAs(page: Page, username: string, password: string): P
   
   // Cookie is now set, navigate to app
   await page.goto('/chat');
-  await page.waitForTimeout(1000);
+  await page.waitForLoadState('networkidle', { timeout: 15_000 });
 }
 
 // ─────────────────────────────────────────────────────────────────
