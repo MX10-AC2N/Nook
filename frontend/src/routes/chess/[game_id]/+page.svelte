@@ -70,6 +70,8 @@
   let showResign = $state(false);
   // CORRECTION: Variables manquantes ajoutées
   let showResult = $state(false);
+  let lastMovedFrom = $state<string | null>(null);
+  let lastMovedTo = $state<string | null>(null);
   let resultDismissed = $state(false);
   // Loading LOCAL à cette page — évite la race condition avec chessStore.loading
   // partagé par loadGameList() du lobby qui peut remettre loading=false avant
@@ -753,4 +755,47 @@
   .result-btn-secondary { background: #f1f5f9; color: #475569; }
   .result-btn-secondary:hover { background: #e2e8f0; }
 
+
+  /* Piece animation on move */
+  .piece {
+    transition: transform 0.15s ease-out;
+  }
+  .piece.moving {
+    animation: piece-move 0.2s ease-out;
+  }
+  @keyframes piece-move {
+    0% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Better legal move indicators */
+  .cell-target {
+    position: relative;
+  }
+  .cell-target::after {
+    content: '';
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.15);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .cell-capture {
+    background: rgba(220, 50, 50, 0.35) !important;
+    box-shadow: inset 0 0 0 3px rgba(220, 50, 50, 0.5);
+  }
+  
+  /* Selected piece highlight */
+  .cell.selected {
+    background: rgba(255, 215, 0, 0.5) !important;
+  }
+  
+  /* Last move highlight */
+  .cell.last-move {
+    background: rgba(255, 255, 100, 0.35) !important;
+  }
 </style>
