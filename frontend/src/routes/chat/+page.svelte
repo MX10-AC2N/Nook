@@ -756,7 +756,10 @@
             onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
             {#if !isMyMessage(msg.sender_id)}
-              <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
+              <div class="message-header">
+                <Avatar username={msg.sender_id} name={msg.sender_name} size={24} userId={msg.sender_id} />
+                <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
+              </div>
             {/if}
 
             {#if editingMsgId === msg.id}
@@ -1732,4 +1735,16 @@
     .modal { max-width: 96vw; margin: .75rem; }
   }
 
+
+  .message-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .message-header .message-sender {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary, #888);
+  }
 </style>
