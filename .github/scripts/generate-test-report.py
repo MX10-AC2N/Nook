@@ -527,6 +527,8 @@ def main():
                         help="Chemin vers le fichier de logs Docker")
     parser.add_argument("--output", default=".claude/TEST_REPORT.md",
                         help="Chemin du rapport MD à écrire")
+    parser.add_argument("--errors", default=None,
+                        help="Fichier de logs d'erreur Playwright")
     args = parser.parse_args()
 
     # Contexte CI depuis les variables d'environnement
@@ -553,7 +555,21 @@ def main():
     print(f"[INFO] Slowest: {len(pw['slowest'])} tests logged")
     print(f"[INFO] Catégories: {list(pw['by_category'].keys())}")
 
-    report = build_report(pw, docker_warnings, ctx)
+    # Load error logs if provided
+    error_logs = ""
+    if args.errors and Path(args.errors).exists():
+        try:
+            error_logs = Path(args.errors).read_text(encoding="utf-8")[:5000]
+        except Exception:
+            pass
+    
+    # Also try to load playwright output if no tests ran
+    if pw['stats']['total'] == 0:
+        pw_output = Path("/tmp/playwright-output.txt")
+        if pw_output.exists():
+            error_logs = pw_output.read_text(encoding="utf-8")[:5000]
+    
+    report = build_report(pw, docker_warnings, ctx, error_logs)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
