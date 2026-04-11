@@ -852,6 +852,8 @@ test.describe.serial('User — Flux complet', () => {
   // ── Chess Improvements ────────────────────────────────────────────
   test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
     test.setTimeout(45_000);
+    // S'assurer que le test est authentifié
+    await loginAs(page, E2E_USER, E2E_PASS);
     
     // Créer une partie vs IA
     const createRes = await page.request.post(`${BASE}/chess/create`, {
