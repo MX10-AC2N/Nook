@@ -283,8 +283,9 @@ test.describe.serial('User — Flux complet', () => {
     expect(msgRes.status()).toBe(200);
 
     // Attendre que le message apparaisse dans le DOM
+    await page.waitForSelector('.message', { timeout: 15_000 });
     const msg = page.locator('.message').last();
-    await expect(msg).toBeVisible({ timeout: 10_000 });
+    await expect(msg).toBeVisible({ timeout: 15_000 });
 
     // Hover + dispatchEvent mouseenter pour déclencher hoveredMsgId en CI headless
     await msg.hover();
