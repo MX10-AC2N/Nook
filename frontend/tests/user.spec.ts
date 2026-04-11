@@ -861,13 +861,13 @@ test.describe.serial('User — Flux complet', () => {
 
   // ── Chess Improvements ────────────────────────────────────────────
   test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
-    const createRes = await page.request.post(\`\${BASE}/chess/create\`, {
+    const createRes = await page.request.post(${BASE}/chess/create`, {
       data: { color: 'white', opponent: 'easy' },
     });
     expect(createRes.status()).toBeLessThan(500);
     const { game_id } = await createRes.json();
     
-    await page.goto(\`http://localhost:6300/chess/\${game_id}\`);
+    await page.goto(`http://localhost:6300/chess/\${game_id}`);
     await waitForAppReady(page);
     await page.waitForTimeout(2000);
     
@@ -887,7 +887,7 @@ test.describe.serial('User — Flux complet', () => {
       const targets = page.locator('.cell-target, .target-dot');
       const targetCount = await targets.count();
       if (targetCount > 0) {
-        console.log(\`✅ \${targetCount} coups légaux affichés\`);
+        console.log(`✅ \${targetCount} coups légaux affichés`);
       } else {
         console.log('⚠️ Pas de dots visibles (peut-être déjà joué)');
       }
