@@ -138,10 +138,13 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   }
 
   if (type === 'reaction_updated') {
-    // Le frontend recharge les réactions depuis la page chat — ici on émet juste un signal
-    // via un champ réactif pour que la page puisse réagir si besoin
+    const msgId = msg.message_id as string;
+    const reactionData = msg.reactions;
+    if (msgId && reactionData) {
+      reactions[msgId] = reactionData;
+    }
     chatStore.lastReactionUpdate = {
-      messageId: msg.message_id as string,
+      messageId: msgId,
       conversationId: msg.conversation_id as string,
       ts: Date.now(),
     };
