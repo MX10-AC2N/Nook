@@ -168,8 +168,14 @@
         {#if !isCurrentMonth()}<button class="today-btn" onclick={goToday}>Aujourd'hui</button>{/if}
       </div>
       <button class="nav-btn" onclick={nextMonth}>›</button>
+      <div class="view-switcher">
+        <button class="view-btn" class:active={viewMode === 'month'} onclick={() => viewMode = 'month'}>Mois</button>
+        <button class="view-btn" class:active={viewMode === 'week'} onclick={() => viewMode = 'week'}>Sem.</button>
+        <button class="view-btn" class:active={viewMode === 'day'} onclick={() => viewMode = 'day'}>Jour</button>
+      </div>
     </div>
 
+    {#if viewMode === 'month'}
     <div class="calendar-grid">
       {#each ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] as d}
         <div class="day-hdr">{d}</div>
@@ -191,9 +197,48 @@
           </div>
         </button>
       {/each}
+    </div><!-- /calendar-grid -->
+    {:else if viewMode === 'week'}
+    <div class="week-view">
+      <div class="week-header">
+        {#each getWeekDays() as day}
+          <div class="week-day-hdr" class:today={isDayToday(day)}>
+            <span class="week-day-name">{['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][day.getDay() === 0 ? 6 : day.getDay() - 1]}</span>
+            <span class="week-day-num">{day.getDate()}</span>
+          </div>
+        {/each}
+      </div>
+      <div class="week-body">
+        {#each getWeekDays() as day}
+          <div class="week-col">
+            {#each getEventsForDate(day) as evt}
+              <div class="week-event" onclick={() => openDetail(evt)}>
+                {evt.time ? evt.time + ' ' : ''}{evt.title}
+              </div>
+            {/each}
+          </div>
+        {/each}
+      </div>
     </div>
+    {:else}
+    <div class="day-view">
+      <h3>{currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
+      {#each getEventsForDate(currentDate) as evt}
+        <div class="day-event" onclick={() => openDetail(evt)}>
+          <span class="day-event-time">{evt.time || '—'}</span>
+          <div>
+            <span class="day-event-title">{evt.title}</span>
+            {#if evt.description}<p class="day-event-desc">{evt.description}</p>{/if}
+          </div>
+        </div>
+      {:else}
+        <p class="no-events">Aucun événement ce jour</p>
+      {/each}
+    </div>
+    {/if}
   </div>
 
+  {#if viewMode === 'month'}
   <div class="upcoming">
     <h3>🗓 À venir</h3>
     {#if loading}<p class="empty-txt">Chargement…</p>
