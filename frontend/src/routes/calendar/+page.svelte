@@ -37,7 +37,7 @@
     });
   }
 
-  function isToday(d: Date): boolean {
+  function isDateToday(d: Date): boolean {
     const t = new Date();
     return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear();
   }
@@ -202,7 +202,7 @@
     <div class="week-view">
       <div class="week-header">
         {#each getWeekDays() as day}
-          <div class="week-day-hdr" class:today={isDayToday(day)}>
+          <div class="week-day-hdr" class:today={isDateToday(day)}>
             <span class="week-day-name">{['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][day.getDay() === 0 ? 6 : day.getDay() - 1]}</span>
             <span class="week-day-num">{day.getDate()}</span>
           </div>
