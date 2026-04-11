@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-11 13:39 UTC**
+> Généré par `test-nook.yml` · **2026-04-11 14:02 UTC**
 
 ---
 
@@ -16,8 +16,8 @@
 | **Total** | 0 |
 | **Durée totale** | 0.4s |
 | **Branche** | `develop` |
-| **Commit** | [`27f379d`](https://github.com/MX10-AC2N/Nook/commit/27f379d0cdc92fe223a29152a0d0651c5f8d7bd7) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24283393867) |
+| **Commit** | [`1de65c4`](https://github.com/MX10-AC2N/Nook/commit/1de65c4795f17dc7fcb55a5b358287b9fda70ffc) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24283772671) |
 
 ---
 
@@ -31,9 +31,41 @@
 
 ---
 
-## ✅ Aucun échec
+## ⚠️ Aucun test exécuté
 
-Tous les tests ont passé.
+Playwright n'a trouvé ou exécuté aucun test.
+
+**Causes possibles :**
+- Serveur non accessible (http://localhost:6300)
+- Fichiers .spec.ts non trouvés dans tests/
+- Configuration Playwright incorrecte
+- Erreur de compilation TypeScript
+
+### 📋 Logs Playwright
+
+```
+SyntaxError: /home/runner/work/Nook/Nook/frontend/tests/user.spec.ts: Expecting Unicode escape sequence \uXXXX. (864:47)
+
+[0m [90m 862 |[39m   [90m// ── Chess Improvements ────────────────────────────────────────────[39m
+ [90m 863 |[39m   test([32m'Chess — sélection pièce → coups légaux visibles (dots)'[39m[33m,[39m [36masync[39m ({ page }) [33m=>[39m {
+[31m[1m>[22m[39m[90m 864 |[39m     [36mconst[39m createRes [33m=[39m [36mawait[39m page[33m.[39mrequest[33m.[39mpost([37m[41m[1m\[22m[49m[39m[32m`\${BASE}/chess/create\`, {[39m
+ [90m     |[39m                                                [31m[1m^[22m[39m
+ [90m 865 |[39m [32m      data: { color: 'white', opponent: 'easy' },[39m
+ [90m 866 |[39m [32m    });[39m
+ [90m 867 |[39m [32m    expect(createRes.status()).toBeLessThan(500);[39m[0m
+
+   at user.spec.ts:864
+
+  862 |   // ── Chess Improvements ────────────────────────────────────────────
+  863 |   test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
+> 864 |     const createRes = await page.request.post(\`\${BASE}/chess/create\`, {
+      |                                               ^
+  865 |       data: { color: 'white', opponent: 'easy' },
+  866 |     });
+  867 |     expect(createRes.status()).toBeLessThan(500);
+
+
+```
 
 ---
 
@@ -50,11 +82,11 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24283393867](https://github.com/MX10-AC2N/Nook/actions/runs/24283393867)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24283772671](https://github.com/MX10-AC2N/Nook/actions/runs/24283772671)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24283393867)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24283772671)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -80,4 +112,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-11 13:39 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-11 14:02 UTC*
