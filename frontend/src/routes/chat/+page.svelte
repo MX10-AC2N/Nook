@@ -139,6 +139,7 @@
 
   // picker étendu ouvert pour quel message
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
 
 
   let emojiPickerMsgId = $state<string | null>(null);
