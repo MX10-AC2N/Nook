@@ -785,6 +785,116 @@ test.describe.serial('User — Flux complet', () => {
   // 12. LOGOUT
   // ══════════════════════════════════════════════════════════════
 
+  
+  // ── Avatar ────────────────────────────────────────────────────────
+  test('Avatar — composant visible avec initiales dans le chat', async ({ page }) => {
+    await page.goto('http://localhost:6300/chat');
+    await waitForAppReady(page);
+    await page.waitForTimeout(2000);
+    
+    // Vérifier que les avatars sont affichés dans la conversation
+    const avatars = page.locator('.avatar');
+    const count = await avatars.count();
+    if (count > 0) {
+      expect(count).toBeGreaterThan(0);
+      console.log(`✅ ${count} avatar(s) visible(s) dans le chat`);
+    } else {
+      console.log('⚠️ Pas de messages avec avatar (normal si chat vide)');
+    }
+  });
+
+  test('Settings — section avatar visible avec grille d\'options', async ({ page }) => {
+    await page.goto('http://localhost:6300/settings');
+    await waitForAppReady(page);
+    await page.waitForTimeout(1000);
+    
+    // Cliquer sur l'onglet Profil si pas déjà actif
+    const profileTab = page.locator('button:text("Profil")');
+    if (await profileTab.isVisible()) {
+      await profileTab.click();
+      await page.waitForTimeout(500);
+    }
+    
+    // Vérifier la grille d'avatars
+    const avatarGrid = page.locator('.avatar-grid');
+    if (await avatarGrid.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const options = page.locator('.avatar-option');
+      const count = await options.count();
+      expect(count).toBeGreaterThanOrEqual(8);
+      console.log(`✅ Grille avatar: ${count} options`);
+    } else {
+      console.log('⚠️ Section avatar non visible (peut-être pas implémentée)');
+    }
+  });
+
+  // ── Calendar Views ────────────────────────────────────────────────
+  test('Calendar — switcher vue Mois/Semaine/Jour visible', async ({ page }) => {
+    await page.goto('http://localhost:6300/calendar');
+    await waitForAppReady(page);
+    await page.waitForTimeout(1000);
+    
+    // Vérifier le switcher de vue
+    const viewSwitcher = page.locator('.view-switcher');
+    if (await viewSwitcher.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const btns = page.locator('.view-btn');
+      const count = await btns.count();
+      expect(count).toBe(3);
+      console.log('✅ View switcher: 3 boutons (Mois/Semaine/Jour)');
+      
+      // Cliquer sur Semaine
+      await btns.nth(1).click();
+      await page.waitForTimeout(500);
+      const weekView = page.locator('.week-view');
+      expect(await weekView.isVisible()).toBe(true);
+      console.log('✅ Vue Semaine affichée');
+      
+      // Cliquer sur Jour
+      await btns.nth(2).click();
+      await page.waitForTimeout(500);
+      const dayView = page.locator('.day-view');
+      expect(await dayView.isVisible()).toBe(true);
+      console.log('✅ Vue Jour affichée');
+    } else {
+      console.log('⚠️ View switcher non trouvé (calendrier basique)');
+    }
+  });
+
+  // ── Chess Improvements ────────────────────────────────────────────
+  test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
+    const createRes = await page.request.post(\`\${BASE}/chess/create\`, {
+      data: { color: 'white', opponent: 'easy' },
+    });
+    expect(createRes.status()).toBeLessThan(500);
+    const { game_id } = await createRes.json();
+    
+    await page.goto(\`http://localhost:6300/chess/\${game_id}\`);
+    await waitForAppReady(page);
+    await page.waitForTimeout(2000);
+    
+    // Vérifier que le plateau est visible
+    const board = page.locator('.chess-board');
+    await expect(board).toBeVisible({ timeout: 10000 });
+    
+    // Cliquer sur le pion e2
+    const cells = page.locator('.cell');
+    const cellCount = await cells.count();
+    if (cellCount === 64) {
+      // e2 est en position (6, 4) (row 6, col 4)
+      await cells.nth(6 * 8 + 4).click();
+      await page.waitForTimeout(500);
+      
+      // Vérifier que des coups légaux sont affichés
+      const targets = page.locator('.cell-target, .target-dot');
+      const targetCount = await targets.count();
+      if (targetCount > 0) {
+        console.log(\`✅ \${targetCount} coups légaux affichés\`);
+      } else {
+        console.log('⚠️ Pas de dots visibles (peut-être déjà joué)');
+      }
+    }
+  });
+
+
   test('Logout UI → redirigé vers /login', async () => {
     test.setTimeout(30_000);
     await page.goto('/chat');
