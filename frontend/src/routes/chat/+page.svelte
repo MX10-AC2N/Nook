@@ -133,7 +133,7 @@
   // ─────────────────────────────────────────────────────────────────
   // Réactions aux messages
   // ─────────────────────────────────────────────────────────────────
-  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
+  
   // reactions : Map<msgId, { counts: Record<emoji, string[]>, myEmoji: string|null }>
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   // picker étendu ouvert pour quel message
