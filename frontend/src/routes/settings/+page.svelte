@@ -3,6 +3,7 @@
 -->
 <script lang="ts">
   import Icon from '$lib/components/Icon.svelte';
+  import Avatar from '$lib/components/Avatar.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -17,6 +18,22 @@
   let saving           = $state(false);
   let activeTab        = $state<'profile' | 'security' | 'appearance'>('profile');
   let selectedTheme    = $state('jardin-secret');
+  let avatarUrl        = $state<string | null>(null);
+  let avatarUploading  = $state(false);
+  let avatarError      = $state('');
+
+  // Default avatar options (emoji-based)
+  const avatarOptions = [
+    { id: null, label: 'Initiales', icon: '🔤' },
+    { id: '/avatars/avatar1.png', label: 'Famille', icon: '👨‍👩‍👧‍👦' },
+    { id: '/avatars/avatar2.png', label: 'Maison', icon: '🏠' },
+    { id: '/avatars/avatar3.png', label: 'Étoile', icon: '⭐' },
+    { id: '/avatars/avatar4.png', label: 'Cœur', icon: '❤️' },
+    { id: '/avatars/avatar5.png', label: 'Soleil', icon: '☀️' },
+    { id: '/avatars/avatar6.png', label: 'Lune', icon: '🌙' },
+    { id: '/avatars/avatar7.png', label: 'Arbre', icon: '🌳' },
+    { id: '/avatars/avatar8.png', label: 'Chat', icon: '🐱' },
+  ];
   let darkMode         = $state(false);
 
   // ── Push notifications ────────────────────────────────────────────────────
@@ -522,5 +539,45 @@
     .settings-container { padding: 1rem 0.75rem; }
     .btn { width: 100%; }
     .toggle-label { flex-direction: row; }
+  }
+
+  .avatar-section {
+    margin-bottom: 1.5rem;
+  }
+  .avatar-section label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+  }
+  .avatar-preview {
+    margin-bottom: 1rem;
+  }
+  .avatar-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.5rem;
+  }
+  .avatar-option {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .avatar-option:hover {
+    border-color: var(--accent-color, #4ade80);
+    transform: scale(1.1);
+  }
+  .avatar-option.selected {
+    border-color: var(--accent-color, #4ade80);
+    border-width: 3px;
+    background: var(--bg-accent, #dcfce7);
   }
 </style>
