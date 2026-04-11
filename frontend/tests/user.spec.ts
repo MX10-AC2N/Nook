@@ -857,9 +857,12 @@ test.describe.serial('User — Flux complet', () => {
     const createRes = await page.request.post(`${BASE}/chess/create`, {
       data: { color: 'white', opponent: 'easy' },
     });
-    expect(createRes.status()).toBeLessThan(500);
+    console.log('Chess create status:', createRes.status());
     const createData = await createRes.json();
-    const game_id = createData.game_id || createData.id;
+    console.log('Chess create response:', JSON.stringify(createData));
+    expect(createRes.status()).toBeLessThan(500);
+    const game_id = createData.game_id || createData.id || createData.game?.id;
+    console.log('Extracted game_id:', game_id);
     expect(game_id).toBeTruthy();
     
     // Naviguer vers la partie
