@@ -858,7 +858,8 @@ test.describe.serial('User — Flux complet', () => {
       data: { color: 'white', opponent: 'easy' },
     });
     expect(createRes.status()).toBeLessThan(500);
-    const { game_id } = await createRes.json();
+    const createData = await createRes.json();
+    const game_id = createData.game_id || createData.id;
     expect(game_id).toBeTruthy();
     
     // Naviguer vers la partie
