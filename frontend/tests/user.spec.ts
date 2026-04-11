@@ -851,37 +851,37 @@ test.describe.serial('User — Flux complet', () => {
 
   // ── Chess Improvements ────────────────────────────────────────────
   test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
+    test.setTimeout(45_000);
+    
+    // Créer une partie vs IA
     const createRes = await page.request.post(`${BASE}/chess/create`, {
       data: { color: 'white', opponent: 'easy' },
     });
     expect(createRes.status()).toBeLessThan(500);
     const { game_id } = await createRes.json();
+    expect(game_id).toBeTruthy();
     
-    await page.goto(`http://localhost:6300/chess/${game_id}`);
+    // Naviguer vers la partie
+    await page.goto(`/chess/${game_id}`);
     await waitForAppReady(page);
-    await page.waitForTimeout(2000);
     
-    // Vérifier que le plateau est visible
-    const board = page.locator('.chess-board');
-    await expect(board).toBeVisible({ timeout: 10000 });
+    // Attendre que le plateau apparaisse (status 'playing')
+    await page.waitForSelector('.chess-board', { timeout: 20_000 });
     
-    // Cliquer sur le pion e2
+    // Cliquer sur le pion e2 (row 6, col 4)
     const cells = page.locator('.cell');
+    await expect(cells.first()).toBeVisible({ timeout: 10_000 });
     const cellCount = await cells.count();
-    if (cellCount === 64) {
-      // e2 est en position (6, 4) (row 6, col 4)
-      await cells.nth(6 * 8 + 4).click();
-      await page.waitForTimeout(500);
-      
-      // Vérifier que des coups légaux sont affichés
-      const targets = page.locator('.cell-target, .target-dot');
-      const targetCount = await targets.count();
-      if (targetCount > 0) {
-        console.log(`✅ ${targetCount} coups légaux affichés`);
-      } else {
-        console.log('⚠️ Pas de dots visibles (peut-être déjà joué)');
-      }
-    }
+    expect(cellCount).toBe(64);
+    
+    await cells.nth(6 * 8 + 4).click();
+    await page.waitForTimeout(500);
+    
+    // Vérifier que des coups légaux sont affichés
+    const targets = page.locator('.cell-target, .target-dot');
+    const targetCount = await targets.count();
+    expect(targetCount).toBeGreaterThan(0);
+    console.log(`✅ ${targetCount} coups légaux affichés`);
   });
 
 
