@@ -861,7 +861,7 @@ test.describe.serial('User — Flux complet', () => {
 
   // ── Chess Improvements ────────────────────────────────────────────
   test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
-    const createRes = await page.request.post(${BASE}/chess/create`, {
+    const createRes = await page.request.post(`${BASE}/chess/create`, {
       data: { color: 'white', opponent: 'easy' },
     });
     expect(createRes.status()).toBeLessThan(500);
