@@ -15,6 +15,11 @@
     setActiveConv,
     disconnectWs,
     requestNotificationPermission,
+  
+    countReactions,
+    toggleReaction,
+    loadReactions,
+    reactions,
   } from '$lib/chatStore.svelte.ts';
   import { sanitizeHtml } from '$lib/sanitize';
   import {
