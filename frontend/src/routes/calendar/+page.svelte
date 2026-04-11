@@ -23,9 +23,30 @@
   let editMode     = $state(false);
   let editData     = $state({ title: '', date: '', time: '', description: '' });
   let editSaving   = $state(false);
+  let viewMode     = $state<'month' | 'week' | 'day'>('month');
 
   const today    = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  function getWeekDays(): Date[] {
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - (start.getDay() === 0 ? 6 : start.getDay() - 1));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }
+
+  function isToday(d: Date): boolean {
+    const t = new Date();
+    return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear();
+  }
+
+  function getEventsForDate(d: Date): CalEvent[] {
+    const dateStr = \`\${d.getFullYear()}-\${String(d.getMonth()+1).padStart(2,'0')}-\${String(d.getDate()).padStart(2,'0')}\`;
+    return events.filter(e => e.date === dateStr).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  }
+
   const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
   onMount(async () => {
@@ -355,4 +376,81 @@
     .cal-header { flex-direction: column; gap: .5rem; }
     .add-event-btn { width: 100%; text-align: center; }
   }
+
+  .view-switcher {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .view-btn {
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+    transition: all 0.2s;
+  }
+  .view-btn.active {
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #1e293b);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .week-view, .day-view {
+    background: var(--bg-primary, #fff);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .week-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--bg-secondary, #f8fafc);
+  }
+  .week-day-hdr {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+  }
+  .week-day-hdr.today { background: var(--accent-bg, #dcfce7); }
+  .week-day-name { display: block; font-size: 0.75rem; color: var(--text-secondary, #64748b); }
+  .week-day-num { display: block; font-weight: 600; }
+  .week-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    min-height: 200px;
+  }
+  .week-col {
+    border-right: 1px solid var(--border-color, #e2e8f0);
+    padding: 4px;
+    min-height: 200px;
+  }
+  .week-col:last-child { border-right: none; }
+  .week-event {
+    background: var(--accent-bg, #dcfce7);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .day-view { padding: 1rem; }
+  .day-event {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background: var(--bg-secondary, #f8fafc);
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+  }
+  .day-event:hover { background: var(--accent-bg, #dcfce7); }
+  .day-event-time { font-weight: 600; min-width: 60px; }
+  .day-event-desc { font-size: 0.85rem; color: var(--text-secondary, #64748b); margin-top: 4px; }
+  .no-events { text-align: center; color: var(--text-secondary, #64748b); padding: 2rem; }
 </style>
