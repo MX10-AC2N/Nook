@@ -19,7 +19,6 @@
     countReactions,
     toggleReaction,
     loadReactions,
-    reactions,
   } from '$lib/chatStore.svelte.ts';
   import { sanitizeHtml } from '$lib/sanitize';
   import {
@@ -141,6 +140,7 @@
   
 
   // picker étendu ouvert pour quel message
+  let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   let emojiPickerMsgId = $state<string | null>(null);
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
