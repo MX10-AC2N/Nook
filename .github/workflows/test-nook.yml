@@ -126,6 +126,29 @@ jobs:
           npm ci --legacy-peer-deps --no-audit --no-fund
           npx playwright install --with-deps chromium
 
+      - name: Diagnostic Playwright
+        working-directory: ./frontend
+        run: |
+          echo "=== Vérification de l'environnement ==="
+          echo "Node: $(node --version)"
+          echo "NPM: $(npm --version)"
+          echo "Playwright: $(npx playwright --version 2>/dev/null || echo 'non installé')"
+          
+          echo ""
+          echo "=== Fichiers de tests ==="
+          ls -la tests/
+          echo ""
+          echo "=== Contenu de playwright.config.ts ==="
+          head -30 playwright.config.ts
+          
+          echo ""
+          echo "=== Vérification du serveur ==="
+          curl -s http://localhost:6300/api/health || echo "Serveur non accessible"
+          
+          echo ""
+          echo "=== Test Playwright list ==="
+          npx playwright test --list 2>&1 || true
+
       # - Shell Integration Tests
       - name: Test Health & Auth
         run: |
