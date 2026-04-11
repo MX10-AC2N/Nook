@@ -140,57 +140,6 @@
   // picker étendu ouvert pour quel message
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
 
-  // ── Reaction functions ──
-  function countReactions(msgId: string): { emoji: string; count: number; names: string }[] {
-    const r = reactions[msgId];
-    if (!r || !r.counts) return [];
-    return Object.entries(r.counts)
-      .filter(([, names]) => Array.isArray(names) && names.length > 0)
-      .map(([emoji, names]) => ({
-        emoji,
-        count: names.length,
-        names: names.join(', ')
-      }))
-      .sort((a, b) => b.count - a.count);
-  }
-
-  async function toggleReaction(msgId: string, emoji: string): Promise<void> {
-    try {
-      const cId = chatStore.activeConvId || 'default_global';
-      const current = reactions[msgId];
-      if (current?.myEmoji === emoji) {
-        // Remove reaction
-        const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, {
-          method: 'DELETE',
-          credentials: 'include'
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
-      } else {
-        // Add/change reaction
-        const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ emoji })
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
-      }
-    } catch (err) { console.error('[Chat] toggleReaction:', err); }
-  }
-
-  async function loadReactions(msgId: string): Promise<void> {
-    try {
-      const cId = chatStore.activeConvId || 'default_global';
-      const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
-    } catch (err) { console.error('[Chat] loadReactions:', err); }
-  }
 
   let emojiPickerMsgId = $state<string | null>(null);
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
