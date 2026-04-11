@@ -410,6 +410,47 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
 }
 
 // -----------------------------------------------------------------
+
+// ── Réactions aux messages ──
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
+let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+
+export function countReactions(msgId: string): { emoji: string; count: number; names: string }[] {
+  const r = reactions[msgId];
+  if (!r || !r.counts) return [];
+  return Object.entries(r.counts)
+    .filter(([, names]) => Array.isArray(names) && names.length > 0)
+    .map(([emoji, names]) => ({
+      emoji,
+      count: names.length,
+      names: names.join(', ')
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export async function toggleReaction(msgId: string, emoji: string): Promise<void> {
+  try {
+    const res = await fetch('/api/reactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ message_id: msgId, emoji })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.reactions) reactions[msgId] = data.reactions;
+  } catch (err) { console.error('[Chat] toggleReaction:', err); }
+}
+
+export async function loadReactions(msgId: string): Promise<void> {
+  try {
+    const res = await fetch(`/api/reactions/${msgId}`, { credentials: 'include' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.reactions) reactions[msgId] = data.reactions;
+  } catch (err) { console.error('[Chat] loadReactions:', err); }
+}
+
 // 1️⃣1️⃣ API — sendEmoji (envoie un emoji comme message standalone)
 // -----------------------------------------------------------------
 
