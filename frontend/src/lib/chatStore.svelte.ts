@@ -431,27 +431,51 @@ export function countReactions(msgId: string): { emoji: string; count: number; n
     .sort((a, b) => b.count - a.count);
 }
 
-export async function toggleReaction(msgId: string, emoji: string): Promise<void> {
+export async function toggleReaction(msgId: string, emoji: string, convId?: string): Promise<void> {
   try {
-    const res = await fetch('/api/reactions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ message_id: msgId, emoji })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    if (data.reactions) reactions[msgId] = data.reactions;
+    // convId comes from active conversation
+    const cId = convId || chatStore.activeConvId || 'default_global';
+    // Check if we already have this emoji — if yes, remove it (toggle off)
+    const current = reactions[msgId];
+    if (current?.myEmoji === emoji) {
+      // Remove reaction
+      const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
+    } else {
+      // Add/change reaction
+      const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ emoji })
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
+    }
   } catch (err) { console.error('[Chat] toggleReaction:', err); }
 }
 
-export async function loadReactions(msgId: string): Promise<void> {
+export async function loadReactions(msgId: string, convId?: string): Promise<void> {
   try {
-    const res = await fetch(`/api/reactions/${msgId}`, { credentials: 'include' });
+    const cId = convId || chatStore.activeConvId || 'default_global';
+    const res = await fetch(`/api/conversations/${cId}/messages/${msgId}/reactions`, { credentials: 'include' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    if (data.reactions) reactions[msgId] = data.reactions;
+    reactions[msgId] = { counts: data.counts || {}, myEmoji: data.my_emoji ?? null };
   } catch (err) { console.error('[Chat] loadReactions:', err); }
+}
+
+export async function loadAllReactions(convId: string): Promise<void> {
+  // Batch load reactions for all visible messages
+  for (const msg of chatStore.messages) {
+    await loadReactions(msg.id, convId);
+  }
 }
 
 // 1️⃣1️⃣ API — sendEmoji (envoie un emoji comme message standalone)
