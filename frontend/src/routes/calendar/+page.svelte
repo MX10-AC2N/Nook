@@ -263,6 +263,7 @@
       </ul>
     {/if}
   </div>
+  {/if}
 </div>
 
 <!-- MODAL AJOUT -->
