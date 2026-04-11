@@ -292,7 +292,7 @@ test.describe.serial('User — Flux complet', () => {
     await msg.dispatchEvent('mouseenter');
     await page.waitForTimeout(300);
 
-    const reactionTrigger = page.locator('.reaction-trigger').last();
+    const reactionTrigger = msg.locator('.reaction-trigger').last();
     await expect(reactionTrigger).toBeVisible({ timeout: 8_000 });
     await reactionTrigger.click();
 
