@@ -213,7 +213,7 @@ def fmt_duration(ms: int) -> str:
     return f"{s:.1f}s"
 
 
-def build_report(pw: dict, docker_warnings: list[str], ctx: dict) -> str:
+def build_report(pw: dict, docker_warnings: list[str], ctx: dict, error_logs: str = "") -> str:
     stats = pw["stats"]
     passed  = stats["passed"]
     failed  = stats["failed"]
@@ -226,6 +226,11 @@ def build_report(pw: dict, docker_warnings: list[str], ctx: dict) -> str:
     status_ok = (failed == 0 and playwright_exit == "0")
     status_icon = "✅" if status_ok else "❌"
     status_text = "SUCCÈS" if status_ok else "ÉCHEC"
+
+    # Check if no tests ran
+    if total == 0:
+        status_icon = "⚠️"
+        status_text = "AUCUN TEST"
 
     run_date    = ctx.get("run_date",    datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"))
     run_url     = ctx.get("run_url",     "#")
