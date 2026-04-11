@@ -268,9 +268,18 @@ jobs:
           export COMMIT_SHA="${{ github.sha }}"
           export BRANCH="${{ github.ref_name }}"
           export REPO="${{ github.repository }}"
-          python3 .github/scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
+          export PLAYWRIGHT_EXIT="${{ steps.playwright.outputs.playwright_exit || '1' }}"
+          
+          # Inclure les erreurs Playwright dans le rapport si le JSON est vide
+          if [ ! -s /tmp/playwright-results.json ] || [ "$(python3 -c "import json; print(json.load(open('/tmp/playwright-results.json')).get('stats',{}).get('expected',0) + json.load(open('/tmp/playwright-results.json')).get('stats',{}).get('unexpected',0))" 2>/dev/null || echo 0)" = "0" ]; then
+            echo "⚠️ Aucun test exécuté - ajout des logs d'erreur au rapport"
+            # Copier les erreurs dans un fichier pour le rapport
+            cp /tmp/playwright-output.txt /tmp/playwright-errors.txt 2>/dev/null || echo "Pas de logs Playwright" > /tmp/playwright-errors.txt
+          fi
+          
+          python3 .github/scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md --errors /tmp/playwright-errors.txt 2>/dev/null || python3 .github/scripts/generate-test-report.py --json /tmp/playwright-results.json --docker /tmp/docker.log --output .claude/TEST_REPORT.md
           echo "Rapport genere"
-          head -20 .claude/TEST_REPORT.md
+          cat .claude/TEST_REPORT.md
 
       - name: Commit TEST_REPORT.md
         if: always()
