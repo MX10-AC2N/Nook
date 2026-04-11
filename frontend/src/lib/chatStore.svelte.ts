@@ -364,9 +364,16 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // Message sent successfully — reload messages from server
-    // (WS may already have pushed the new message, but reload ensures consistency)
+    const msgData = await res.json();
+    // Optimistic update: add message to DOM immediately
+    if (msgData && msgData.id) {
+      const alreadyExists = chatStore.messages.some(m => m.id === msgData.id);
+      if (!alreadyExists) {
+        chatStore.messages = [...chatStore.messages, msgData];
+      }
+    }
     chatStore.connectionError = null;
+    // Also reload from server to get authoritative state
     await loadMessages(conversationId);
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
