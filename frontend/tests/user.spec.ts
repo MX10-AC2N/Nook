@@ -860,7 +860,7 @@ test.describe.serial('User — Flux complet', () => {
     const createData = await createRes.json();
     // Debug: show actual response
     if (!createData.game_id && !createData.id) {
-      throw new Error(\`Chess create failed. Status: \${createRes.status}, Response: \${JSON.stringify(createData)}\`);
+      throw new Error('Chess create failed. Status: ' + createRes.status + ', Response: ' + JSON.stringify(createData));
     }
     expect(createRes.status()).toBeLessThan(500);
     const game_id = createData.game_id || createData.id;
