@@ -681,6 +681,7 @@ pub async fn get_conversation_messages(
 pub struct UpdateProfileRequest {
     pub name: Option<String>,
     pub email: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 pub async fn update_user_profile(
@@ -722,6 +723,21 @@ pub async fn update_user_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "success": false, "message": "Erreur de mise à jour de l'email" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_url) = req.avatar_url {
+        if sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?")
+            .bind(avatar_url.trim())
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour de l'avatar" })),
             );
         }
     }
