@@ -139,8 +139,7 @@
   // Réactions aux messages
   // ─────────────────────────────────────────────────────────────────
   
-  // reactions : Map<msgId, { counts: Record<emoji, string[]>, myEmoji: string|null }>
-  let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -976,7 +975,6 @@
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <!-- File transfer progress -->
 
-
 <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
       <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
       <!-- Bouton message vocal -->
@@ -1733,6 +1731,5 @@
     .message { max-width: 88%; }
     .modal { max-width: 96vw; margin: .75rem; }
   }
-
 
 </style>
