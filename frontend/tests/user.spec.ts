@@ -857,12 +857,13 @@ test.describe.serial('User — Flux complet', () => {
     const createRes = await page.request.post(`${BASE}/chess/create`, {
       data: { color: 'white', opponent: 'easy' },
     });
-    console.log('Chess create status:', createRes.status());
     const createData = await createRes.json();
-    console.log('Chess create response:', JSON.stringify(createData));
+    // Debug: show actual response
+    if (!createData.game_id && !createData.id) {
+      throw new Error(\`Chess create failed. Status: \${createRes.status}, Response: \${JSON.stringify(createData)}\`);
+    }
     expect(createRes.status()).toBeLessThan(500);
-    const game_id = createData.game_id || createData.id || createData.game?.id;
-    console.log('Extracted game_id:', game_id);
+    const game_id = createData.game_id || createData.id;
     expect(game_id).toBeTruthy();
     
     // Naviguer vers la partie
