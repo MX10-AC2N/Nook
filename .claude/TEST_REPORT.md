@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-11 09:51 UTC**
+> Généré par `test-nook.yml` · **2026-04-11 11:42 UTC**
 
 ---
 
@@ -16,8 +16,8 @@
 | **Total** | 0 |
 | **Durée totale** | 0.4s |
 | **Branche** | `develop` |
-| **Commit** | [`f35d701`](https://github.com/MX10-AC2N/Nook/commit/f35d701555d63f3382db8c652ca45521b21d5e22) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24279711526) |
+| **Commit** | [`3f7eb38`](https://github.com/MX10-AC2N/Nook/commit/3f7eb3833a93a6c84a608c8d041513de6d9de581) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24281458016) |
 
 ---
 
@@ -50,11 +50,11 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24279711526](https://github.com/MX10-AC2N/Nook/actions/runs/24279711526)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24281458016](https://github.com/MX10-AC2N/Nook/actions/runs/24281458016)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24279711526)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24281458016)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -80,4 +80,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-11 09:51 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-11 11:42 UTC*
