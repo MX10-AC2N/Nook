@@ -419,6 +419,30 @@ def build_report(pw: dict, docker_warnings: list[str], ctx: dict, error_logs: st
                     lines.append("```")
                     lines.append("")
         lines += ["---", ""]
+    elif total == 0:
+        # No tests ran - show diagnostic
+        lines += [
+            "## ⚠️ Aucun test exécuté",
+            "",
+            "Playwright n'a trouvé ou exécuté aucun test.",
+            "",
+            "**Causes possibles :**",
+            "- Serveur non accessible (http://localhost:6300)",
+            "- Fichiers .spec.ts non trouvés dans tests/",
+            "- Configuration Playwright incorrecte",
+            "- Erreur de compilation TypeScript",
+            "",
+        ]
+        if error_logs:
+            lines += [
+                "### 📋 Logs Playwright",
+                "",
+                "```",
+                error_logs[:3000],
+                "```",
+                "",
+            ]
+        lines += ["---", ""]
     else:
         lines += [
             "## ✅ Aucun échec",
