@@ -333,6 +333,7 @@
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
     await loadMessages(conv.id);
+      await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
     await Promise.resolve();
     if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -595,6 +596,7 @@
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
+      await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
     // Demande permission notifications (non-bloquant)
