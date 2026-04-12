@@ -1715,6 +1715,7 @@
   }
 
   /* ─── Mobile ─── */
+  @media (max-width: 640px) {
   /* ════════════════════════════════════════════════════════
      MOBILE — Responsive styles (< 640px)
      ════════════════════════════════════════════════════════ */
@@ -1877,4 +1878,5 @@
   .conversation-info .last-msg {
     font-size: .72rem;
   }
+  } /* end @media */
 </style>
