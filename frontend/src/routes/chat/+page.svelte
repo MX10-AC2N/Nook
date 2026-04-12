@@ -1878,17 +1878,4 @@
     font-size: .72rem;
   }
 }
-
-
-  .message-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
-  }
-  .message-header .message-sender {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text-secondary, #888);
-  }
 </style>
