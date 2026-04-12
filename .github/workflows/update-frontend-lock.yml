@@ -13,31 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Update pnpm-lock.yaml
+      - name: Update package-lock.json
         working-directory: frontend
-        run: pnpm install --no-frozen-lockfile
+        run: npm install --package-lock-only
 
-      - name: Commit pnpm-lock.yaml
+      - name: Commit package-lock.json
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add frontend/pnpm-lock.yaml
+          git add frontend/package-lock.json
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
             git fetch origin ${{ github.ref_name }}
             git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
-            git add frontend/pnpm-lock.yaml
-            git commit -m "chore: Update pnpm-lock.yaml"
+            git add frontend/package-lock.json
+            git commit -m "chore: Update package-lock.json"
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
           fi
