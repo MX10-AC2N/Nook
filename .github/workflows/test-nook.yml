@@ -309,12 +309,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Reset any modified files (node_modules, etc.)
+          git checkout -- . 2>/dev/null || true
+          git clean -fd 2>/dev/null || true
           git add .claude/TEST_REPORT.md
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
             git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
             git add .claude/TEST_REPORT.md
             git commit -m "ci: TEST_REPORT.md [run ${{ github.run_id }}]"
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
