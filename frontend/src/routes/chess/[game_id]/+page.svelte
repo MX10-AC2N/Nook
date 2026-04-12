@@ -798,4 +798,84 @@
   .cell.last-move {
     background: rgba(255, 255, 100, 0.35) !important;
   }
+
+  /* Enhanced piece animations */
+  .piece {
+    transition: transform 0.15s ease-out, opacity 0.15s ease;
+  }
+  .piece.moving {
+    animation: piece-land 0.25s ease-out;
+  }
+  .piece.captured {
+    animation: piece-capture 0.3s ease-out forwards;
+  }
+  @keyframes piece-land {
+    0% { transform: scale(1.2); filter: brightness(1.3); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  @keyframes piece-capture {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.5) rotate(180deg); opacity: 0; }
+  }
+  
+  /* Legal move indicators with ripple effect */
+  .cell-target {
+    position: relative;
+  }
+  .cell-target::after {
+    content: '';
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: target-ripple 1s ease-in-out infinite;
+  }
+  @keyframes target-ripple {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
+  }
+  
+  /* Capture indicator with danger highlight */
+  .cell-capture {
+    position: relative;
+  }
+  .cell-capture::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 3px solid rgba(220, 50, 50, 0.6);
+    border-radius: 50%;
+    animation: capture-pulse 0.8s ease-in-out infinite;
+  }
+  @keyframes capture-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  
+  /* Last move highlight with glow */
+  .cell.last-move {
+    box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0.5);
+  }
+  
+  /* Selected piece glow */
+  .cell.selected {
+    box-shadow: inset 0 0 0 3px rgba(74, 222, 128, 0.8);
+  }
+  
+  /* Move history item animation */
+  .move-item {
+    transition: all 0.2s ease;
+    animation: move-fade-in 0.3s ease;
+  }
+  .move-item:hover {
+    background: var(--bg-tertiary, #f1f5f9);
+  }
+  @keyframes move-fade-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>
