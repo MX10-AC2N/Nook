@@ -125,6 +125,7 @@
   }
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let sidebarOpen = $state(false);
 
   // État édition de message
   let editingMsgId   = $state<string | null>(null);
@@ -1711,8 +1712,169 @@
   }
 
   /* ─── Mobile ─── */
-  @media (max-width: 640px) {
+  /* ════════════════════════════════════════════════════════
+     MOBILE — Responsive styles (< 640px)
+     ════════════════════════════════════════════════════════ */
+
+  /* ── Layout: sidebar hidden by default, overlay mode ── */
+  .chat-page {
+    position: relative;
   }
+
+  .conversations-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85vw;
+    max-width: 320px;
+    height: 100%;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+  }
+
+  .conversations-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop when sidebar open */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 99;
+  }
+
+  .sidebar-backdrop.visible {
+    display: block;
+  }
+
+  /* Chat main takes full width */
+  .chat-main {
+    width: 100% !important;
+    flex: 1 !important;
+  }
+
+  /* ── Chat header: hamburger + compact ── */
+  .chat-header {
+    padding: .5rem .6rem !important;
+    gap: .4rem;
+  }
+
+  .btn-menu-mobile {
+    display: flex !important;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+
+  .btn-menu-mobile:active {
+    background: var(--bg-secondary, #f1f5f9);
+  }
+
+  /* ── Messages: full width, smaller padding ── */
+  .message {
+    max-width: 92% !important;
+  }
+
+  .message-content {
+    font-size: .92rem;
+    padding: .45rem .7rem;
+  }
+
+  /* ── Touch targets: minimum 44px ── */
+  .conversation-item {
+    padding: .65rem .6rem !important;
+    min-height: 48px;
+  }
+
+  .msg-action-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  button {
+    min-height: 36px;
+  }
+
+  /* ── Input area: compact ── */
+  .input-area {
+    padding: .4rem .5rem !important;
+  }
+
+  .message-input {
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: .5rem .7rem;
+  }
+
+  .input-actions {
+    gap: .2rem;
+  }
+
+  .input-actions button {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+
+  /* ── Emoji picker: smaller ── */
+  .emoji-picker,
+  [data-testid="emoji-picker"] {
+    max-width: 280px !important;
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  /* ── Reactions: compact ── */
+  .reactions-row {
+    max-width: 100%;
+  }
+
+  .reaction-pill {
+    font-size: .7rem;
+    padding: .15rem .4rem;
+  }
+
+  /* ── Audio/Video call buttons ── */
+  .btn-call {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* ── Scrollbar: thinner on mobile ── */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  /* ── GIF viewer ── */
+  :global(.chat-gif) {
+    max-width: 260px !important;
+    max-height: 260px !important;
+  }
+
+  /* ── Hide desktop-only elements ── */
+  .sidebar-header h2 {
+    font-size: .7rem;
+  }
+
+  /* ── Conversation info: smaller ── */
+  .conversation-info .name {
+    font-size: .85rem;
+  }
+
+  .conversation-info .last-msg {
+    font-size: .72rem;
+  }
+}
 
 
   .message-header {
