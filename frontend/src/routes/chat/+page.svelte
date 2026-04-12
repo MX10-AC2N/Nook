@@ -658,6 +658,30 @@
   });
 
   // Rafraîchir la réaction d'un seul message à la réception du signal WS
+  // Handle typing events from WebSocket
+  $effect(() => {
+    if (chatStore.ws) {
+      const handler = (event: MessageEvent) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'typing' && msg.conversation_id === activeConvId) {
+            if (!typingUsers.includes(msg.user_id)) {
+              typingUsers = [...typingUsers, msg.user_id];
+            }
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+              typingUsers = typingUsers.filter(u => u !== msg.user_id);
+            }, 5000);
+          } else if (msg.type === 'stop_typing' && msg.conversation_id === activeConvId) {
+            typingUsers = typingUsers.filter(u => u !== msg.user_id);
+          }
+        } catch {}
+      };
+      chatStore.ws.addEventListener('message', handler);
+      return () => chatStore.ws?.removeEventListener('message', handler);
+    }
+  });
+
   $effect(() => {
     const update = chatStore.lastReactionUpdate;
     if (!update || update.conversationId !== activeConvId) return;
