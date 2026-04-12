@@ -282,26 +282,27 @@ test.describe.serial('User — Flux complet', () => {
     const msg = page.locator('.message').last();
     await expect(msg).toBeVisible({ timeout: 20_000 });
 
-    // Hover pour afficher les actions
-    await msg.hover();
-    await page.waitForTimeout(500);
+    // Click sur le message pour déclencher les actions (plus fiable que hover en CI)
+    await msg.click();
+    await page.waitForTimeout(300);
 
-    // Cliquer sur le bouton réaction
-    const reactionTrigger = msg.locator('.reaction-trigger').last();
+    // Cliquer sur le bouton réaction via data-testid
+    const reactionTrigger = page.locator('[data-testid="reaction-trigger"]').last();
     await expect(reactionTrigger).toBeVisible({ timeout: 10_000 });
     await reactionTrigger.click();
 
-    // Picker visible
-    const picker = page.locator('.emoji-picker').last();
+    // Picker visible via data-testid
+    const picker = page.locator('[data-testid="emoji-picker"]').last();
     await expect(picker).toBeVisible({ timeout: 5_000 });
 
-    // Cliquer sur un emoji
-    await picker.locator('.emoji-quick-btn').first().click();
+    // Cliquer sur un emoji via data-testid
+    await page.locator('[data-testid="emoji-quick-btn"]').first().click();
     await page.waitForTimeout(2000);
 
-    // Vérifier que la pill est visible
-    await expect(msg.locator('.reaction-pill')).toBeVisible({ timeout: 10_000 });
-    const pillText = await msg.locator('.reaction-pill').first().textContent();
+    // Vérifier que la pill est visible via data-testid
+    const pill = page.locator('[data-testid="reaction-pill"]').first();
+    await expect(pill).toBeVisible({ timeout: 10_000 });
+    const pillText = await pill.textContent();
     expect(pillText).toContain('1');
     console.log('✅ Réaction UI: picker → pill count=1');
   });
