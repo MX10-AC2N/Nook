@@ -663,9 +663,9 @@ async fn handle_ice_config(
 /// Routes API WebRTC — à merger dans protected_routes (auth requise).
 pub fn webrtc_api_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
-        .route("/api/webrtc/ice-config", get(handle_ice_config))
-        .route("/api/webrtc/offer", post(handle_offer))
-        .route("/api/webrtc/answer", post(handle_answer))
+        .route("/webrtc/ice-config", get(handle_ice_config))
+        .route("/webrtc/offer", post(handle_offer))
+        .route("/webrtc/answer", post(handle_answer))
 }
 
 /// Route WebSocket — authentifiée via cookie dans ws_handler lui-même.
