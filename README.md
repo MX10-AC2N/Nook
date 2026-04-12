@@ -150,6 +150,11 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 
 ---
 
+## 📚 Documentation
+
+- [API Reference](docs/API.md) — Tous les endpoints REST + WebSocket events
+- [CHANGELOG.md](CHANGELOG.md) — Historique des versions
+
 ## Architecture (pour les curieux)
 
 ```
