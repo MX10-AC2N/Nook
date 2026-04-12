@@ -209,6 +209,11 @@ class WebRTCCallManager {
     const pc = new RTCPeerConnection({
       iceServers,
       iceCandidatePoolSize: 10,
+      // Latency optimizations
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      // Prefer low-latency codecs
+      encodedInsertableStreams: false,
     });
 
     // ── File Transfer Data Channel ──
