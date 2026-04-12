@@ -1368,3 +1368,47 @@ Finalisation des features restantes pour v0.5.0-beta.2 : drag-drop calendrier, P
 - CI: 163/163 PASS
 - Backend: v0.5.0-beta.1 (bump pending)
 - Git: commits poussees
+
+
+---
+
+## Session 50 — 2026-04-12 (Debug & Chat Supervisor)
+
+### Contexte
+Suite de la session 49. Tests et corrections sur Nook déployé. Chat Supervisor pour améliorer l'UX.
+
+### Progres Realises
+- **E2EE fix**: `crypto_pwhash` absent du build libsodium → remplacé par `crypto_generichash` (BLAKE2b)
+- **Sodium unifié**: `crypto.ts` utilise `getSodiumInstance()` de `sodium.svelte.js` au lieu d'un import séparé
+- **Mobile CSS**: sidebar overlay animé (85vw, position: fixed), hamburger ☰, backdrop
+- **ICE config**: route `/webrtc/ice-config` (sans `/api` prefix car nesté)
+- **Typing indicator**: UI (points animés) + backend WS handler + frontend event handler
+- **Playwright + Lightpanda**: installés pour screenshots et debug
+- **Screenshots**: 26 captures d'écran commitées dans `docs/screenshots/`
+- **Debug**: logging ajouté à `loadMessages()` pour diagnostic
+
+### Bugs Corriges
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| E2EE "Primitives manquantes" | crypto.ts | crypto_generichash au lieu de crypto_pwhash |
+| Sodium instances multiples | crypto.ts | Import partagé depuis sodium.svelte.js |
+| Sidebar ne se ferme pas | +page.svelte | sidebarOpen = false AVANT les appels async |
+| CSS mobile pas compilé | +page.svelte | .chat-area (pas .chat-main), @media wrapper |
+| Hamburger pas visible | +page.svelte | ☰ au lieu de <Icon> (Icon échoue silencieusement) |
+| ICE config 404 | webrtc.rs | Route /webrtc/ice-config sans /api prefix |
+| Messages pas visibles | chatStore | Debug logging ajouté (investigation en cours) |
+
+### Prochaines Etapes
+- [ ] Investiguer pourquoi `loadMessages` ne met pas à jour `chatStore.messages`
+- [ ] Implémenter read receipts
+- [ ] Virtual scrolling pour performance
+- [ ] Message search/filter
+- [ ] Version bump final (0.5.0 → 0.5.1)
+
+### Etat Final
+- Branche: develop
+- CI: 163/163 PASS
+- Backend: v0.5.0
+- Docker: déployé sur Zimaboard (192.168.1.192:6300)
+- Comptes: hermes-bot + hermes validés
+- Git: commits pushés
