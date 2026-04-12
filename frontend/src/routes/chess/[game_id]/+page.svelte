@@ -334,6 +334,17 @@
                 </li>
               {/each}
             </ol>
+
+            <!-- PGN Notation -->
+            <div class="pgn-section">
+              <div class="pgn-header">
+                <span class="pgn-label">PGN</span>
+                <button class="pgn-copy-btn" onclick={copyPgn} title="Copier PGN">
+                  {pgnCopied ? '✓ Copié' : '📋 Copier'}
+                </button>
+              </div>
+              <code class="pgn-code">{chessStore.toPgn()}</code>
+            </div>
           </div>
         {/if}
 
