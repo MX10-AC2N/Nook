@@ -709,7 +709,7 @@
 
     <header class="chat-header">
       <button class="btn-menu-mobile" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
-        <Icon name="menu" size="22" />
+        ☰
       </button>
       {#if renamingConv}
         <input
