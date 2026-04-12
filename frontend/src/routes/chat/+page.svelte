@@ -1756,7 +1756,7 @@
   }
 
   /* Chat main takes full width */
-  .chat-main {
+  .chat-area {
     width: 100% !important;
     flex: 1 !important;
   }
