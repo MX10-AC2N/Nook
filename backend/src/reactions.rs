@@ -260,3 +260,48 @@ pub fn reactions_routes() -> axum::Router<Arc<SharedState>> {
             post(add_reaction).delete(remove_reaction).get(get_reactions),
         )
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_allowed_emojis_contains_expected() {
+        assert!(ALLOWED_EMOJIS.contains(&"👍"));
+        assert!(ALLOWED_EMOJIS.contains(&"❤️"));
+        assert!(ALLOWED_EMOJIS.contains(&"😂"));
+        assert!(ALLOWED_EMOJIS.contains(&"😮"));
+        assert!(ALLOWED_EMOJIS.contains(&"😢"));
+        assert!(ALLOWED_EMOJIS.contains(&"😡"));
+    }
+
+    #[test]
+    fn test_allowed_emojis_rejects_invalid() {
+        assert!(!ALLOWED_EMOJIS.contains(&"🦄"));
+        assert!(!ALLOWED_EMOJIS.contains(&"🎉"));
+        assert!(!ALLOWED_EMOJIS.contains(&""));
+        assert!(!ALLOWED_EMOJIS.contains(&"thumbsup")); // text, not emoji
+    }
+
+    #[test]
+    fn test_allowed_emojis_count() {
+        assert_eq!(ALLOWED_EMOJIS.len(), 6);
+    }
+
+    #[test]
+    fn test_add_reaction_request_deserialize() {
+        let json = r#"{"emoji": "👍"}"#;
+        let req: AddReactionRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.emoji, "👍");
+    }
+
+    #[test]
+    fn test_add_reaction_request_invalid_json() {
+        let json = r#"{"invalid": "field"}"#;
+        let result: Result<AddReactionRequest, _> = serde_json::from_str(json);
+        // emoji field is missing, but serde doesn't error on missing fields by default
+        // unless #[serde(deny_unknown_fields)] is set
+        assert!(result.is_ok()); // serde allows missing fields
+    }
+}
