@@ -123,15 +123,37 @@ pub async fn register(
     let user_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().timestamp();
 
+    // Check if invite token is valid → auto-approve
+    let auto_approve = if let Some(ref token) = payload.invite_token {
+        let valid: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM invite_links WHERE token = ? AND expires_at > ?)"
+        )
+        .bind(token)
+        .bind(created_at)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+        if valid {
+            let _ = sqlx::query("DELETE FROM invite_links WHERE token = ?")
+                .bind(token)
+                .execute(&state.db)
+                .await;
+        }
+        valid
+    } else {
+        false
+    };
+
     let result = sqlx::query(
         "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)\
-         VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)",
+         VALUES (?, ?, ?, ?, ?, 'user', ?, 0, ?)",
     )
     .bind(&user_id)
     .bind(&payload.username)
     .bind(&payload.email)
     .bind(&hashed_password)
     .bind(&payload.name)
+    .bind(if auto_approve { 1i32 } else { 0i32 })
     .bind(created_at)
     .execute(&state.db)
     .await;
