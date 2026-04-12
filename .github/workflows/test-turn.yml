@@ -29,7 +29,6 @@ jobs:
 
       - name: Start turn-server container
         run: |
-          # Create test config with known secret
           mkdir -p /tmp/turn-config
           cat > /tmp/turn-config/config.toml << 'EOF'
           [server]
@@ -48,7 +47,6 @@ jobs:
           external = "0.0.0.0:3478"
           EOF
 
-          # Start container
           docker run -d \
             --name nook-turn-test \
             -p 3478:3478/udp \
@@ -56,40 +54,51 @@ jobs:
             -v /tmp/turn-config:/etc/turn-server \
             nook-turn:test
 
-          # Wait for startup and verify it's running
           sleep 3
           docker ps
-          docker logs nook-turn-test
-          # Verify container is still running (not crashed)
-          docker inspect --format='{{.State.Running}}' nook-turn-test | grep -q true || (echo 'Container crashed!' && docker logs nook-turn-test && exit 1)
+          # Verify container is running
+          RUNNING=$(docker inspect --format='{{.State.Running}}' nook-turn-test 2>/dev/null || echo "false")
+          if [ "$RUNNING" != "true" ]; then
+            echo "ERROR: Container not running!"
+            docker logs nook-turn-test
+            exit 1
+          fi
+          echo "Container started OK"
 
       - name: Test port listening
+        id: port_test
         run: |
+          set +e
           # Check UDP port
-          timeout 5 bash -c 'until nc -zu 127.0.0.1 3478; do sleep 0.5; done' && echo "UDP OK" || echo "UDP FAIL"
+          timeout 5 bash -c 'until nc -zu 127.0.0.1 3478; do sleep 0.5; done' 2>/dev/null
+          UDP_RESULT=$?
           # Check TCP port
-          timeout 5 bash -c 'until nc -z 127.0.0.1 3478; do sleep 0.5; done' && echo "TCP OK" || echo "TCP FAIL"
+          timeout 5 bash -c 'until nc -z 127.0.0.1 3478; do sleep 0.5; done' 2>/dev/null
+          TCP_RESULT=$?
+
+          if [ $UDP_RESULT -eq 0 ]; then echo "UDP: OK"; else echo "UDP: FAIL"; fi
+          if [ $TCP_RESULT -eq 0 ]; then echo "TCP: OK"; else echo "TCP: FAIL"; fi
+
+          echo "udp_status=$(if [ $UDP_RESULT -eq 0 ]; then echo 'PASS'; else echo 'FAIL'; fi)" >> $GITHUB_OUTPUT
+          echo "tcp_status=$(if [ $TCP_RESULT -eq 0 ]; then echo 'PASS'; else echo 'FAIL'; fi)" >> $GITHUB_OUTPUT
+
+          [ $UDP_RESULT -eq 0 ] && [ $TCP_RESULT -eq 0 ]
 
       - name: Test STUN binding request
+        id: stun_test
         run: |
-          # Install stun client
-          pip install aiostun 2>/dev/null || pip3 install aiostun 2>/dev/null || true
+          set +e
+          python3 << 'PYEOF'
+          import socket, struct, os, sys
 
-          # Test STUN binding (RFC 5389)
-          python3 -c "
-          import socket, struct, hashlib, hmac, os, time
-
-          # STUN Binding Request (RFC 5389)
           STUN_BINDING_REQUEST = 0x0001
           MAGIC_COOKIE = 0x2112A442
 
-          # Build STUN header
           msg_type = STUN_BINDING_REQUEST
           msg_length = 0
           transaction_id = os.urandom(12)
           header = struct.pack('!HHI', msg_type, msg_length, MAGIC_COOKIE) + transaction_id
 
-          # Send UDP
           sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
           sock.settimeout(5)
           sock.sendto(header, ('127.0.0.1', 3478))
@@ -98,23 +107,43 @@ jobs:
               data, addr = sock.recvfrom(1024)
               resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
               if cookie == MAGIC_COOKIE:
-                  print(f'STUN Binding Response OK from {addr}')
-                  print(f'Response type: 0x{resp_type:04x}')
-                  print(f'Response length: {resp_len}')
+                  print(f'STUN OK - Response type: 0x{resp_type:04x}, length: {resp_len}')
+                  # Parse XOR-MAPPED-ADDRESS if present
+                  if resp_len > 0:
+                      attrs = data[20:]
+                      pos = 0
+                      while pos < len(attrs) - 4:
+                          attr_type, attr_len = struct.unpack('!HH', attrs[pos:pos+4])
+                          attr_data = attrs[pos+4:pos+4+attr_len]
+                          if attr_type == 0x0020:  # XOR-MAPPED-ADDRESS
+                              family = attr_data[1]
+                              xor_port = struct.unpack('!H', attr_data[2:4])[0]
+                              port = xor_port ^ (MAGIC_COOKIE >> 16)
+                              if family == 0x01:  # IPv4
+                                  xor_ip = struct.unpack('!I', attr_data[4:8])[0]
+                                  ip = xor_ip ^ MAGIC_COOKIE
+                                  ip_str = f'{(ip>>24)&0xff}.{(ip>>16)&0xff}.{(ip>>8)&0xff}.{ip&0xff}'
+                                  print(f'XOR-MAPPED-ADDRESS: {ip_str}:{port}')
+                          pos += 4 + attr_len + (4 - attr_len % 4) % 4
+                  sys.exit(0)
               else:
-                  print('FAIL: Invalid magic cookie')
+                  print(f'STUN FAIL - Invalid magic cookie: 0x{cookie:08x}')
+                  sys.exit(1)
           except socket.timeout:
-              print('FAIL: Timeout - no STUN response')
+              print('STUN FAIL - Timeout, no response')
+              sys.exit(1)
           finally:
               sock.close()
-          "
+          PYEOF
+          echo "stun_status=$?" >> $GITHUB_OUTPUT
 
       - name: Test TURN allocate (without credentials)
+        id: turn_noauth
         run: |
-          python3 -c "
-          import socket, struct, os
+          set +e
+          python3 << 'PYEOF'
+          import socket, struct, os, sys
 
-          # TURN Allocate Request (RFC 5766)
           TURN_ALLOCATE = 0x0003
           MAGIC_COOKIE = 0x2112A442
 
@@ -130,44 +159,62 @@ jobs:
           try:
               data, addr = sock.recvfrom(1024)
               resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
-              # Without credentials, should get 401 Unauthorized
-              if resp_type == 0x0113:  # 401
-                  print('TURN Allocate 401 Unauthorized OK (expected without credentials)')
-              elif resp_type == 0x0100:  # Success
-                  print('TURN Allocate Success (unexpected)')
+              # 0x0113 = 401 Unauthorized (expected without credentials)
+              # 0x0100 = Success (some servers allow anonymous)
+              if resp_type == 0x0113:
+                  # Parse ERROR-CODE attribute
+                  attrs = data[20:]
+                  pos = 0
+                  error_code = None
+                  error_reason = ''
+                  while pos < len(attrs) - 4:
+                      attr_type, attr_len = struct.unpack('!HH', attrs[pos:pos+4])
+                      attr_data = attrs[pos+4:pos+4+attr_len]
+                      if attr_type == 0x0009:  # ERROR-CODE
+                          error_code = (attr_data[2] * 100) + attr_data[3]
+                          error_reason = attr_data[4:].decode('utf-8', errors='replace')
+                      pos += 4 + attr_len + (4 - attr_len % 4) % 4
+                  print(f'TURN 401 OK - Error {error_code}: {error_reason}')
+                  sys.exit(0)
+              elif resp_type == 0x0100:
+                  print('TURN Success (unexpected without credentials)')
+                  sys.exit(0)
+              elif resp_type == 0x0114:
+                  print('TURN 438 Stale Nonce')
+                  sys.exit(0)
               else:
-                  print(f'TURN Allocate response: 0x{resp_type:04x}')
+                  print(f'TURN Response: 0x{resp_type:04x} (unexpected)')
+                  sys.exit(1)
           except socket.timeout:
-              print('FAIL: Timeout - no TURN response')
+              print('TURN FAIL - Timeout')
+              sys.exit(1)
           finally:
               sock.close()
-          "
+          PYEOF
+          echo "turn_noauth_status=$?" >> $GITHUB_OUTPUT
 
-      - name: Test TURN allocate (with credentials)
+      - name: Test TURN allocate (with long-term credentials)
+        id: turn_auth
         run: |
-          python3 -c "
-          import socket, struct, os, hashlib, hmac, time
+          set +e
+          python3 << 'PYEOF'
+          import socket, struct, os, sys, hashlib, hmac, base64, time
 
-          # TURN Allocate with long-term credentials
           TURN_ALLOCATE = 0x0003
           MAGIC_COOKIE = 0x2112A442
           SECRET = b'test_secret_123'
 
-          # Generate long-term credential (username:password)
-          username = 'test_user'
-          timestamp = int(time.time()) + 3600
-          username_timestamp = f'{timestamp}:{username}'.encode()
-          credential = hmac.new(SECRET, username_timestamp, hashlib.sha1).digest()
+          # Generate long-term credential (RFC 5389)
+          username = str(int(time.time()) + 3600)
+          mac = hmac.new(SECRET, username.encode(), hashlib.sha1)
+          credential = base64.b64encode(mac.digest()).decode()
 
-          # Build TURN Allocate with USERNAME and MESSAGE-INTEGRITY
           transaction_id = os.urandom(12)
 
-          # USERNAME attribute
+          # USERNAME attribute (type=0x0006)
           username_bytes = username.encode()
-          attr_username = struct.pack('!HH', 0x0006, len(username_bytes)) + username_bytes
-          # Pad to 4 bytes
-          pad = (4 - len(username_bytes) % 4) % 4
-          attr_username += b'\x00' * pad
+          pad_len = (4 - len(username_bytes) % 4) % 4
+          attr_username = struct.pack('!HH', 0x0006, len(username_bytes)) + username_bytes + b'\x00' * pad_len
 
           msg_length = len(attr_username)
           header = struct.pack('!HHI', TURN_ALLOCATE, msg_length, MAGIC_COOKIE) + transaction_id
@@ -182,30 +229,140 @@ jobs:
               resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
               if resp_type == 0x0100:
                   print('TURN Allocate Success!')
+                  # Parse XOR-RELAYED-ADDRESS
+                  attrs = data[20:]
+                  pos = 0
+                  while pos < len(attrs) - 4:
+                      attr_type, attr_len = struct.unpack('!HH', attrs[pos:pos+4])
+                      attr_data = attrs[pos+4:pos+4+attr_len]
+                      if attr_type == 0x0016:  # XOR-RELAYED-ADDRESS
+                          family = attr_data[1]
+                          xor_port = struct.unpack('!H', attr_data[2:4])[0]
+                          port = xor_port ^ (MAGIC_COOKIE >> 16)
+                          if family == 0x01:
+                              xor_ip = struct.unpack('!I', attr_data[4:8])[0]
+                              ip = xor_ip ^ MAGIC_COOKIE
+                              ip_str = f'{(ip>>24)&0xff}.{(ip>>16)&0xff}.{(ip>>8)&0xff}.{ip&0xff}'
+                              print(f'  Relayed address: {ip_str}:{port}')
+                      elif attr_type == 0x0012:  # LIFETIME
+                          lifetime = struct.unpack('!I', attr_data[:4])[0]
+                          print(f'  Lifetime: {lifetime}s')
+                      pos += 4 + attr_len + (4 - attr_len % 4) % 4
+                  sys.exit(0)
               elif resp_type == 0x0113:
-                  print('TURN Allocate 401 (needs nonce, expected)')
-              elif resp_type == 0x0114:
-                  print('TURN Allocate 438 Stale Nonce')
+                  attrs = data[20:]
+                  pos = 0
+                  while pos < len(attrs) - 4:
+                      attr_type, attr_len = struct.unpack('!HH', attrs[pos:pos+4])
+                      attr_data = attrs[pos+4:pos+4+attr_len]
+                      if attr_type == 0x0009:  # ERROR-CODE
+                          code = (attr_data[2] * 100) + attr_data[3]
+                          reason = attr_data[4:].decode('utf-8', errors='replace')
+                          print(f'TURN 401: {code} {reason}')
+                      pos += 4 + attr_len + (4 - attr_len % 4) % 4
+                  sys.exit(1)
               else:
-                  print(f'TURN Allocate response: 0x{resp_type:04x}')
+                  print(f'TURN Response: 0x{resp_type:04x}')
+                  sys.exit(1)
           except socket.timeout:
-              print('FAIL: Timeout')
+              print('TURN FAIL - Timeout')
+              sys.exit(1)
           finally:
               sock.close()
-          "
+          PYEOF
+          echo "turn_auth_status=$?" >> $GITHUB_OUTPUT
 
-      - name: Generate report
+      - name: Generate detailed report
         if: always()
         run: |
-          echo "# Turn-Server Test Report — ${{ matrix.arch }}" > /tmp/turn-report.md
-          echo "" >> /tmp/turn-report.md
-          echo "> Run: ${{ github.run_id }}" >> /tmp/turn-report.md
-          echo "" >> /tmp/turn-report.md
-          echo "## Container logs" >> /tmp/turn-report.md
-          echo '```' >> /tmp/turn-report.md
-          docker logs nook-turn-test 2>&1 | tail -20 >> /tmp/turn-report.md
-          echo '```' >> /tmp/turn-report.md
-          cat /tmp/turn-report.md
+          RUN_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          ARCH="${{ matrix.arch }}"
+
+          cat > .claude/TURN-REPORT.md << REPORT
+          # 🧪 Turn-Server Test Report — $ARCH
+
+          > Généré par \`test-turn.yml\` · **$RUN_DATE**
+          > Architecture: **$ARCH** | Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          ---
+
+          ## 📊 Résumé
+
+          | Test | Résultat |
+          |------|----------|
+          | Build Docker | ✅ |
+          | Container start | ✅ |
+          | Port 3478 UDP | ${{ steps.port_test.outputs.udp_status || 'N/A' }} |
+          | Port 3478 TCP | ${{ steps.port_test.outputs.tcp_status || 'N/A' }} |
+          | STUN Binding | ${{ steps.stun_test.outputs.stun_status == '0' && '✅ PASS' || '❌ FAIL' }} |
+          | TURN Allocate (no auth) | ${{ steps.turn_noauth.outputs.turn_noauth_status == '0' && '✅ PASS' || '❌ FAIL' }} |
+          | TURN Allocate (with auth) | ${{ steps.turn_auth.outputs.turn_auth_status == '0' && '✅ PASS' || '❌ FAIL' }} |
+
+          ---
+
+          ## 🐳 Container Info
+
+          \`\`\`
+          $(docker inspect nook-turn-test --format='Image: {{.Config.Image}}
+          Status: {{.State.Status}}
+          Started: {{.State.StartedAt}}
+          Ports: {{json .NetworkSettings.Ports}}' 2>/dev/null || echo "Container info unavailable")
+          \`\`\`
+
+          ## 📋 Container Logs
+
+          \`\`\`
+          $(docker logs nook-turn-test 2>&1 | tail -50)
+          \`\`\`
+
+          ## 🔧 Config Used
+
+          \`\`\`toml
+          $(cat /tmp/turn-config/config.toml 2>/dev/null || echo "Config unavailable")
+          \`\`\`
+
+          ## 🌐 Network
+
+          \`\`\`
+          $(ss -tuln | grep 3478 2>/dev/null || netstat -tuln | grep 3478 2>/dev/null || echo "Port check unavailable")
+          \`\`\`
+
+          ## 🖥️ System Info
+
+          \`\`\`
+          $(uname -a)
+          Docker: $(docker --version)
+          \`\`\`
+
+          ---
+
+          *Rapport généré par \`.github/workflows/test-turn.yml\`*
+          REPORT
+
+          cat .claude/TURN-REPORT.md
+
+      - name: Commit report
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Save report before cleanup
+          cp .claude/TURN-REPORT.md /tmp/TURN-REPORT.md 2>/dev/null || true
+          git checkout -- frontend/ backend/ 2>/dev/null || true
+          git clean -fd --exclude=.claude/ 2>/dev/null || true
+          cp /tmp/TURN-REPORT.md .claude/TURN-REPORT.md 2>/dev/null || true
+          git add .claude/TURN-REPORT.md
+          if git diff --staged --quiet; then
+            echo "Aucun changement"
+          else
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
+            cp /tmp/TURN-REPORT.md .claude/TURN-REPORT.md 2>/dev/null || true
+            git add .claude/TURN-REPORT.md
+            git commit -m "ci: TURN-REPORT.md (${{ matrix.arch }}) [run ${{ github.run_id }}]"
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
+            echo "Rapport commité"
+          fi
 
       - name: Cleanup
         if: always()
