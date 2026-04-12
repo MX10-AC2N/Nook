@@ -148,6 +148,56 @@
     if (!ds) return '';
     return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   }
+
+  // ── Drag & Drop ─────────────────────────────────────────────────
+  let dragEvent = $state<CalEvent | null>(null);
+  let dragOverDay = $state<number | null>(null);
+
+  function handleDragStart(e: DragEvent, evt: CalEvent) {
+    dragEvent = evt;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', evt.id);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, day: number) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    dragOverDay = day;
+  }
+
+  function handleDragLeave() {
+    dragOverDay = null;
+  }
+
+  async function handleDrop(e: DragEvent, day: number) {
+    e.preventDefault();
+    dragOverDay = null;
+    if (!dragEvent) return;
+
+    const year = currentDate.getFullYear();
+    const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    const newDate = `${year}-${m}-${d}`;
+
+    if (newDate === dragEvent.date) return; // No change
+
+    try {
+      const res = await fetch(`/api/calendar/${dragEvent.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...dragEvent, date: newDate }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        events = events.map(ev => ev.id === updated.id ? updated : ev);
+      }
+    } catch (err) {
+      console.error('[Calendar] Drag-drop error:', err);
+    }
+    dragEvent = null;
+  }
 </script>
 
 <svelte:head><title>Calendrier — Nook</title></svelte:head>
@@ -190,11 +240,13 @@
         {@const day = i+1}
         {@const dayEvts = eventsForDay(day)}
         <button class="cal-cell" class:today={isToday(day)} class:has-events={dayEvts.length>0}
-          class:selected-day={selectedDay===day} onclick={() => openDay(day)}>
+          class:selected-day={selectedDay===day} class:drag-over={dragOverDay===day}
+          ondragover={(e) => handleDragOver(e, day)} ondragleave={handleDragLeave}
+          ondrop={(e) => handleDrop(e, day)} onclick={() => openDay(day)}>
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
             {#each dayEvts.slice(0,2) as evt}
-              <span class="evt-pill" onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
+              <span class="evt-pill" draggable="true" ondragstart={(e) => handleDragStart(e, evt)} onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
             {/each}
             {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
           </div>
@@ -369,6 +421,7 @@
   .cal-cell:hover { background: var(--bg-tertiary, #f1f5f9); border-color: var(--border, #e2e8f0); }
   .cal-cell.empty { background: transparent; cursor: default; border: none; }
   .cal-cell.today { background: color-mix(in srgb, var(--accent, #4ade80) 12%, var(--bg-primary, #fff)); border-color: var(--accent, #4ade80); }
+  .cal-cell.drag-over { outline: 2px dashed var(--accent, #4ade80); outline-offset: -2px; }
   .cal-cell.selected-day { border-color: var(--accent, #4ade80); background: color-mix(in srgb, var(--accent, #4ade80) 15%, var(--bg-primary, #fff)); }
   .cal-cell.has-events { border-color: color-mix(in srgb, var(--accent, #4ade80) 35%, transparent); }
   .day-num { font-size: .78rem; font-weight: 600; color: var(--text-secondary, #64748b); align-self: flex-end; }
