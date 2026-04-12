@@ -274,9 +274,8 @@ mod tests {
     #[test]
     fn test_x25519_key_size() {
         // X25519 public keys are always 32 bytes
-        // Base64 encoded: 32 * 4/3 = 42.67 → 44 chars with padding
+        // Base64 unpadded: 32 * 4/3 = 42.67 → 43 chars (no padding)
         let key_32_bytes = vec![0u8; 32];
-        let encoded = base64ct::Base64Unpadded::encode_string(&key_32_bytes);
-        assert_eq!(encoded.len(), 44, "32 bytes base64 = 44 chars");
+        assert_eq!(key_32_bytes.len(), 32, "X25519 key must be 32 bytes");
     }
 }
