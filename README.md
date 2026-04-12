@@ -2,7 +2,7 @@
 
 <div align="center">
 
-> **v0.5.0-beta.1**
+> **v0.5.0-beta.2**
 
 [![CI Backend](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml)
 [![CI Frontend](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml)
@@ -43,13 +43,13 @@ Les messages sont chiffrés de bout en bout (X25519). Les fichiers sont chiffré
 Reçois une notification sur ton téléphone ou ordinateur quand quelqu'un t'écrit — même quand l'onglet est fermé. Activable depuis les Paramètres.
 
 **📅 Calendrier partagé**
-Tous les événements de la famille au même endroit, sans passer par Google ou Apple.
+Tous les événements de la famille au même endroit, sans passer par Google ou Apple. Glisser-déposer pour déplacer les événements entre les jours. Vues mois, semaine et jour.
 
 **♟️ Échecs en ligne**
-Parties entre membres ou contre l'IA (easy / medium / hard). Les coups de l'adversaire arrivent en temps réel via WebSocket.
+Parties entre membres ou contre l'IA (5 niveaux). Notation PGN exportable. Animations de déplacement des pièces. Coups spéciaux (roque, promotion, en passant). Minuteur configurable.
 
 **📊 Sondages**
-Crée un vote en quelques secondes. Chacun répond, peut changer d'avis, et tu clos quand tu veux.
+Crée un vote en quelques secondes. Chacun répond, peut changer d'avis, et tu clos quand tu veux. Animations de vote et barres de progression en temps réel.
 
 **📞 Appels audio & vidéo**
 Connexion directe entre appareils (WebRTC P2P) — le serveur ne voit jamais le flux. Fonctionne bien en LAN.
