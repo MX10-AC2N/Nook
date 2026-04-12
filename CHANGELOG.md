@@ -6,7 +6,7 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
-## [0.5.0-beta.2] — 2026-04-12
+## [0.5.0] — 2026-04-12
 
 ### Ajouté
 - **Avatar** — Composant réutilisable avec système de fallback (initiales + couleur hashée)
