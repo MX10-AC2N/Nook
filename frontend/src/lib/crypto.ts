@@ -46,8 +46,7 @@ export async function initCryptoSystem(): Promise<boolean> {
       !na.randombytes_buf ||
       !na.crypto_box_keypair ||
       !na.crypto_box_easy ||
-      !na.crypto_secretbox_easy ||
-      !na.crypto_pwhash
+      !na.crypto_secretbox_easy
     ) {
       console.error('[crypto] Primitives manquantes dans libsodium');
       return false;
