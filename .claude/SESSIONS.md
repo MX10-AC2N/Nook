@@ -1318,3 +1318,53 @@ Session multi-thèmes : création d'écosystème d'agents spécialisés, audit g
 - Docker: ✅ image pushed
 - Icônes: 56 SVGs
 - Notifications: 6 types fonctionnels
+
+
+---
+
+## Session 49 — 2026-04-12 (Features finales + Documentation)
+
+### Contexte
+Finalisation des features restantes pour v0.5.0-beta.2 : drag-drop calendrier, PGN chess, lazy loading chart.js. Tests E2E, documentation et mise a jour .claude/.
+
+### Progres Realises
+- **Calendar drag-drop**: `handleDragStart`, `handleDragOver`, `handleDrop` avec update PUT API. Style `.drag-over` avec outline dashed.
+- **Chess PGN**: `toPgn()` et `copyPgn()` dans chessStore. UI avec affichage PGN + bouton copier dans l'historique des coups.
+- **Chart.js lazy loading**: Import dynamique `await import('chart.js/auto')` dans analytics. Type import pour TypeScript.
+- **Tests E2E**: 3 nouveaux tests (drag-drop, PGN, lazy load). 163/163 PASS.
+- **Documentation**: CHANGELOG.md cree, README mis a jour (v0.5.0-beta.2), CLAUDE.md session 49.
+- **Config.yaml**: OpenRouter free models (meta-llama/llama-3.3-70b-instruct:free).
+
+### Bugs Corriges
+| Bug | Fix |
+|-----|-----|
+| `google/gemini-2.5-flash:free` 404 | Remplace par `meta-llama/llama-3.3-70b-instruct:free` |
+| Tests `page is not defined` | Tests insere DANS `test.describe.serial` block |
+| Tests dupliques | Supprimes, structure corrigee |
+| .gitignore node_modules | Chang `/node_modules` en `node_modules/` (recursif) |
+| Workflow git rebase fail | Ajout `git checkout -- .` avant commit |
+
+### Fichiers Modifies
+- `frontend/src/routes/calendar/+page.svelte`: drag-drop handlers
+- `frontend/src/lib/chessStore.svelte.ts`: toPgn(), copyPgn()
+- `frontend/src/routes/chess/[game_id]/+page.svelte`: PGN display UI
+- `frontend/src/routes/admin/analytics/+page.svelte`: lazy load chart.js
+- `frontend/tests/user.spec.ts`: 3 nouveaux tests
+- `.claude/TEST_REPORT.md`: 163/163 PASS
+- `.claude/CLAUDE.md`: session 49, v0.5.0-beta.2
+- `.claude/QUICK-REFERENCE.md`: 4 nouveaux common issues
+- `CHANGELOG.md`: cree
+- `README.md`: features enrichies
+- `config.yaml`: OpenRouter free models
+
+### Prochaines Etapes
+- [ ] Version bump (package.json + Cargo.toml → 0.5.0-beta.2)
+- [ ] Deployer sur Zimaboard
+- [ ] Tests unitaires backend
+- [ ] Documentation API
+
+### Etat Final
+- Branche: develop
+- CI: 163/163 PASS
+- Backend: v0.5.0-beta.1 (bump pending)
+- Git: commits poussees
