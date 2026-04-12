@@ -672,6 +672,35 @@ class ChessStore {
     this.blackTime        = 0;
     this.timerLimit       = 0;
   }
+
+  /** Génère la notation PGN complète à partir de move_history */
+  toPgn(): string {
+    const history = this.currentGame?.move_history ?? [];
+    if (history.length === 0) return '';
+
+    let pgn = '';
+    for (let i = 0; i < history.length; i++) {
+      const moveNum = Math.floor(i / 2) + 1;
+      if (i % 2 === 0) {
+        pgn += moveNum + '. ';
+      }
+      pgn += history[i].san + ' ';
+    }
+    return pgn.trim();
+  }
+
+  /** Copie le PGN dans le presse-papier */
+  async copyPgn(): Promise<boolean> {
+    const pgn = this.toPgn();
+    if (!pgn) return false;
+    try {
+      await navigator.clipboard.writeText(pgn);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
 }
 
 export const chessStore = new ChessStore();
