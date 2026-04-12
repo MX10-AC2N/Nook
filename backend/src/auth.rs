@@ -28,6 +28,7 @@ pub struct RegisterPayload {
     pub password: String,
     pub email: String,
     pub name: String,
+    pub invite_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -138,7 +139,7 @@ pub async fn register(
     match result {
         Ok(_) => Json(AuthResponse {
             success: true,
-            message: "Inscription réussie ! En attente d'approbation.".to_string(),
+            message: if auto_approve { "Inscription réussie !".to_string() } else { "Inscription réussie ! En attente d'approbation.".to_string() },
             user: None,
         })
         .into_response(),
