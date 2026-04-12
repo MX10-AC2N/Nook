@@ -28,6 +28,9 @@ jobs:
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
+            git add backend/Cargo.lock
             git commit -m "chore: Update Cargo.lock"
-            git push
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
           fi
