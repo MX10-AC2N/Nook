@@ -448,6 +448,29 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                     tracing::debug!(ws_id = %id, user_id = %user_id_recv, msg_type = %msg_type, "WebSocket : message reçu");
 
+                    // ── Typing indicator ───────────────────────────────────────
+                    if msg_type == "typing" || msg_type == "stop_typing" {
+                        let conv_id = json_val
+                            .get("conversation_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+
+                        // Broadcast to all other users
+                        let typing_msg = serde_json::json!({
+                            "type": msg_type,
+                            "user_id": user_id_recv,
+                            "conversation_id": conv_id,
+                        }).to_string();
+
+                        let guard = state_recv.webrtc_state.broadcasts.lock().await;
+                        for (ws_id, tx) in guard.iter() {
+                            if *ws_id != id { // Don't send to self
+                                let _ = tx.send(typing_msg.clone());
+                            }
+                        }
+                        continue;
+                    }
+
                     // ── Routage des signaux WebRTC par to_user_id ─────────────────
                     // Types d'appel : offer, answer, ice, join, leave, decline,
                     //                 call_request, call_accepted, call_rejected
