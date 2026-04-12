@@ -26,23 +26,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialisation libsodium (singleton, dynamic import)
 // ─────────────────────────────────────────────────────────────────────────────
+import { waitForSodium, getSodiumInstance } from './sodium.svelte.js';
+
 type SodiumType = typeof import('libsodium-wrappers').default;
 
-let _sodium: SodiumType | null = null;
-let _loadPromise: Promise<SodiumType> | null = null;
-
 async function ensureSodium(): Promise<SodiumType> {
-  if (_sodium) return _sodium;
-  if (_loadPromise) return _loadPromise;
-
-  _loadPromise = (async () => {
-    const { default: sodium } = await import('libsodium-wrappers');
-    await sodium.ready;
-    _sodium = sodium;
-    return sodium;
-  })();
-
-  return _loadPromise;
+  // Use shared instance from sodium.svelte.js
+  const existing = getSodiumInstance();
+  if (existing) return existing;
+  return await waitForSodium();
 }
 
 /** Smoke-test libsodium au démarrage. Retourne true si OK. */
