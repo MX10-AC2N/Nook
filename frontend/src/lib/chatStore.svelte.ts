@@ -304,11 +304,13 @@ export async function loadMessages(conversationId: string): Promise<void> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
+    console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
     chatStore.messages = msgs;
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
+    console.log('[Chat] chatStore.messages set:', chatStore.messages.length);
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
