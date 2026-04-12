@@ -73,6 +73,15 @@
   let lastMovedFrom = $state<string | null>(null);
   let lastMovedTo = $state<string | null>(null);
   let resultDismissed = $state(false);
+  let pgnCopied = $state(false);
+
+  async function copyPgn() {
+    const ok = await chessStore.copyPgn();
+    if (ok) {
+      pgnCopied = true;
+      setTimeout(() => pgnCopied = false, 2000);
+    }
+  }
   // Loading LOCAL à cette page — évite la race condition avec chessStore.loading
   // partagé par loadGameList() du lobby qui peut remettre loading=false avant
   // que loadGame() ait terminé → "Partie introuvable" affiché prématurément.
@@ -538,6 +547,13 @@
   .move-item.white-move { background: #f8fafc; }
   .move-san { font-weight: 700; font-family: monospace; color: #1e293b; }
   .move-by  { color: #94a3b8; font-size: .7rem; }
+
+  .pgn-section { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--border, #e2e8f0); }
+  .pgn-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem; }
+  .pgn-label { font-size: .7rem; font-weight: 600; color: var(--text-secondary, #64748b); text-transform: uppercase; }
+  .pgn-copy-btn { font-size: .7rem; padding: .2rem .5rem; border: 1px solid var(--border, #e2e8f0); border-radius: 4px; background: var(--bg-secondary, #f1f5f9); cursor: pointer; }
+  .pgn-copy-btn:hover { background: var(--accent, #4ade80); color: #fff; border-color: var(--accent, #4ade80); }
+  .pgn-code { display: block; font-size: .75rem; padding: .4rem; background: var(--bg-secondary, #f1f5f9); border-radius: 4px; word-break: break-all; line-height: 1.5; }
 
   .error-panel { background: #fef2f2; border-color: #fecaca; color: #dc2626; font-size: .82rem; }
 
