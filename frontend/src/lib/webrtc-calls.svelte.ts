@@ -17,11 +17,36 @@ async function generateTurnCredentials(secret: string, validityHours = 24): Prom
   return { username, credential };
 }
 
-// ── Configuration TURN/STUN (100% self-hosted via turn-rs) ────
-const TURN_SECRET = 'change_this_secret'; // TODO: read from env/config
-const TURN_HOST = '192.168.1.100'; // TODO: read from env/config (or window.location.hostname)
-const TURN_PORT = 3478;
+// ── TURN/STUN Configuration ────
+// Credentials fetched dynamically from /api/webrtc/ice-config
 
+interface IceConfig {
+  host: string;
+  port: number;
+  username: string;
+  credential: string;
+}
+
+let cachedIceConfig: IceConfig | null = null;
+let iceConfigExpiry = 0;
+
+async function fetchIceConfig(): Promise<IceConfig> {
+  if (cachedIceConfig && Date.now() < iceConfigExpiry) return cachedIceConfig;
+  try {
+    const res = await fetch('/api/webrtc/ice-config', { credentials: 'include' });
+    if (!res.ok) {
+      console.error('[WebRTC] ICE config fetch failed:', res.status);
+      return { host: window.location.hostname, port: 3478, username: '', credential: '' };
+    }
+    const config: IceConfig = await res.json();
+    cachedIceConfig = config;
+    iceConfigExpiry = Date.now() + 12 * 3600 * 1000;
+    return config;
+  } catch (e) {
+    console.error('[WebRTC] ICE config error:', e);
+    return { host: window.location.hostname, port: 3478, username: '', credential: '' };
+  }
+}
 // -----------------------------------------------------------------
 // 1️⃣ Types & état réactif (Svelte 5)
 // -----------------------------------------------------------------
