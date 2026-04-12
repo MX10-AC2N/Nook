@@ -276,7 +276,7 @@ mod tests {
         // X25519 public keys are always 32 bytes
         // Base64 encoded: 32 * 4/3 = 42.67 → 44 chars with padding
         let key_32_bytes = vec![0u8; 32];
-        let encoded = base64::encode(&key_32_bytes);
+        let encoded = base64ct::Base64Unpadded::encode_string(&key_32_bytes);
         assert_eq!(encoded.len(), 44, "32 bytes base64 = 44 chars");
     }
 }
