@@ -813,7 +813,7 @@
               <div class="reactions-row">
                 {#each countReactions(msg.id) as r}
                   <button
-                    class="reaction-pill"
+                    class="reaction-pill" data-testid="reaction-pill"
                     class:my-reaction={reactions[msg.id]?.myEmoji === r.emoji}
                     onclick={() => toggleReaction(msg.id, r.emoji)}
                     title={r.names}
@@ -834,7 +834,7 @@
               <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
                 <!-- Bouton réaction rapide — toujours visible au hover -->
                 <button
-                  class="msg-action-btn reaction-trigger"
+                  class="msg-action-btn reaction-trigger" data-testid="reaction-trigger"
                   onclick={(e) => { e.stopPropagation(); emojiPickerMsgId = emojiPickerMsgId === msg.id ? null : msg.id; }}
                   title="Réagir"
                   aria-label="Ajouter une réaction"
@@ -850,14 +850,14 @@
               <!-- Emoji picker rapide (6 fixes + picker étendu) -->
               {#if emojiPickerMsgId === msg.id}
                 <div
-                  class="emoji-picker"
+                  class="emoji-picker" data-testid="emoji-picker"
                   class:picker-mine={isMyMessage(msg.sender_id)}
                   role="dialog"
                   aria-label="Choisir une réaction"
                 >
                   {#each QUICK_EMOJIS as emoji}
                     <button
-                      class="emoji-quick-btn"
+                      class="emoji-quick-btn" data-testid="emoji-quick-btn"
                       class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                       onclick={() => toggleReaction(msg.id, emoji)}
                       aria-label={emoji}
@@ -873,7 +873,7 @@
                   <div class="emoji-extended" style="display:none">
                     {#each ALL_EMOJIS as emoji}
                       <button
-                        class="emoji-quick-btn"
+                        class="emoji-quick-btn" data-testid="emoji-quick-btn"
                         class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                         onclick={() => toggleReaction(msg.id, emoji)}
                         aria-label={emoji}
