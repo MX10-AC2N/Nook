@@ -5,7 +5,7 @@
 [server]
 name = "nook.turn"
 secret = "change_this_turn_secret_2026"
-max-threads = 0
+max-threads = 4
 
 [[server.interfaces]]
 transport = "udp"
