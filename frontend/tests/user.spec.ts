@@ -987,7 +987,7 @@ test.describe('Chess — Coups spéciaux et timer', () => {
 
     if (res.status() === 200) {
       const body = await res.json();
-      chessGameIdForSpecial = body.game_id;
+      chessGameIdForSpecial = body.game_id || body.id;
       expect(chessGameIdForSpecial).toBeTruthy();
     }
   });
