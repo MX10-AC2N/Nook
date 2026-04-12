@@ -333,8 +333,11 @@
         : (conv.name ?? '💬 Message direct');
     }
 
+    // Fermer le sidebar mobile d'abord
+    sidebarOpen = false;
+    
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
-    setActiveConv(conv.id); sidebarOpen = false;
+    setActiveConv(conv.id);
     await loadMessages(conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
