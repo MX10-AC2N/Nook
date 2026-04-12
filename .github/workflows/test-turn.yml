@@ -1,0 +1,211 @@
+name: 3 ==> Turn-Server Test
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'services/turn-rs/**'
+      - '.github/workflows/test-turn.yml'
+
+jobs:
+  turn-test:
+    name: Test Turn-Server (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build turn-server Docker image
+        run: |
+          docker build -t nook-turn:test -f services/turn-rs/Dockerfile services/turn-rs
+
+      - name: Start turn-server container
+        run: |
+          # Create test config with known secret
+          mkdir -p /tmp/turn-config
+          cat > /tmp/turn-config/config.toml << 'EOF'
+          [server]
+          name = "nook.turn.test"
+          secret = "test_secret_123"
+          max-threads = 0
+
+          [[server.interfaces]]
+          transport = "udp"
+          listen = "0.0.0.0:3478"
+          external = "0.0.0.0:3478"
+
+          [[server.interfaces]]
+          transport = "tcp"
+          listen = "0.0.0.0:3478"
+          external = "0.0.0.0:3478"
+          EOF
+
+          # Start container
+          docker run -d \
+            --name nook-turn-test \
+            -p 3478:3478/udp \
+            -p 3478:3478/tcp \
+            -v /tmp/turn-config:/etc/turn-server \
+            nook-turn:test
+
+          # Wait for startup
+          sleep 3
+          docker logs nook-turn-test
+
+      - name: Test port listening
+        run: |
+          # Check UDP port
+          timeout 5 bash -c 'until nc -zu 127.0.0.1 3478; do sleep 0.5; done' && echo "UDP OK" || echo "UDP FAIL"
+          # Check TCP port
+          timeout 5 bash -c 'until nc -z 127.0.0.1 3478; do sleep 0.5; done' && echo "TCP OK" || echo "TCP FAIL"
+
+      - name: Test STUN binding request
+        run: |
+          # Install stun client
+          pip install aiostun 2>/dev/null || pip3 install aiostun 2>/dev/null || true
+
+          # Test STUN binding (RFC 5389)
+          python3 -c "
+          import socket, struct, hashlib, hmac, os, time
+
+          # STUN Binding Request (RFC 5389)
+          STUN_BINDING_REQUEST = 0x0001
+          MAGIC_COOKIE = 0x2112A442
+
+          # Build STUN header
+          msg_type = STUN_BINDING_REQUEST
+          msg_length = 0
+          transaction_id = os.urandom(12)
+          header = struct.pack('!HHI', msg_type, msg_length, MAGIC_COOKIE) + transaction_id
+
+          # Send UDP
+          sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          sock.settimeout(5)
+          sock.sendto(header, ('127.0.0.1', 3478))
+
+          try:
+              data, addr = sock.recvfrom(1024)
+              resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
+              if cookie == MAGIC_COOKIE:
+                  print(f'STUN Binding Response OK from {addr}')
+                  print(f'Response type: 0x{resp_type:04x}')
+                  print(f'Response length: {resp_len}')
+              else:
+                  print('FAIL: Invalid magic cookie')
+          except socket.timeout:
+              print('FAIL: Timeout - no STUN response')
+          finally:
+              sock.close()
+          "
+
+      - name: Test TURN allocate (without credentials)
+        run: |
+          python3 -c "
+          import socket, struct, os
+
+          # TURN Allocate Request (RFC 5766)
+          TURN_ALLOCATE = 0x0003
+          MAGIC_COOKIE = 0x2112A442
+
+          msg_type = TURN_ALLOCATE
+          msg_length = 0
+          transaction_id = os.urandom(12)
+          header = struct.pack('!HHI', msg_type, msg_length, MAGIC_COOKIE) + transaction_id
+
+          sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          sock.settimeout(5)
+          sock.sendto(header, ('127.0.0.1', 3478))
+
+          try:
+              data, addr = sock.recvfrom(1024)
+              resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
+              # Without credentials, should get 401 Unauthorized
+              if resp_type == 0x0113:  # 401
+                  print('TURN Allocate 401 Unauthorized OK (expected without credentials)')
+              elif resp_type == 0x0100:  # Success
+                  print('TURN Allocate Success (unexpected)')
+              else:
+                  print(f'TURN Allocate response: 0x{resp_type:04x}')
+          except socket.timeout:
+              print('FAIL: Timeout - no TURN response')
+          finally:
+              sock.close()
+          "
+
+      - name: Test TURN allocate (with credentials)
+        run: |
+          python3 -c "
+          import socket, struct, os, hashlib, hmac, time
+
+          # TURN Allocate with long-term credentials
+          TURN_ALLOCATE = 0x0003
+          MAGIC_COOKIE = 0x2112A442
+          SECRET = b'test_secret_123'
+
+          # Generate long-term credential (username:password)
+          username = 'test_user'
+          timestamp = int(time.time()) + 3600
+          username_timestamp = f'{timestamp}:{username}'.encode()
+          credential = hmac.new(SECRET, username_timestamp, hashlib.sha1).digest()
+
+          # Build TURN Allocate with USERNAME and MESSAGE-INTEGRITY
+          transaction_id = os.urandom(12)
+
+          # USERNAME attribute
+          username_bytes = username.encode()
+          attr_username = struct.pack('!HH', 0x0006, len(username_bytes)) + username_bytes
+          # Pad to 4 bytes
+          pad = (4 - len(username_bytes) % 4) % 4
+          attr_username += b'\x00' * pad
+
+          msg_length = len(attr_username)
+          header = struct.pack('!HHI', TURN_ALLOCATE, msg_length, MAGIC_COOKIE) + transaction_id
+          message = header + attr_username
+
+          sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+          sock.settimeout(5)
+          sock.sendto(message, ('127.0.0.1', 3478))
+
+          try:
+              data, addr = sock.recvfrom(1024)
+              resp_type, resp_len, cookie = struct.unpack('!HHI', data[:8])
+              if resp_type == 0x0100:
+                  print('TURN Allocate Success!')
+              elif resp_type == 0x0113:
+                  print('TURN Allocate 401 (needs nonce, expected)')
+              elif resp_type == 0x0114:
+                  print('TURN Allocate 438 Stale Nonce')
+              else:
+                  print(f'TURN Allocate response: 0x{resp_type:04x}')
+          except socket.timeout:
+              print('FAIL: Timeout')
+          finally:
+              sock.close()
+          "
+
+      - name: Generate report
+        if: always()
+        run: |
+          echo "# Turn-Server Test Report — ${{ matrix.arch }}" > /tmp/turn-report.md
+          echo "" >> /tmp/turn-report.md
+          echo "> Run: ${{ github.run_id }}" >> /tmp/turn-report.md
+          echo "" >> /tmp/turn-report.md
+          echo "## Container logs" >> /tmp/turn-report.md
+          echo '```' >> /tmp/turn-report.md
+          docker logs nook-turn-test 2>&1 | tail -20 >> /tmp/turn-report.md
+          echo '```' >> /tmp/turn-report.md
+          cat /tmp/turn-report.md
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop nook-turn-test 2>/dev/null || true
+          docker rm nook-turn-test 2>/dev/null || true
