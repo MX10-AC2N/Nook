@@ -125,6 +125,8 @@
   }
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let typingUsers = $state<string[]>([]);
+  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
   let sidebarOpen = $state(false);
 
   // État édition de message
@@ -445,6 +447,29 @@
     chatStore.showEmojiPicker = false;
     await sendMessage(content, activeConvId);
     sending = false;
+  }
+
+  function handleTyping() {
+    // Send typing indicator via WebSocket
+    if (chatStore.ws && chatStore.ws.readyState === WebSocket.OPEN) {
+      chatStore.ws.send(JSON.stringify({
+        type: 'typing',
+        conversation_id: activeConvId,
+      }));
+    }
+    
+    // Clear previous timeout
+    if (typingTimeout) clearTimeout(typingTimeout);
+    
+    // Stop typing after 3 seconds of inactivity
+    typingTimeout = setTimeout(() => {
+      if (chatStore.ws && chatStore.ws.readyState === WebSocket.OPEN) {
+        chatStore.ws.send(JSON.stringify({
+          type: 'stop_typing',
+          conversation_id: activeConvId,
+        }));
+      }
+    }, 3000);
   }
 
   function handleMessageKeydown(e: KeyboardEvent) {
@@ -1003,6 +1028,7 @@
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         onkeydown={handleMessageKeydown}
+        oninput={handleTyping}
         disabled={sending}
       />
       <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
@@ -1879,4 +1905,30 @@
     font-size: .72rem;
   }
   } /* end @media */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    font-size: .8rem;
+    color: var(--text-secondary, #64748b);
+    animation: fadeIn .3s ease;
+  }
+  .typing-dots {
+    display: flex;
+    gap: 3px;
+  }
+  .typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: var(--accent, #4ade80);
+    border-radius: 50%;
+    animation: typingBounce 1.2s ease-in-out infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+  }
 </style>
