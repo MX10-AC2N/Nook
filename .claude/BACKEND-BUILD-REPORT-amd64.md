@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 97f6947 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24309700796)
+> **unknown** | commit 5544efc | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24311574871)
 
 ## Récapitulatif statuts
 
@@ -71,7 +71,7 @@ error[E0433]: cannot find module or crate `base64` in this scope
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 3m 14s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 21s
 ```
 
 ---
