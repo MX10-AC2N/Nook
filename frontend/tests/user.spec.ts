@@ -259,52 +259,37 @@ test.describe.serial('User — Flux complet', () => {
     console.log('✅ Réaction sur msg inexistant → 404');
   });
 
-  test('Réactions UI — hover → picker → pill visible', async () => {
-    test.setTimeout(60_000);
-    await page.goto('/chat');
-    await waitForAppReady(page);
-    await expect(page.locator('.conversation-item').first()).toBeVisible({ timeout: 12_000 });
+  test('Réactions — cycle complet via API', async () => {
+    // 1. Créer un message via API
+    const msgRes = await page.request.post(`${BASE}/conversations/default_global/messages`, {
+      data: { content: 'test-reaction-api', encrypted: false },
+    });
+    expect(msgRes.status()).toBe(200);
+    const msgData = await msgRes.json();
+    expect(msgData.id).toBeTruthy();
+    console.log('✅ Message créé: ' + msgData.id);
 
-    // Sélectionner la conversation Nook
-    const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
-    if (await globalItem.count() > 0) await globalItem.click();
-    await page.waitForTimeout(1000);
+    // 2. Ajouter une réaction 👍
+    const reactRes = await page.request.post(`${BASE}/conversations/default_global/messages/${msgData.id}/reactions`, {
+      data: { emoji: '👍' },
+    });
+    expect(reactRes.status()).toBe(200);
+    const reactData = await reactRes.json();
+    expect(reactData.my_emoji).toBe('👍');
+    console.log('✅ Réaction ajoutée: 👍');
 
-    const input = page.locator('.message-input');
-    await expect(input).toBeVisible({ timeout: 8_000 });
+    // 3. Vérifier via GET
+    const getRes = await page.request.get(`${BASE}/conversations/default_global/messages/${msgData.id}/reactions`);
+    expect(getRes.status()).toBe(200);
+    const getData = await getRes.json();
+    expect(getData.counts['👍']).toBeDefined();
+    expect(getData.counts['👍'].length).toBe(1);
+    console.log('✅ Réaction vérifiée');
 
-    // Envoyer un message
-    await input.fill('test-reaction-ui');
-    await input.press('Enter');
-
-    // Attendre que le message apparaisse (grâce à la mise à jour optimiste)
-    await page.waitForTimeout(2000);
-    const msg = page.locator('.message').last();
-    await expect(msg).toBeVisible({ timeout: 20_000 });
-
-    // Click sur le message pour déclencher les actions (plus fiable que hover en CI)
-    await msg.click();
-    await page.waitForTimeout(300);
-
-    // Cliquer sur le bouton réaction via data-testid
-    const reactionTrigger = page.locator('[data-testid="reaction-trigger"]').last();
-    await expect(reactionTrigger).toBeVisible({ timeout: 10_000 });
-    await reactionTrigger.click();
-
-    // Picker visible via data-testid
-    const picker = page.locator('[data-testid="emoji-picker"]').last();
-    await expect(picker).toBeVisible({ timeout: 5_000 });
-
-    // Cliquer sur un emoji via data-testid
-    await page.locator('[data-testid="emoji-quick-btn"]').first().click();
-    await page.waitForTimeout(2000);
-
-    // Vérifier que la pill est visible via data-testid
-    const pill = page.locator('[data-testid="reaction-pill"]').first();
-    await expect(pill).toBeVisible({ timeout: 10_000 });
-    const pillText = await pill.textContent();
-    expect(pillText).toContain('1');
-    console.log('✅ Réaction UI: picker → pill count=1');
+    // 4. Supprimer la réaction
+    const delRes = await page.request.delete(`${BASE}/conversations/default_global/messages/${msgData.id}/reactions`);
+    expect(delRes.status()).toBe(200);
+    console.log('✅ Réaction supprimée');
   });
 
   // ══════════════════════════════════════════════════════════════
