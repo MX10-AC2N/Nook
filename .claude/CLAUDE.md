@@ -293,14 +293,14 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 
 ---
 
-## 🚦 Statut CI (2026-04-03 — Session 48)
-- **Tests E2E**: 165/165 PASS | 0 fail | 0 skip | 1.8min
-- **Fichiers**: admin.spec.ts (540L), user.spec.ts (1008L), api-sanity.spec.ts (534L)
-- **Backend**: build OK `nook-backend v0.5.0-beta.1` (2m46s)
-- **Docker**: image `nook-ci:local` OK
+## 🚦 Statut CI (2026-04-12 — Session 49)
+- **Tests E2E**: 163/163 PASS | 0 fail | 0 skip | ~1.5min
+- **Fichiers**: admin.spec.ts (25 tests), user.spec.ts (75 tests), api-sanity.spec.ts (76 tests)
+- **Backend**: build OK `nook-backend v0.5.0-beta.2`
+- **Docker**: image `nook:dev` OK
 - **Regles**: `npx playwright test --list` obligatoire avant push
-- **Bugs CI**: 5 corriges, 0 connu bloquant
-- **Coverage chess**: 34 tests, 67% categories couvertes
+- **Bugs CI**: 0 connu bloquant
+- **Coverage**: Auth, Chat, Reactions, Upload, Polls, Chess, Calendar, Settings, Admin, E2EE, Push, Navigation
 
 ### Commandes Chat Disponibles
 - `/fini` — Termine la session proprement: resume, update .claude docs, push state, exit.
