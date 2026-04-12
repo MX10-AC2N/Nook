@@ -296,7 +296,7 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 ## 🚦 Statut CI (2026-04-12 — Session 49)
 - **Tests E2E**: 163/163 PASS | 0 fail | 0 skip | ~1.5min
 - **Fichiers**: admin.spec.ts (25 tests), user.spec.ts (75 tests), api-sanity.spec.ts (76 tests)
-- **Backend**: build OK `nook-backend v0.5.0-beta.2`
+- **Backend**: build OK `nook-backend v0.5.0`
 - **Docker**: image `nook:dev` OK
 - **Regles**: `npx playwright test --list` obligatoire avant push
 - **Bugs CI**: 0 connu bloquant
