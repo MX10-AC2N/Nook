@@ -20,17 +20,16 @@ jobs:
         working-directory: backend
         run: cargo update
 
-      - name: Commit Cargo.lock
+      - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add backend/Cargo.lock
           if git diff --staged --quiet; then
             echo "Aucun changement"
-          else
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
-            git add backend/Cargo.lock
-            git commit -m "chore: Update Cargo.lock"
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
+            exit 0
           fi
+          git commit -m "chore: Update Cargo.lock"
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }} || true
+          git push --force-with-lease origin HEAD:${{ github.ref_name }}
