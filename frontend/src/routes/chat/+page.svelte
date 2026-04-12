@@ -1321,16 +1321,6 @@
   .load-more-indicator { text-align: center; font-size: .8rem; color: var(--text-secondary, #94a3b8); padding: .5rem; }
 
   /* Menu contextuel message */
-  .message { position: relative; }
-  .msg-actions {
-    position: absolute; top: .2rem; right: .2rem;
-    display: flex; gap: .2rem;
-    background: var(--bg-primary, #fff);
-    border: 1px solid var(--border, #e2e8f0);
-    border-radius: .45rem; padding: .15rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
-    z-index: 10;
-  }
   .mine-actions { right: auto; left: .2rem; }
   .msg-action-btn {
     background: none; border: none; cursor: pointer; font-size: .8rem;
@@ -1722,20 +1712,6 @@
 
   /* ─── Mobile ─── */
   @media (max-width: 640px) {
-    .chat-page { flex-direction: column; }
-    .conversations-sidebar {
-      width: 100%; max-height: 90px;
-      border-right: none; border-bottom: 1px solid var(--border, #e2e8f0);
-    }
-    .conversation-list {
-      flex-direction: row;
-      overflow-x: auto;
-      padding: .25rem .5rem;
-    }
-    .conversation-item { flex-shrink: 0; max-width: 140px; }
-    .conversation-info .preview { display: none; }
-    .message { max-width: 88%; }
-    .modal { max-width: 96vw; margin: .75rem; }
   }
 
 
