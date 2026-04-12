@@ -332,7 +332,7 @@
     }
 
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
-    setActiveConv(conv.id);
+    setActiveConv(conv.id); sidebarOpen = false;
     await loadMessages(conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
@@ -650,7 +650,7 @@
 <div class="chat-page">
 
   <!-- ─── SIDEBAR ─── -->
-  <aside class="conversations-sidebar">
+  <aside class="conversations-sidebar" class:open={sidebarOpen}>
     <div class="sidebar-header">
       <h2>Conversations</h2>
       <button class="btn-new-conv" onclick={openNewConv} title="Nouvelle conversation">＋</button>
@@ -708,6 +708,9 @@
   <main class="chat-area">
 
     <header class="chat-header">
+      <button class="btn-menu-mobile" style="display:none" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
+        <Icon name="menu" size="22" />
+      </button>
       {#if renamingConv}
         <input
           class="rename-input"
