@@ -1877,5 +1877,4 @@
   .conversation-info .last-msg {
     font-size: .72rem;
   }
-}
 </style>
