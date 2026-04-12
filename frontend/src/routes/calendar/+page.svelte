@@ -502,4 +502,63 @@
   .day-event-time { font-weight: 600; min-width: 60px; }
   .day-event-desc { font-size: 0.85rem; color: var(--text-secondary, #64748b); margin-top: 4px; }
   .no-events { text-align: center; color: var(--text-secondary, #64748b); padding: 2rem; }
+
+  /* Calendar cell animations */
+  .cal-cell {
+    transition: all 0.2s ease;
+  }
+  .cal-cell:hover {
+    transform: scale(1.05);
+    z-index: 1;
+  }
+  .cal-cell.today {
+    animation: today-pulse 2s ease-in-out infinite;
+  }
+  @keyframes today-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.2); }
+  }
+  
+  /* Event pill animations */
+  .evt-pill {
+    transition: all 0.2s ease;
+    animation: pill-slide-in 0.3s ease;
+  }
+  .evt-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  @keyframes pill-slide-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* View switcher animation */
+  .view-btn {
+    transition: all 0.2s ease;
+  }
+  .view-btn:hover {
+    background: var(--bg-tertiary, #f1f5f9);
+  }
+  .view-btn.active {
+    animation: btn-activate 0.2s ease;
+  }
+  @keyframes btn-activate {
+    0% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Upcoming events list */
+  .evt-item {
+    transition: all 0.2s ease;
+    animation: item-fade-in 0.3s ease;
+  }
+  .evt-item:hover {
+    transform: translateX(4px);
+    background: var(--bg-tertiary, #f8fafc);
+  }
+  @keyframes item-fade-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
 </style>
