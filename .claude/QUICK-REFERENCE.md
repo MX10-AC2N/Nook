@@ -30,6 +30,10 @@ git push origin develop
 3. **Chess pas de mouvement** → Vérifier `this.myColor` (pas `this.myColor()`)
 4. **Emojis petits** → Vérifier `.emoji-only` et inline `.emoji` CSS
 5. **Notifications** → AudioContext pour HTTP/LAN, Web Push pour HTTPS
+6. **Tests flaky** → Vérifier que les tests sont dans le bon `test.describe` block
+7. **Playwright page undefined** → Tests doivent être DANS un describe, pas à la racine
+8. **PGN non affiché** → Vérifier `chessStore.toPgn()` et `move_history.san`
+9. **Chart.js 404** → Import dynamique `await import('chart.js/auto')`
 
 ## Variables d'environnement (.env)
 ```
