@@ -22,11 +22,11 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
 
-      - name: Update package-lock.json
+      - name: Update pnpm-lock.yaml
         working-directory: frontend
         run: pnpm install --no-frozen-lockfile
 
-      - name: Commit package-lock.json
+      - name: Commit pnpm-lock.yaml
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -34,6 +34,9 @@ jobs:
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
+            git add frontend/pnpm-lock.yaml
             git commit -m "chore: Update pnpm-lock.yaml"
-            git push
+            git push --force-with-lease origin HEAD:${{ github.ref_name }}
           fi
