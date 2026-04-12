@@ -3,7 +3,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
-  import Chart from 'chart.js/auto';
+  // Chart.js loaded dynamically (lazy)
+  import type { Chart as ChartType } from 'chart.js/auto';
 
   // ─── Types ────────────────────────────────────────────────────
   interface DayCount { day: string; count: number; }
@@ -25,8 +26,8 @@
 
   let doughnutCanvas = $state<HTMLCanvasElement | undefined>(undefined);
   let barCanvas      = $state<HTMLCanvasElement | undefined>(undefined);
-  let doughnutChart: Chart | undefined;
-  let barChart: Chart | undefined;
+  let doughnutChart: ChartType | undefined;
+  let barChart: ChartType | undefined;
 
   // ─── Chargement ───────────────────────────────────────────────
   async function loadAnalytics() {
@@ -48,8 +49,12 @@
   }
 
   // ─── Charts ───────────────────────────────────────────────────
-  function renderCharts() {
+  async function renderCharts() {
     if (!analytics) return;
+    // Lazy load Chart.js only when needed
+    const { default: Chart } = await import('chart.js/auto');
+    // Store for use in render functions
+    (window as any).__Chart = Chart;
     renderDoughnut();
     renderBar();
   }
@@ -57,7 +62,7 @@
   function renderDoughnut() {
     if (!doughnutCanvas || !analytics) return;
     doughnutChart?.destroy();
-    doughnutChart = new Chart(doughnutCanvas, {
+    doughnutChart = new ((window as any).__Chart)(doughnutCanvas, {
       type: 'doughnut',
       data: {
         labels: ['Utilisateurs', 'Messages', 'Conversations', 'Sondages', 'Fichiers'],
@@ -99,7 +104,7 @@
       last7.push({ day: key.slice(5), count: found?.count ?? 0 }); // MM-DD
     }
 
-    barChart = new Chart(barCanvas, {
+    barChart = new ((window as any).__Chart)(barCanvas, {
       type: 'bar',
       data: {
         labels: last7.map(r => r.day),
