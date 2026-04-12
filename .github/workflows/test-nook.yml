@@ -1,7 +1,7 @@
 # Note: this file is the MAIN CI pipeline.
 # It builds Docker image, runs backend checks, E2E tests, and security tests.
 
-name: 3==> CI - Test Nook (Backend + Frontend + Integration + E2E)
+name: 3 ==> Test Nook
 
 on:
   workflow_dispatch:
