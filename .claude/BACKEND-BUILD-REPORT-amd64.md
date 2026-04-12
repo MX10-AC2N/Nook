@@ -1,13 +1,13 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit a24e96f | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24309387937)
+> **unknown** | commit 97f6947 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24309700796)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
 | **cargo build** | ✅ OK |
-| **cargo check** | ✅ exit=0 |
+| **cargo check** | ❌ exit=101 |
 | **cargo clippy** | ✅ exit=0 |
 
 | Métrique | Valeur |
@@ -33,7 +33,7 @@
 ## ❌ Erreurs cargo check
 
 ```
-(aucune erreur)
+error[E0433]: cannot find module or crate `base64` in this scope
 ```
 
 ## ❌ Erreurs cargo build
@@ -71,7 +71,7 @@
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 3m 03s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 3m 14s
 ```
 
 ---

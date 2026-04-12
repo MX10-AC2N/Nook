@@ -425,3 +425,57 @@ pub async fn require_admin(
 
     next.run(req).await
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_password_creates_hash() {
+        let hash = hash_password("testpassword123");
+        assert!(!hash.is_empty());
+        assert!(hash.starts_with("$argon2"), "Should use Argon2id");
+    }
+
+    #[test]
+    fn test_hash_password_unique_salt() {
+        let hash1 = hash_password("samepassword");
+        let hash2 = hash_password("samepassword");
+        assert_ne!(hash1, hash2, "Each hash should have unique salt");
+    }
+
+    #[test]
+    fn test_verify_password_correct() {
+        let password = "MySecurePass2026!";
+        let hash = hash_password(password);
+        assert!(verify_password(password, &hash));
+    }
+
+    #[test]
+    fn test_verify_password_wrong() {
+        let hash = hash_password("correctpassword");
+        assert!(!verify_password("wrongpassword", &hash));
+    }
+
+    #[test]
+    fn test_verify_password_invalid_hash() {
+        assert!(!verify_password("anypassword", "not_a_valid_hash"));
+    }
+
+    #[test]
+    fn test_build_cookie_http() {
+        let cookie = build_set_cookie("user123", "token456", false, 86400);
+        assert!(cookie.contains("auth_token=user123:token456"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(!cookie.contains("Secure"));
+    }
+
+    #[test]
+    fn test_build_cookie_https() {
+        let cookie = build_set_cookie("user123", "token456", true, 86400);
+        assert!(cookie.contains("auth_token=user123:token456"));
+        assert!(cookie.contains("SameSite=None"));
+        assert!(cookie.contains("Secure"));
+    }
+}

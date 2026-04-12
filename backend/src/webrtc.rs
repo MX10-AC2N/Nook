@@ -674,3 +674,90 @@ pub fn webrtc_ws_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
         .route("/ws", get(ws_handler))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_secretbox_keygen_length() {
+        let key = crypto_secretbox_keygen();
+        assert_eq!(key.len(), CRYPTO_SECRETBOX_KEYBYTES);
+    }
+
+    #[test]
+    fn test_secretbox_keygen_unique() {
+        let key1 = crypto_secretbox_keygen();
+        let key2 = crypto_secretbox_keygen();
+        assert_ne!(key1, key2, "Keys should be unique");
+    }
+
+    #[test]
+    fn test_secretbox_nonce_length() {
+        let nonce = crypto_secretbox_nonce();
+        assert_eq!(nonce.len(), CRYPTO_SECRETBOX_NONCEBYTES);
+    }
+
+    #[test]
+    fn test_secretbox_encrypt_decrypt() {
+        let key = crypto_secretbox_keygen();
+        let nonce = crypto_secretbox_nonce();
+        let message = b"Hello, Nook!";
+
+        let ciphertext = crypto_secretbox_easy(message, &key, &nonce);
+        let plaintext = crypto_secretbox_open_easy(&ciphertext, &key).unwrap();
+
+        assert_eq!(plaintext, message);
+    }
+
+    #[test]
+    fn test_secretbox_wrong_key_fails() {
+        let key1 = crypto_secretbox_keygen();
+        let key2 = crypto_secretbox_keygen();
+        let nonce = crypto_secretbox_nonce();
+        let message = b"Secret message";
+
+        let ciphertext = crypto_secretbox_easy(message, &key1, &nonce);
+        let result = crypto_secretbox_open_easy(&ciphertext, &key2);
+
+        assert!(result.is_err(), "Decryption with wrong key should fail");
+    }
+
+    #[test]
+    fn test_secretbox_too_short_fails() {
+        let key = crypto_secretbox_keygen();
+        let short = vec![0u8; 10]; // Too short
+
+        let result = crypto_secretbox_open_easy(&short, &key);
+        assert!(result.is_err(), "Too short ciphertext should fail");
+    }
+
+    #[test]
+    fn test_base64_roundtrip() {
+        let data = b"test data for base64";
+        let encoded = to_base64(data);
+        let decoded = from_base64(&encoded).unwrap();
+        assert_eq!(decoded, data);
+    }
+
+    #[test]
+    fn test_base64_invalid() {
+        let result = from_base64("!!!invalid!!!");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_base64_empty() {
+        let encoded = to_base64(b"");
+        assert_eq!(encoded, "");
+        let decoded = from_base64(&encoded).unwrap();
+        assert_eq!(decoded, b"");
+    }
+
+    #[test]
+    fn test_constants() {
+        assert_eq!(CRYPTO_SECRETBOX_NONCEBYTES, 24);
+        assert_eq!(CRYPTO_SECRETBOX_KEYBYTES, 32);
+        assert_eq!(CRYPTO_SECRETBOX_MACBYTES, 16);
+    }
+}
