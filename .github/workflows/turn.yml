@@ -1,0 +1,52 @@
+name: 3 ==> Turn-Server Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'services/turn-rs/**'
+      - '.github/workflows/turn.yml'
+
+jobs:
+  turn-build:
+    name: Build Turn-Server (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - arch: arm64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build turn-server on Alpine (Docker)
+        run: |
+          docker build \
+            --target builder \
+            --tag turn-builder:latest \
+            -f services/turn-rs/Dockerfile \
+            services/turn-rs
+
+      - name: Extract turn-server binary
+        run: |
+          mkdir -p artifacts
+          id=$(docker create turn-builder:latest /bin/sh -c "cat /usr/local/bin/turn-server")
+          docker start -a $id > artifacts/turn-server-${{ matrix.arch }}
+          docker rm $id
+          chmod +x artifacts/turn-server-${{ matrix.arch }}
+          file artifacts/turn-server-${{ matrix.arch }}
+          ls -la artifacts/turn-server-${{ matrix.arch }}
+
+      - name: Upload turn-server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nook-turn-server-${{ matrix.arch }}
+          path: artifacts/turn-server-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 7
