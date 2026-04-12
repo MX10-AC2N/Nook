@@ -31,9 +31,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
-            git add frontend/package-lock.json
             git commit -m "chore: Update package-lock.json"
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
+            git pull --rebase origin ${{ github.ref_name }}
+            git push origin HEAD:${{ github.ref_name }}
           fi
