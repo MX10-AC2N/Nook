@@ -1,4 +1,4 @@
-name: 2==> 🎨 Frontend Build & Artifact
+name: 2 ==> Frontend Build
 
 on:
   workflow_dispatch:
