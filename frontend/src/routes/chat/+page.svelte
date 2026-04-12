@@ -708,7 +708,7 @@
   <main class="chat-area">
 
     <header class="chat-header">
-      <button class="btn-menu-mobile" style="display:none" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
+      <button class="btn-menu-mobile" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
         <Icon name="menu" size="22" />
       </button>
       {#if renamingConv}
@@ -1768,8 +1768,8 @@
 
   .btn-menu-mobile {
     display: flex !important;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     align-items: center;
     justify-content: center;
     background: transparent;
