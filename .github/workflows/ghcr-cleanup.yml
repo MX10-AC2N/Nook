@@ -1,4 +1,4 @@
-name: 7 ==> GHCR Cleanup
+name: 8 ==> GHCR Cleanup
 
 on:
   workflow_run:
