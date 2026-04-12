@@ -891,6 +891,73 @@ test.describe.serial('User — Flux complet', () => {
   });
 
 
+  // ══════════════════════════════════════════════════════════════
+  // 12. NOUVELLES FEATURES
+  // ══════════════════════════════════════════════════════════════
+
+  test('Calendar — drag-drop: PUT /events/{id} change date', async () => {
+    const createRes = await page.request.post(`${BASE}/events`, {
+      data: { title: 'Drag-test', date: '2026-06-15', time: '10:00', description: '' },
+    });
+    expect(createRes.status()).toBe(200);
+    const created = await createRes.json();
+    const eventId = created.id;
+    expect(eventId).toBeTruthy();
+
+    const updateRes = await page.request.put(`${BASE}/events/${eventId}`, {
+      data: { ...created, date: '2026-06-20' },
+    });
+    expect(updateRes.status()).toBe(200);
+    const updated = await updateRes.json();
+    expect(updated.date).toBe('2026-06-20');
+
+    const getRes = await page.request.get(`${BASE}/events`);
+    expect(getRes.status()).toBe(200);
+    const events = await getRes.json();
+    const found = (events.events ?? events).find((e: any) => e.id === eventId);
+    expect(found?.date).toBe('2026-06-20');
+
+    await page.request.delete(`${BASE}/events/${eventId}`);
+  });
+
+  test('Chess — PGN notation via move_history', async () => {
+    const createRes = await page.request.post(`${BASE}/chess/create`, {
+      data: { opponent: 'ai', color: 'white', time_limit_secs: 0 },
+    });
+    expect(createRes.status()).toBe(200);
+    const createBody = await createRes.json();
+    const gameId = createBody.game_id ?? createBody.id;
+    expect(gameId).toBeTruthy();
+
+    const moveRes = await page.request.post(`${BASE}/chess/${gameId}/move`, {
+      data: { from: 'e2', to: 'e4' },
+    });
+    expect(moveRes.status()).toBe(200);
+
+    await page.waitForTimeout(2000);
+
+    const getRes = await page.request.get(`${BASE}/chess/${gameId}`);
+    expect(getRes.status()).toBe(200);
+    const game = await getRes.json();
+    const history = game.move_history ?? [];
+    expect(history.length).toBeGreaterThanOrEqual(1);
+
+    const firstMove = history[0];
+    expect(firstMove.san).toBeTruthy();
+  });
+
+  test('Analytics — chart.js lazy loaded', async () => {
+    test.setTimeout(30_000);
+    await page.goto('/admin/analytics');
+    await waitForAppReady(page);
+
+    const hasCanvas = await page.evaluate(() => {
+      return document.querySelector('canvas') !== null;
+    });
+    expect(hasCanvas).toBe(true);
+  });
+
+
 // ══════════════════════════════════════════════════════════════
 // RATE LIMITING — suite isolée
 // ══════════════════════════════════════════════════════════════
