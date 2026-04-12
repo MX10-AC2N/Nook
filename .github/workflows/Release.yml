@@ -1,4 +1,4 @@
-name: 6 ==> Release
+name: 7 ==> Release
 
 # Déclenché manuellement : tu choisis le type de bump
 on:
