@@ -46,8 +46,8 @@ export interface ChatState {
 // 2️⃣ État réactif
 // -----------------------------------------------------------------
 
-// Svelte 5 reactive state — exported as getter for cross-file reactivity
-const _chatState = $state<ChatState>({
+// Svelte 5 reactive state — exported directly (properties are reactive)
+export const chatStore = $state<ChatState>({
   messages: [],
   connectionError: null,
   showEmojiPicker: false,
@@ -57,26 +57,6 @@ const _chatState = $state<ChatState>({
   wsConnected: false,
   lastReactionUpdate: null,
 });
-
-// Export as getter function for proper Svelte 5 reactivity across modules
-export const chatStore = {
-  get messages() { return _chatState.messages; },
-  set messages(v: ChatMessage[]) { _chatState.messages = v; },
-  get connectionError() { return _chatState.connectionError; },
-  set connectionError(v) { _chatState.connectionError = v; },
-  get showEmojiPicker() { return _chatState.showEmojiPicker; },
-  set showEmojiPicker(v) { _chatState.showEmojiPicker = v; },
-  get hasMore() { return _chatState.hasMore; },
-  set hasMore(v) { _chatState.hasMore = v; },
-  get loadingMore() { return _chatState.loadingMore; },
-  set loadingMore(v) { _chatState.loadingMore = v; },
-  get unreadCounts() { return _chatState.unreadCounts; },
-  set unreadCounts(v) { _chatState.unreadCounts = v; },
-  get wsConnected() { return _chatState.wsConnected; },
-  set wsConnected(v) { _chatState.wsConnected = v; },
-  get lastReactionUpdate() { return _chatState.lastReactionUpdate; },
-  set lastReactionUpdate(v) { _chatState.lastReactionUpdate = v; },
-};
 
 // -----------------------------------------------------------------
 // 3️⃣ WebSocket — temps réel avec reconnexion automatique
