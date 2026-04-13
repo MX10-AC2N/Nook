@@ -58,6 +58,7 @@
   
   // Direct messages state — updated by custom load
   let localMessages = $state<ChatMessage[]>([]);
+  let messageVersion = $state(0);
   
   async function loadMessagesDirect(convId: string) {
     try {
