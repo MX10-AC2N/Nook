@@ -1412,3 +1412,59 @@ Suite de la session 49. Tests et corrections sur Nook déployé. Chat Supervisor
 - Docker: déployé sur Zimaboard (192.168.1.192:6300)
 - Comptes: hermes-bot + hermes validés
 - Git: commits pushés
+## Session 2026-04-13 — Reactivité Svelte 5 (Chat + Chess)
+
+### Contexte
+Problème critique : le chat et les échecs ne se mettaient pas à jour correctement en Svelte 5. Les messages n'apparaissaient pas après envoi, les conversations affichaient les mêmes messages, et les pièces d'échecs ne bougeaient pas après les coups.
+
+### Progrès Réalisés
+- **Chat :** Implémentation de `messagesByConv` (dictionnaire par conversation) avec `$derived` pour la conversation active
+- **Chat :** Ajout de `loadMessagesDirect` dans `selectConversation` pour recharger les messages au changement de conversation
+- **Chat :** Correction du `messageVersion` non déclaré (cause d'une `ReferenceError`)
+- **Chess :** Suppression de `boardVersion++` dans `$effect` (causait une boucle infinie `effect_update_depth_exceeded`)
+- **Chess :** Ajout de `boardVersion++` après `handleClick` uniquement
+- **Validation MCP Svelte :** Utilisation de `svelte_autofixer` pour valider les corrections
+
+### Décisions Clés
+- Utilisation de `$derived` pour les messages actifs (pattern Svelte 5)
+- Utilisation de clés dynamiques `(msg.id + '-' + activeConvId)` pour forcer le re-render
+- Éviter les `$effect` qui modifient les variables qu'ils surveillent
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| `messageVersion is not defined` | chat/+page.svelte | Déclaration ajoutée |
+| `effect_update_depth_exceeded` | chess/[game_id]/+page.svelte | `boardVersion++` déplacé hors `$effect` |
+| Messages identiques dans toutes les conversations | chat/+page.svelte | `loadMessagesDirect` ajouté dans `selectConversation` |
+| Messages non mis à jour après envoi | chat/+page.svelte | `messagesByConv` dict + `$derived` |
+| Pièces d'échecs immobiles | chess/[game_id]/+page.svelte | `boardVersion` counter après `handleClick` |
+
+### Fichiers Modifiés
+- `frontend/src/routes/chat/+page.svelte` : 10+ commits pour la réactivité
+- `frontend/src/routes/chess/[game_id]/+page.svelte` : 3 commits pour la réactivité
+
+### Conventions Établies
+1. Svelte 5 `$state` nécessite des clés dynamiques pour forcer les re-renders
+2. `$derived` est préféré pour les valeurs dérivées
+3. `$effect` ne doit PAS modifier les variables qu'il surveille
+4. Les agents spécialisés (MCP Svelte) doivent valider les corrections
+
+### État Final
+- Branche: develop
+- CI: ✅ Frontend (591), Backend (476), Docker (153) — SUCCESS
+- Tests Nook: ❌ Échec (Check Backend step failure)
+- E2E: ❌ Dernier run le 10/04 — échec
+- Docker: déployé sur Zimaboard (192.168.1.192:6300)
+- Git: commits pushés
+
+### Prochaines Étapes
+- [ ] **URGENT :** Investiguer l'échec "Check Backend" dans les tests Nook
+- [ ] **URGENT :** Corriger la réactivité chat/chess (problème persistant)
+- [ ] Implémenter read receipts
+- [ ] Virtual scrolling pour performance
+- [ ] Message search/filter
+
+### Risques
+1. Réactivité Svelte 5 non résolue — impact fonctionnel majeur, nécessite investigation approfondie
+2. Tests Nook en échec — vérifier la compatibilité backend
+
