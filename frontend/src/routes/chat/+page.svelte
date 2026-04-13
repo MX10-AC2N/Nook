@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
-  import { goto } from '$app/navigation';
+  import { get as storeGet } from 'svelte/store';
+    import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
     messagesStore as messagesWritable,
-    get,
+    get as storeGet,
     loadMessages,
     loadMoreMessages,
     sendMessage,
@@ -357,7 +357,7 @@
 
   async function loadReactionsForMessages(convId: string) {
     // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = get(messagesWritable).slice(-50);
+    const msgs = storeGet(messagesWritable).slice(-50);
     await Promise.allSettled(msgs.map(async (msg) => {
       try {
         const res = await fetch(
@@ -650,7 +650,7 @@
   });
 
   $effect(() => {
-    const count = get(messagesWritable).length;
+    const count = storeGet(messagesWritable).length;
     if (!chatContainer || count === 0) return;
     // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
     // Tolérance : si on est à moins de 150px du bas → scroll auto
