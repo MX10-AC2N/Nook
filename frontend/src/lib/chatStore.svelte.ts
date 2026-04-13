@@ -420,7 +420,7 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
     });
     if (res.status !== 204 && !res.ok) return false;
     if (!chatStore.wsConnected) {
-      messagesStore.update(msgs => msgs.filter(m => m.id !== msgId);
+      messagesStore.update(msgs => msgs.filter(m => m.id !== msgId));
     }
     return true;
   } catch { return false; }
