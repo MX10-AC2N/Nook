@@ -67,7 +67,8 @@
       const data = await res.json();
       const msgs = Array.isArray(data) ? data : (data.messages ?? []);
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
-      localMessages = msgs;  // Direct assignment triggers reactivity
+      localMessages = msgs;
+      console.log('[Chat] loadMessagesDirect:', msgs.length, 'for', convId);
     } catch (e) {
       console.error('[Chat] loadMessagesDirect:', e);
     }
@@ -356,6 +357,7 @@
     
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
+    console.log('[Chat] selectConversation:', conv.id);
     await loadMessagesDirect(conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
