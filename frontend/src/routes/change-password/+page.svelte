@@ -99,7 +99,7 @@
       success = payload.message ?? 'Mot de passe mis à jour avec succès !';
       authStore.updateUser({ needs_password_change: false });
 
-      setTimeout(() => {
+      setTimeout(async () => {
         // Logout and redirect to login page
       await authStore.logout();
       goto('/login');
