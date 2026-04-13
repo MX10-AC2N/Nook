@@ -57,8 +57,8 @@
   let activeConvId    = $state('default_global');
   
   // Direct messages state — updated by custom load
-  let localMessages = $state<ChatMessage[]>([]);
-  let messageVersion = $state(0);
+  let messagesByConv: Record<string, ChatMessage[]> = $state({});
+  const localMessages = $derived(messagesByConv[activeConvId] ?? []);
   
   async function loadMessagesDirect(convId: string) {
     try {
