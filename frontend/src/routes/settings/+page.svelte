@@ -195,16 +195,16 @@
       <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
         <div class="form-group">
           <label for="currentPassword">Mot de passe actuel</label>
-          <input type="password" id="currentPassword" bind:value={currentPassword} autocomplete="current-password" />
+          <input type={showPassword ? "text" : "password"} id="currentPassword" bind:value={currentPassword} autocomplete="current-password" />
         </div>
         <div class="form-group">
           <label for="newPassword">Nouveau mot de passe</label>
-          <input type="password" id="newPassword" bind:value={newPassword} autocomplete="new-password" />
+          <input type={showPassword ? "text" : "password"} id="newPassword" bind:value={newPassword} autocomplete="new-password" />
           <p class="help-text">Au moins 8 caractères</p>
         </div>
         <div class="form-group">
           <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
-          <input type="password" id="confirmPassword" bind:value={confirmPassword} autocomplete="new-password" />
+          <input type={showPassword ? "text" : "password"} id="confirmPassword" bind:value={confirmPassword} autocomplete="new-password" />
         </div>
         <button type="submit" class="btn btn-primary" disabled={saving}>
           {saving ? 'Modification…' : 'Changer le mot de passe'}
