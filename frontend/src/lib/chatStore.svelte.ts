@@ -315,7 +315,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
     messagesStore.set([...msgs]);
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
-    console.log('[Chat] chatStore.messages set:', get(messagesStore).length);
+    console.log('[Chat] messagesStore set:', get(messagesStore).length);
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
