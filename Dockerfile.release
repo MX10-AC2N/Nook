@@ -1,28 +1,25 @@
-# ============================================================
 # Nook - Backend (runtime only, pre-compiled binary)
-# ============================================================
-# Consomme le binaire musl compile par Backend.yml
 # Zero Google dependency - Alpine 3.21 (~15MB)
-# ============================================================
 
 FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache \
     sqlite-libs \
     libsodium \
+    su-exec \
     ca-certificates
 
-# User non-root with UID/GID 1000 (matches host casaos user)
 RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
-# Dossiers applicatifs - world-writable car les bind mounts
-# cteent par l'hote appartiennent a root
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chmod 0777 /app/data /app/data/uploads /app/logs /app/static
 
 ARG TARGETARCH=amd64
 COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
 COPY frontend/ /app/static/
+
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 WORKDIR /app
 
@@ -35,6 +32,4 @@ ENV LOG_DIR=/app/logs
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:3000/api/health || exit 1
 
-USER nook
-
-ENTRYPOINT ["/app/nook-backend"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
