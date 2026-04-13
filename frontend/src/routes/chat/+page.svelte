@@ -6,6 +6,7 @@
   import {
     chatStore,
     messagesStore as messagesWritable,
+    messagesStore,
     loadMessages,
     loadMoreMessages,
     sendMessage,
@@ -56,6 +57,15 @@
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
+  
+  // Local reactive messages — subscribe to writable store
+  let localMessages = $state<ChatMessage[]>([]);
+  $effect(() => {
+    const unsub = messagesWritable.subscribe(msgs => {
+      localMessages = msgs;
+    });
+    return unsub;
+  });
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
@@ -806,13 +816,13 @@
         </button>
       {/if}
 
-      {#if $messagesWritable.length === 0}
+      {#if localMessages.length === 0}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each $messagesWritable as msg (msg.id)}
+        {#each localMessages as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
