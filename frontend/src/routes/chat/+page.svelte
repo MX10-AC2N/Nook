@@ -468,7 +468,8 @@
     chatStore.showEmojiPicker = false;
     try {
       await sendMessage(content, activeConvId);
-      // Reload messages to show the new message
+      // Wait for server to process, then reload
+      await new Promise(r => setTimeout(r, 500));
       await loadMessagesDirect(activeConvId);
     } catch (e) {
       console.error('[Chat] send error:', e);
