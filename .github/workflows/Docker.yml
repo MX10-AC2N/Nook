@@ -95,6 +95,11 @@ jobs:
           cp services/turn-rs/docker-entrypoint.sh docker-context/turn/
           chmod +x docker-context/turn/docker-entrypoint.sh
 
+      - name: Copy nook entrypoint to docker context
+        run: |
+          cp docker-entrypoint.sh docker-context/
+          chmod +x docker-context/docker-entrypoint.sh
+
       - name: Verify context
         id: ctx
         run: |
