@@ -303,7 +303,7 @@ class ChessStore {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.message ?? 'Erreur serveur');
-      this.currentGame = data.game;
+      this.currentGame = { ...data.game };
       this.selected    = null;
       this.legalTargets = [];
 
@@ -431,7 +431,7 @@ class ChessStore {
       if (!data.success) throw new Error(data.message ?? 'Coup invalide');
 
       this.lastMove    = { from, to };
-      this.currentGame = data.game;
+      this.currentGame = { ...data.game };
       this.selected    = null;
       this.legalTargets = [];
       this.pendingPromotion = null;
@@ -487,7 +487,7 @@ class ChessStore {
       clearTimeout(timeout);
       const data = await res.json();
       if (data.success && data.game) {
-        this.currentGame = data.game;
+        this.currentGame = { ...data.game };
         // Mettre à jour lastMove depuis le dernier coup IA (from/to maintenant disponibles)
         const history: Array<{ from?: string; to?: string; by?: string }> =
           data.game.move_history ?? [];
