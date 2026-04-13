@@ -141,7 +141,7 @@
       const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
       if (!res.ok) return;
       const data = await res.json();
-      const board = data.engine?.board;
+      const board = data.game?.engine?.board;
       if (board && board.length === 8) {
         localBoard = board.map((row: string[]) => [...row]);
       }
