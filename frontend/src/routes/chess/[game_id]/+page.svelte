@@ -138,7 +138,7 @@
   
   async function fetchBoard() {
     try {
-      const res = await fetch('/api/chess/${gameId}', { credentials: 'include' });
+      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
       if (!res.ok) return;
       const data = await res.json();
       const board = data.engine?.board;
