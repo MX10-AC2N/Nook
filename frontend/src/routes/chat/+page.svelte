@@ -58,8 +58,16 @@
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
   
-  // Reactive messages — $derived reads from store on every access
-  const localMessages = $derived(storeGet(messagesWritable));
+  // Local messages state — updated by loadMessages
+  let localMessages = $state<ChatMessage[]>([]);
+  
+  // Override loadMessages to update local state
+  const originalLoadMessages = loadMessages;
+  async function loadMessagesLocal(convId: string) {
+    await originalLoadMessages(convId);
+    // Read from store after loadMessages updates it
+    localMessages = storeGet(messagesWritable);
+  }
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
@@ -344,7 +352,7 @@
     
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
-    await loadMessages(conv.id);
+    await loadMessagesLocal(conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
     await Promise.resolve();
@@ -632,7 +640,7 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
-    await loadMessages(activeConvId);
+    await loadMessagesLocal(activeConvId);
 
     await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
