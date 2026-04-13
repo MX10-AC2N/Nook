@@ -46,7 +46,7 @@ export interface ChatState {
 // 2️⃣ État réactif
 // -----------------------------------------------------------------
 
-import { writable } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
@@ -201,7 +201,7 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
       }
     } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
-  if (!chatStore.messages.find(m => m.id === raw.id)) {
+  if (!get(messagesStore).find(m => m.id === raw.id)) {
     messagesStore.update(msgs => [...msgs, raw]);
   }
 }
@@ -315,7 +315,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
     messagesStore.set([...msgs]);
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
-    console.log('[Chat] chatStore.messages set:', chatStore.messages.length);
+    console.log('[Chat] chatStore.messages set:', get(messagesStore).length);
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
@@ -325,7 +325,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
 /** Charge les messages plus anciens (pagination vers le haut) */
 export async function loadMoreMessages(conversationId: string): Promise<void> {
   if (chatStore.loadingMore || !chatStore.hasMore) return;
-  const oldest = chatStore.messages[0];
+  const oldest = get(messagesStore)[0];
   if (!oldest) return;
   chatStore.loadingMore = true;
   try {
@@ -374,7 +374,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
     const msgData = await res.json();
     // Optimistic update: add message to DOM immediately
     if (msgData && msgData.id) {
-      const alreadyExists = chatStore.messages.some(m => m.id === msgData.id);
+      const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
       if (!alreadyExists) {
         messagesStore.update(msgs => [...msgs, msgData]);
       }
