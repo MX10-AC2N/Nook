@@ -131,7 +131,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
     const editedAt = msg.edited_at as number;
     const idx = chatStore.messages.findIndex(m => m.id === id);
     if (idx !== -1) {
-      chatStore.messages[idx] = { ...chatStore.messages[idx], content, edited_at: editedAt };
+      get(messagesStore)[idx] = { ...get(messagesStore)[idx], content, edited_at: editedAt };
     }
     return;
   }
@@ -402,7 +402,7 @@ export async function editMessage(msgId: string, convId: string, newContent: str
     if (!chatStore.wsConnected) {
       const idx = chatStore.messages.findIndex(m => m.id === msgId);
       if (idx !== -1) {
-        chatStore.messages[idx] = { ...chatStore.messages[idx], content: newContent, edited_at: Math.floor(Date.now() / 1000) };
+        get(messagesStore)[idx] = { ...get(messagesStore)[idx], content: newContent, edited_at: Math.floor(Date.now() / 1000) };
       }
     }
     return true;
