@@ -111,9 +111,8 @@
           <Icon name="lock" size={20} />
           Mot de passe
         </label>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           bind:value={password}
           placeholder="Votre mot de passe"
           autocomplete="current-password"
