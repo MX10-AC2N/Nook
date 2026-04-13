@@ -61,15 +61,22 @@
   
   async function loadMessagesDirect(convId: string) {
     try {
+      console.log('[Chat] loadMessagesDirect START:', convId);
       const res = await fetch(`/api/conversations/${convId}/messages?limit=50`, { credentials: 'include' });
-      if (!res.ok) return;
+      console.log('[Chat] fetch done, status:', res.status);
+      if (!res.ok) {
+        console.error('[Chat] fetch failed:', res.status);
+        return;
+      }
       const data = await res.json();
+      console.log('[Chat] data parsed, isArray:', Array.isArray(data), 'length:', data.length);
       const msgs = Array.isArray(data) ? data : (data.messages ?? []);
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
-      localMessages = [...msgs]; // Force new array reference for Svelte 5 reactivity
-      console.log('[Chat] loadMessagesDirect:', msgs.length, 'for', convId);
+      console.log('[Chat] assigning', msgs.length, 'messages to localMessages');
+      localMessages = [...msgs];
+      console.log('[Chat] assigned! localMessages.length:', localMessages.length);
     } catch (e) {
-      console.error('[Chat] loadMessagesDirect:', e);
+      console.error('[Chat] loadMessagesDirect ERROR:', e);
     }
   }
   let activeConvName  = $state('🌿 Nook');
