@@ -58,14 +58,8 @@
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
   
-  // Local reactive messages — subscribe to writable store
-  let localMessages = $state<ChatMessage[]>([]);
-  $effect(() => {
-    const unsub = messagesWritable.subscribe(msgs => {
-      localMessages = [...msgs];  // Force new array reference for reactivity
-    });
-    return unsub;
-  });
+  // Reactive messages — $derived reads from store on every access
+  const localMessages = $derived(storeGet(messagesWritable));
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
