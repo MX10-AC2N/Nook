@@ -850,7 +850,7 @@
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each localMessages as msg (msg.id + '-' + messageVersion)}
+        {#each localMessages as msg (msg.id + '-' + messageVersion + '-' + activeConvId)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
