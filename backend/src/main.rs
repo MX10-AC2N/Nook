@@ -536,7 +536,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
             headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
             headers.insert("Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
             response
         }))
         // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
