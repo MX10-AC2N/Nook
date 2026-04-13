@@ -46,9 +46,13 @@ export interface ChatState {
 // 2️⃣ État réactif
 // -----------------------------------------------------------------
 
-// Svelte 5 reactive state
-export const chatStore = $state<ChatState>({
-  messages: [],
+import { writable } from 'svelte/store';
+
+// Svelte writable store for messages — proper cross-file reactivity
+export const messagesStore = writable<ChatMessage[]>([]);
+
+// Other state as $state (less critical for cross-file reactivity)
+export const chatStore = $state<Omit<ChatState, 'messages'>>({
   connectionError: null,
   showEmojiPicker: false,
   hasMore: false,
@@ -134,7 +138,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
 
   if (type === 'message_deleted') {
     const id = msg.message_id as string;
-    chatStore.messages = chatStore.messages.filter(m => m.id !== id);
+    messagesStore.update(msgs => msgs.filter(m => m.id !== id);
     return;
   }
 
@@ -198,7 +202,7 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
     } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
   if (!chatStore.messages.find(m => m.id === raw.id)) {
-    chatStore.messages = [...chatStore.messages, raw];
+    messagesStore.update(msgs => [...msgs, raw]);
   }
 }
 
@@ -249,7 +253,7 @@ export function setConnectionError(err: string | null): void {
 }
 
 export function resetChat(): void {
-  chatStore.messages = [];
+  messagesStore.set([]);
   chatStore.connectionError = null;
   chatStore.showEmojiPicker = false;
   
@@ -308,7 +312,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
     console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
-    chatStore.messages = [...msgs];
+    messagesStore.set([...msgs]);
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
     console.log('[Chat] chatStore.messages set:', chatStore.messages.length);
@@ -334,7 +338,7 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
     const older: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     older.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(older);
-    chatStore.messages = [...older, ...chatStore.messages];
+    messagesStore.update(msgs => [...older, ...msgs]);
     chatStore.hasMore  = older.length >= PAGE_SIZE;
   } catch (err) {
     console.error('[Chat] loadMoreMessages:', err);
@@ -372,7 +376,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
     if (msgData && msgData.id) {
       const alreadyExists = chatStore.messages.some(m => m.id === msgData.id);
       if (!alreadyExists) {
-        chatStore.messages = [...chatStore.messages, msgData];
+        messagesStore.update(msgs => [...msgs, msgData]);
       }
     }
     chatStore.connectionError = null;
@@ -416,7 +420,7 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
     });
     if (res.status !== 204 && !res.ok) return false;
     if (!chatStore.wsConnected) {
-      chatStore.messages = chatStore.messages.filter(m => m.id !== msgId);
+      messagesStore.update(msgs => msgs.filter(m => m.id !== msgId);
     }
     return true;
   } catch { return false; }
