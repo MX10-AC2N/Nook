@@ -357,7 +357,9 @@
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
     console.log('[Chat] selectConversation:', conv.id);
+    console.log('[Chat] Calling loadMessagesDirect for:', conv.id);
     await loadMessagesDirect(conv.id);
+    console.log('[Chat] loadMessagesDirect done for:', conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
     await Promise.resolve();
