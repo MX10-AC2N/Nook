@@ -621,11 +621,15 @@
   // Cycle de vie
   // ─────────────────────────────────────────────────────────────────
 
+  // Debug: inspect chatStore.messages reactivity
+  $inspect('[Chat DEBUG] messages:', chatStore.messages.length);
+
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
-      await loadReactionsForMessages(activeConvId);
+    console.log('[Chat DEBUG] After loadMessages:', chatStore.messages.length);
+    await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
     // Demande permission notifications (non-bloquant)
