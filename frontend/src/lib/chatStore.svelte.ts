@@ -307,7 +307,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
     console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
-    chatStore.messages = msgs;
+    chatStore.messages = [...msgs];
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
     console.log('[Chat] chatStore.messages set:', chatStore.messages.length);
