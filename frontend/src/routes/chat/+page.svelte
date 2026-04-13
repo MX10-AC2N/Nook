@@ -355,7 +355,7 @@
     
     // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
     setActiveConv(conv.id);
-    await loadMessagesLocal(conv.id);
+    await loadMessagesDirect(conv.id);
       await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
     await Promise.resolve();
@@ -643,7 +643,7 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
-    await loadMessagesLocal(activeConvId);
+    await loadMessagesDirect(activeConvId);
 
     await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
