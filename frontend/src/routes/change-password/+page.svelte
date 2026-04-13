@@ -22,6 +22,7 @@
   let error           = $state('');
   let success         = $state('');
   let isLoading       = $state(false);
+  let showPassword    = $state(false);
   let e2eeStatus      = $state<'idle' | 'generating' | 'done' | 'error'>('idle');
 
   onMount(() => {
@@ -98,7 +99,9 @@
       authStore.updateUser({ needs_password_change: false });
 
       setTimeout(() => {
-        goto(authStore.user?.role === 'admin' ? '/admin' : '/chat');
+        // Logout and redirect to login page
+      await authStore.logout();
+      goto('/login');
       }, 2000);
 
     } catch (e: any) {
@@ -153,16 +156,26 @@
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         <div class="input-group">
           <label for="new-password">Nouveau mot de passe</label>
-          <input id="new-password" type="password" bind:value={newPassword}
-            placeholder="Au moins 8 caractères" required disabled={isLoading}
-            autocomplete="new-password" />
+          <div class="password-wrapper">
+            <input id="new-password" type={showPassword ? 'text' : 'password'} bind:value={newPassword}
+              placeholder="Au moins 8 caractères" required disabled={isLoading}
+              autocomplete="new-password" />
+            <button type="button" class="toggle-password" onclick={() => showPassword = !showPassword} aria-label={showPassword ? 'Masquer' : 'Afficher'}>
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
           <p class="help-text">Utilisez lettres, chiffres et symboles pour plus de sécurité.</p>
         </div>
         <div class="input-group">
           <label for="confirm-password">Confirmer le mot de passe</label>
-          <input id="confirm-password" type="password" bind:value={confirmPassword}
-            placeholder="Répétez le mot de passe" required disabled={isLoading}
-            autocomplete="new-password" />
+          <div class="password-wrapper">
+            <input id="confirm-password" type={showPassword ? 'text' : 'password'} bind:value={confirmPassword}
+              placeholder="Répétez le mot de passe" required disabled={isLoading}
+              autocomplete="new-password" />
+            <button type="button" class="toggle-password" onclick={() => showPassword = !showPassword} aria-label={showPassword ? 'Masquer' : 'Afficher'}>
+              {showPassword ? '🙈' : '👁️'}
+            </button>
+          </div>
         </div>
 
         {#if isLoading}
@@ -263,5 +276,25 @@
     .card { padding: 2rem 1.5rem; }
     .icon { font-size: 3rem; }
     h1 { font-size: 1.5rem; }
+  }
+  .password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .password-wrapper input {
+    padding-right: 2.5rem;
+  }
+  .toggle-password {
+    position: absolute;
+    right: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 0.25rem;
+  }
+  .toggle-password:hover {
+    opacity: 0.7;
   }
 </style>
