@@ -5,8 +5,7 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
-    loadMessages,
-    loadMoreMessages,
+      loadMoreMessages,
     sendMessage,
     editMessage,
     deleteMessage,
@@ -368,7 +367,7 @@
     // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
     if (!chatStore.wsConnected) {
-      pollTimer = setInterval(() => loadMessages(conv.id), 8000);
+      pollTimer = setInterval(() => loadMessagesDirect(conv.id), 8000);
     }
   }
 
@@ -664,7 +663,7 @@
     // Fallback polling si WS pas connecté après 3s
     setTimeout(() => {
       if (!chatStore.wsConnected) {
-        pollTimer = setInterval(() => loadMessages(activeConvId), 8000);
+        pollTimer = setInterval(() => loadMessagesDirect(activeConvId), 8000);
       }
     }, 3000);
   });
