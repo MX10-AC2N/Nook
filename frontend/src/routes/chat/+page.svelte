@@ -74,6 +74,7 @@
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
       // Use $state.eager for immediate UI update
       localMessages = [...msgs];
+      messageVersion++;  // Force re-render
       console.log('[Chat] assigned', msgs.length, 'messages');
     } catch (e) {
       console.error('[Chat] loadMessagesDirect ERROR:', e);
@@ -846,7 +847,7 @@
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each localMessages as msg (msg.id)}
+        {#each localMessages as msg (msg.id + '-' + messageVersion)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
