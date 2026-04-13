@@ -112,7 +112,7 @@
         </label>
         <input
           id="password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           bind:value={password}
           placeholder="Votre mot de passe"
           autocomplete="current-password"
