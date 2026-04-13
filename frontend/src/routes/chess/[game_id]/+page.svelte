@@ -48,6 +48,8 @@
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
     await chessStore.selectSquare(row, col);
+    // Force re-render after move
+    boardVersion++;
   }
 
   function cellClass(row: number, col: number): string {
@@ -140,7 +142,6 @@
     const board = chessStore.board;
     if (board && board.length === 8) {
       localBoard = board.map((row: string[]) => [...row]);
-      boardVersion++;  // Force re-render
     }
   });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
