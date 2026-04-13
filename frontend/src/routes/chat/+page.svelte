@@ -62,7 +62,7 @@
   let localMessages = $state<ChatMessage[]>([]);
   $effect(() => {
     const unsub = messagesWritable.subscribe(msgs => {
-      localMessages = msgs;
+      localMessages = [...msgs];  // Force new array reference for reactivity
     });
     return unsub;
   });
