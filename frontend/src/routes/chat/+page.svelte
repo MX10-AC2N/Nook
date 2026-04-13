@@ -466,10 +466,15 @@
     const content = newMessage;
     newMessage = '';
     chatStore.showEmojiPicker = false;
-    await sendMessage(content, activeConvId);
-    // Reload messages to show the new message
-    await loadMessagesDirect(activeConvId);
-    sending = false;
+    try {
+      await sendMessage(content, activeConvId);
+      // Reload messages to show the new message
+      await loadMessagesDirect(activeConvId);
+    } catch (e) {
+      console.error('[Chat] send error:', e);
+    } finally {
+      sending = false;
+    }
   }
 
   function handleTyping() {
