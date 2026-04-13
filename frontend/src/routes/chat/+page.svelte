@@ -66,7 +66,7 @@
       const data = await res.json();
       const msgs = Array.isArray(data) ? data : (data.messages ?? []);
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
-      localMessages = msgs;
+      localMessages = [...msgs]; // Force new array reference for Svelte 5 reactivity
       console.log('[Chat] loadMessagesDirect:', msgs.length, 'for', convId);
     } catch (e) {
       console.error('[Chat] loadMessagesDirect:', e);
