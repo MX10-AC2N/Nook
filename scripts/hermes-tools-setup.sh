@@ -1,47 +1,28 @@
 #!/usr/bin/env bash
 # scripts/hermes-tools-setup.sh
-# Installe les outils nécessaires pour Hermes (curl, playwright, lightpanda)
-# À exécuter au début de chaque session si les outils manquent
+# Outils Hermes: curl, playwright, lightpanda
 
 set -uo pipefail
-
 echo "=== Hermes Tools Setup ==="
 
-# 1. curl
-if command -v curl &>/dev/null; then
-    echo "✅ curl: $(curl --version | head -1)"
-else
-    echo "📦 Installing curl..."
-    apt-get update -qq && apt-get install -y -qq curl
-    echo "✅ curl: $(curl --version | head -1)"
-fi
+# curl
+command -v curl &>/dev/null && echo "✅ curl OK" || (apt-get update -qq && apt-get install -y -qq curl && echo "✅ curl installed")
 
-# 2. Playwright (Python)
-if python3 -c "import playwright" 2>/dev/null; then
-    echo "✅ playwright: installed"
-else
-    echo "📦 Installing playwright..."
-    pip install --break-system-packages -q playwright 2>/dev/null || pip install --break-system-packages playwright
-    echo "✅ playwright: installed"
-fi
+# Playwright
+python3 -c "import playwright" 2>/dev/null && echo "✅ playwright OK" || (pip install --break-system-packages -q playwright && echo "✅ playwright installed")
 
-# 3. Chromium for Playwright
-if [ -d "$HOME/.cache/ms-playwright/chromium"* ] 2>/dev/null; then
-    echo "✅ chromium: installed"
-else
-    echo "📦 Installing chromium..."
-    playwright install chromium 2>/dev/null
-    echo "✅ chromium: installed"
-fi
+# Chromium
+[ -d "$HOME/.cache/ms-playwright/chromium"* ] 2>/dev/null && echo "✅ chromium OK" || (playwright install chromium 2>/dev/null && echo "✅ chromium installed")
 
-# 4. Lightpanda (optional, large binary)
+# Lightpanda
 LIGHTPANDA="/tmp/lightpanda"
 if [ -f "$LIGHTPANDA" ] && [ -x "$LIGHTPANDA" ]; then
-    echo "✅ lightpanda: installed"
+    echo "✅ lightpanda OK"
 else
-    echo "⚠️  lightpanda: not installed (111MB, install manually if needed)"
-    echo "   Run: curl -L -o $LIGHTPANDA https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux && chmod +x $LIGHTPANDA"
+    echo "📦 Installing lightpanda (111MB)..."
+    curl -L -o "$LIGHTPANDA" "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux" --progress-bar
+    chmod +x "$LIGHTPANDA"
+    echo "✅ lightpanda installed"
 fi
 
-echo ""
-echo "=== Tools Ready ==="
+echo "=== Ready ==="
