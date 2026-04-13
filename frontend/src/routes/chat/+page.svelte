@@ -27,6 +27,7 @@
     cancelRecording,
     formatDuration,
   } from '$lib/mediaStore.svelte.js';
+  import Avatar from '$lib/components/Avatar.svelte';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
