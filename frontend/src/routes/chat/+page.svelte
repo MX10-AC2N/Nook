@@ -6,7 +6,6 @@
   import {
     chatStore,
     messagesStore as messagesWritable,
-    get as storeGet,
     loadMessages,
     loadMoreMessages,
     sendMessage,
