@@ -3,6 +3,7 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import { login } from '$lib/auth.js';
   import Icon from '$lib/components/Icon.svelte';
+  import PasswordInput from '$lib/components/PasswordInput.svelte';
   import { unlockCrypto, cryptoStore } from '$lib/cryptoStore.svelte.ts';
 
   let username = $state('');
