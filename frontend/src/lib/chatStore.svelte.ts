@@ -46,36 +46,17 @@ export interface ChatState {
 // 2️⃣ État réactif
 // -----------------------------------------------------------------
 
-// Svelte 5 reactive state — individual variables + getter functions
-// Per docs: "don't directly export it — use getter functions"
-let _messages = $state<ChatMessage[]>([]);
-let _connectionError = $state<string | null>(null);
-let _showEmojiPicker = $state(false);
-let _hasMore = $state(false);
-let _loadingMore = $state(false);
-let _unreadCounts = $state<Record<string, number>>({});
-let _wsConnected = $state(false);
-let _lastReactionUpdate = $state<{ messageId: string; conversationId: string; ts: number } | null>(null);
-
-// Export as object with getters/setters for Svelte 5 cross-module reactivity
-export const chatStore = {
-  get messages() { return _messages; },
-  set messages(v: ChatMessage[]) { _messages = [...v]; },
-  get connectionError() { return _connectionError; },
-  set connectionError(v: string | null) { _connectionError = v; },
-  get showEmojiPicker() { return _showEmojiPicker; },
-  set showEmojiPicker(v: boolean) { _showEmojiPicker = v; },
-  get hasMore() { return _hasMore; },
-  set hasMore(v: boolean) { _hasMore = v; },
-  get loadingMore() { return _loadingMore; },
-  set loadingMore(v: boolean) { _loadingMore = v; },
-  get unreadCounts() { return _unreadCounts; },
-  set unreadCounts(v: Record<string, number>) { _unreadCounts = { ...v }; },
-  get wsConnected() { return _wsConnected; },
-  set wsConnected(v: boolean) { _wsConnected = v; },
-  get lastReactionUpdate() { return _lastReactionUpdate; },
-  set lastReactionUpdate(v) { _lastReactionUpdate = v; },
-};
+// Svelte 5 reactive state
+export const chatStore = $state<ChatState>({
+  messages: [],
+  connectionError: null,
+  showEmojiPicker: false,
+  hasMore: false,
+  loadingMore: false,
+  unreadCounts: {},
+  wsConnected: false,
+  lastReactionUpdate: null,
+});
 
 // -----------------------------------------------------------------
 // 3️⃣ WebSocket — temps réel avec reconnexion automatique
