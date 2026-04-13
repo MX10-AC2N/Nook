@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
     messagesStore as messagesWritable,
+    get,
     loadMessages,
     loadMoreMessages,
     sendMessage,
@@ -355,7 +357,7 @@
 
   async function loadReactionsForMessages(convId: string) {
     // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = $messagesWritable.slice(-50);
+    const msgs = get(messagesWritable).slice(-50);
     await Promise.allSettled(msgs.map(async (msg) => {
       try {
         const res = await fetch(
@@ -622,14 +624,13 @@
   // Cycle de vie
   // ─────────────────────────────────────────────────────────────────
 
-  // Debug: inspect chatStore.messages reactivity
-  $inspect('[Chat DEBUG] messages:', $messagesWritable.length);
+
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
-    console.log('[Chat DEBUG] After loadMessages:', $messagesWritable.length);
+
     await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
@@ -649,7 +650,7 @@
   });
 
   $effect(() => {
-    const count = $messagesWritable.length;
+    const count = get(messagesWritable).length;
     if (!chatContainer || count === 0) return;
     // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
     // Tolérance : si on est à moins de 150px du bas → scroll auto
