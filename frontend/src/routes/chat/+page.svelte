@@ -5,8 +5,6 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
-    messagesStore as messagesWritable,
-    messagesStore,
     loadMessages,
     loadMoreMessages,
     sendMessage,
@@ -58,15 +56,20 @@
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
   
-  // Local messages state — updated by loadMessages
+  // Direct messages state — updated by custom load
   let localMessages = $state<ChatMessage[]>([]);
   
-  // Override loadMessages to update local state
-  const originalLoadMessages = loadMessages;
-  async function loadMessagesLocal(convId: string) {
-    await originalLoadMessages(convId);
-    // Read from store after loadMessages updates it
-    localMessages = storeGet(messagesWritable);
+  async function loadMessagesDirect(convId: string) {
+    try {
+      const res = await fetch(`/api/conversations/${convId}/messages?limit=50`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs = Array.isArray(data) ? data : (data.messages ?? []);
+      msgs.sort((a: any, b: any) => a.created_at - b.created_at);
+      localMessages = msgs;  // Direct assignment triggers reactivity
+    } catch (e) {
+      console.error('[Chat] loadMessagesDirect:', e);
+    }
   }
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
@@ -368,7 +371,7 @@
 
   async function loadReactionsForMessages(convId: string) {
     // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = storeGet(messagesWritable).slice(-50);
+    const msgs = localMessages.slice(-50);
     await Promise.allSettled(msgs.map(async (msg) => {
       try {
         const res = await fetch(
@@ -661,7 +664,7 @@
   });
 
   $effect(() => {
-    const count = storeGet(messagesWritable).length;
+    const count = localMessages.length;
     if (!chatContainer || count === 0) return;
     // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
     // Tolérance : si on est à moins de 150px du bas → scroll auto
