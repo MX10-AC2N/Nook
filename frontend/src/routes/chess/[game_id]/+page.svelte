@@ -364,8 +364,8 @@
               {#each rows as r}<span>{8 - r}</span>{/each}
             </div>
             <div class="chess-board">
-              {#each rows as row}
-                {#each cols as col}
+              {#each rows as row (row)}
+                {#each cols as col (col)}
                   {@const piece   = chessStore.board[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
                   <div
