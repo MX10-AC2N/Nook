@@ -138,7 +138,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
 
   if (type === 'message_deleted') {
     const id = msg.message_id as string;
-    messagesStore.update(msgs => msgs.filter(m => m.id !== id);
+    messagesStore.update(msgs => msgs.filter(m => m.id !== id));
     return;
   }
 
