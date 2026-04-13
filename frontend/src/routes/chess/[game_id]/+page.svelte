@@ -133,12 +133,14 @@
   
   // Simple board state — updated by chessStore
   let localBoard = $state<string[][]>(Array.from({ length: 8 }, () => Array(8).fill('')));
+  let boardVersion = $state(0);  // Increment to force re-render
   
   // Sync from chessStore when it changes
   $effect(() => {
     const board = chessStore.board;
     if (board && board.length === 8) {
       localBoard = board.map((row: string[]) => [...row]);
+      boardVersion++;  // Force re-render
     }
   });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
@@ -375,7 +377,7 @@
               {#each rows as r}<span>{8 - r}</span>{/each}
             </div>
             <div class="chess-board">
-              {#each rows as row (row)}
+              {#each rows as row (row + '-' + boardVersion)}
                 {#each cols as col (col)}
                   {@const piece   = localBoard[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
