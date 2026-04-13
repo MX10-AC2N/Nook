@@ -72,9 +72,12 @@
       console.log('[Chat] data parsed, isArray:', Array.isArray(data), 'length:', data.length);
       const msgs = Array.isArray(data) ? data : (data.messages ?? []);
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
-      console.log('[Chat] assigning', msgs.length, 'messages to localMessages');
-      localMessages = [...msgs];
-      console.log('[Chat] assigned! localMessages.length:', localMessages.length);
+      // Use $state.eager for immediate UI update
+      localMessages.length = 0;
+      for (const msg of msgs) {
+        localMessages.push(msg);
+      }
+      console.log('[Chat] pushed', msgs.length, 'messages, localMessages.length:', localMessages.length);
     } catch (e) {
       console.error('[Chat] loadMessagesDirect ERROR:', e);
     }
