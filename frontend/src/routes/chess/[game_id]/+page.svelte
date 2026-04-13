@@ -24,11 +24,11 @@
 
   // ── Trouver la case du roi en échec ───────────────────────────
   function findKingSquare(color: 'w' | 'b'): string | null {
-    const board = chessStore.board;
+    const board = $derived(chessStore.board);
     const king  = color + 'K';
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
-        if (board[r]?.[c] === king) return toAlgebraic(r, c);
+        if (kingBoard[r]?.[c] === king) return toAlgebraic(r, c);
       }
     }
     return null;
