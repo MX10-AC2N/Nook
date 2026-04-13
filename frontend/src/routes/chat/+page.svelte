@@ -4,6 +4,7 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
+    messagesStore as messagesWritable,
     loadMessages,
     loadMoreMessages,
     sendMessage,
@@ -354,7 +355,7 @@
 
   async function loadReactionsForMessages(convId: string) {
     // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = chatStore.messages.slice(-50);
+    const msgs = $messagesWritable.slice(-50);
     await Promise.allSettled(msgs.map(async (msg) => {
       try {
         const res = await fetch(
@@ -622,13 +623,13 @@
   // ─────────────────────────────────────────────────────────────────
 
   // Debug: inspect chatStore.messages reactivity
-  $inspect('[Chat DEBUG] messages:', chatStore.messages.length);
+  $inspect('[Chat DEBUG] messages:', $messagesWritable.length);
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
-    console.log('[Chat DEBUG] After loadMessages:', chatStore.messages.length);
+    console.log('[Chat DEBUG] After loadMessages:', $messagesWritable.length);
     await loadReactionsForMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
@@ -648,7 +649,7 @@
   });
 
   $effect(() => {
-    const count = chatStore.messages.length;
+    const count = $messagesWritable.length;
     if (!chatContainer || count === 0) return;
     // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
     // Tolérance : si on est à moins de 150px du bas → scroll auto
@@ -805,13 +806,13 @@
         </button>
       {/if}
 
-      {#if chatStore.messages.length === 0}
+      {#if $messagesWritable.length === 0}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each chatStore.messages as msg (msg.id)}
+        {#each $messagesWritable as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
