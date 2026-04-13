@@ -48,8 +48,6 @@
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
     await chessStore.selectSquare(row, col);
-    // Refresh board after move
-    await fetchBoard();
   }
 
   function cellClass(row: number, col: number): string {
@@ -133,26 +131,15 @@
 
   const flipped  = $derived(chessStore.myColor === 'black');
   
-  // Local board state — fetched directly from API for guaranteed reactivity
+  // Simple board state — updated by chessStore
   let localBoard = $state<string[][]>(Array.from({ length: 8 }, () => Array(8).fill('')));
   
-  async function fetchBoard() {
-    try {
-      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
-      if (!res.ok) return;
-      const data = await res.json();
-      const board = data.game?.engine?.board;
-      if (board && board.length === 8) {
-        localBoard = board.map((row: string[]) => [...row]);
-      }
-    } catch (e) {
-      console.error('[Chess] fetchBoard:', e);
-    }
-  }
-  
-  // Initial fetch
+  // Sync from chessStore when it changes
   $effect(() => {
-    fetchBoard();
+    const board = chessStore.board;
+    if (board && board.length === 8) {
+      localBoard = board.map((row: string[]) => [...row]);
+    }
   });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
