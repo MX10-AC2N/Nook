@@ -56,7 +56,7 @@
     let cls = `cell ${isLight ? 'cell-light' : 'cell-dark'}`;
     if (chessStore.selected?.algebraic === alg)        cls += ' cell-selected';
     if (chessStore.legalTargets.includes(alg)) {
-      const hasPiece = (chessStore.board[row]?.[col] ?? '') !== '';
+      const hasPiece = (board[row]?.[col] ?? '') !== '';
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
@@ -130,6 +130,7 @@
   });
 
   const flipped  = $derived(chessStore.myColor === 'black');
+  const board    = $derived(chessStore.board);
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const recentHistory = $derived((chessStore.currentGame?.move_history ?? []).slice(-20));
@@ -366,7 +367,7 @@
             <div class="chess-board">
               {#each rows as row (row)}
                 {#each cols as col (col)}
-                  {@const piece   = chessStore.board[row]?.[col] ?? ''}
+                  {@const piece   = board[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
                   <div
                     class={cellClass(row, col)}
