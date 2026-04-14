@@ -568,7 +568,7 @@ pub async fn edit_message(
     }
 
     tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message édité");
-    Json(json!({"success": true, "edited_at": now})).into_response()
+    Json(json!({"success": true, "content": content, "edited_at": now})).into_response()
 }
 
 // ── DELETE /api/conversations/{conv_id}/messages/{msg_id} ──────────────────
