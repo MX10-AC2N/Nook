@@ -156,6 +156,7 @@
 
 
   let emojiPickerMsgId = $state<string | null>(null);
+  let emojiPickerPos = $state<{top: number; left: number; right: number}>({top: 0, left: 0, right: 0});
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
@@ -922,7 +923,15 @@
                 <!-- Bouton réaction rapide — toujours visible au hover -->
                 <button
                   class="msg-action-btn reaction-trigger" data-testid="reaction-trigger"
-                  onclick={(e) => { e.stopPropagation(); emojiPickerMsgId = emojiPickerMsgId === msg.id ? null : msg.id; }}
+                  onclick={(e) => { 
+                    e.stopPropagation(); 
+                    if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
+                    else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
+                      emojiPickerMsgId = msg.id; 
+                    }
+                  }}
                   title="Réagir"
                   aria-label="Ajouter une réaction"
                 >😊</button>
@@ -941,6 +950,7 @@
                   class:picker-mine={isMyMessage(msg.sender_id)}
                   role="dialog"
                   aria-label="Choisir une réaction"
+                  style="top:{emojiPickerPos.top}px; left:{emojiPickerPos.left}px; transform:translateY(-100%);"
                 >
                   {#each QUICK_EMOJIS as emoji}
                     <button
@@ -1350,6 +1360,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: visible;
     padding: 1rem;
     display: flex;
     flex-direction: column;
@@ -1504,10 +1515,8 @@
 
   /* Emoji picker */
   .emoji-picker {
-    position: absolute;
+    position: fixed;
     z-index: 9999;
-    bottom: calc(100% + .3rem);
-    right: .2rem;
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .6rem; padding: .35rem .4rem;
@@ -1515,7 +1524,7 @@
     display: flex; flex-wrap: wrap; gap: .2rem; max-width: 240px;
     animation: pop .12s var(--animation, ease);
   }
-  .emoji-picker.picker-mine { right: auto; left: .2rem; }
+  .emoji-picker.picker-mine { left: auto; right: 10px; }
   .emoji-quick-btn {
     background: none; border: none; font-size: 1.15rem;
     cursor: pointer; padding: .2rem; border-radius: .35rem;
