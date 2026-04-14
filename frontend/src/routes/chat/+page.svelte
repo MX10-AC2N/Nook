@@ -58,6 +58,7 @@
   
   // Direct messages state — updated by custom load
   let messagesByConv: Record<string, ChatMessage[]> = $state({});
+  let messageVersion = $state(0);
   const localMessages = $derived(messagesByConv[activeConvId] ?? []);
   
   async function loadMessagesDirect(convId: string) {
@@ -635,7 +636,9 @@
     }
   }
 
-  function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
+  function isMyMessage(senderId: string) { 
+    return authStore.user?.id === senderId || senderId === 'Moi';
+  }
 
   function startEdit(msg: { id: string; content: string }) {
     editingMsgId   = msg.id;
@@ -873,7 +876,7 @@
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
       {:else}
-        {#each localMessages as msg (msg.id + '-' + activeConvId)}
+        {#each localMessages as msg (msg.id + '-' + messageVersion)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
