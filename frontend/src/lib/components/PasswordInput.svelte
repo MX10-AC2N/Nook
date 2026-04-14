@@ -40,7 +40,12 @@
   }
   .password-wrapper input {
     width: 100%;
+    padding: 0.75rem;
     padding-right: 2.5rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
   }
   .toggle-password {
     position: absolute;
