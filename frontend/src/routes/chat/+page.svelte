@@ -529,9 +529,18 @@
       }
       const data = await res.json();
       const isImage = data.is_image ?? file.type.startsWith('image/');
-      const uploadContent = isImage
-        ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
-        : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
+      const isAudio = file.type.startsWith('audio/');
+      const isVideo = file.type.startsWith('video/');
+      let uploadContent: string;
+      if (isImage) {
+        uploadContent = `<div class="file-preview"><img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" /><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else if (isAudio) {
+        uploadContent = `<div class="file-audio"><audio src="/api/download/${data.file_id}" controls preload="none" class="chat-audio"></audio><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else if (isVideo) {
+        uploadContent = `<div class="file-video"><video src="/api/download/${data.file_id}" controls preload="none" class="chat-video"></video><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else {
+        uploadContent = `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
+      }
       await sendMessage(uploadContent, activeConvId);
       input.value = '';
     } catch (err: unknown) {
@@ -810,7 +819,7 @@
       {/if}
     </header>
 
-    <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll}>
+      <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
       {#if chatStore.loadingMore}
         <div class="load-more-indicator">⏳ Chargement…</div>
       {:else if chatStore.hasMore}
@@ -834,7 +843,7 @@
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
             onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
-            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
+            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id && emojiPickerMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
             {#if !isMyMessage(msg.sender_id)}
               <div class="message-header">
@@ -1187,7 +1196,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100dvh - var(--header-h, 60px));
+    height: calc(100dvh - var(--header-h, 42px));
     overflow: hidden;
     max-width: 100%;
   }
@@ -1294,14 +1303,15 @@
     position: relative;
   }
   .chat-header {
-    padding: .75rem 1rem;
+    padding: .35rem .8rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border, #e2e8f0);
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: .6rem;
+    min-height: 42px;
   }
-  .chat-header h2 { margin: 0; font-size: 1.05rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-header h2 { margin: 0; font-size: .95rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-error { font-size: .78rem; color: #dc2626; }
   .call-actions { display: flex; gap: .35rem; flex-shrink: 0; margin-left: auto; }
   .call-btn {
@@ -1380,6 +1390,38 @@
   .message-content :global(img.uploaded-image),
   .message-content :global(img.chat-gif) {
     max-width: 400px; border-radius: 8px; margin-top: .3rem; display: block;
+  }
+  .message-content :global(.file-preview) {
+    position: relative; display: inline-block; max-width: 400px;
+  }
+  .message-content :global(.file-preview img) {
+    max-width: 100%; border-radius: 8px; display: block;
+  }
+  .message-content :global(.file-download) {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,.55); color: #fff;
+    border-radius: 50%; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: .8rem;
+    opacity: 0; transition: opacity .2s;
+  }
+  .message-content :global(.file-preview:hover .file-download),
+  .message-content :global(.file-audio:hover .file-download),
+  .message-content :global(.file-video:hover .file-download) {
+    opacity: 1;
+  }
+  .message-content :global(.file-audio),
+  .message-content :global(.file-video) {
+    position: relative; display: inline-block;
+  }
+  .message-content :global(audio.chat-audio) {
+    max-width: 300px; height: 36px; border-radius: 8px;
+  }
+  .message-content :global(video.chat-video) {
+    max-width: 350px; border-radius: 8px;
+  }
+  .message-content :global(.file-attachment a) {
+    color: var(--accent, #4ade80); text-decoration: underline;
   }
   .message-time {
     font-size: .68rem; color: var(--text-secondary, #94a3b8);
@@ -1556,11 +1598,13 @@
 
   /* ─── Saisie ─── */
   .emoji-only {
-    font-size: 4rem !important;
+    font-size: 3.5rem;
     line-height: 1.2;
     background: transparent !important;
-    padding: 0 !important;
+    padding: .2rem .4rem !important;
     box-shadow: none !important;
+    border-radius: 0 !important;
+    text-align: center;
   }
 
   .input-area {

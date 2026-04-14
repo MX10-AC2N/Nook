@@ -4,8 +4,8 @@
 
 import DOMPurify from 'dompurify';
 
-const ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'a', 'br', 'img', 'span', 'p'];
-const ALLOWED_ATTR = ['href', 'src', 'alt', 'class', 'loading', 'target', 'rel', 'title'];
+const ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'a', 'br', 'img', 'span', 'p', 'div', 'audio', 'video', 'source'];
+const ALLOWED_ATTR = ['href', 'src', 'alt', 'class', 'loading', 'target', 'rel', 'title', 'controls', 'preload', 'download', 'type'];
 
 /**
  * Sanitise une chaîne HTML avant injection via {@html}.
