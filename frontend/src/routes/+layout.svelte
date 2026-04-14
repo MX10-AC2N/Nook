@@ -208,7 +208,7 @@
       ☰
     </button>
 
-    <h1><Icon name="logo" size="48" /></h1>
+    <h1><Icon name="logo" size="96" /></h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -371,7 +371,7 @@
 
   .menu-toggle:hover, .logout-btn:hover { background: var(--bg-tertiary, #f1f5f9); }
 
-  .app-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-primary, #1e293b); flex: 1; }
+  .app-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; color: var(--text-primary, #1e293b); flex: 1; }
   .user-name { font-size: 0.9rem; color: var(--text-secondary, #64748b); margin-right: 0.5rem; }
 
   .menu-overlay {
