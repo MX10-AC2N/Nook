@@ -1505,7 +1505,7 @@
   /* Emoji picker */
   .emoji-picker {
     position: absolute;
-    z-index: 999;
+    z-index: 9999;
     bottom: calc(100% + .3rem);
     right: .2rem;
     background: var(--bg-primary, #fff);
