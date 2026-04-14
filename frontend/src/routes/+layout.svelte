@@ -208,7 +208,7 @@
       ☰
     </button>
 
-    <h1><Icon name="logo" size="24" /> Nook</h1>
+    <h1><Icon name="logo" size="32" /> Nook</h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
