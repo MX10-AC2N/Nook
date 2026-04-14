@@ -193,11 +193,16 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
           messageId: raw.id, conversationId: raw.conversation_id,
           ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
         });
+        raw.encrypted = false;
       }
     } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
-  if (!get(messagesStore).find(m => m.id === raw.id)) {
+  const existing = get(messagesStore).findIndex(m => m.id === raw.id);
+  if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
+  } else {
+    // Update existing (e.g. API added encrypted, WS decrypts)
+    messagesStore.update(msgs => { msgs[existing] = raw; return [...msgs]; });
   }
 }
 
