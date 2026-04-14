@@ -5,7 +5,9 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
-      loadMoreMessages,
+    messagesStore,
+    loadMoreMessages,
+    loadMessages,
     sendMessage,
     editMessage,
     deleteMessage,
@@ -15,8 +17,6 @@
     setActiveConv,
     disconnectWs,
     requestNotificationPermission,
-  
-
   } from '$lib/chatStore.svelte.ts';
   import { sanitizeHtml } from '$lib/sanitize';
   import {
@@ -51,38 +51,19 @@
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // État principal
+  // État principal — messages from store (single source of truth)
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
-  
-  // Direct messages state — updated by custom load
-  let messagesByConv: Record<string, ChatMessage[]> = $state({});
-  let messageVersion = $state(0);
-  const localMessages = $derived(messagesByConv[activeConvId] ?? []);
-  
-  async function loadMessagesDirect(convId: string) {
-    try {
-      console.log('[Chat] loadMessagesDirect START:', convId);
-      const res = await fetch(`/api/conversations/${convId}/messages?limit=50`, { credentials: 'include' });
-      console.log('[Chat] fetch done, status:', res.status);
-      if (!res.ok) {
-        console.error('[Chat] fetch failed:', res.status);
-        return;
-      }
-      const data = await res.json();
-      console.log('[Chat] data parsed, isArray:', Array.isArray(data), 'length:', data.length);
-      const msgs = Array.isArray(data) ? data : (data.messages ?? []);
-      msgs.sort((a: any, b: any) => a.created_at - b.created_at);
-      // Use $state.eager for immediate UI update
-      messagesByConv = { ...messagesByConv, [convId]: msgs };
-      console.log('[Chat] assigned', msgs.length, 'messages');
-      // Load reactions for visible messages
-      await loadReactionsForMessages(convId);
-    } catch (e) {
-      console.error('[Chat] loadMessagesDirect ERROR:', e);
-    }
-  }
+
+  // Read messages directly from the writable store
+  let localMessages = $state<ChatMessage[]>([]);
+  // Sync store → local state for reactivity
+  $effect(() => {
+    const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
+    return unsub;
+  });
+
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
@@ -365,24 +346,18 @@
     // Fermer le sidebar mobile d'abord
     sidebarOpen = false;
     
-    // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
+    // Activer la conv : connecte le WS, reset badge non-lus
     setActiveConv(conv.id);
-    console.log('[Chat] selectConversation:', conv.id);
-    await loadMessagesDirect(conv.id);
-    console.log('[Chat] loadMessagesDirect called for:', conv.id);
-    console.log('[Chat] Calling loadMessagesDirect for:', conv.id);
-    await loadMessagesDirect(conv.id);
-    console.log('[Chat] loadMessagesDirect done for:', conv.id);
-      await loadReactionsForMessages(conv.id);
+    // Load messages (single call)
+    await loadMessages(conv.id);
+    await loadReactionsForMessages(conv.id);
     // Scroll immédiat en bas après chargement des messages
     await Promise.resolve();
     if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-    // Charger les réactions pour les messages visibles
-    await loadReactionsForMessages(conv.id);
     // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
     if (!chatStore.wsConnected) {
-      pollTimer = setInterval(() => loadMessagesDirect(conv.id), 8000);
+      pollTimer = setInterval(() => loadMessages(conv.id), 8000);
     }
   }
 
@@ -483,33 +458,10 @@
     newMessage = '';
     chatStore.showEmojiPicker = false;
     
-    // Optimistic update — show message instantly
-    const optimisticMsg: ChatMessage = {
-      id: 'temp-' + Date.now(),
-      content,
-      sender_name: 'Moi',
-      created_at: Math.floor(Date.now() / 1000),
-      sender_id: '',
-      conversation_id: activeConvId,
-    };
-    const currentMsgs = messagesByConv[activeConvId] ?? [];
-    messagesByConv = { ...messagesByConv, [activeConvId]: [...currentMsgs, optimisticMsg] };
-    messageVersion++;
-    
     try {
-      // Race against timeout to prevent hanging
-      await Promise.race([
-        sendMessage(content, activeConvId),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Send timeout')), 10000))
-      ]);
-      // Reload to get real message with correct ID
-      await loadMessagesDirect(activeConvId);
+      await sendMessage(content, activeConvId);
     } catch (e) {
       console.error('[Chat] send error:', e);
-      // Remove optimistic message on error
-      const filtered = (messagesByConv[activeConvId] ?? []).filter(m => m.id !== optimisticMsg.id);
-      messagesByConv = { ...messagesByConv, [activeConvId]: filtered };
-      messageVersion++;
     } finally {
       sending = false;
     }
@@ -640,7 +592,7 @@
   }
 
   function isMyMessage(senderId: string) { 
-    return authStore.user?.id === senderId || senderId === 'Moi';
+    return authStore.user?.id === senderId || senderId === 'Moi' || !senderId;
   }
 
   function startEdit(msg: { id: string; content: string }) {
@@ -652,8 +604,6 @@
     if (!editingMsgId || !editingContent.trim()) { cancelEdit(); return; }
     await editMessage(editingMsgId, activeConvId, editingContent.trim());
     cancelEdit();
-    // Reload to update UI
-    await loadMessagesDirect(activeConvId);
   }
 
   function cancelEdit() {
@@ -664,8 +614,6 @@
   async function confirmDelete(msgId: string) {
     if (!confirm('Supprimer ce message ?')) return;
     await deleteMessage(msgId, activeConvId);
-    // Reload to update UI
-    await loadMessagesDirect(activeConvId);
   }
 
   function handleEditKeydown(e: KeyboardEvent) {
@@ -695,9 +643,7 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
-    await loadMessagesDirect(activeConvId);
-
-    await loadReactionsForMessages(activeConvId);
+    await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
     // Demande permission notifications (non-bloquant)
@@ -705,7 +651,7 @@
     // Fallback polling si WS pas connecté après 3s
     setTimeout(() => {
       if (!chatStore.wsConnected) {
-        pollTimer = setInterval(() => loadMessagesDirect(activeConvId), 8000);
+        pollTimer = setInterval(() => loadMessages(activeConvId), 8000);
       }
     }, 3000);
   });
@@ -873,13 +819,17 @@
         </button>
       {/if}
 
-      {#if localMessages.length === 0}
+      {#if localMessages.length === 0 && !loadingConvs}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
+      {:else if localMessages.length === 0 && loadingConvs}
+        <div class="empty-state">
+          <span class="loading-dots">···</span>
+        </div>
       {:else}
-        {#each localMessages as msg (msg.id + '-' + messageVersion)}
+        {#each localMessages as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
@@ -1016,6 +966,15 @@
       {/if}
     </div>
 
+    {#if typingUsers.length > 0}
+      <div class="typing-indicator">
+        <span class="typing-dots">
+          <span></span><span></span><span></span>
+        </span>
+        {typingUsers.length === 1 ? 'Quelqu\'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+      </div>
+    {/if}
+
     {#if chatStore.showEmojiPicker}
       <div class="emoji-panel" role="dialog" aria-label="Picker emoji ou GIF" tabindex="-1">
         <div class="ep-tabs">
@@ -1128,7 +1087,7 @@
         bind:value={newMessage}
         onkeydown={handleMessageKeydown}
         oninput={handleTyping}
-        disabled={sending}
+        disabled={false}
       />
       <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
         {sending ? '…' : 'Envoyer'}
@@ -1406,7 +1365,6 @@
     align-self: flex-start;
     word-break: break-word;
     animation: pop .18s ease;
-    min-height: 60px; /* Consistent height for virtual scrolling */
   }
   .message.mine {
     background: var(--chat-mine, #dcfce7);
@@ -1478,16 +1436,42 @@
     font-weight: 600;
   }
 
+  /* ─── Typing indicator ─── */
+  .typing-indicator {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .3rem 1rem;
+    font-size: .75rem;
+    color: var(--text-secondary, #94a3b8);
+    flex-shrink: 0;
+  }
+  .typing-dots {
+    display: inline-flex; gap: .15rem;
+  }
+  .typing-dots span {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--text-secondary, #94a3b8);
+    animation: typingBounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: .2s; }
+  .typing-dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+  }
+
   /* Emoji picker */
   .emoji-picker {
     position: absolute;
-    z-index: 999; bottom: calc(100% + .3rem); right: .2rem;
+    z-index: 999;
+    bottom: calc(100% + .3rem);
+    right: .2rem;
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .6rem; padding: .35rem .4rem;
     box-shadow: 0 4px 16px rgba(0,0,0,.12);
     display: flex; flex-wrap: wrap; gap: .2rem; max-width: 240px;
-    z-index: 20; animation: pop .12s var(--animation, ease);
+    animation: pop .12s var(--animation, ease);
   }
   .emoji-picker.picker-mine { right: auto; left: .2rem; }
   .emoji-quick-btn {
