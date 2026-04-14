@@ -489,7 +489,7 @@
       sender_id: '',
       conversation_id: activeConvId,
     };
-    localMessages = [...localMessages, optimisticMsg];
+    messagesByConv = { ...messagesByConv, [activeConvId]: [...localMessages, optimisticMsg] };
     messageVersion++;
     
     try {
@@ -499,7 +499,7 @@
     } catch (e) {
       console.error('[Chat] send error:', e);
       // Remove optimistic message on error
-      localMessages = localMessages.filter(m => m.id !== optimisticMsg.id);
+      messagesByConv = { ...messagesByConv, [activeConvId]: localMessages.filter(m => m.id !== optimisticMsg.id) };
       messageVersion++;
     } finally {
       sending = false;
