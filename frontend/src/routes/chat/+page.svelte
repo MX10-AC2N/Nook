@@ -479,13 +479,28 @@
     const content = newMessage;
     newMessage = '';
     chatStore.showEmojiPicker = false;
+    
+    // Optimistic update — show message instantly
+    const optimisticMsg: ChatMessage = {
+      id: 'temp-' + Date.now(),
+      content,
+      sender_name: 'Moi',
+      created_at: Math.floor(Date.now() / 1000),
+      sender_id: '',
+      conversation_id: activeConvId,
+    };
+    localMessages = [...localMessages, optimisticMsg];
+    messageVersion++;
+    
     try {
       await sendMessage(content, activeConvId);
-      // Wait for server to process, then reload
-      await new Promise(r => setTimeout(r, 500));
+      // Reload to get real message with correct ID
       await loadMessagesDirect(activeConvId);
     } catch (e) {
       console.error('[Chat] send error:', e);
+      // Remove optimistic message on error
+      localMessages = localMessages.filter(m => m.id !== optimisticMsg.id);
+      messageVersion++;
     } finally {
       sending = false;
     }
