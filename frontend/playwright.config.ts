@@ -50,5 +50,11 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['api-sanity'],
     },
+    {
+      name: 'chat-ui',
+      testMatch: '**/chat-ui.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['api-sanity'],
+    },
   ],
 });
