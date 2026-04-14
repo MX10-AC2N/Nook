@@ -205,6 +205,7 @@
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
   /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
   function isEmojiOnly(content: string): boolean {
+    if (!content) return false;
     const t = content.trim();
     if (t.length === 0 || t.length > 30) return false;
     // Match: one or more emoji sequences, optionally separated by zero-width joiners
@@ -869,7 +870,7 @@
             {:else}
               <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
               <!-- Messages vocaux : <audio>/<video> natif si le contenu commence par ces tags -->
-              {#if msg.content.trimStart().startsWith('<audio')}
+              {#if msg.content && msg.content.trimStart().startsWith('<audio')}
                 <div class="voice-message">
                   🎤 <audio
                     src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
@@ -878,7 +879,7 @@
                     class="voice-audio"
                   ></audio>
                 </div>
-              {:else if msg.content.trimStart().startsWith('<video')}
+              {:else if msg.content && msg.content.trimStart().startsWith('<video')}
                 <div class="voice-message">
                   🎥 <video
                     src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
