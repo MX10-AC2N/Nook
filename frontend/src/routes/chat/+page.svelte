@@ -491,7 +491,8 @@
       sender_id: '',
       conversation_id: activeConvId,
     };
-    messagesByConv = { ...messagesByConv, [activeConvId]: [...localMessages, optimisticMsg] };
+    const currentMsgs = messagesByConv[activeConvId] ?? [];
+    messagesByConv = { ...messagesByConv, [activeConvId]: [...currentMsgs, optimisticMsg] };
     messageVersion++;
     
     try {
@@ -501,10 +502,12 @@
     } catch (e) {
       console.error('[Chat] send error:', e);
       // Remove optimistic message on error
-      messagesByConv = { ...messagesByConv, [activeConvId]: localMessages.filter(m => m.id !== optimisticMsg.id) };
+      const filtered = (messagesByConv[activeConvId] ?? []).filter(m => m.id !== optimisticMsg.id);
+      messagesByConv = { ...messagesByConv, [activeConvId]: filtered };
       messageVersion++;
     } finally {
       sending = false;
+      newMessage = '';  // Ensure input is cleared
     }
   }
 
@@ -943,7 +946,7 @@
             {/if}
 
             <div class="message-meta">
-              <span class="message-time">{formatTimestamp(msg.timestamp)}</span>
+              <span class="message-time">{formatTimestamp(msg.created_at)}</span>
               {#if msg.edited_at}
                 <span class="edited-label">(modifié)</span>
               {/if}
@@ -1471,7 +1474,8 @@
 
   /* Emoji picker */
   .emoji-picker {
-    position: absolute; bottom: calc(100% + .3rem); right: .2rem;
+    position: absolute;
+    z-index: 999; bottom: calc(100% + .3rem); right: .2rem;
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .6rem; padding: .35rem .4rem;
