@@ -74,8 +74,10 @@
       const msgs = Array.isArray(data) ? data : (data.messages ?? []);
       msgs.sort((a: any, b: any) => a.created_at - b.created_at);
       // Use $state.eager for immediate UI update
-      messagesByConv[convId] = [...msgs];
+      messagesByConv = { ...messagesByConv, [convId]: msgs };
       console.log('[Chat] assigned', msgs.length, 'messages');
+      // Load reactions for visible messages
+      await loadReactionsForMessages(convId);
     } catch (e) {
       console.error('[Chat] loadMessagesDirect ERROR:', e);
     }
@@ -641,6 +643,8 @@
     if (!editingMsgId || !editingContent.trim()) { cancelEdit(); return; }
     await editMessage(editingMsgId, activeConvId, editingContent.trim());
     cancelEdit();
+    // Reload to update UI
+    await loadMessagesDirect(activeConvId);
   }
 
   function cancelEdit() {
@@ -651,6 +655,8 @@
   async function confirmDelete(msgId: string) {
     if (!confirm('Supprimer ce message ?')) return;
     await deleteMessage(msgId, activeConvId);
+    // Reload to update UI
+    await loadMessagesDirect(activeConvId);
   }
 
   function handleEditKeydown(e: KeyboardEvent) {
