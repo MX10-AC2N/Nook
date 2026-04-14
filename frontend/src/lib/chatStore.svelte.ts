@@ -129,10 +129,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
     const id      = msg.message_id as string;
     const content = msg.content as string;
     const editedAt = msg.edited_at as number;
-    const idx = get(messagesStore).findIndex(m => m.id === id);
-    if (idx !== -1) {
-      get(messagesStore)[idx] = { ...get(messagesStore)[idx], content, edited_at: editedAt };
-    }
+    messagesStore.update(msgs => msgs.map(m => m.id === id ? { ...m, content, edited_at: editedAt } : m));
     return;
   }
 
@@ -144,13 +141,11 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
 
   if (type === 'reaction_updated') {
     const msgId = msg.message_id as string;
-    const reactionData = msg.reactions;
-    if (msgId && reactionData) {
-      reactions[msgId] = reactionData;
-    }
+    const convId = msg.conversation_id as string;
+    // Reactions are handled by the +page.svelte via lastReactionUpdate signal
     chatStore.lastReactionUpdate = {
       messageId: msgId,
-      conversationId: msg.conversation_id as string,
+      conversationId: convId,
       ts: Date.now(),
     };
     return;
@@ -219,6 +214,12 @@ export function setActiveConv(convId: string): void {
   chatStore.unreadCounts[convId] = 0;
   _updatePageTitle();
   connectWs(convId);
+}
+
+function _updatePageTitle(): void {
+  if (typeof document === 'undefined') return;
+  const unread = Object.values(chatStore.unreadCounts).reduce((a, b) => a + b, 0);
+  document.title = unread > 0 ? `(${unread}) Nook` : 'Nook';
 }
 
 // -----------------------------------------------------------------
@@ -351,8 +352,8 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 // 8️⃣ API — sendMessage
 // -----------------------------------------------------------------
 
-export async function sendMessage(content: string, conversationId: string): Promise<void> {
-  if (!content.trim()) return;
+export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
+  if (!content.trim()) return null;
   try {
     const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
     let body: Record<string, unknown>;
@@ -371,20 +372,18 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const msgData = await res.json();
-    // Optimistic update: add message to DOM immediately
-    if (msgData && msgData.id) {
-      const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
-      if (!alreadyExists) {
-        messagesStore.update(msgs => [...msgs, msgData]);
-      }
-    }
+    const msgData: ChatMessage = await res.json();
     chatStore.connectionError = null;
-    // Also reload from server to get authoritative state
-    await loadMessages(conversationId);
+    // Add to store if not already present (WS may have already injected it)
+    const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
+    if (!alreadyExists) {
+      messagesStore.update(msgs => [...msgs, msgData]);
+    }
+    return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
     console.error('[Chat] sendMessage:', err);
+    return null;
   }
 }
 
@@ -399,12 +398,9 @@ export async function editMessage(msgId: string, convId: string, newContent: str
       credentials: 'include', body: JSON.stringify({ content: newContent }),
     });
     if (!res.ok) return false;
-    if (!chatStore.wsConnected) {
-      const idx = get(messagesStore).findIndex(m => m.id === msgId);
-      if (idx !== -1) {
-        get(messagesStore)[idx] = { ...get(messagesStore)[idx], content: newContent, edited_at: Math.floor(Date.now() / 1000) };
-      }
-    }
+    // Optimistic local update (WS will confirm or overwrite)
+    const editedAt = Math.floor(Date.now() / 1000);
+    messagesStore.update(msgs => msgs.map(m => m.id === msgId ? { ...m, content: newContent, edited_at: editedAt } : m));
     return true;
   } catch { return false; }
 }
