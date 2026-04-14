@@ -497,7 +497,11 @@
     messageVersion++;
     
     try {
-      await sendMessage(content, activeConvId);
+      // Race against timeout to prevent hanging
+      await Promise.race([
+        sendMessage(content, activeConvId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Send timeout')), 10000))
+      ]);
       // Reload to get real message with correct ID
       await loadMessagesDirect(activeConvId);
     } catch (e) {
@@ -508,7 +512,6 @@
       messageVersion++;
     } finally {
       sending = false;
-      newMessage = '';  // Ensure input is cleared
     }
   }
 
