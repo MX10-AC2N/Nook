@@ -363,8 +363,18 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
   if (!content.trim()) return null;
   try {
-    // Always send plaintext — server key-exchange endpoint not implemented
-    const body: Record<string, unknown> = { content: content.trim(), encrypted: false };
+    const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
+    let body: Record<string, unknown>;
+    if (cs.ready) {
+      try {
+        const enc = await encryptMessage(content.trim(), conversationId);
+        body = { content: enc.ciphertext, encrypted: true, nonce: enc.nonce, encrypted_keys: enc.encryptedKeys };
+      } catch {
+        body = { content: content.trim(), encrypted: false };
+      }
+    } else {
+      body = { content: content.trim(), encrypted: false };
+    }
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(body),
@@ -372,8 +382,10 @@ export async function sendMessage(content: string, conversationId: string): Prom
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const msgData: ChatMessage = await res.json();
     chatStore.connectionError = null;
+    // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
     msgData.encrypted = false;
+    // Add to store if not already present (WS may have already injected it)
     const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
     if (!alreadyExists) {
       messagesStore.update(msgs => [...msgs, msgData]);
