@@ -78,7 +78,6 @@
   let newMessage     = $state('');
   let chatContainer  = $state<HTMLElement | undefined>(undefined);
   let fileInput      = $state<HTMLInputElement | undefined>(undefined);
-  let audioFileInput = $state<HTMLInputElement | undefined>(undefined);
   let sending        = $state(false);
 
   // ─── Messages vocaux ──────────────────────────────────────────────
@@ -568,20 +567,6 @@
     }
   }
 
-  /** Fallback audio file picker pour HTTP LAN (getUserMedia indisponible) */
-  async function handleAudioFileUpload(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files?.length) return;
-    const file = input.files[0];
-    if (!file.type.startsWith('audio/')) {
-      chatStore.connectionError = 'Veuillez sélectionner un fichier audio';
-      setTimeout(() => chatStore.connectionError = null, 3000);
-      return;
-    }
-    // Reuse existing upload logic
-    await handleFileUpload(event);
-  }
-
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
     if (recordingState.isRecording) {
       // Arrêt : récupérer le blob et l'envoyer comme upload
@@ -622,16 +607,23 @@
         setTimeout(() => chatStore.connectionError = null, 5000);
       }
     } else {
-      // Démarrage — fallback file input si getUserMedia indisponible (HTTP LAN)
+      // Démarrage — getUserMedia requis
       if (!navigator.mediaDevices?.getUserMedia) {
-        audioFileInput?.click();
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        if (!isStandalone) {
+          chatStore.connectionError = 'Installez l\'app (Ajouter à l\'écran d\'accueil) pour enregistrer des messages vocaux';
+        } else {
+          chatStore.connectionError = 'Enregistrement vocal non disponible — accédez via HTTPS ou localhost';
+        }
+        setTimeout(() => chatStore.connectionError = null, 6000);
         return;
       }
       try {
         await startRecording(mediaType);
       } catch (err: unknown) {
         console.error('[VoiceRecord start]', err);
-        // Erreur déjà dans recordingState.error — pas de doublon
+        chatStore.connectionError = err instanceof Error ? err.message : 'Erreur microphone';
+        setTimeout(() => chatStore.connectionError = null, 5000);
       }
     }
   }
@@ -1138,7 +1130,6 @@
       <!-- File transfer progress -->
 
 <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
-      <input type="file" bind:this={audioFileInput} accept="audio/*" onchange={handleAudioFileUpload} style="display:none" />
       <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
       <!-- Bouton message vocal -->
       <button
