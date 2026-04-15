@@ -208,7 +208,7 @@
       ☰
     </button>
 
-    <h1><Icon name="logo" size="96" /></h1>
+    <h1><Icon name="logo" size="20" /></h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -358,11 +358,11 @@
   }
 
   .app-header {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.35rem 0.8rem; background: var(--bg-secondary, white);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-bottom: 1px solid var(--border, #e2e8f0);
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.2rem 0.6rem; background: var(--bg-secondary, white);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); border-bottom: 1px solid var(--border, #e2e8f0);
     position: sticky; top: 0; z-index: 100;
-    min-height: 36px;
+    min-height: 28px;
   }
 
   .menu-toggle, .logout-btn {
@@ -449,8 +449,8 @@
   .app-footer p { margin: 0; }
 
   @media (max-width: 640px) {
-    .app-header { padding: 0.3rem 0.6rem; min-height: 32px; }
-    .app-header h1 { font-size: 0.85rem; }
+  .app-header { padding: 0.15rem 0.5rem; min-height: 24px; }
+  .app-header h1 { font-size: 0.8rem; }
     .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
