@@ -107,6 +107,9 @@ function arrayBufferToBlob(buffer, mimeType) {
  */
 export async function startRecording(mediaType = 'audio') {
   try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Accès microphone/caméra non disponible. Sur HTTP LAN, utilisez : chrome://flags/#unsafely-treat-insecure-origin-as-secure → ajoutez http://192.168.1.192:6300');
+    }
     // Vérifier les permissions
     const constraints = {
       audio: true,
