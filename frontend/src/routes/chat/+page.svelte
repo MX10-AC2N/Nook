@@ -610,10 +610,10 @@
       // Démarrage — getUserMedia requis
       if (!navigator.mediaDevices?.getUserMedia) {
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-        if (!isStandalone) {
-          chatStore.connectionError = 'Installez l\'app (Ajouter à l\'écran d\'accueil) pour enregistrer des messages vocaux';
+        if (location.protocol === 'http:' && location.hostname !== 'localhost') {
+          chatStore.connectionError = `Accédez via HTTPS pour l'audio: https://${location.hostname}:6443`;
         } else {
-          chatStore.connectionError = 'Enregistrement vocal non disponible — accédez via HTTPS ou localhost';
+          chatStore.connectionError = 'Enregistrement vocal non disponible';
         }
         setTimeout(() => chatStore.connectionError = null, 6000);
         return;
