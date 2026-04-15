@@ -188,6 +188,7 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
   const existing = get(messagesStore).findIndex(m => m.id === raw.id);
   // If existing message is already plaintext, skip encrypted WS update
   if (existing !== -1 && !get(messagesStore)[existing].encrypted && raw.encrypted) {
+    console.debug('[WS] Skip encrypted update for plaintext msg', raw.id);
     return;
   }
   if (raw.encrypted && raw.nonce && raw.sender_public_key) {
@@ -385,11 +386,12 @@ export async function sendMessage(content: string, conversationId: string): Prom
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
     msgData.encrypted = false;
-    // Add to store if not already present (WS may have already injected it)
-    const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
-    if (!alreadyExists) {
-      messagesStore.update(msgs => [...msgs, msgData]);
-    }
+    // Always update store with plaintext — overwrites WS encrypted entry if race
+    messagesStore.update(msgs => {
+      const idx = msgs.findIndex(m => m.id === msgData.id);
+      if (idx !== -1) { msgs[idx] = msgData; return [...msgs]; }
+      return [...msgs, msgData];
+    });
     return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
