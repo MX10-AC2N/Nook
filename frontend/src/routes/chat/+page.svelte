@@ -208,14 +208,29 @@
     if (!content) return false;
     const t = content.trim();
     if (t.length === 0 || t.length > 30) return false;
-    // Match: one or more emoji sequences, optionally separated by zero-width joiners
-    const emojiRe = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Extended_Pictographic})(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Extended_Pictographic}))*$/u;
-    // Allow sequences of emojis (up to ~10)
-    const multiEmojiRe = new RegExp(
-      '^((?:[\p{Emoji_Presentation}\p{Emoji}\uFE0F\p{Extended_Pictographic}])(?:\u200D[\p{Emoji_Presentation}\p{Emoji}\uFE0F\p{Extended_Pictographic}])*){1,10}$',
-      'u'
-    );
-    return multiEmojiRe.test(t);
+    // Simple approach: check if all non-whitespace chars are emoji (codepoint > 0x2300)
+    // This catches 👋, 🤜, 🤛, 🎉, etc. while excluding regular text
+    for (const ch of t) {
+      const code = ch.codePointAt(0);
+      if (!code) return false;
+      // Skip zero-width joiners and variation selectors
+      if (code === 0x200D || code === 0xFE0F || code === 0x200B) continue;
+      // Emoji range checks
+      if (code < 0x2300) return false; // Below emoji ranges
+      // Allow known emoji blocks
+      if (code >= 0x2600 && code <= 0x27BF) continue; // Misc symbols, dingbats
+      if (code >= 0x2300 && code <= 0x23FF) continue; // Misc technical
+      if (code >= 0x2B50 && code <= 0x2B59) continue; // Stars, shapes
+      if (code >= 0x1F000 && code <= 0x1FFFF) continue; // Emoticons, symbols
+      if (code >= 0x2700 && code <= 0x27BF) continue; // Dingbats
+      if (code >= 0xFE00 && code <= 0xFE0F) continue; // Variation selectors
+      if (code >= 0x1F900 && code <= 0x1F9FF) continue; // Supplemental symbols
+      if (code >= 0x1FA00 && code <= 0x1FA6F) continue; // Chess symbols
+      if (code >= 0x1FA70 && code <= 0x1FAFF) continue; // Symbols extended
+      // If we get here, it's not an emoji
+      return false;
+    }
+    return true;
   }
 
   async function toggleReaction(msgId: string, emoji: string) {
