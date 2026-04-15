@@ -208,7 +208,7 @@
       ☰
     </button>
 
-    <h1 style="flex:1; justify-content:center;"><Icon name="logo" size="60" /></h1>
+    <h1 style="flex:1; justify-content:center;"><Icon name="logo" size="68" /></h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
