@@ -1638,7 +1638,7 @@
 
   /* ─── Saisie ─── */
   .emoji-only {
-    font-size: 3.5rem;
+    font-size: 3.5rem !important;
     line-height: 1.2;
     background: transparent !important;
     padding: .2rem .4rem !important;
