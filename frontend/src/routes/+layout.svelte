@@ -208,7 +208,7 @@
       ☰
     </button>
 
-    <h1 style="flex:1; justify-content:center;"><Icon name="logo" size="40" /></h1>
+    <h1 style="flex:1; justify-content:center;"><Icon name="logo" size="50" /></h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -362,7 +362,7 @@
     padding: 0.35rem 0.8rem; background: var(--bg-secondary, white);
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); border-bottom: 1px solid var(--border, #e2e8f0);
     position: sticky; top: 0; z-index: 100;
-    min-height: 48px;
+    min-height: 52px;
   }
 
   .menu-toggle, .logout-btn {
