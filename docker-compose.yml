@@ -43,6 +43,20 @@ services:
     networks:
       - nook-network
 
+  nginx-local:
+    image: nginx:alpine
+    container_name: nook-nginx-local
+    restart: unless-stopped
+    ports:
+      - "6443:443"
+    volumes:
+      - "./nginx-local.conf:/etc/nginx/conf.d/default.conf:ro"
+      - "./nginx-ssl:/etc/nginx/ssl:ro"
+    depends_on:
+      - nook
+    networks:
+      - nook-network
+
   turn:
     image: ghcr.io/mx10-ac2n/turn-server:dev
     container_name: nook-turn
