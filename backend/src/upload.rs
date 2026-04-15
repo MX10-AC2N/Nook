@@ -199,6 +199,8 @@ pub async fn upload_handler(
     state.file_manager.register_file(&file_id, storage_path).await;
 
     let is_image = data.content_type.starts_with("image/");
+    let is_audio = data.content_type.starts_with("audio/");
+    let is_video = data.content_type.starts_with("video/");
     (StatusCode::OK, AxumJson(json!({
         "status":       "uploaded",
         "file_id":      file_id,
@@ -206,6 +208,8 @@ pub async fn upload_handler(
         "file_size":    data.data.len(),
         "content_type": data.content_type,
         "is_image":     is_image,
+        "is_audio":     is_audio,
+        "is_video":     is_video,
         "uploaded_at":  now,
         "encrypted":    true,
         "url": format!("/api/download/{}", file_id)
@@ -284,6 +288,8 @@ pub async fn upload_chat_file(
     state.file_manager.register_file(&file_id, storage_path).await;
 
     let is_image = data.content_type.starts_with("image/");
+    let is_audio = data.content_type.starts_with("audio/");
+    let is_video = data.content_type.starts_with("video/");
     (StatusCode::OK, AxumJson(json!({
         "status":       "uploaded",
         "file_id":      file_id,
@@ -291,6 +297,8 @@ pub async fn upload_chat_file(
         "file_size":    data.data.len(),
         "content_type": data.content_type,
         "is_image":     is_image,
+        "is_audio":     is_audio,
+        "is_video":     is_video,
         "uploaded_at":  now,
         "encrypted":    true,
         "url": format!("/api/download/{}", file_id)

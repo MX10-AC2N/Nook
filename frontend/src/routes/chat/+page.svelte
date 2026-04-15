@@ -531,8 +531,8 @@
       }
       const data = await res.json();
       const isImage = data.is_image ?? file.type.startsWith('image/');
-      const isAudio = file.type.startsWith('audio/');
-      const isVideo = file.type.startsWith('video/');
+      const isAudio = data.is_audio ?? file.type.startsWith('audio/');
+      const isVideo = data.is_video ?? file.type.startsWith('video/');
       let uploadContent: string;
       if (isImage) {
         uploadContent = `<div class="file-preview"><img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" /><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
@@ -1207,7 +1207,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100dvh - var(--header-h, 36px));
+    height: calc(100dvh - var(--header-h, 30px));
     overflow: hidden;
     max-width: 100%;
   }
@@ -1314,15 +1314,15 @@
     position: relative;
   }
   .chat-header {
-    padding: .25rem .8rem;
+    padding: .15rem .8rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border, #e2e8f0);
     display: flex;
     align-items: center;
-    gap: .6rem;
-    min-height: 36px;
+    gap: .5rem;
+    min-height: 30px;
   }
-  .chat-header h2 { margin: 0; font-size: .95rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-header h2 { margin: 0; font-size: .85rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-error { font-size: .78rem; color: #dc2626; }
   .call-actions { display: flex; gap: .35rem; flex-shrink: 0; margin-left: auto; }
   .call-btn {
@@ -1411,11 +1411,11 @@
   }
   .message-content :global(.file-download) {
     position: absolute; top: 6px; right: 6px;
-    background: rgba(0,0,0,.55); color: #fff;
+    background: rgba(0,0,0,.6); color: #fff;
     border-radius: 50%; width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
     text-decoration: none; font-size: .8rem;
-    opacity: 0; transition: opacity .2s;
+    opacity: .7; transition: opacity .2s;
   }
   .message-content :global(.file-preview:hover .file-download),
   .message-content :global(.file-audio:hover .file-download),
@@ -1927,9 +1927,9 @@
 
   /* ── Chat header: hamburger + compact ── */
   .chat-header {
-    padding: .2rem .5rem !important;
-    gap: .3rem;
-    min-height: 32px !important;
+    padding: .1rem .5rem !important;
+    gap: .25rem;
+    min-height: 28px !important;
   }
 
   .btn-menu-mobile {
