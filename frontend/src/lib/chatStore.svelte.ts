@@ -185,6 +185,11 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
 }
 
 async function _injectMessage(raw: ChatMessage): Promise<void> {
+  const existing = get(messagesStore).findIndex(m => m.id === raw.id);
+  // If existing message is already plaintext, skip encrypted WS update
+  if (existing !== -1 && !get(messagesStore)[existing].encrypted && raw.encrypted) {
+    return;
+  }
   if (raw.encrypted && raw.nonce && raw.sender_public_key) {
     try {
       const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -197,11 +202,9 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
       }
     } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
-  const existing = get(messagesStore).findIndex(m => m.id === raw.id);
   if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
   } else {
-    // Update existing (e.g. API added encrypted, WS decrypts)
     messagesStore.update(msgs => { msgs[existing] = raw; return [...msgs]; });
   }
 }
