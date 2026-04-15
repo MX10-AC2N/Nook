@@ -368,9 +368,9 @@
     // Load messages (single call)
     await loadMessages(conv.id);
     await loadReactionsForMessages(conv.id);
-    // Scroll immédiat en bas après chargement des messages
+    // Scroll to top après chargement — nouveaux messages en haut
     await Promise.resolve();
-    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+    if (chatContainer) chatContainer.scrollTop = 0;
     // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
     if (!chatStore.wsConnected) {
@@ -647,15 +647,16 @@
     if (e.key === 'Escape') cancelEdit();
   }
 
-  /** Pagination — déclenché au scroll en haut du conteneur de messages */
+  /** Pagination — déclenché au scroll en bas du conteneur (messages anciens) */
   async function handleMessagesScroll(e: Event) {
     const el = e.target as HTMLElement;
-    if (el.scrollTop < 80 && chatStore.hasMore && !chatStore.loadingMore) {
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distFromBottom < 80 && chatStore.hasMore && !chatStore.loadingMore) {
       const prevHeight = el.scrollHeight;
       await loadMoreMessages(activeConvId);
-      // Maintenir la position de scroll après insertion en haut
+      // Maintenir la position de scroll après insertion en bas
       requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight - prevHeight;
+        el.scrollTop = el.scrollTop + (el.scrollHeight - prevHeight);
       });
     }
   }
@@ -672,6 +673,14 @@
     await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
+    // Scroll to top after initial load — newest messages are at top
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (chatContainer) {
+          chatContainer.scrollTop = 0;
+        }
+      });
+    });
     // Demande permission notifications (non-bloquant)
     requestNotificationPermission();
     // Fallback polling si WS pas connecté après 3s
@@ -687,19 +696,25 @@
     disconnectWs();
   });
 
+  let initialScrollDone = $state(false);
+
   $effect(() => {
     const count = localMessages.length;
     if (!chatContainer || count === 0) return;
-    // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
-    // Tolérance : si on est à moins de 150px du bas → scroll auto
     const el = chatContainer;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (isNearBottom || count === 1) {
-      // Attendre le prochain tick (DOM mis à jour)
+    // Force scroll to top on first render (newest messages at top)
+    if (!initialScrollDone) {
+      initialScrollDone = true;
       Promise.resolve().then(() => {
-        if (chatContainer) {
-          chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+        if (chatContainer) chatContainer.scrollTop = 0;
+      });
+      return;
+    }
+    // Auto-scroll to top if user is near top (viewing recent messages)
+    const isNearTop = el.scrollTop < 150;
+    if (isNearTop) {
+      Promise.resolve().then(() => {
+        if (chatContainer) chatContainer.scrollTop = 0;
       });
     }
   });
@@ -837,14 +852,6 @@
     </header>
 
       <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
-      {#if chatStore.loadingMore}
-        <div class="load-more-indicator">⏳ Chargement…</div>
-      {:else if chatStore.hasMore}
-        <button class="load-more-btn" onclick={() => handleMessagesScroll({ target: chatContainer } as unknown as Event)}>
-          ↑ Messages précédents
-        </button>
-      {/if}
-
       {#if localMessages.length === 0 && !loadingConvs}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
@@ -855,7 +862,7 @@
           <span class="loading-dots">···</span>
         </div>
       {:else}
-        {#each localMessages as msg (msg.id)}
+        {#each [...localMessages].reverse() as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
@@ -998,6 +1005,14 @@
             {/if}
           </div>
         {/each}
+
+        {#if chatStore.loadingMore}
+          <div class="load-more-indicator">⏳ Chargement…</div>
+        {:else if chatStore.hasMore}
+          <button class="load-more-btn" onclick={() => handleMessagesScroll({ target: chatContainer } as unknown as Event)}>
+            ↓ Messages plus anciens
+          </button>
+        {/if}
       {/if}
     </div>
 
