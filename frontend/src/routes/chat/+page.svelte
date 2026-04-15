@@ -568,6 +568,12 @@
   }
 
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
+    // getUserMedia requires HTTPS (not HTTP)
+    if (!navigator.mediaDevices?.getUserMedia) {
+      chatStore.connectionError = 'L\'enregistrement audio nécessite HTTPS (ou localhost)';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
     if (recordingState.isRecording) {
       // Arrêt : récupérer le blob et l'envoyer comme upload
       try {

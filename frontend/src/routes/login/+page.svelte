@@ -76,8 +76,7 @@
 <div class="login-page">
   <div class="login-card">
     <div class="logo">
-      <Icon name="logo" size={80} />
-      <h1>Nook</h1>
+      <Icon name="logo" size={100} />
     </div>
 
     <p class="subtitle">Bienvenue dans votre espace familial sécurisé</p>
