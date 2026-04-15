@@ -379,6 +379,9 @@ export async function sendMessage(content: string, conversationId: string): Prom
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const msgData: ChatMessage = await res.json();
     chatStore.connectionError = null;
+    // Use plaintext content locally (API returns encrypted)
+    msgData.content = content.trim();
+    msgData.encrypted = false;
     // Add to store if not already present (WS may have already injected it)
     const alreadyExists = get(messagesStore).some(m => m.id === msgData.id);
     if (!alreadyExists) {
