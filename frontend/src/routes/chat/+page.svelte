@@ -1207,7 +1207,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100dvh - var(--header-h, 42px));
+    height: calc(100dvh - var(--header-h, 36px));
     overflow: hidden;
     max-width: 100%;
   }
@@ -1314,13 +1314,13 @@
     position: relative;
   }
   .chat-header {
-    padding: .35rem .8rem;
+    padding: .25rem .8rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border, #e2e8f0);
     display: flex;
     align-items: center;
     gap: .6rem;
-    min-height: 42px;
+    min-height: 36px;
   }
   .chat-header h2 { margin: 0; font-size: .95rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-error { font-size: .78rem; color: #dc2626; }
@@ -1927,14 +1927,15 @@
 
   /* ── Chat header: hamburger + compact ── */
   .chat-header {
-    padding: .5rem .6rem !important;
-    gap: .4rem;
+    padding: .2rem .5rem !important;
+    gap: .3rem;
+    min-height: 32px !important;
   }
 
   .btn-menu-mobile {
     display: flex !important;
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
     align-items: center;
     justify-content: center;
     background: transparent;
