@@ -358,21 +358,22 @@
   }
 
   .app-header {
-    display: flex; align-items: center; gap: 0.75rem;
-    padding: 1rem 1.5rem; background: var(--bg-secondary, white);
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.35rem 0.8rem; background: var(--bg-secondary, white);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-bottom: 1px solid var(--border, #e2e8f0);
     position: sticky; top: 0; z-index: 100;
+    min-height: 36px;
   }
 
   .menu-toggle, .logout-btn {
-    background: none; border: none; font-size: 1.5rem;
-    cursor: pointer; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s;
+    background: none; border: none; font-size: 1rem;
+    cursor: pointer; padding: 0.25rem; border-radius: 0.4rem; transition: background 0.2s;
   }
 
   .menu-toggle:hover, .logout-btn:hover { background: var(--bg-tertiary, #f1f5f9); }
 
-  .app-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; display: flex; align-items: center; color: var(--text-primary, #1e293b); flex: 1; }
-  .user-name { font-size: 0.9rem; color: var(--text-secondary, #64748b); margin-right: 0.5rem; }
+  .app-header h1 { font-size: 0.9rem; font-weight: 600; margin: 0; display: flex; align-items: center; color: var(--text-primary, #1e293b); flex: 1; }
+  .user-name { font-size: 0.75rem; color: var(--text-secondary, #64748b); margin-right: 0.25rem; }
 
   .menu-overlay {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
@@ -448,8 +449,8 @@
   .app-footer p { margin: 0; }
 
   @media (max-width: 640px) {
-    .app-header { padding: 0.85rem 1rem; }
-    .app-header h1 { font-size: 1.1rem; }
+    .app-header { padding: 0.3rem 0.6rem; min-height: 32px; }
+    .app-header h1 { font-size: 0.85rem; }
     .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
