@@ -1,6 +1,4 @@
 <script lang="ts">
-  import { authStore } from '$lib/authStore.svelte.js';
-
   const DICEBEAR_STYLES = [
     { id: 'adventurer',  label: 'Aventurier',  icon: '🎮' },
     { id: 'avataaars',   label: 'Cartoon',     icon: '😊' },
@@ -27,10 +25,8 @@
   const CDN_BASE = 'https://api.dicebear.com/9.x';
 
   function getAvatarStyle(): string {
-    if (style) return style;
-    // Use user's preferred style from authStore, or default
-    const pref = authStore.user?.avatar_style;
-    return pref && DICEBEAR_STYLES.some(s => s.id === pref) ? pref : 'adventurer';
+    // Use explicit style prop, or fallback to default
+    return style || 'adventurer';
   }
 
   function getSeed(): string {
