@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 CERT_DIR=/etc/nginx/ssl
 mkdir -p "$CERT_DIR"
 if [ ! -f "$CERT_DIR/nook.crt" ] || [ ! -f "$CERT_DIR/nook.key" ]; then
@@ -17,8 +16,7 @@ if [ ! -f "$CERT_DIR/nook.crt" ] || [ ! -f "$CERT_DIR/nook.key" ]; then
     -out "$CERT_DIR/nook.crt" \
     -subj "/CN=$IP" \
     -addext "subjectAltName=IP:$IP,IP:127.0.0.1,DNS:nook.local" \
-    2>/dev/null
-  echo "Certificat créé."
+    2>&1 && echo "Certificat créé." || echo "ERREUR: openssl a échoué (code $?)"
 fi
 
 # Vérifier que le cert existe
