@@ -18,7 +18,7 @@
     disconnectWs,
     requestNotificationPermission,
   } from '$lib/chatStore.svelte.ts';
-  import { sanitizeHtml } from '$lib/sanitize';
+  import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
   import {
     recordingState,
     startRecording,
@@ -79,6 +79,17 @@
   let chatContainer  = $state<HTMLElement | undefined>(undefined);
   let fileInput      = $state<HTMLInputElement | undefined>(undefined);
   let sending        = $state(false);
+
+  // ─── Mention autocomplete ─────────────────────────────────────────
+  let mentionQuery    = $state('');
+  let mentionStart    = $state(-1);
+  let showMentions    = $derived(mentionStart >= 0 && mentionQuery.length > 0);
+  let filteredMentions = $derived(
+    availableUsers.filter(u => {
+      const q = mentionQuery.toLowerCase();
+      return (u.username?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q));
+    }).slice(0, 5)
+  );
 
   // ─── Messages vocaux ──────────────────────────────────────────────
   // Durée max : 2 min audio, 30s vidéo
@@ -485,6 +496,18 @@
   }
 
   function handleTyping() {
+    // Mention autocomplete: detect @ in the message
+    const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
+    const beforeCursor = newMessage.slice(0, cursor);
+    const atMatch = beforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      mentionStart = cursor - atMatch[0].length;
+      mentionQuery = atMatch[1];
+    } else {
+      mentionStart = -1;
+      mentionQuery = '';
+    }
+
     // Send typing indicator via WebSocket
     if (chatStore.ws && chatStore.ws.readyState === WebSocket.OPEN) {
       chatStore.ws.send(JSON.stringify({
@@ -505,6 +528,18 @@
         }));
       }
     }, 3000);
+  }
+
+  function selectMention(username: string) {
+    if (mentionStart < 0) return;
+    const before = newMessage.slice(0, mentionStart);
+    const after = newMessage.slice(mentionStart + mentionQuery.length + 1); // +1 for @
+    newMessage = before + '@' + username + ' ' + after;
+    mentionStart = -1;
+    mentionQuery = '';
+    // Focus back on input
+    const input = document.querySelector('.message-input') as HTMLInputElement;
+    input?.focus();
   }
 
   function handleMessageKeydown(e: KeyboardEvent) {
@@ -925,7 +960,7 @@
                 {#if isEmojiOnly(msg.content)}
                   <div class="message-content emoji-only">{msg.content}</div>
                 {:else}
-                  <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                  <div class="message-content">{@html sanitizeHtml(highlightMentions(msg.content))}</div>
                 {/if}
               {/if}
             {/if}
@@ -1126,6 +1161,22 @@
     {/if}
 
     <form class="input-area" onsubmit={handleSubmit}>
+      <!-- Mention autocomplete dropdown -->
+      {#if showMentions && filteredMentions.length > 0}
+        <div class="mention-dropdown">
+          {#each filteredMentions as u}
+            <button
+              type="button"
+              class="mention-option"
+              onclick={() => selectMention(u.username)}
+            >
+              <Avatar username={u.username} name={u.name} size={24} userId={u.id} />
+              <span class="mention-name">{u.name ?? u.username}</span>
+              <span class="mention-handle">@{u.username}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
       <!-- File transfer progress -->
 
@@ -1328,7 +1379,7 @@
   .conversation-item:hover { background: var(--bg-tertiary, #e2e8f0); }
   .conversation-item.active { background: var(--bg-tertiary, #e2e8f0); }
 
-  .avatar { font-size: 1.3rem; flex-shrink: 0; }
+  .avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 600; flex-shrink: 0; }
   .conversation-info { flex: 1; min-width: 0; }
   .conversation-info .name {
     display: block;
@@ -1437,6 +1488,28 @@
     font-size: .75rem; font-weight: 700;
     color: var(--accent, #4ade80); margin-bottom: .15rem;
   }
+  .message-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .message-content .mention {
+    display: inline; background: var(--accent-light, rgba(74, 222, 128, 0.2));
+    color: var(--accent-dark, var(--accent)); font-weight: 700;
+    padding: 1px 4px; border-radius: 4px; cursor: pointer;
+  }
+  .mention-dropdown {
+    position: absolute; bottom: 100%; left: 0; right: 0;
+    background: var(--bg-primary, #fff); border: 2px solid var(--border);
+    border-radius: var(--radius-lg, 12px); box-shadow: var(--shadow-lg, 0 4px 12px rgba(0,0,0,.15));
+    max-height: 180px; overflow-y: auto; z-index: 100;
+    padding: 4px; margin-bottom: 4px;
+  }
+  .mention-option {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 8px 12px; border: none; background: transparent;
+    cursor: pointer; border-radius: 8px; font-size: .9rem; color: var(--text-primary);
+  }
+  .mention-option:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .mention-handle { color: var(--text-secondary, #64748b); font-size: .8rem; }
   .message-content {
     font-size: .9rem; color: var(--text-primary, #1e293b); line-height: 1.5;
   }
@@ -1660,6 +1733,7 @@
 
   .input-area {
     flex-shrink: 0;
+    position: relative;
     display: flex; align-items: center; gap: .4rem;
     padding: .7rem 1rem;
     border-top: 1px solid var(--border, #e2e8f0);

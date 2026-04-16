@@ -171,6 +171,27 @@
   <!-- PROFIL -->
   {#if activeTab === 'profile'}
     <div class="settings-section">
+      <!-- Avatar -->
+      <div class="avatar-section">
+        <label>Avatar</label>
+        <div class="avatar-preview">
+          <Avatar username={authStore.user?.username ?? ''} name={userName} size={64} userId={authStore.user?.id} />
+        </div>
+        <div class="avatar-grid">
+          {#each avatarOptions as opt}
+            <button
+              type="button"
+              class="avatar-option"
+              class:selected={avatarUrl === opt.id}
+              onclick={() => { avatarUrl = opt.id; }}
+              title={opt.label}
+            >
+              <span class="avatar-option-icon">{opt.icon}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
+
       <h2>Informations du profil</h2>
       <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
         <div class="form-group">

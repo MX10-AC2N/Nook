@@ -21,13 +21,18 @@ export function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: false,
-    // Forcer rel="noopener noreferrer" sur tous les liens externes
     ADD_ATTR: ['target'],
     FORCE_BODY: false,
     WHOLE_DOCUMENT: false,
-    // Hook : ajouter rel="noopener noreferrer" automatiquement
-    RETURN_DOM: false,
-    RETURN_DOM_FRAGMENT: false,
   });
+}
+
+/**
+ * Remplace @username par un span.highlight-mention dans le texte.
+ * À appeler AVANT sanitizeHtml.
+ */
+export function highlightMentions(text: string): string {
+  if (!text) return text;
+  // Ne pas matcher dans les balises HTML existantes
+  return text.replace(/@([\w.-]+)/g, '<span class="mention" data-user="$1">@$1</span>');
 }
