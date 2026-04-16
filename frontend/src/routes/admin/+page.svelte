@@ -1,24 +1,25 @@
-<!-- frontend/src/routes/admin/+page.svelte — Session 34
-     Ajouts :
-       - Onglet "Analytics" → goto('/admin/analytics')
-       - Badge dynamique : affiche authStore.user.name (pas "admin" hardcodé)
-       - Couleurs via variables CSS thème (var(--accent) etc.)
--->
 <script lang="ts">
+  import Avatar from '$lib/components/Avatar.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { notifyAdmin } from '$lib/notificationStore.svelte';
 
   let pendingUsers     = $state<any[]>([]);
   let allUsers         = $state<any[]>([]);
-  import { notifyAdmin } from '$lib/notificationStore.svelte';
   let invites          = $state<any[]>([]);
   let loading          = $state(true);
   let activeTab        = $state<'pending' | 'all' | 'invites'>('pending');
   let generatingInvite = $state(false);
   let inviteLink       = $state<string | null>(null);
   let authChecked      = $state(false);
+
+  // ─── Stats derived ─────────────────────────────────────────
+  let totalUsers   = $derived(allUsers.length);
+  let pendingCount = $derived(pendingUsers.length);
+  let adminCount   = $derived(allUsers.filter(u => u.role === 'admin').length);
+  let activeInvites = $derived(invites.filter(i => !i.used && !isExpired(i)).length);
 
   async function deleteUser(userId: string) {
     if (!confirm('Supprimer définitivement ce membre ? Cette action est irréversible.')) return;
@@ -88,7 +89,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ user_id: userId }),
       });
-      if (response.ok) { await loadUsers(); alert('✅ Utilisateur approuvé avec succès'); }
+      if (response.ok) { await loadUsers(); }
       else alert("Erreur lors de l'approbation");
     } catch (e) { alert('Erreur réseau'); }
   }
@@ -101,8 +102,8 @@
         const data = await response.json();
         const inviteToken = data.invite_link?.split('token=')[1] ?? data.token;
         inviteLink = `${window.location.origin}/invite?token=${inviteToken}`;
-    notifyAdmin('Invitation generee', 'Un nouveau lien d invitation a ete cree');
-        try { await navigator.clipboard.writeText(inviteLink); alert('✅ Lien copié dans le presse-papiers !'); }
+        notifyAdmin('Invitation generee', 'Un nouveau lien d invitation a ete cree');
+        try { await navigator.clipboard.writeText(inviteLink); }
         catch { console.warn('Clipboard non disponible'); }
         await loadInvites();
       } else alert('Erreur lors de la génération');
@@ -131,6 +132,11 @@
     if (isExpired(invite)) return 'Expirée';
     return 'Valide';
   }
+  function getStatusClass(invite: any): string {
+    if (invite.used) return 'status-used';
+    if (isExpired(invite)) return 'status-expired';
+    return 'status-active';
+  }
 </script>
 
 <svelte:head><title>Administration - Nook</title></svelte:head>
@@ -151,56 +157,89 @@
 
   {:else}
     <div class="admin-header">
-      <h1><Icon name="user" size="24" /> Administration</h1>
-      <div class="auth-status">
-        <span class="admin-badge">
-          Connecté en tant que {authStore.user?.name || authStore.user?.username || 'admin'}
-        </span>
+      <div class="admin-header-top">
+        <h1><Icon name="user" size="24" /> Administration</h1>
+        <div class="admin-actions-header">
+          <button class="btn-icon" onclick={() => goto('/admin/analytics')} title="Analytics">
+            <Icon name="check-circle" size="20" />
+          </button>
+          <span class="admin-badge">
+            {authStore.user?.name || authStore.user?.username}
+          </span>
+        </div>
       </div>
-      <p>Gérez les membres et les invitations de votre espace familial</p>
+      <p class="admin-subtitle">Gérez les membres et les invitations de votre espace familial</p>
     </div>
 
     {#if loading}
-      <div class="loading-message">Chargement des données d'administration…</div>
+      <div class="loading-message">Chargement…</div>
     {:else}
-      <div class="admin-actions">
-        <button class="invite-btn" onclick={generateInvite} disabled={generatingInvite}>
-          {generatingInvite ? 'Génération…' : "➕ Générer un lien d'invitation"}
+      <!-- Quick stats -->
+      <div class="quick-stats">
+        <div class="quick-stat" class:alert={pendingCount > 0}>
+          <span class="qs-value">{pendingCount}</span>
+          <span class="qs-label">En attente</span>
+        </div>
+        <div class="quick-stat">
+          <span class="qs-value">{totalUsers}</span>
+          <span class="qs-label">Membres</span>
+        </div>
+        <div class="quick-stat">
+          <span class="qs-value">{adminCount}</span>
+          <span class="qs-label">Admins</span>
+        </div>
+        <div class="quick-stat">
+          <span class="qs-value">{activeInvites}</span>
+          <span class="qs-label">Invitations</span>
+        </div>
+      </div>
+
+      <!-- Generate invite -->
+      <div class="invite-bar">
+        <button class="btn-primary" onclick={generateInvite} disabled={generatingInvite}>
+          {generatingInvite ? 'Génération…' : '➕ Nouvelle invitation'}
         </button>
         {#if inviteLink}
-          <p class="invite-link">Dernier lien généré : <code>{inviteLink}</code></p>
+          <div class="invite-link-box">
+            <code class="invite-link-code">{inviteLink}</code>
+            <button class="btn-copy" onclick={async () => {
+              try { await navigator.clipboard.writeText(inviteLink!); }
+              catch { prompt('Copiez :', inviteLink); }
+            }}>Copier</button>
+          </div>
         {/if}
       </div>
 
+      <!-- Tabs -->
       <div class="admin-tabs">
         <button class="tab" class:active={activeTab === 'pending'} onclick={() => (activeTab = 'pending')}>
-          ⏳ En attente ({pendingUsers.length})
+          En attente {#if pendingCount > 0}<span class="tab-badge">{pendingCount}</span>{/if}
         </button>
         <button class="tab" class:active={activeTab === 'all'} onclick={() => (activeTab = 'all')}>
-          👥 Membres ({allUsers.length})
+          Membres <span class="tab-count">{totalUsers}</span>
         </button>
         <button class="tab" class:active={activeTab === 'invites'} onclick={() => (activeTab = 'invites')}>
-          🔗 Invitations ({invites.length})
-        </button>
-        <button class="tab tab-analytics" onclick={() => goto('/admin/analytics')}>
-          <Icon name="check-circle" size="18" /> Analytics ↗
+          Invitations <span class="tab-count">{invites.length}</span>
         </button>
       </div>
 
       <div class="admin-content">
         {#if activeTab === 'pending'}
           {#if pendingUsers.length === 0}
-            <div class="empty-state">✅ Aucun utilisateur en attente</div>
+            <div class="empty-state">
+              <span class="empty-icon">✓</span>
+              <span>Tous les membres sont approuvés</span>
+            </div>
           {:else}
             <div class="user-list">
               {#each pendingUsers as user}
                 <div class="user-card pending">
+                  <Avatar username={user.username} name={user.name} size={40} userId={user.id} style={user.avatar_style} seed={user.avatar_seed} />
                   <div class="user-info">
                     <span class="user-name">{user.name || 'Sans nom'}</span>
-                    <span class="user-username">@{user.username}</span>
-                    <span class="user-date">Inscrit le {formatDate(user.created_at)}</span>
+                    <span class="user-meta">@{user.username} · Inscrit le {formatDate(user.created_at)}</span>
                   </div>
-                  <button class="approve-btn" onclick={() => approveUser(user.id)}>✅ Approuver</button>
+                  <button class="btn-approve" onclick={() => approveUser(user.id)}>Approuver</button>
                 </div>
               {/each}
             </div>
@@ -210,19 +249,19 @@
           <div class="user-list">
             {#each allUsers as user}
               <div class="user-card" class:admin-card={user.role === 'admin'}>
+                <Avatar username={user.username} name={user.name} size={40} userId={user.id} style={user.avatar_style} seed={user.avatar_seed} />
                 <div class="user-info">
                   <span class="user-name">
                     {user.name || 'Sans nom'}
                     {#if user.role === 'admin'}<span class="role-badge">Admin</span>{/if}
                   </span>
-                  <span class="user-username">@{user.username}</span>
-                  <span class="user-status" class:approved={user.approved}>
-                    {user.approved ? '✅ Approuvé' : '⏳ En attente'}
+                  <span class="user-meta">
+                    @{user.username}
+                    · {user.approved ? 'Approuvé' : 'En attente'}
                   </span>
                 </div>
                 {#if user.role !== 'admin'}
-                  <button class="delete-user-btn" onclick={() => deleteUser(user.id)}
-                    title="Supprimer ce membre">🗑</button>
+                  <button class="btn-delete" onclick={() => deleteUser(user.id)} title="Supprimer">✕</button>
                 {/if}
               </div>
             {/each}
@@ -230,34 +269,33 @@
 
         {:else if activeTab === 'invites'}
           {#if invites.length === 0}
-            <div class="empty-state">Aucune invitation créée</div>
+            <div class="empty-state">
+              <span class="empty-icon">🔗</span>
+              <span>Aucune invitation créée</span>
+            </div>
           {:else}
-            <table class="invites-table">
-              <thead>
-                <tr><th>Créée le</th><th>Expire le</th><th>Statut</th><th>Lien</th><th>Action</th></tr>
-              </thead>
-              <tbody>
-                {#each invites as invite}
-                  <tr class:expired={isExpired(invite)} class:used={invite.used}>
-                    <td>{formatDate(invite.created_at)}</td>
-                    <td>{formatDate(invite.expires_at)}</td>
-                    <td class="status">{getStatus(invite)}</td>
-                    <td class="link">
-                      <code>{invite.token.slice(0, 12)}…</code>
-                      <button onclick={async () => {
-                        const link = `${window.location.origin}/invite?token=${invite.token}`;
-                        try { await navigator.clipboard.writeText(link); alert('✅ Lien copié !'); }
-                        catch { prompt('Copiez ce lien :', link); }
-                      }}>Copier</button>
-                    </td>
-                    <td>
-                      <button class="delete-btn" onclick={() => deleteInvite(invite.id)}
-                        disabled={invite.used || isExpired(invite)}>Supprimer</button>
-                    </td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
+            <div class="invites-list">
+              {#each invites as invite}
+                <div class="invite-card" class:expired={isExpired(invite)} class:used={invite.used}>
+                  <div class="invite-info">
+                    <span class="invite-token"><code>{invite.token.slice(0, 10)}…</code></span>
+                    <span class="invite-date">Créée le {formatDate(invite.created_at)}</span>
+                    <span class="invite-expires">Expire le {formatDate(invite.expires_at)}</span>
+                  </div>
+                  <div class="invite-actions">
+                    <span class="status-badge {getStatusClass(invite)}">{getStatus(invite)}</span>
+                    <button class="btn-copy-sm" onclick={async () => {
+                      const link = `${window.location.origin}/invite?token=${invite.token}`;
+                      try { await navigator.clipboard.writeText(link); }
+                      catch { prompt('Copiez :', link); }
+                    }}>Copier</button>
+                    {#if !invite.used && !isExpired(invite)}
+                      <button class="btn-delete-sm" onclick={() => deleteInvite(invite.id)}>✕</button>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
           {/if}
         {/if}
       </div>
@@ -266,96 +304,382 @@
 </div>
 
 <style>
-  .loading-fullpage { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 60vh; color: var(--text-secondary); }
-  .spinner-large { width: 40px; height: 40px; border: 4px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .admin-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 2rem;
+  }
 
-  .admin-container { max-width: 900px; margin: 0 auto; padding: 1rem; color: var(--text-primary); }
-
-  .admin-header { text-align: center; margin-bottom: 2rem; }
-  .admin-header h1 { font-size: 1.75rem; color: var(--accent-dark, var(--accent)); margin-bottom: 0.5rem; }
-  .admin-header p  { color: var(--text-secondary); }
-  .auth-status { margin: 0.5rem 0; }
-
+  .admin-header {
+    margin-bottom: 1.5rem;
+  }
+  .admin-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .admin-header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary, #1e293b);
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .admin-subtitle {
+    color: var(--text-secondary, #64748b);
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0;
+  }
+  .admin-actions-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .btn-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--text-secondary, #64748b);
+  }
+  .btn-icon:hover {
+    background: var(--bg-tertiary, #e2e8f0);
+    color: var(--text-primary, #1e293b);
+  }
   .admin-badge {
-    display: inline-block; padding: 0.25rem 0.75rem; border-radius: var(--radius-full);
-    font-size: 0.8rem; font-weight: 600;
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
-    color: var(--accent-dark, var(--accent));
-    border: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    background: var(--accent-light, #dcfce7);
+    color: var(--accent-dark, #16a34a);
   }
 
-  .admin-actions { text-align: center; margin-bottom: 1.5rem; }
-  .invite-btn {
-    padding: 0.75rem 1.5rem; background: var(--accent); color: #fff;
-    border: none; border-radius: var(--radius-lg); cursor: pointer;
-    font-weight: 600; transition: all 0.2s;
+  /* Quick stats */
+  .quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
   }
-  .invite-btn:hover:not(:disabled) { background: var(--button-hover); transform: translateY(-1px); }
-  .invite-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-  .invite-link { margin-top: 0.8rem; word-break: break-all; color: var(--text-secondary); font-size: 0.9rem; }
-  .invite-link code { background: var(--bg-secondary); padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-size: 0.85rem; }
+  .quick-stat {
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    padding: 0.75rem;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .quick-stat.alert {
+    border-color: var(--accent, #4ade80);
+    background: var(--accent-light, #f0fdf4);
+  }
+  .qs-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary, #1e293b);
+    line-height: 1.2;
+  }
+  .qs-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
 
-  .admin-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; justify-content: center; flex-wrap: wrap; }
+  /* Invite bar */
+  .invite-bar {
+    margin-bottom: 1.25rem;
+  }
+  .btn-primary {
+    padding: 0.6rem 1.25rem;
+    background: var(--accent, #4ade80);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .invite-link-box {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary, #f8fafc);
+    border-radius: 8px;
+    border: 1px solid var(--border, #e2e8f0);
+  }
+  .invite-link-code {
+    flex: 1;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn-copy {
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-primary, #fff);
+    font-size: 0.8rem;
+    cursor: pointer;
+    color: var(--text-secondary, #64748b);
+    transition: all 0.15s;
+  }
+  .btn-copy:hover { background: var(--bg-tertiary, #e2e8f0); }
+
+  /* Tabs */
+  .admin-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+    background: var(--bg-secondary, #f1f5f9);
+    border-radius: 10px;
+    padding: 4px;
+  }
   .tab {
-    padding: 0.65rem 1.1rem; background: var(--bg-secondary); border: 1px solid var(--border);
-    cursor: pointer; color: var(--text-secondary); border-radius: var(--radius-lg);
-    font-size: 0.9rem; font-weight: 500; transition: all 0.2s;
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-secondary, #64748b);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
   }
-  .tab:hover  { background: var(--border); color: var(--text-primary); }
-  .tab.active { background: var(--accent); color: #fff; border-color: transparent; }
-  /* Onglet Analytics : distinct, pas "actif" car redirige vers une autre page */
-  .tab-analytics { border-color: var(--accent); color: var(--accent); background: transparent; }
-  .tab-analytics:hover { background: var(--accent); color: #fff; }
+  .tab:hover { color: var(--text-primary, #1e293b); }
+  .tab.active {
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #1e293b);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .tab-badge {
+    background: var(--accent, #4ade80);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 10px;
+    min-width: 20px;
+    text-align: center;
+  }
+  .tab-count {
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+  }
 
-  .admin-content { background: var(--bg-primary); border-radius: var(--radius-xl); border: 1px solid var(--border); box-shadow: var(--depth); overflow: hidden; }
-  .loading-message, .empty-state { text-align: center; padding: 3rem; color: var(--text-secondary); }
-
-  .not-authorized { text-align: center; padding: 3rem; background: var(--bg-primary); border-radius: var(--radius-xl); box-shadow: var(--depth); }
-  .not-authorized h2 { color: #dc2626; margin-bottom: 1rem; }
-  .not-authorized button { margin-top: 1rem; padding: 0.75rem 1.5rem; background: var(--accent); color: white; border: none; border-radius: var(--radius-lg); cursor: pointer; }
-
-  .user-list { display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; }
+  /* User list */
+  .user-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
   .user-card {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0.75rem 1rem; border-radius: var(--radius-lg);
-    background: var(--bg-secondary); border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    transition: all 0.15s;
   }
-  .user-card.pending    { background: color-mix(in srgb, #fbbf24 12%, var(--bg-secondary)); border-color: #fbbf24; }
-  .user-card.admin-card { background: color-mix(in srgb, var(--accent) 10%, var(--bg-secondary)); border-color: var(--accent); }
-  .user-info { display: flex; flex-direction: column; gap: 0.2rem; }
-  .user-name { font-weight: 600; display: flex; align-items: center; gap: 0.5rem; color: var(--text-primary); }
-  .role-badge { font-size: 0.7rem; padding: 0.15rem 0.45rem; background: var(--accent); color: #fff; border-radius: var(--radius-md); }
-  .user-username, .user-date { font-size: 0.85rem; color: var(--text-secondary); }
-  .user-status { font-size: 0.85rem; color: var(--text-muted); }
-  .user-status.approved { color: var(--status-online); }
+  .user-card:hover { border-color: var(--accent, #4ade80); }
+  .user-card.pending {
+    border-left: 3px solid var(--accent, #4ade80);
+  }
+  .user-card.admin-card {
+    border-left: 3px solid #60a5fa;
+  }
+  .user-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .user-name {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary, #1e293b);
+  }
+  .user-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary, #64748b);
+  }
+  .role-badge {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    background: #dbeafe;
+    color: #2563eb;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
 
-  .approve-btn { padding: 0.45rem 1rem; background: #4caf50; color: white; border: none; border-radius: var(--radius-lg); cursor: pointer; font-weight: 600; transition: background 0.2s; }
-  .approve-btn:hover { background: #43a047; }
+  .btn-approve {
+    padding: 0.4rem 1rem;
+    background: var(--accent, #4ade80);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-approve:hover { opacity: 0.9; }
 
-  .invites-table { width: 100%; border-collapse: collapse; }
-  .invites-table th, .invites-table td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; color: var(--text-primary); }
-  .invites-table th { background: var(--bg-secondary); font-weight: 600; color: var(--text-secondary); }
-  .invites-table tr:hover td { background: var(--bg-tertiary); }
-  .invites-table tr.expired td { opacity: 0.6; }
-  .invites-table tr.used td { color: var(--text-muted); }
-  .link code { font-size: 0.85rem; background: var(--bg-secondary); padding: 0.2rem 0.4rem; border-radius: var(--radius-sm); }
-  .link button { margin-left: 0.5rem; padding: 0.25rem 0.5rem; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8rem; }
-  .delete-btn { padding: 0.25rem 0.6rem; background: #ef4444; color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8rem; }
-  .delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-delete {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border, #e2e8f0);
+    background: transparent;
+    color: var(--text-muted, #94a3b8);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-delete:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
 
-  @media (max-width: 768px) {
-    .admin-container { padding: 0.75rem; }
+  /* Invites */
+  .invites-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .invite-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    transition: all 0.15s;
+  }
+  .invite-card.expired { opacity: 0.6; }
+  .invite-card.used { opacity: 0.5; }
+  .invite-info { flex: 1; min-width: 0; }
+  .invite-token {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary, #1e293b);
+  }
+  .invite-date, .invite-expires {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary, #64748b);
+  }
+  .invite-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .status-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .status-active { background: #dcfce7; color: #16a34a; }
+  .status-used { background: #f1f5f9; color: #64748b; }
+  .status-expired { background: #fef2f2; color: #dc2626; }
+
+  .btn-copy-sm, .btn-delete-sm {
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-primary, #fff);
+    font-size: 0.75rem;
+    cursor: pointer;
+    color: var(--text-secondary, #64748b);
+    transition: all 0.15s;
+  }
+  .btn-copy-sm:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .btn-delete-sm { color: #dc2626; border-color: #fecaca; }
+  .btn-delete-sm:hover { background: #fef2f2; }
+
+  /* Empty state */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 2.5rem 1rem;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.95rem;
+  }
+  .empty-icon {
+    font-size: 2rem;
+    opacity: 0.5;
+  }
+
+  .loading-message {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary, #64748b);
+  }
+
+  .not-authorized {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  .not-authorized h2 { color: var(--text-primary, #1e293b); }
+  .not-authorized button {
+    margin-top: 1rem;
+    padding: 0.5rem 1.5rem;
+    background: var(--accent, #4ade80);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .loading-fullpage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 50vh;
+    color: var(--text-secondary, #64748b);
+  }
+
+  @media (max-width: 640px) {
+    .quick-stats { grid-template-columns: repeat(2, 1fr); }
     .admin-tabs { flex-direction: column; }
-    .tab { width: 100%; text-align: center; }
-    .invites-table { font-size: 0.8rem; }
-    .invites-table th, .invites-table td { padding: 0.5rem; }
+    .invite-card { flex-direction: column; align-items: flex-start; }
   }
-  .delete-user-btn {
-    padding: .35rem .6rem; background: none; border: 1px solid #fecaca;
-    border-radius: .4rem; color: #dc2626; cursor: pointer; font-size: .9rem;
-    transition: background .15s; flex-shrink: 0;
-  }
-  .delete-user-btn:hover { background: #fee2e2; }
-
 </style>
