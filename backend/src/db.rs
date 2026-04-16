@@ -66,6 +66,7 @@ pub struct MessageWithSender {
     pub conversation_id: String,
     pub sender_id: String,
     pub sender_name: String, // COALESCE(users.name, users.username)
+    pub sender_avatar_style: Option<String>, // DiceBear style of the sender
     pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
     pub content: String,
     pub message_type: String,
@@ -636,6 +637,7 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.avatar_style AS sender_avatar_style,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -655,6 +657,7 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.avatar_style AS sender_avatar_style,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -1078,6 +1081,7 @@ pub struct AvailableUser {
     pub id: String,
     pub username: String,
     pub name: Option<String>,
+    pub avatar_style: Option<String>,
 }
 
 pub async fn get_available_users(
@@ -1085,7 +1089,7 @@ pub async fn get_available_users(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let users = sqlx::query_as::<_, AvailableUser>(
-        r#"SELECT id, username, name FROM users
+        r#"SELECT id, username, name, avatar_style FROM users
            WHERE approved = 1 AND id != ?
            ORDER BY COALESCE(name, username) ASC"#,
     )

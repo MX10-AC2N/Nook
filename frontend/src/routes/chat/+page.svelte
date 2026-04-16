@@ -917,7 +917,7 @@
           >
             {#if !isMyMessage(msg.sender_id)}
               <div class="message-header">
-                <Avatar username={msg.sender_id} name={msg.sender_name} size={24} userId={msg.sender_id} />
+                <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} />
                 <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
               </div>
             {/if}
