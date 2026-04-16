@@ -12,12 +12,13 @@
     { id: 'initials',    label: 'Initiales',   icon: '🔤' },
   ];
 
-  let { username = '', name = null, size = 32, userId = '', style = '' }: {
+  let { username = '', name = null, size = 32, userId = '', style = '', seed = '' }: {
     username?: string;
     name?: string | null;
     size?: number;
     userId?: string;
     style?: string;
+    seed?: string;
   } = $props();
 
   let imgFailed = $state(false);
@@ -30,7 +31,7 @@
   }
 
   function getSeed(): string {
-    return userId || username || 'nook';
+    return seed || userId || username || 'nook';
   }
 
   function getDicebearUrl(): string {

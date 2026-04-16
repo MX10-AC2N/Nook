@@ -25,6 +25,9 @@
 
   // ── DiceBear avatar styles ───────────────────────────────────────
   let selectedAvatarStyle = $state<string>('adventurer');
+  let selectedAvatarSeed = $state<string>('');
+  let avatarGridSeeds = $state<string[]>([]);
+
   const avatarStyles = [
     { id: 'adventurer',  label: 'Aventurier',  icon: '🎮' },
     { id: 'avataaars',   label: 'Cartoon',     icon: '😊' },
@@ -37,6 +40,29 @@
     { id: 'bottts',      label: 'Robot',       icon: '🤖' },
     { id: 'initials',    label: 'Initiales',   icon: '🔤' },
   ];
+
+  const NICKNAMES = [
+    'Luna','Felix','Nova','Cosmo','Pixel','Spark','Ziggy','Bree','Mochi','Nori',
+    'Kiki','Zara','Remy','Juno','Ash','Sky','Rio','Sol','Mika','Leo',
+    'Ava','Kai','Zoe','Max','Sam','Ivy','Theo','Lily','Oscar','Nina',
+    'Hugo','Ella','Finn','Mila','Axel','Rosa','Cleo','Jazz','Vega','Ludo',
+  ];
+
+  function regenerateGrid() {
+    const shuffled = [...NICKNAMES].sort(() => Math.random() - 0.5);
+    avatarGridSeeds = shuffled.slice(0, 20);
+  }
+
+  function selectStyle(styleId: string) {
+    selectedAvatarStyle = styleId;
+    selectedAvatarSeed = '';
+    regenerateGrid();
+  }
+
+  function selectSeed(seed: string) {
+    selectedAvatarSeed = seed;
+  }
+
   let darkMode         = $state(false);
 
   // ── Push notifications ────────────────────────────────────────────────────
@@ -74,9 +100,11 @@
     if (authStore.user) {
       userName = authStore.user.name ?? '';
       selectedAvatarStyle = authStore.user.avatar_style ?? 'adventurer';
+      selectedAvatarSeed = authStore.user.avatar_seed ?? '';
     }
     loadTheme();
     pushState = await getPushState();
+    regenerateGrid();
   });
 
   function loadTheme() {
@@ -109,13 +137,13 @@
     try {
       const response = await fetch('/api/user/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ name: userName, avatar_style: selectedAvatarStyle }),
+        credentials: 'include', body: JSON.stringify({ name: userName, avatar_style: selectedAvatarStyle, avatar_seed: selectedAvatarSeed }),
       });
       const raw = await response.text();
       let data: any = {};
       if (raw.trim()) { try { data = JSON.parse(raw); } catch {} }
       if (response.ok) {
-        authStore.updateUser({ name: userName, avatar_style: selectedAvatarStyle });
+        authStore.updateUser({ name: userName, avatar_style: selectedAvatarStyle, avatar_seed: selectedAvatarSeed });
         message = 'Profil mis à jour avec succès';
       }
       else error = data?.message ?? `Erreur ${response.status}`;
@@ -181,30 +209,55 @@
     <div class="settings-section">
       <!-- Avatar -->
       <div class="avatar-section">
-        <label>Style d'avatar</label>
-        <p class="help-text">Choisissez le style de votre avatar. Il sera généré automatiquement à partir de votre identifiant.</p>
+        <label>Avatar</label>
+        <p class="help-text">Choisissez un style puis sélectionnez votre avatar parmi les propositions.</p>
         <div class="avatar-preview">
-          <Avatar username={authStore.user?.username ?? ''} name={userName} size={64} userId={authStore.user?.id} style={selectedAvatarStyle} />
+          <Avatar username={authStore.user?.username ?? ''} name={userName} size={80} userId={authStore.user?.id} style={selectedAvatarStyle} seed={selectedAvatarSeed} />
         </div>
-        <div class="avatar-grid">
+
+        <!-- Style selector -->
+        <label>Sélectionner un style</label>
+        <div class="avatar-style-grid">
           {#each avatarStyles as opt}
             <button
               type="button"
-              class="avatar-option"
+              class="avatar-style-option"
               class:selected={selectedAvatarStyle === opt.id}
-              onclick={() => { selectedAvatarStyle = opt.id; }}
+              onclick={() => selectStyle(opt.id)}
               title={opt.label}
             >
               <img
-                src="https://api.dicebear.com/9.x/{opt.id}/svg?seed=Nook&size=40"
+                src="https://api.dicebear.com/9.x/{opt.id}/svg?seed=Nook&size=36"
                 alt={opt.label}
-                class="avatar-option-img"
+                class="avatar-style-img"
                 loading="lazy"
               />
-              <span class="avatar-option-label">{opt.label}</span>
+              <span class="avatar-style-label">{opt.label}</span>
             </button>
           {/each}
         </div>
+
+        <!-- Seed grid (avatars within chosen style) -->
+        <label>Choisissez votre avatar</label>
+        <div class="avatar-seed-grid">
+          {#each avatarGridSeeds as s}
+            <button
+              type="button"
+              class="avatar-seed-option"
+              class:selected={selectedAvatarSeed === s}
+              onclick={() => selectSeed(s)}
+              title={s}
+            >
+              <img
+                src="https://api.dicebear.com/9.x/{selectedAvatarStyle}/svg?seed={s}&size=48"
+                alt={s}
+                class="avatar-seed-img"
+                loading="lazy"
+              />
+            </button>
+          {/each}
+        </div>
+        <button type="button" class="regenerate-btn" onclick={regenerateGrid}>🔄 Autres propositions</button>
       </div>
 
       <h2>Informations du profil</h2>
@@ -581,51 +634,102 @@
   .avatar-section {
     margin-bottom: 1.5rem;
   }
-  .avatar-section label {
+  .avatar-section > label {
     display: block;
     font-weight: 600;
     margin-bottom: 0.25rem;
+    margin-top: 1rem;
     color: var(--text-primary);
+  }
+  .avatar-section > label:first-child {
+    margin-top: 0;
   }
   .avatar-preview {
     margin: 1rem 0;
     display: flex;
     justify-content: center;
   }
-  .avatar-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0.5rem;
+  /* Style selector (horizontal row) */
+  .avatar-style-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
   }
-  .avatar-option {
+  .avatar-style-option {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 6px 4px;
-    border-radius: 12px;
+    gap: 3px;
+    padding: 6px 8px;
+    border-radius: 10px;
     border: 2px solid var(--border-color, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
     cursor: pointer;
     transition: all 0.2s;
   }
-  .avatar-option:hover {
+  .avatar-style-option:hover {
     border-color: var(--accent-color, #4ade80);
     transform: scale(1.05);
   }
-  .avatar-option.selected {
+  .avatar-style-option.selected {
     border-color: var(--accent-color, #4ade80);
     border-width: 3px;
     background: var(--bg-accent, #dcfce7);
   }
-  .avatar-option-img {
-    width: 40px;
-    height: 40px;
+  .avatar-style-img {
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
   }
-  .avatar-option-label {
-    font-size: 0.7rem;
+  .avatar-style-label {
+    font-size: 0.65rem;
     color: var(--text-secondary);
     white-space: nowrap;
+  }
+  /* Seed grid (clickable avatars) */
+  .avatar-seed-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 0.75rem;
+  }
+  .avatar-seed-option {
+    padding: 4px;
+    border-radius: 12px;
+    border: 3px solid transparent;
+    background: var(--bg-secondary, #f8fafc);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .avatar-seed-option:hover {
+    border-color: var(--accent-color, #4ade80);
+    transform: scale(1.08);
+  }
+  .avatar-seed-option.selected {
+    border-color: var(--accent-color, #4ade80);
+    background: var(--bg-accent, #dcfce7);
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+  }
+  .avatar-seed-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+  }
+  .regenerate-btn {
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+  .regenerate-btn:hover {
+    background: var(--bg-tertiary, #e2e8f0);
   }
 </style>
