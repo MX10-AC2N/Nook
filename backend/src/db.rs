@@ -467,11 +467,21 @@ pub async fn send_message(
             .map(|(n,)| n)
             .unwrap_or_else(|| user.username.clone());
 
+    // Récupérer le style d'avatar de l'expéditeur
+    let sender_avatar_style: Option<String> = sqlx::query_scalar(
+        "SELECT avatar_style FROM users WHERE id = ?"
+    )
+        .bind(&user.id)
+        .fetch_one(&state.db)
+        .await
+        .ok();
+
     let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
         "sender_id": user.id,
         "sender_name": sender_name,
+        "sender_avatar_style": sender_avatar_style,
         "sender_public_key": null,
         "content": req.content,
         "message_type": "text",

@@ -19,6 +19,7 @@ export interface ChatMessage {
   conversation_id: string;
   sender_id: string;
   sender_name: string;
+  sender_avatar_style: string | null;
   sender_public_key: string | null;
   content: string;
   message_type: string;

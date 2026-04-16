@@ -912,15 +912,21 @@
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
+            data-msg-id={msg.id}
             onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
             onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id && emojiPickerMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
-            {#if !isMyMessage(msg.sender_id)}
-              <div class="message-header">
-                <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} />
-                <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
-              </div>
-            {/if}
+              {#if isMyMessage(msg.sender_id)}
+                <div class="message-header mine-header">
+                  <span class="message-sender">Moi</span>
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} />
+                </div>
+              {:else}
+                <div class="message-header">
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} />
+                  <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
+                </div>
+              {/if}
 
             {#if editingMsgId === msg.id}
               <div class="edit-zone">
@@ -1490,6 +1496,9 @@
   }
   .message-header {
     display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .mine-header {
+    flex-direction: row-reverse;
   }
   .message-content .mention {
     display: inline; background: var(--accent-light, rgba(74, 222, 128, 0.2));
