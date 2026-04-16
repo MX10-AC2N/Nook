@@ -44,7 +44,9 @@ services:
       - nook-network
 
   nginx-local:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
     container_name: nook-nginx-local
     restart: unless-stopped
     ports:
