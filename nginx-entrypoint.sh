@@ -20,4 +20,13 @@ if [ ! -f "$CERT_DIR/nook.crt" ] || [ ! -f "$CERT_DIR/nook.key" ]; then
     2>/dev/null
   echo "Certificat créé."
 fi
+
+# Vérifier que le cert existe
+if [ ! -f "$CERT_DIR/nook.crt" ]; then
+  echo "ERREUR: certificat introuvable dans $CERT_DIR"
+  ls -la "$CERT_DIR"
+  exit 1
+fi
+
+echo "Démarrage nginx..."
 exec nginx -g 'daemon off;'
