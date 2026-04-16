@@ -5,6 +5,7 @@
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
 > Déploiement : Docker multi-arch (Alpine 3.21), Zimaboard via docker-compose
+> HTTPS local : nginx-alpine sur port 6443 (cert auto-signé) pour enregistrement audio/vidéo
 
 ---
 
