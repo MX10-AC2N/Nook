@@ -28,6 +28,7 @@ pub struct User {
     pub needs_password_change: bool,
     pub token: Option<String>,
     pub created_at: i64,
+    pub avatar_url: Option<String>,
     pub avatar_style: Option<String>,
 }
 
