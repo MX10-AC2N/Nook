@@ -28,6 +28,7 @@ pub struct User {
     pub needs_password_change: bool,
     pub token: Option<String>,
     pub created_at: i64,
+    pub avatar_style: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -682,6 +683,7 @@ pub struct UpdateProfileRequest {
     pub name: Option<String>,
     pub email: Option<String>,
     pub avatar_url: Option<String>,
+    pub avatar_style: Option<String>,
 }
 
 pub async fn update_user_profile(
@@ -738,6 +740,27 @@ pub async fn update_user_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "success": false, "message": "Erreur de mise à jour de l'avatar" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_style) = req.avatar_style {
+        let valid_styles = ["adventurer", "avataaars", "open-peeps", "notionists", "fun-emoji", "big-smile", "lorelei", "personas", "bottts", "initials"];
+        let style = if valid_styles.contains(&avatar_style.as_str()) {
+            avatar_style.trim()
+        } else {
+            "adventurer"
+        };
+        if sqlx::query("UPDATE users SET avatar_style = ? WHERE id = ?")
+            .bind(style)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour du style d'avatar" })),
             );
         }
     }

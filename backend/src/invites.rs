@@ -360,6 +360,7 @@ pub async fn join(
         role: "user".to_string(),
         approved: true,
         needs_password_change: true,
+        avatar_style: Some("adventurer".to_string()),
     };
 
     tracing::info!(user_id = %user_id, "Nouvel utilisateur créé via invitation");
@@ -474,6 +475,7 @@ pub async fn accept_invite(
         role: "user".to_string(),
         approved: true,
         needs_password_change: false,
+        avatar_style: Some("adventurer".to_string()),
     };
 
     tracing::info!(user_id = %user_id, username = %username, "Nouvel utilisateur via accept_invite");

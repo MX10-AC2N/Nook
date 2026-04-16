@@ -23,17 +23,19 @@
   let avatarUploading  = $state(false);
   let avatarError      = $state('');
 
-  // Default avatar options (emoji-based)
-  const avatarOptions = [
-    { id: null, label: 'Initiales', icon: '🔤' },
-    { id: '/avatars/avatar1.png', label: 'Famille', icon: '👨‍👩‍👧‍👦' },
-    { id: '/avatars/avatar2.png', label: 'Maison', icon: '🏠' },
-    { id: '/avatars/avatar3.png', label: 'Étoile', icon: '⭐' },
-    { id: '/avatars/avatar4.png', label: 'Cœur', icon: '❤️' },
-    { id: '/avatars/avatar5.png', label: 'Soleil', icon: '☀️' },
-    { id: '/avatars/avatar6.png', label: 'Lune', icon: '🌙' },
-    { id: '/avatars/avatar7.png', label: 'Arbre', icon: '🌳' },
-    { id: '/avatars/avatar8.png', label: 'Chat', icon: '🐱' },
+  // ── DiceBear avatar styles ───────────────────────────────────────
+  let selectedAvatarStyle = $state<string>('adventurer');
+  const avatarStyles = [
+    { id: 'adventurer',  label: 'Aventurier',  icon: '🎮' },
+    { id: 'avataaars',   label: 'Cartoon',     icon: '😊' },
+    { id: 'open-peeps',  label: 'Illustré',    icon: '✏️' },
+    { id: 'notionists',  label: 'Minimaliste', icon: '🎨' },
+    { id: 'fun-emoji',   label: 'Emoji',       icon: '😄' },
+    { id: 'big-smile',   label: 'Sourire',     icon: '😁' },
+    { id: 'lorelei',     label: 'Portrait',    icon: '🧑' },
+    { id: 'personas',    label: 'Personas',    icon: '💼' },
+    { id: 'bottts',      label: 'Robot',       icon: '🤖' },
+    { id: 'initials',    label: 'Initiales',   icon: '🔤' },
   ];
   let darkMode         = $state(false);
 
@@ -69,7 +71,10 @@
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
-    if (authStore.user) userName = authStore.user.name ?? '';
+    if (authStore.user) {
+      userName = authStore.user.name ?? '';
+      selectedAvatarStyle = authStore.user.avatar_style ?? 'adventurer';
+    }
     loadTheme();
     pushState = await getPushState();
   });
@@ -104,12 +109,15 @@
     try {
       const response = await fetch('/api/user/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ name: userName }),
+        credentials: 'include', body: JSON.stringify({ name: userName, avatar_style: selectedAvatarStyle }),
       });
       const raw = await response.text();
       let data: any = {};
       if (raw.trim()) { try { data = JSON.parse(raw); } catch {} }
-      if (response.ok) { authStore.updateUser({ name: userName }); message = 'Profil mis à jour avec succès'; }
+      if (response.ok) {
+        authStore.updateUser({ name: userName, avatar_style: selectedAvatarStyle });
+        message = 'Profil mis à jour avec succès';
+      }
       else error = data?.message ?? `Erreur ${response.status}`;
     } catch (e) { error = e instanceof Error ? e.message : 'Erreur de connexion'; }
     finally { saving = false; }
@@ -173,20 +181,27 @@
     <div class="settings-section">
       <!-- Avatar -->
       <div class="avatar-section">
-        <label>Avatar</label>
+        <label>Style d'avatar</label>
+        <p class="help-text">Choisissez le style de votre avatar. Il sera généré automatiquement à partir de votre identifiant.</p>
         <div class="avatar-preview">
-          <Avatar username={authStore.user?.username ?? ''} name={userName} size={64} userId={authStore.user?.id} />
+          <Avatar username={authStore.user?.username ?? ''} name={userName} size={64} userId={authStore.user?.id} style={selectedAvatarStyle} />
         </div>
         <div class="avatar-grid">
-          {#each avatarOptions as opt}
+          {#each avatarStyles as opt}
             <button
               type="button"
               class="avatar-option"
-              class:selected={avatarUrl === opt.id}
-              onclick={() => { avatarUrl = opt.id; }}
+              class:selected={selectedAvatarStyle === opt.id}
+              onclick={() => { selectedAvatarStyle = opt.id; }}
               title={opt.label}
             >
-              <span class="avatar-option-icon">{opt.icon}</span>
+              <img
+                src="https://api.dicebear.com/9.x/{opt.id}/svg?seed=Nook&size=40"
+                alt={opt.label}
+                class="avatar-option-img"
+                loading="lazy"
+              />
+              <span class="avatar-option-label">{opt.label}</span>
             </button>
           {/each}
         </div>
@@ -569,11 +584,13 @@
   .avatar-section label {
     display: block;
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
     color: var(--text-primary);
   }
   .avatar-preview {
-    margin-bottom: 1rem;
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
   }
   .avatar-grid {
     display: grid;
@@ -581,25 +598,34 @@
     gap: 0.5rem;
   }
   .avatar-option {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border-radius: 12px;
     border: 2px solid var(--border-color, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
-    font-size: 1.5rem;
     cursor: pointer;
     transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   .avatar-option:hover {
     border-color: var(--accent-color, #4ade80);
-    transform: scale(1.1);
+    transform: scale(1.05);
   }
   .avatar-option.selected {
     border-color: var(--accent-color, #4ade80);
     border-width: 3px;
     background: var(--bg-accent, #dcfce7);
+  }
+  .avatar-option-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+  }
+  .avatar-option-label {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
   }
 </style>
