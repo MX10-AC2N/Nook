@@ -1468,3 +1468,44 @@ Problème critique : le chat et les échecs ne se mettaient pas à jour correcte
 1. Réactivité Svelte 5 non résolue — impact fonctionnel majeur, nécessite investigation approfondie
 2. Tests Nook en échec — vérifier la compatibilité backend
 
+
+## Session 18 — 2026-04-16 (Avatars DiceBear + @mentions + Admin/Analytics)
+
+### Contexte
+L'utilisateur voulait des avatars visibles dans le chat, des @mentions avec notifications, et une refonte des pages admin/analytics pour une meilleure UX.
+
+### Progrès Réalisés
+- **Avatars DiceBear** : 10 styles (adventurer, avataaars, open-peeps, etc.), sélection par grille de 20 avatars cliquables, stockage style+seed par utilisateur
+- **@mentions** : autocomplete en tapant `@`, mise en évidence verte dans les messages (`highlightMentions()` dans `sanitize.ts`)
+- **Page Admin** : redesign avec quick-stats, avatars sur chaque user card, onglets pill, invitations en cartes avec badges statut
+- **Page Analytics** : redesign avec bouton retour Admin, CSS variables, layout responsive
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| User struct manquait avatar_url | db.rs | Ajouté avatar_url (colonne migration 008) |
+| CSP bloquait DiceBear | main.rs | img-src: +https://api.dicebear.com |
+| WS msg_json sans sender_avatar_style | db.rs | Requête SELECT avatar_style+seed |
+| ChatMessage TS sans sender_avatar_style/seed | chatStore.svelte.ts | Champs ajoutés |
+| Avatar utilisait style du viewer | Avatar.svelte | Style prop only, pas authStore |
+| Messages "mes messages" sans avatar | chat/+page.svelte | mine-header avec avatar |
+
+### Fichiers Modifiés
+- `backend/src/db.rs` : User struct, MessageWithSender, AvailableUser, SQL queries, WS broadcast
+- `backend/src/auth.rs` : UserInfo avatar_seed
+- `backend/src/invites.rs` : avatar_seed None
+- `backend/src/main.rs` : CSP img-src
+- `backend/migrations/013_avatar_style.sql` : avatar_style column
+- `backend/migrations/014_avatar_seed.sql` : avatar_seed column
+- `frontend/src/lib/components/Avatar.svelte` : seed prop, DiceBear CDN
+- `frontend/src/lib/chatStore.svelte.ts` : ChatMessage sender_avatar_style+seed
+- `frontend/src/lib/sanitize.ts` : highlightMentions()
+- `frontend/src/routes/chat/+page.svelte` : avatar on all messages, mention autocomplete
+- `frontend/src/routes/settings/+page.svelte` : avatar picker grid
+- `frontend/src/routes/admin/+page.svelte` : complete redesign
+- `frontend/src/routes/admin/analytics/+page.svelte` : complete redesign
+
+### État Final
+- Branche: develop
+- CI: Backend #482 ✅, Frontend #628 ✅, Docker #197 ✅
+- Déployé sur Zimaboard 192.168.1.192:6443
