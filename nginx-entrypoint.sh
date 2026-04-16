@@ -1,6 +1,7 @@
 #!/bin/sh
 set -e
 CERT_DIR=/etc/nginx/ssl
+mkdir -p "$CERT_DIR"
 if [ ! -f "$CERT_DIR/nook.crt" ] || [ ! -f "$CERT_DIR/nook.key" ]; then
   HOSTNAME=$(hostname -i 2>/dev/null || echo "192.168.1.192")
   echo "Génération du certificat auto-signé pour $HOSTNAME..."
