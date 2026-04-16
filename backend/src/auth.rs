@@ -51,6 +51,7 @@ pub struct UserInfo {
     pub role: String,
     pub approved: bool,
     pub needs_password_change: bool,
+    pub avatar_style: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -205,6 +206,7 @@ pub async fn login(
                 role: user.role,
                 approved: user.approved,
                 needs_password_change: user.needs_password_change,
+                avatar_style: user.avatar_style.clone(),
             };
 
             // Détection HTTPS via X-Forwarded-Proto (injecté par Nginx Proxy Manager)
@@ -252,6 +254,7 @@ pub async fn me(Extension(CurrentUser(user)): Extension<CurrentUser>) -> impl In
         role: user.role,
         approved: user.approved,
         needs_password_change: user.needs_password_change,
+        avatar_style: user.avatar_style,
     };
 
     // Note : on ne retourne PAS le token ici — il est dans le cookie HttpOnly.
