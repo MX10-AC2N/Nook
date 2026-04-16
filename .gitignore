@@ -8,3 +8,6 @@ build/
 # Configuration locale (jamais committer)
 .env
 .env.local
+
+# Certificats auto-signés (générés par gen-cert.sh ou nginx-entrypoint.sh)
+nginx-ssl/
