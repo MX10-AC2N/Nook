@@ -30,6 +30,7 @@ pub struct User {
     pub created_at: i64,
     pub avatar_url: Option<String>,
     pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -67,6 +68,7 @@ pub struct MessageWithSender {
     pub sender_id: String,
     pub sender_name: String, // COALESCE(users.name, users.username)
     pub sender_avatar_style: Option<String>, // DiceBear style of the sender
+    pub sender_avatar_seed: Option<String>, // DiceBear seed chosen by the sender
     pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
     pub content: String,
     pub message_type: String,
@@ -467,14 +469,16 @@ pub async fn send_message(
             .map(|(n,)| n)
             .unwrap_or_else(|| user.username.clone());
 
-    // Récupérer le style d'avatar de l'expéditeur
-    let sender_avatar_style: Option<String> = sqlx::query_scalar(
-        "SELECT avatar_style FROM users WHERE id = ?"
+    // Récupérer le style et seed d'avatar de l'expéditeur
+    let avatar_data: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT avatar_style, avatar_seed FROM users WHERE id = ?"
     )
         .bind(&user.id)
         .fetch_one(&state.db)
         .await
         .ok();
+    let sender_avatar_style = avatar_data.as_ref().and_then(|(s, _)| s.clone());
+    let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s)| s.clone());
 
     let msg_json = serde_json::json!({
         "id": id,
@@ -482,6 +486,7 @@ pub async fn send_message(
         "sender_id": user.id,
         "sender_name": sender_name,
         "sender_avatar_style": sender_avatar_style,
+        "sender_avatar_seed": sender_avatar_seed,
         "sender_public_key": null,
         "content": req.content,
         "message_type": "text",
@@ -648,6 +653,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 u.avatar_style AS sender_avatar_style,
+                u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -668,6 +674,7 @@ pub async fn get_conversation_messages(
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
                 u.avatar_style AS sender_avatar_style,
+                u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -698,6 +705,7 @@ pub struct UpdateProfileRequest {
     pub email: Option<String>,
     pub avatar_url: Option<String>,
     pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 pub async fn update_user_profile(
@@ -775,6 +783,28 @@ pub async fn update_user_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "success": false, "message": "Erreur de mise à jour du style d'avatar" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_seed) = req.avatar_seed {
+        let seed = avatar_seed.trim();
+        if seed.len() > 64 {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": "Seed d'avatar trop long" })),
+            );
+        }
+        if sqlx::query("UPDATE users SET avatar_seed = ? WHERE id = ?")
+            .bind(seed)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour du seed d'avatar" })),
             );
         }
     }
@@ -1092,6 +1122,7 @@ pub struct AvailableUser {
     pub username: String,
     pub name: Option<String>,
     pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 pub async fn get_available_users(
@@ -1099,7 +1130,7 @@ pub async fn get_available_users(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let users = sqlx::query_as::<_, AvailableUser>(
-        r#"SELECT id, username, name, avatar_style FROM users
+        r#"SELECT id, username, name, avatar_style, avatar_seed FROM users
            WHERE approved = 1 AND id != ?
            ORDER BY COALESCE(name, username) ASC"#,
     )

@@ -20,6 +20,7 @@ export interface ChatMessage {
   sender_id: string;
   sender_name: string;
   sender_avatar_style: string | null;
+  sender_avatar_seed: string | null;
   sender_public_key: string | null;
   content: string;
   message_type: string;
