@@ -117,6 +117,45 @@ Deux choses importantes :
 
 ---
 
+## Enregistrement audio/vidéo en LAN (HTTPS local)
+
+L'enregistrement audio et vidéo dans le navigateur (`getUserMedia`) nécessite un **contexte sécurisé** (HTTPS). Sur HTTP LAN, le navigateur bloque l'accès au microphone.
+
+Nook inclut un reverse proxy **nginx local** qui sert HTTPS sur le port 6443 :
+
+```bash
+# 1. Créer le dossier des certificats
+mkdir -p nginx-ssl
+
+# 2. Démarrer
+docker compose up -d
+```
+
+Un certificat auto-signé est généré **automatiquement** au premier lancement (valide 10 ans).
+
+```
+LAN (HTTPS)                     WAN (HTTPS)
+https://192.168.1.x:6443        https://ton-domaine.com
+       │                              │
+   ┌───┴───┐                   ┌──────┴──────┐
+   │ nginx │                   │ nginx proxy │
+   │ local │                   │  manager    │
+   └───┬───┘                   └──────┬──────┘
+       │                              │
+       └──────────┬───────────────────┘
+                  │
+             ┌────┴────┐
+             │  Nook   │ :3000
+             └─────────┘
+```
+
+Le port HTTPS local est configurable via `NGINX_HTTPS_PORT` dans `.env`.
+Le dossier `nginx-ssl/` est persistant (volume Docker) et ignoré par git.
+
+> Voir [docs/nginx-local.md](docs/nginx-local.md) pour la documentation complète.
+
+---
+
 ## Comment inviter quelqu'un
 
 1. Connecte-toi avec le compte `admin`
@@ -152,6 +191,7 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 
 ## 📚 Documentation
 
+- [HTTPS local](docs/nginx-local.md) — Configuration nginx pour l'enregistrement audio/vidéo en LAN
 - [API Reference](docs/API.md) — Tous les endpoints REST + WebSocket events
 - [CHANGELOG.md](CHANGELOG.md) — Historique des versions
 
