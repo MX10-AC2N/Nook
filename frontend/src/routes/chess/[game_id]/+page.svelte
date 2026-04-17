@@ -150,11 +150,13 @@
   let boardVersion = $state(0);  // Increment to force re-render
   
   // Sync from chessStore when it changes
+  let lastFen = $state('');
   $effect(() => {
     const board = chessStore.board;
-    if (board && board.length === 8) {
+    const fen = chessStore.currentGame?.fen ?? '';
+    if (board && board.length === 8 && fen !== lastFen) {
+      lastFen = fen;
       localBoard = board.map((row: string[]) => [...row]);
-      // Force board re-render when board state changes (from WS, polling, or AI move)
       boardVersion++;
     }
   });
