@@ -475,7 +475,7 @@ class ChessStore {
     this.switchTimer(aiColor);
 
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 15_000);
+    const timeout = setTimeout(() => ctrl.abort(), 30_000); // 30s for slower difficulties
     try {
       const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
         method:      'POST',
