@@ -164,19 +164,18 @@ fn ai_tt_size(difficulty: Difficulty) -> usize {
     }
 }
 
-// Calculer le délai d'affichage (sans dormir — juste retourner la durée)
 fn ai_display_delay(difficulty: Difficulty) -> u64 {
     let base_ms: u64 = match difficulty {
-        Difficulty::Harmless => 1000,
-        Difficulty::Easy => 2500,
-        Difficulty::Medium => 4000,
-        Difficulty::Hard => 6000,
-        Difficulty::Expert => 9000,
-        Difficulty::Godlike => 12000,
+        Difficulty::Harmless => 200,
+        Difficulty::Easy    => 300,
+        Difficulty::Medium  => 500,
+        Difficulty::Hard    => 800,
+        Difficulty::Expert  => 1200,
+        Difficulty::Godlike => 2000,
     };
-    // Jitter : ±30% de la valeur de base
-    let jitter = (base_ms as f64 * 0.3 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
-    (base_ms as i64 + jitter).max(500) as u64
+    // Jitter : ±20% de la valeur de base
+    let jitter = (base_ms as f64 * 0.2 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
+    (base_ms as i64 + jitter).max(100) as u64
 }
 
 // Retourne (san, from_alg, to_alg, new_fen, game_status_str, delay_ms)
