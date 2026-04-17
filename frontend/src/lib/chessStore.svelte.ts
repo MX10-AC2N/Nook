@@ -329,7 +329,7 @@ class ChessStore {
     }
   }
 
-  private async refreshGame(gameId: string): Promise<void> {
+  async refreshGame(gameId: string): Promise<void> {
     try {
       const ctrl = new AbortController();
       const timeout = setTimeout(() => ctrl.abort(), 10_000);

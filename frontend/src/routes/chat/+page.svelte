@@ -919,11 +919,11 @@
               {#if isMyMessage(msg.sender_id)}
                 <div class="message-header mine-header">
                   <span class="message-sender">Moi</span>
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
                 </div>
               {:else}
                 <div class="message-header">
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={24} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
                   <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
                 </div>
               {/if}

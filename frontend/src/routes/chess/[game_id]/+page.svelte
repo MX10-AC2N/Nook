@@ -89,6 +89,8 @@
   // que loadGame() ait terminé → "Partie introuvable" affiché prématurément.
   let pageLoading = $state(true);
 
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     pageLoading = true;
@@ -109,6 +111,13 @@
       clearTimeout(safetyTimer);
       pageLoading = false;
     }
+
+    // Polling fallback: refresh game every 5s if WS is not connected
+    pollTimer = setInterval(() => {
+      if (chessStore.currentGame?.status === 'playing') {
+        chessStore.refreshGame(gameId);
+      }
+    }, 5000);
   });
 
   // Auto-show result modal when game finishes
@@ -118,7 +127,10 @@
       resultDismissed = false;
     }
   });
-  onDestroy(() => chessStore.disconnectWebSocket());
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    chessStore.disconnectWebSocket();
+  });
 
   // Guard : ne pas dériver si currentGame est null
   // CORRECTION: Utiliser $derived correctement
