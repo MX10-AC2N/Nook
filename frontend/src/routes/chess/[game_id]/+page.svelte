@@ -24,7 +24,7 @@
 
   // ── Trouver la case du roi en échec ───────────────────────────
   function findKingSquare(color: 'w' | 'b'): string | null {
-    const board = $derived(chessStore.board);
+    const board = chessStore.board;
     const king  = color + 'K';
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
