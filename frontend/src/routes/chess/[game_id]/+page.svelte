@@ -154,6 +154,8 @@
     const board = chessStore.board;
     if (board && board.length === 8) {
       localBoard = board.map((row: string[]) => [...row]);
+      // Force board re-render when board state changes (from WS, polling, or AI move)
+      boardVersion++;
     }
   });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
