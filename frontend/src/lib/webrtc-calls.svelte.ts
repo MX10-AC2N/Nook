@@ -348,7 +348,7 @@ class WebRTCCallManager {
   // -----------------------------------------------------------------
   // Signal handling (receiving)
   // -----------------------------------------------------------------
-  private async handleSignal(signal: CallSignal) {
+  public async handleSignal(signal: CallSignal) {
     // Ignorer les signaux provenant de soi-même
     if (signal.from_user_id === this.userId) return;
 
