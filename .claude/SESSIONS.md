@@ -1509,3 +1509,60 @@ L'utilisateur voulait des avatars visibles dans le chat, des @mentions avec noti
 - Branche: develop
 - CI: Backend #482 ✅, Frontend #628 ✅, Docker #197 ✅
 - Déployé sur Zimaboard 192.168.1.192:6443
+
+
+## Session 19 — 2026-04-18 (Appels + Notifications + UX)
+
+### Contexte
+Refonte page d'appel, notifications d'appel entrant, correction bugs critiques sur @mentions, page call, et configuration TURN.
+
+### Progrès Réalisés
+- **Call page UX** : Icônes SVG, animation pulse, raccourcis clavier (M/V/Escape/Ctrl+D), badges qualité, bandeaux debug
+- **Incoming call notifications** : chatStore.forward WS signals → callManager.handleSignal(), CallBanner avec boutons Décrocher/Refuser + icônes SVG
+- **Bug conversations.find()** : `conversations` est un objet store Svelte → utiliser `conversations.value.find()`
+- **Bug loadParticipants** : fonction async → `await loadParticipants()` dans onMount, pas $derived()
+- **Bug @mentions** : `showMentions = mentionStart >= 0` (gate `query.length > 0` supprimé)
+- **Bug TURN localhost** : si config.turn_host est "localhost", utiliser le header Host de la requête HTTP
+- **Bug push.ts SW timeout** : `navigator.serviceWorker.ready` hangait sans SW → timeout 3s ajouté
+- **Bug getUserMedia** : vérification HTTPS + timeout 15s sur startGroupCall
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| `Ta.find is not a function` | call/[id]/+page.svelte | `conversations.value.find()` |
+| Spinner infini page call | call/[id]/+page.svelte | `await loadParticipants()` dans onMount |
+| @mentions sur "@" | chat/+page.svelte | `showMentions = mentionStart >= 0` |
+| TURN host = localhost | webrtc.rs | Header Host fallback |
+| SW ready hang | push.ts | Timeout 3s |
+| handleSignal private | webrtc-calls.svelte.ts | Rendu public |
+| Pas de notif appel | chatStore.svelte.ts | Forward WS signals |
+| Emoji dans CallBanner | CallBanner.svelte | Icônes SVG |
+
+### Fichiers Modifiés
+- `frontend/src/routes/call/[id]/+page.svelte` : Rewrite complet + fix store patterns
+- `frontend/src/routes/chat/+page.svelte` : Fix @mentions gate
+- `frontend/src/lib/chatStore.svelte.ts` : Forward call WS signals
+- `frontend/src/lib/webrtc-calls.svelte.ts` : handleSignal public
+- `frontend/src/lib/components/CallBanner.svelte` : SVG icons + flex layout
+- `backend/src/webrtc.rs` : TURN host via Host header
+
+### Couverture Tests
+| Catégorie | Status | Tests |
+|-----------|--------|-------|
+| Login | ✅ | 1/1 |
+| @mentions | ✅ | 1/1 |
+| ICE config | ✅ | 1/1 |
+| Call page | ✅ | 1/1 |
+| CI Backend | ✅ | #484 |
+| CI Frontend | ✅ | #641 |
+| CI Docker | ✅ | #211 |
+
+### État Final
+- Branche: develop
+- CI: Backend #484 ✅, Frontend #641 ✅, Docker #211 ✅
+- Déployé sur Zimaboard 192.168.1.192:6443
+
+### Prochaines Étapes
+- [ ] Tester appel entrant réel (2 navigateurs)
+- [ ] Ajouter timeout sur l'appel (auto-raccrocher après X secondes)
+- [ ] Gestion rejet d'appel (signal `call_rejected` → stop sonnerie)
