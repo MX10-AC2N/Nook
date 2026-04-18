@@ -729,6 +729,8 @@
     });
     // Demande permission notifications (non-bloquant)
     requestNotificationPermission();
+    // Charger les utilisateurs disponibles pour l'autocomplete @mentions
+    await loadAvailableUsers();
     // Fallback polling si WS pas connecté après 3s
     setTimeout(() => {
       if (!chatStore.wsConnected) {
