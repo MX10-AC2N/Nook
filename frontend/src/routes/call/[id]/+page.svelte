@@ -152,8 +152,17 @@
   async function startCall(type: 'audio' | 'video') {
     try {
       error = null;
+      // Check if getUserMedia is available (requires HTTPS or localhost)
+      if (!navigator.mediaDevices?.getUserMedia) {
+        error = 'Les appels nécessitent HTTPS ou localhost. Accédez à Nook via https://';
+        return;
+      }
       const ids = participants.value.map((p) => p.id);
-      await startGroupCall(conversationId, ids, type);
+      // Timeout de 10s pour éviter le spinner infini
+      await Promise.race([
+        startGroupCall(conversationId, ids, type),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Délai d'initialisation dépassé (10s) — vérifiez HTTPS et permissions navigateur")), 10000))
+      ]);
     } catch (err) {
       error = err instanceof Error ? err.message : "Erreur de démarrage de l'appel";
     }
