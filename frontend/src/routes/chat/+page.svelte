@@ -83,7 +83,7 @@
   // ─── Mention autocomplete ─────────────────────────────────────────
   let mentionQuery    = $state('');
   let mentionStart    = $state(-1);
-  let showMentions    = $derived(mentionStart >= 0 && mentionQuery.length > 0);
+  let showMentions    = $derived(mentionStart >= 0);
   let filteredMentions = $derived(
     availableUsers.filter(u => {
       const q = mentionQuery.toLowerCase();
