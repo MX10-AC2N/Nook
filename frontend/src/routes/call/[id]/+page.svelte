@@ -38,7 +38,7 @@
 
   // Title
   function _computeCallTitle(): string {
-    const conv = conversations.find((c) => c.id === conversationId);
+    const conv = conversations.value.find((c: any) => c.id === conversationId);
     if (conv?.name && conv.name !== 'Groupe Global') return conv.name;
     const others = participants.value.filter((p: any) => p.id !== authStore.user?.id);
     if (others.length === 0) return 'Appel';
