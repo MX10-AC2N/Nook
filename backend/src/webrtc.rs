@@ -655,6 +655,18 @@ async fn handle_ice_config(
         ).into_response();
     }
 
+    // Resolve TURN host: explicit config > request Host header > localhost
+    let turn_host = if config.turn_host.is_empty() || config.turn_host == "localhost" {
+        headers
+            .get(axum::http::header::HOST)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|h| h.split(':').next())
+            .unwrap_or("localhost")
+            .to_string()
+    } else {
+        config.turn_host.clone()
+    };
+
     // Generate short-lived TURN credentials (RFC 5389 — 24h validity)
     let validity_hours: u64 = 24;
     let username = SystemTime::now()
@@ -674,7 +686,7 @@ async fn handle_ice_config(
     let credential = base64ct::Base64Unpadded::encode_string(&mac.finalize().into_bytes());
 
     let response = json!({
-        "host": config.turn_host,
+        "host": turn_host,
         "port": config.turn_port,
         "username": username.to_string(),
         "credential": credential,
