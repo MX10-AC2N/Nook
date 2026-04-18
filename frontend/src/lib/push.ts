@@ -28,15 +28,26 @@ export async function getPushState(): Promise<PushState> {
     return { supported: false, permission: 'unsupported', subscribed: false, error: null };
   }
 
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
+  try {
+    // Check if SW is actually registered before waiting on .ready (which hangs forever if none)
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000))
+    ]);
+    if (!reg) {
+      return { supported: true, permission: Notification.permission, subscribed: false, error: 'Service Worker non enregistré' };
+    }
+    const sub = await reg.pushManager.getSubscription();
 
-  return {
-    supported:  true,
-    permission: Notification.permission,
-    subscribed: !!sub,
-    error:      null,
-  };
+    return {
+      supported:  true,
+      permission: Notification.permission,
+      subscribed: !!sub,
+      error:      null,
+    };
+  } catch {
+    return { supported: true, permission: Notification.permission, subscribed: false, error: 'Service Worker non prêt' };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
