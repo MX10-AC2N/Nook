@@ -29,9 +29,13 @@
     _hasPendingCall && !_onCallPage
   );
 
-  // Icon based on call type
-  const _callIcon     = $derived(incomingCall?.callType === 'video' ? '📹' : '🎤');
-  const _callLabel    = $derived(incomingCall?.callType === 'video' ? 'Appel vidéo' : 'Appel audio');
+  // SVG icons based on call type
+  const _callIcon = $derived(incomingCall?.callType === 'video' 
+    ? 'video' 
+    : 'phone');
+  const _callLabel = $derived(incomingCall?.callType === 'video' 
+    ? 'Appel vidéo' 
+    : 'Appel audio');
 
   // ── Listen for the incoming-call custom event ─────────────────────────
   if (browser) {
@@ -98,7 +102,18 @@
   <div class="call-banner" role="alert" aria-live="polite">
     <div class="banner-content">
       <div class="banner-left">
-        <span class="ring-icon pulse">{_callIcon}</span>
+        <span class="ring-icon pulse">
+          {#if _callIcon === 'video'}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="23 7 16 12 23 17 23 7"/>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+          {:else}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          {/if}
+        </span>
         <div class="caller-info">
           <span class="caller-name">{incomingCall?.fromUserName}</span>
           <span class="call-type">{_callLabel}</span>
@@ -110,14 +125,21 @@
           onclick={declineCall}
           aria-label="Refuser l'appel"
         >
-          ✕ Refuser
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+          Refuser
         </button>
         <button
           class="btn-answer"
           onclick={answerCall}
           aria-label="Décrocher"
         >
-          📞 Décrocher
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+          Décrocher
         </button>
       </div>
     </div>
@@ -162,8 +184,18 @@
   }
 
   .ring-icon {
-    font-size: 1.5rem;
+    width: 2rem;
+    height: 2rem;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .ring-icon svg {
+    width: 100%;
+    height: 100%;
+    color: var(--accent, #4ade80);
   }
 
   .ring-icon.pulse {
@@ -204,6 +236,9 @@
 
   .btn-answer,
   .btn-decline {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     padding: 0.55rem 1rem;
     border: none;
     border-radius: 0.5rem;
@@ -212,6 +247,13 @@
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+  }
+  
+  .btn-answer svg,
+  .btn-decline svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
   }
 
   .btn-answer {

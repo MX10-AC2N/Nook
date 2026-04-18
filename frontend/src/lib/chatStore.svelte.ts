@@ -179,6 +179,16 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
     return;
   }
 
+  // ── Call signaling ──
+  const CALL_TYPES = ['call_request', 'call_accepted', 'call_rejected', 'offer', 'answer', 'ice', 'ice_candidate', 'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate', 'join', 'leave', 'decline'];
+  if (type && CALL_TYPES.includes(type)) {
+    // Forward to webrtc-calls handler via its signal handler
+    import('$lib/webrtc-calls.svelte.ts').then(({ callManager }) => {
+      callManager.handleSignal?.(msg as any);
+    }).catch(() => {});
+    return;
+  }
+
   // ── Admin notifications ──
   if (type === 'user_approved') {
     notifyAdmin('✅ Utilisateur approuvé', 'Votre compte a été approuvé !', '/chat');
