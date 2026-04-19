@@ -20,16 +20,6 @@ use crate::SharedState;
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct MissedCall {
-    pub id: String,
-    pub conversation_id: String,
-    pub caller_id: String,
-    pub callee_id: String,
-    pub call_type: String,
-    pub status: String,
-    pub created_at: i64,
-}
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MissedCallWithNames {
