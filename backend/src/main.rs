@@ -43,6 +43,7 @@ mod config;
 mod db;
 mod e2ee;
 mod invites;
+mod missed_calls;
 mod polls;
 mod reactions;
 mod push;
@@ -50,6 +51,8 @@ mod prune;
 mod upload;
 mod emergency;
 mod gifs_updater;
+mod search;
+mod presence;
 mod webrtc;
 mod sfu;
 
@@ -72,6 +75,7 @@ pub struct SharedState {
     pub file_manager: Arc<FileManager>,
     pub sfu_state: SfuState,
     pub config: Config,
+    pub presence_state: presence::PresenceState,
 }
 
 // ---------------------------------------------------------------------
@@ -342,6 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         file_manager,
         sfu_state,
         config: config.clone(),
+        presence_state: presence::PresenceState::new(),
     });
 
     // ============================================================
@@ -448,6 +453,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(e2ee::e2ee_routes())
         .merge(reactions::reactions_routes())
         .merge(webrtc::webrtc_api_routes())
+        .merge(missed_calls::missed_calls_routes())
+        .merge(search::search_routes())
+        .merge(presence::presence_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
