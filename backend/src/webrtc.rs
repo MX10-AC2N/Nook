@@ -487,11 +487,13 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                         let conversation_id = json_val
                             .get("conversationId")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("");
+                            .unwrap_or("")
+                            .to_string(); // Clone to owned String
                         let call_type = json_val
                             .get("callType")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("audio");
+                            .unwrap_or("audio")
+                            .to_string(); // Clone to owned String
                         
                         if !conversation_id.is_empty() {
                             let pool = state_recv.db.clone();
@@ -507,10 +509,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                                 tokio::spawn(async move {
                                     if let Err(e) = crate::missed_calls::record_missed_call(
                                         &pool,
-                                        conversation_id,
+                                        &conversation_id,
                                         &caller_id,
                                         &callee_id,
-                                        call_type,
+                                        &call_type,
                                         status,
                                     ).await {
                                         tracing::error!(error = %e, "Erreur enregistrement appel manqué");

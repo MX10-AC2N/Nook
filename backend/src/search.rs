@@ -4,11 +4,11 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::Json,
     routing::get,
     Extension, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::auth::CurrentUser;
