@@ -402,6 +402,9 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         guard.insert(user_id.clone(), broadcast_tx);
     }
 
+    // Marquer l'utilisateur comme en ligne
+    state.presence_state.set_online(&user_id).await;
+
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
 
     let send_task = tokio::spawn(async move {
@@ -478,6 +481,44 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
                         "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
+
+                    // ── Enregistrer les appels manqués ─────────────────────────
+                    if msg_type == "decline" || msg_type == "call_rejected" {
+                        let conversation_id = json_val
+                            .get("conversationId")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let call_type = json_val
+                            .get("callType")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("audio");
+                        
+                        if !conversation_id.is_empty() {
+                            let pool = state_recv.db.clone();
+                            let caller_id = user_id_recv.clone();
+                            let callee_id = json_val
+                                .get("to_user_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            
+                            if !callee_id.is_empty() {
+                                let status = if msg_type == "decline" { "declined" } else { "missed" };
+                                tokio::spawn(async move {
+                                    if let Err(e) = crate::missed_calls::record_missed_call(
+                                        &pool,
+                                        conversation_id,
+                                        &caller_id,
+                                        &callee_id,
+                                        call_type,
+                                        status,
+                                    ).await {
+                                        tracing::error!(error = %e, "Erreur enregistrement appel manqué");
+                                    }
+                                });
+                            }
+                        }
+                    }
 
                     if webrtc_types.contains(&msg_type) {
                         let to_user_id = json_val
@@ -591,6 +632,10 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         let mut guard = state.webrtc_state.user_senders.lock().await;
         guard.remove(&user_id);
     }
+    
+    // Marquer l'utilisateur comme hors ligne
+    state.presence_state.set_offline(&user_id).await;
+    
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket déconnecté");
 }
 

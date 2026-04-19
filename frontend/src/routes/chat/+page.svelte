@@ -27,6 +27,9 @@
     formatDuration,
   } from '$lib/mediaStore.svelte.js';
   import Avatar from '$lib/components/Avatar.svelte';
+  import MissedCalls from '$lib/components/MissedCalls.svelte';
+  import MessageSearch from '$lib/components/MessageSearch.svelte';
+  import OnlineStatus from '$lib/components/OnlineStatus.svelte';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -348,6 +351,13 @@
   function convAvatar(conv: Conv): string {
     if (conv.id === 'default_global') return '🌿';
     return conv.is_group ? '👥' : '💬';
+  }
+
+  /** ID de l'autre participant pour une conversation DM */
+  function getOtherParticipantId(convId: string): string | null {
+    const parts = participantsCache[convId] ?? [];
+    const other = parts.find(p => p.id !== authStore.user?.id);
+    return other?.id ?? null;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -815,6 +825,15 @@
       <button class="btn-new-conv" onclick={openNewConv} title="Nouvelle conversation">＋</button>
     </div>
 
+    <!-- Appels manqués -->
+    <MissedCalls />
+
+    <!-- Recherche de messages -->
+    <MessageSearch />
+
+    <!-- Statut en ligne -->
+    <OnlineStatus />
+
     <div class="conversation-list">
       {#if loadingConvs}
         <div class="sidebar-loading">
@@ -848,7 +867,25 @@
             <span class="avatar">{convAvatar(conv)}</span>
             <div class="conversation-info">
               <span class="name">{convDisplayName(conv)}</span>
-              <span class="preview">{conv.is_group ? 'Groupe' : 'Message privé'}</span>
+              <span class="preview">
+                {#if conv.is_group}
+                  Groupe
+                {:else}
+                  <!-- Pour les DM, afficher le statut en ligne -->
+                  {#if !conv.is_group && conv.id !== 'default_global'}
+                    {@const otherUserId = getOtherParticipantId(conv.id)}
+                    {#if otherUserId}
+                      {@const status = OnlineStatus.getUserStatus(otherUserId)}
+                      <span class="online-indicator" class:online={status.online}></span>
+                      {status.lastSeen}
+                    {:else}
+                      Message privé
+                    {/if}
+                  {:else}
+                    Message privé
+                  {/if}
+                {/if}
+              </span>
             </div>
             {#if (chatStore.unreadCounts[conv.id] ?? 0) > 0}
               <span class="unread-badge">{chatStore.unreadCounts[conv.id]}</span>
@@ -1402,6 +1439,22 @@
     display: block;
     font-size: .74rem;
     color: var(--text-secondary, #64748b);
+  }
+
+  /* Online indicator */
+  .online-indicator {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--text-muted, #94a3b8);
+    margin-right: 0.25rem;
+    vertical-align: middle;
+  }
+  
+  .online-indicator.online {
+    background: var(--accent, #4ade80);
+    box-shadow: 0 0 0 2px var(--bg-secondary, #f8fafc);
   }
 
   /* ─── Zone chat ─── */
