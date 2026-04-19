@@ -182,10 +182,13 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   // ── Call signaling ──
   const CALL_TYPES = ['call_request', 'call_accepted', 'call_rejected', 'offer', 'answer', 'ice', 'ice_candidate', 'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate', 'join', 'leave', 'decline'];
   if (type && CALL_TYPES.includes(type)) {
+    console.log(`[WS] Call signal received: ${type}`, msg);
     // Forward to webrtc-calls handler via its signal handler
     import('$lib/webrtc-calls.svelte.ts').then(({ callManager }) => {
       callManager.handleSignal?.(msg as any);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('[WS] Error forwarding call signal:', err);
+    });
     return;
   }
 

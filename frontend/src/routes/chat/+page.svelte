@@ -29,7 +29,6 @@
   import Avatar from '$lib/components/Avatar.svelte';
   import MissedCalls from '$lib/components/MissedCalls.svelte';
   import MessageSearch from '$lib/components/MessageSearch.svelte';
-  import OnlineStatus from '$lib/components/OnlineStatus.svelte';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -351,13 +350,6 @@
   function convAvatar(conv: Conv): string {
     if (conv.id === 'default_global') return '🌿';
     return conv.is_group ? '👥' : '💬';
-  }
-
-  /** ID de l'autre participant pour une conversation DM */
-  function getOtherParticipantId(convId: string): string | null {
-    const parts = participantsCache[convId] ?? [];
-    const other = parts.find(p => p.id !== authStore.user?.id);
-    return other?.id ?? null;
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -831,9 +823,6 @@
     <!-- Recherche de messages -->
     <MessageSearch />
 
-    <!-- Statut en ligne -->
-    <OnlineStatus />
-
     <div class="conversation-list">
       {#if loadingConvs}
         <div class="sidebar-loading">
@@ -871,19 +860,7 @@
                 {#if conv.is_group}
                   Groupe
                 {:else}
-                  <!-- Pour les DM, afficher le statut en ligne -->
-                  {#if !conv.is_group && conv.id !== 'default_global'}
-                    {@const otherUserId = getOtherParticipantId(conv.id)}
-                    {#if otherUserId}
-                      {@const status = OnlineStatus.getUserStatus(otherUserId)}
-                      <span class="online-indicator" class:online={status.online}></span>
-                      {status.lastSeen}
-                    {:else}
-                      Message privé
-                    {/if}
-                  {:else}
-                    Message privé
-                  {/if}
+                  Message privé
                 {/if}
               </span>
             </div>
