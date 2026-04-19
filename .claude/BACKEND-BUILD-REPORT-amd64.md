@@ -1,25 +1,25 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 0c4893f | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24630920152)
+> **unknown** | commit b47326f | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24631626781)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ❌ FAIL |
-| **cargo check** | ❌ exit=101 |
+| **cargo build** | ✅ OK |
+| **cargo check** | ✅ exit=0 |
 | **cargo clippy** | ❌ exit=101 |
 
 | Métrique | Valeur |
 |----------|--------|
-| **Bin Size** | N/A |
+| **Bin Size** | 14M |
 | **Compile Time** | N/A |
 | **Warnings (check)** | N/A |
 | **Errors (check)** | N/A |
 | **New Warnings** | N/A |
 | **Deprecated refs** | 0 |
 | **Dead code** | 0 |
-| **Unused vars** | 5 |
+| **Unused vars** | 0 |
 | **Unreachable** | 0 |
 
 ---
@@ -33,13 +33,13 @@
 ## ❌ Erreurs cargo check
 
 ```
-error[E0597]: `json_val` does not live long enough
+(aucune erreur)
 ```
 
 ## ❌ Erreurs cargo build
 
 ```
-error[E0597]: `json_val` does not live long enough
+(aucune erreur)
 ```
 
 ## 🔧 Clippy warnings
@@ -71,7 +71,7 @@ error[E0597]: `json_val` does not live long enough
 ```
 
 
-
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 2m 33s
 ```
 
 ---
