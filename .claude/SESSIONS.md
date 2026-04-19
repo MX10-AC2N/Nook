@@ -1566,3 +1566,77 @@ Refonte page d'appel, notifications d'appel entrant, correction bugs critiques s
 - [ ] Tester appel entrant réel (2 navigateurs)
 - [ ] Ajouter timeout sur l'appel (auto-raccrocher après X secondes)
 - [ ] Gestion rejet d'appel (signal `call_rejected` → stop sonnerie)
+
+---
+
+## Session 2026-04-18 (soir) — Bug Fixes Post-Déploiement
+
+### Contexte
+Après déploiement des features (missed calls, search, presence, E2EE), plusieurs bugs critiques ont été reportés par l'utilisateur :
+1. Le menu des conversations était vide
+2. Les messages s'affichaient chiffrés (clé indisponible)
+3. Aucune notification d'appel entrant
+
+### Progrès Réalisés
+
+#### 1. Conversations vides dans la sidebar
+- **Problème** : Le système de présence (`presenceStore`) causait des erreurs de rendu Svelte 5
+- **Root cause** : Export de state réactif au lieu de fonctions → Svelte 5 ne le permet pas
+- **Fix** : Désactivation temporaire du système de présence
+- **Fichiers** : `chat/+page.svelte` (suppression import + affichage OnlineStatus)
+
+#### 2. Messages chiffrés non déchiffrables
+- **Problème** : Les messages s'affichaient comme "🔒 Message chiffré (clé indisponible)"
+- **Root cause** : Les clés publiques E2EE n'étaient pas systématiquement synchronisées avec le serveur
+- **Fix** : `registerPublicKeyOnServer()` appelé systématiquement au login, même si les clés existent dans IndexedDB
+- **Fichiers** : `cryptoStore.svelte.ts` (ajout sync forcée + `reRegisterPublicKey()`)
+
+#### 3. Notifications d'appel entrant absentes
+- **Problème** : Quand un utilisateur appelait un autre, aucun appel entrant n'apparaissait
+- **Root cause** : Le transfert du signal `call_request` vers `callManager` utilisait un `import()` dynamique asynchrone qui pouvait échouer silencieusement
+- **Fix** : Import statique du callManager dans `chatStore.svelte.ts`
+- **Fichiers** : 
+  - `chatStore.svelte.ts` (import statique + appel synchrone)
+  - `webrtc-calls.svelte.ts` (passage des champs `from_user_name` et `callType` dans `sendSignal`)
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Conversations vides | `chat/+page.svelte` | Désactivation présence temporaire |
+| Messages chiffrés | `cryptoStore.svelte.ts` | Sync forcée clés publiques au login |
+| Pas de notification appel | `chatStore.svelte.ts` | Import statique callManager |
+| sendSignal perd from_user_name | `webrtc-calls.svelte.ts` | Passage de tous les champs optionnels |
+
+### Décisions Clés
+- **Présence désactivée temporairement** : Priorité à la stabilité du chat
+- **Import statique > import dynamique** : Plus fiable pour les signaux temps réel
+- **Clés E2EE toujours synchronisées** : Évite les problèmes de chiffrement
+
+### Fichiers Modifiés
+| Fichier | Lignes | Nature |
+|---------|--------|--------|
+| `frontend/src/lib/chatStore.svelte.ts` | +5/-4 | Import statique callManager |
+| `frontend/src/lib/cryptoStore.svelte.ts` | +29 | Sync forcée clés + reRegisterPublicKey() |
+| `frontend/src/lib/webrtc-calls.svelte.ts` | +9/-1 | Passage from_user_name/callType |
+| `frontend/src/routes/chat/+page.svelte` | -25 | Suppression présence temporaire |
+
+### CI Status
+| Workflow | Run | Status |
+|----------|-----|--------|
+| Backend Build | #491 | ✅ success |
+| Frontend Build | #648 | ✅ success |
+| Turn-Server Build | #20 | ✅ success |
+| Docker Build & Push | #218 | ✅ success |
+
+### État Final
+- Branche: develop
+- CI: Backend #491 ✅, Frontend #648 ✅, Docker #218 ✅
+- Docker: Images pushées sur GHCR
+- Prochaine étape: Redéploiement sur Zimaboard, test réel des appels
+
+### Prochaines Étapes
+- [ ] **Tester les appels audio/vidéo** entre deux utilisateurs
+- [ ] **Réactiver le système de présence** de manière robuste
+- [ ] **Ajouter timeout sur l'appel** (auto-raccrocher après X secondes)
+- [ ] **Gestion rejet d'appel** améliorée
+
