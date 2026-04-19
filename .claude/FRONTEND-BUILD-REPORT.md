@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 9c0be07 |
+| **Commit** | 0c4893f |
 | **Node.js** | unknown |
-| **Vite time** | 5.22ms |
+| **Vite time** | 5.23ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
-| **Chunks** | 107 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24228870054 |
+| **Chunks** | 116 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24630928301 |
 
 ---
 
@@ -35,43 +35,43 @@
 ## Bundle
 
 ```
-[32m✓[39m 196 modules transformed.
-[32m✓[39m 229 modules transformed.
-[32m✓ built in 5.22s[39m
+[32m✓[39m 205 modules transformed.
+[32m✓[39m 238 modules transformed.
+[32m✓ built in 5.23s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 18ms[39m
-[32m✓ built in 8.59s[39m
+[32m✓ built in 13ms[39m
+[32m✓ built in 8.71s[39m
 
-[2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.Cmz_bTU7.css     [39m[1m[2m 30.33 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/vendor.js                               [39m[1m[2m  0.05 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mindex.js                                       [39m[1m[2m  0.07 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js              [39m[1m[2m  0.09 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mremote-entry.js                                [39m[1m[2m  0.12 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/ThemeStore.svelte.js                    [39m[1m[2m  0.14 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/file-transfer.svelte.js                 [39m[1m[2m  0.19 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36minternal.js                                    [39m[1m[2m  0.27 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.ts.js                    [39m[1m[2m  0.55 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/_page.svelte.js            [39m[1m[2m  0.75 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/Icon.js                                 [39m[1m[2m  0.77 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/_page.svelte.js                  [39m[1m[2m  0.92 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/analytics/_page.svelte.js  [39m[1m[2m  0.93 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_game_id_/_page.svelte.js  [39m[1m[2m  0.98 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/invite/_page.svelte.js           [39m[1m[2m  1.04 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/polls/_page.svelte.js            [39m[1m[2m  1.06 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/login/_page.svelte.js            [39m[1m[2m  2.53 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/register/_page.svelte.js         [39m[1m[2m  2.55 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js         [39m[1m[2m  2.64 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/change-password/_page.svelte.js  [39m[1m[2m  2.88 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/authStore.svelte.js                     [39m[1m[2m  2.99 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_page.svelte.js            [39m[1m[2m  3.68 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js           [39m[1m[2m  3.84 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                [39m[1m[2m  4.18 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js         [39m[1m[2m  5.33 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js             [39m[1m[2m 10.41 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js             [39m[1m[2m 12.68 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                    [39m[1m[2m 15.89 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js        [39m[1m[2m 24.84 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                               [39m[1m[2m302.82 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mindex.js                                          [39m[1m[2m  0.07 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/ThemeStore.svelte.js                       [39m[1m[2m  0.14 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/file-transfer.svelte.js                    [39m[1m[2m  0.19 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36minternal.js                                       [39m[1m[2m  0.27 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.ts.js                       [39m[1m[2m  0.55 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/Icon.js                                    [39m[1m[2m  0.70 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/_page.svelte.js               [39m[1m[2m  0.87 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_page.svelte.js                     [39m[1m[2m  0.92 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/PasswordInput.js                           [39m[1m[2m  0.92 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/invite/_page.svelte.js              [39m[1m[2m  1.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_game_id_/_page.svelte.js     [39m[1m[2m  1.05 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/analytics/_page.svelte.js     [39m[1m[2m  1.17 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/polls/_page.svelte.js               [39m[1m[2m  1.20 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/Avatar.js                                  [39m[1m[2m  2.19 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/register/_page.svelte.js            [39m[1m[2m  2.55 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/authStore.svelte.js                        [39m[1m[2m  2.99 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/login/_page.svelte.js               [39m[1m[2m  3.11 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/change-password/_page.svelte.js     [39m[1m[2m  3.76 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_page.svelte.js               [39m[1m[2m  3.82 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js              [39m[1m[2m  3.84 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                   [39m[1m[2m  5.80 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js            [39m[1m[2m  6.28 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js            [39m[1m[2m  6.30 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js                [39m[1m[2m 12.02 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                       [39m[1m[2m 16.58 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 21.98 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 26.48 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m303.16 kB[22m[1m[22m
 ```
 
 *Generated by .github/scripts/generate-frontend-report.sh*
