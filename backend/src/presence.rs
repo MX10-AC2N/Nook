@@ -98,7 +98,7 @@ pub fn presence_routes() -> Router<Arc<SharedState>> {
 /// GET /api/presence — Obtenir le statut de tous les utilisateurs
 async fn get_presence(
     State(state): State<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Extension(_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<UserPresence>>, StatusCode> {
     // Récupérer tous les utilisateurs approuvés
     let users = sqlx::query_as::<_, (String, String, String)>(
@@ -113,7 +113,7 @@ async fn get_presence(
 
     let mut presences = Vec::new();
     
-    for (id, username, name) in users {
+    for (id, _username, name) in users {
         let online = state.presence_state.is_online(&id).await;
         let last_seen = if online {
             Utc::now().timestamp()
