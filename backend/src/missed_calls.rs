@@ -4,7 +4,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::{IntoResponse, Json},
+    response::Json,
     routing::get,
     Extension, Router,
 };
