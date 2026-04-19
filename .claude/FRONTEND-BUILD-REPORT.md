@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | f3b62e3 |
+| **Commit** | 3d47bb1 |
 | **Node.js** | unknown |
-| **Vite time** | 5.89ms |
+| **Vite time** | 5.33ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 116 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24636770683 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24636954723 |
 
 ---
 
@@ -35,12 +35,12 @@
 ## Bundle
 
 ```
-[32m✓[39m 205 modules transformed.
-[32m✓[39m 238 modules transformed.
-[32m✓ built in 5.89s[39m
+[32m✓[39m 204 modules transformed.
+[32m✓[39m 237 modules transformed.
+[32m✓ built in 5.33s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 15ms[39m
-[32m✓ built in 9.81s[39m
+[32m✓ built in 14ms[39m
+[32m✓ built in 8.98s[39m
 
 [2m.svelte-kit/output/server/[22m[36mindex.js                                          [39m[1m[2m  0.07 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
@@ -69,8 +69,8 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js            [39m[1m[2m  6.30 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js                [39m[1m[2m 12.02 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                       [39m[1m[2m 16.58 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 21.98 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 26.48 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 20.90 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 26.77 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m303.16 kB[22m[1m[22m
 ```
 
