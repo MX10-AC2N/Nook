@@ -108,6 +108,15 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
     _keyPair           = kp;
     cryptoStore.userId = userId;
     cryptoStore.ready  = true;
+
+    // Always try to register public key on server, even if loaded from IndexedDB
+    // This ensures the server has the latest public key
+    if (kp.publicKey) {
+      registerPublicKeyOnServer(kp.publicKey)
+        .then(() => console.info('[cryptoStore] Clé publique synchronisée avec le serveur ✓'))
+        .catch((e) => console.warn('[cryptoStore] Échec synchronisation clé publique :', e?.message));
+    }
+
     return true;
 
   } catch (e: any) {
@@ -176,4 +185,24 @@ export async function decryptMessage(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 export function getPublicKey(): Uint8Array | null {
   return _keyPair?.publicKey ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// reRegisterPublicKey — force la synchronisation de la clé publique avec le serveur
+// Utile si la clé n'a pas été enregistrée correctement lors du login
+// ─────────────────────────────────────────────────────────────────────────────
+export async function reRegisterPublicKey(): Promise<boolean> {
+  if (!_keyPair) {
+    console.warn('[cryptoStore] Pas de clé pour ré-enregistrement');
+    return false;
+  }
+  
+  try {
+    await registerPublicKeyOnServer(_keyPair.publicKey);
+    console.info('[cryptoStore] Clé publique ré-enregistrée sur le serveur ✓');
+    return true;
+  } catch (e) {
+    console.error('[cryptoStore] Échec ré-enregistrement clé publique:', e);
+    return false;
+  }
 }
