@@ -49,6 +49,7 @@ export interface ChatState {
 // -----------------------------------------------------------------
 
 import { writable, get } from 'svelte/store';
+import { callManager } from '$lib/webrtc-calls.svelte.ts';
 
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
@@ -184,11 +185,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   if (type && CALL_TYPES.includes(type)) {
     console.log(`[WS] Call signal received: ${type}`, msg);
     // Forward to webrtc-calls handler via its signal handler
-    import('$lib/webrtc-calls.svelte.ts').then(({ callManager }) => {
-      callManager.handleSignal?.(msg as any);
-    }).catch((err) => {
-      console.error('[WS] Error forwarding call signal:', err);
-    });
+    callManager.handleSignal?.(msg as any);
     return;
   }
 
