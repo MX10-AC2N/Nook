@@ -340,6 +340,9 @@ class WebRTCCallManager {
       sdp: signal.sdp ?? null,
       candidate: signal.candidate ?? null,
       timestamp: Date.now(),
+      // Pass through optional fields for call_request
+      from_user_name: signal.from_user_name,
+      callType: signal.callType,
     };
 
     this.ws.send(JSON.stringify(fullSignal));
@@ -349,8 +352,12 @@ class WebRTCCallManager {
   // Signal handling (receiving)
   // -----------------------------------------------------------------
   public async handleSignal(signal: CallSignal) {
+    console.log('[CallManager] handleSignal called:', signal.type, signal);
     // Ignorer les signaux provenant de soi-même
-    if (signal.from_user_id === this.userId) return;
+    if (signal.from_user_id === this.userId) {
+      console.log('[CallManager] Ignoring signal from self');
+      return;
+    }
 
     switch (signal.type) {
       case 'offer':
