@@ -29,7 +29,7 @@
   import Avatar from '$lib/components/Avatar.svelte';
   import MissedCalls from '$lib/components/MissedCalls.svelte';
   import MessageSearch from '$lib/components/MessageSearch.svelte';
-  import OnlineStatus from '$lib/components/OnlineStatus.svelte';
+  import { getUserStatus, initPresence } from '$lib/presenceStore.svelte.ts';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -831,8 +831,10 @@
     <!-- Recherche de messages -->
     <MessageSearch />
 
-    <!-- Statut en ligne -->
-    <OnlineStatus />
+    <!-- Initialiser la présence -->
+    {#if typeof window !== 'undefined'}
+      {initPresence()}
+    {/if}
 
     <div class="conversation-list">
       {#if loadingConvs}
@@ -875,7 +877,7 @@
                   {#if !conv.is_group && conv.id !== 'default_global'}
                     {@const otherUserId = getOtherParticipantId(conv.id)}
                     {#if otherUserId}
-                      {@const status = OnlineStatus.getUserStatus(otherUserId)}
+                      {@const status = getUserStatus(otherUserId)}
                       <span class="online-indicator" class:online={status.online}></span>
                       {status.lastSeen}
                     {:else}
