@@ -1640,3 +1640,84 @@ Après déploiement des features (missed calls, search, presence, E2EE), plusieu
 - [ ] **Ajouter timeout sur l'appel** (auto-raccrocher après X secondes)
 - [ ] **Gestion rejet d'appel** améliorée
 
+## Session 2026-04-18-2 — P2P File Transfer + CA Certificate + README Rewrite
+
+### Contexte
+L'utilisateur a redéployé Nook et demandé de :
+1. Corriger le certificat CA pour les notifications push
+2. Réécrire le README.md dans un esprit familial
+3. Implémenter le partage P2P de fichiers > 50 Mo
+
+### Progrès Réalisés
+
+#### 1. Certificat CA pour Notifications Push
+- **Problème** : L'utilisateur ne pouvait pas accéder à la page CA (HTTPS + certificat non approuvé)
+- **Solution** : Ajout de routes `/ca` et `/ca/help` directement dans le backend Rust
+- **Fichiers** :
+  - `backend/src/ca.rs` — Nouveau module avec get_ca_cert() et ca_help()
+  - `backend/src/main.rs` — Routes ajoutées hors du préfixe /api
+  - `docker-compose.yml` — Volume nginx-ssl monté dans nook container
+  - `frontend/src/lib/push.ts` — Message d'erreur pointant vers /ca/help
+
+#### 2. README.md Réécrit
+- **Ton** : Familial, chaleureux, accessible
+- **Ajouts** :
+  - Section dédiée installation CA (instructions par plateforme)
+  - 3 options pour générer les clés VAPID (OpenSSL, npx, en ligne)
+  - GIFs : mise à jour automatique par le backend (pas de cron)
+  - Précision fichiers > 50 Mo chiffrés E2EE avec XChaCha20
+
+#### 3. Partage P2P de Fichiers > 50 Mo
+- **Module** : `frontend/src/lib/file-transfer.svelte.ts` — Implémentation complète
+  - Chiffrement XChaCha20-Poly1305 via libsodium
+  - Découpage en chunks de 16 KB
+  - Protocole Start → Chunks → End avec ACKs
+  - Persistance IndexedDB
+  - Gestion d'erreurs et retry
+- **Chat UI** : `frontend/src/routes/chat/+page.svelte`
+  - Logique de routage automatique (<= 50 Mo → serveur, > 50 Mo → P2P)
+  - UI de progression en temps réel
+  - Messages d'erreur clairs
+- **Dépendance** : `idb-keyval` ajouté au package.json
+
+### Décisions Clés
+1. Routes CA hors du préfixe /api pour éviter le redirect login
+2. Volume nginx-ssl partagé avec nook container pour accès au CA
+3. CHUNK_SIZE = 16 KB (limite DataChannel WebRTC)
+4. MAX_BYTES_P2P = 500 Mo (limite arbitraire pour P2P)
+
+### Fichiers Modifiés
+| Fichier | Nature |
+|---------|--------|
+| `backend/src/ca.rs` | Nouveau — Module CA cert download |
+| `backend/src/main.rs` | Routes /ca hors /api, suppression doublons |
+| `docker-compose.yml` | Volume nginx-ssl dans nook container |
+| `frontend/src/lib/file-transfer.svelte.ts` | Implémentation complète P2P transfer |
+| `frontend/src/lib/push.ts` | Message d'erreur CA mis à jour |
+| `frontend/src/routes/chat/+page.svelte` | Routage P2P + UI progression |
+| `frontend/package.json` | Ajout idb-keyval |
+| `README.md` | Réécriture complète, ton familial |
+| `frontend/tests/p2p-file-transfer.spec.ts` | Test Playwright P2P |
+
+### CI Status
+| Workflow | Run | Status |
+|----------|-----|--------|
+| Backend Build | #497 | ✅ success |
+| Frontend Build | #663 | ✅ success |
+| Docker Build & Push | #230 | ✅ success |
+
+### État Final
+- Branche: develop (clean)
+- CI: Tous ✅
+- Docker: Images pushées sur GHCR
+- Certificat CA: Fonctionnel (/ca/help)
+- P2P File Transfer: Implémenté et compilé
+
+### Prochaines Étapes
+- [ ] **Tester P2P file transfer** entre deux appareils avec appel actif
+- [ ] **Vérifier notifications push** avec CA installé
+- [ ] **Tests E2E** pour le partage P2P
+- [ ] **Monitoring** des transferts P2P (métriques)
+
+---
+
