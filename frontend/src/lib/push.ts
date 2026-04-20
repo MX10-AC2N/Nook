@@ -86,7 +86,16 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
   // 3. S'abonner via pushManager
   let subscription: PushSubscription;
   try {
-    const reg = await navigator.serviceWorker.ready;
+    // Attendre le SW avec timeout (évite le blocage infini si SW pas enregistré)
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error('Service Worker timeout (10s)')), 10000)
+      )
+    ]);
+    if (!reg) {
+      return { success: false, error: 'Service Worker non prêt après 10s' };
+    }
     subscription = await reg.pushManager.subscribe({
       userVisibleOnly:      true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
