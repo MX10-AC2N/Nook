@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | e4f36f0 |
+| **Commit** | cf28b07 |
 | **Node.js** | unknown |
-| **Vite time** | 5.35ms |
+| **Vite time** | 5.71ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 115 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24661293274 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24662554123 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 204 modules transformed.
 [32m✓[39m 237 modules transformed.
-[32m✓ built in 5.35s[39m
+[32m✓ built in 5.71s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 15ms[39m
-[32m✓ built in 8.97s[39m
+[32m✓ built in 18ms[39m
+[32m✓ built in 9.46s[39m
 
 [2m.svelte-kit/output/server/[22m[36mindex.js                                          [39m[1m[2m  0.07 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
