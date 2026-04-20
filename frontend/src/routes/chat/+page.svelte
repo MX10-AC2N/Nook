@@ -29,6 +29,7 @@
   import Avatar from '$lib/components/Avatar.svelte';
   import MissedCalls from '$lib/components/MissedCalls.svelte';
   import MessageSearch from '$lib/components/MessageSearch.svelte';
+  import { callStore } from '$lib/webrtc-calls.svelte.ts';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -108,6 +109,17 @@
   // Renommage inline du groupe actif
   let renamingConv   = $state(false);
   let renameValue    = $state('');
+  
+  // Transferts P2P en cours
+  interface P2PTransfer {
+    fileName: string;
+    fileSize: number;
+    progress: number;
+    speed: number;
+    status: 'encrypting' | 'sending' | 'completed' | 'error';
+    error?: string;
+  }
+  let p2pTransfers = $state<Map<string, P2PTransfer>>(new Map());
 
   function startRename() {
     renameValue = activeConv?.name ?? activeConvName.replace(/^[^ ]+ /, '');
@@ -562,15 +574,40 @@
     if (!input.files?.length) return;
     const file = input.files[0];
 
-    // Vérification taille côté client (limite backend = 50 Mo)
-    const MAX_BYTES = 50 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`;
+    // Constantes
+    const MAX_BYTES_SERVER = 50 * 1024 * 1024; // 50 Mo pour upload serveur
+    const MAX_BYTES_P2P = 500 * 1024 * 1024; // 500 Mo max pour P2P
+    
+    // Vérifier si on a une connexion P2P active
+    const hasP2PConnection = callStore.isInCall && callStore.fileDataChannels.size > 0;
+    
+    // Logique de routage
+    if (file.size > MAX_BYTES_P2P) {
+      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 500 Mo.`;
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
     }
-
+    
+    if (file.size > MAX_BYTES_SERVER && !hasP2PConnection) {
+      chatStore.connectionError = `Fichier > 50 Mo nécessite une connexion P2P. Lancez un appel d'abord.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+    
+    // Choix de la méthode de transfert
+    if (file.size > MAX_BYTES_SERVER || hasP2PConnection) {
+      // Transfert P2P via DataChannel
+      await handleP2PFileTransfer(file, input);
+    } else {
+      // Upload serveur classique
+      await handleServerFileUpload(file, input);
+    }
+  }
+  
+  // Upload serveur classique (<= 50 Mo)
+  async function handleServerFileUpload(file: File, input: HTMLInputElement) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('conversation_id', activeConvId);
@@ -600,6 +637,99 @@
     } catch (err: unknown) {
       console.error('[Upload]', err);
       chatStore.connectionError = err instanceof Error ? err.message : "Échec de l'upload";
+      setTimeout(() => chatStore.connectionError = null, 5000);
+    }
+  }
+  
+  // Transfert P2P via DataChannel
+  async function handleP2PFileTransfer(file: File, input: HTMLInputElement) {
+    // Importer le module de transfert P2P
+    const { sendFile } = await import('$lib/file-transfer.svelte.ts');
+    
+    // Trouver un DataChannel disponible
+    let channel: RTCDataChannel | null = null;
+    let targetUserId: string | null = null;
+    
+    for (const [userId, ch] of callStore.fileDataChannels.entries()) {
+      if (ch.readyState === 'open') {
+        channel = ch;
+        targetUserId = userId;
+        break;
+      }
+    }
+    
+    if (!channel || !targetUserId) {
+      chatStore.connectionError = 'Aucune connexion P2P disponible. Lancez un appel d\'abord.';
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+    
+    // Afficher l'UI de progression
+    const progressId = `p2p_${Date.now()}`;
+    p2pTransfers.set(progressId, {
+      fileName: file.name,
+      fileSize: file.size,
+      progress: 0,
+      speed: 0,
+      status: 'encrypting'
+    });
+    
+    try {
+      await sendFile(
+        file,
+        channel,
+        activeConvId,
+        // Callback de progression
+        (pct, speed) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.progress = pct;
+            transfer.speed = speed;
+            transfer.status = pct < 30 ? 'encrypting' : 'sending';
+            p2pTransfers = new Map(p2pTransfers); // Trigger reactivity
+          }
+        },
+        // Callback de fin
+        async (fileId) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.status = 'completed';
+            transfer.progress = 100;
+            p2pTransfers = new Map(p2pTransfers);
+          }
+          
+          // Envoyer un message dans le chat
+          const content = `<span class="file-p2p">📁 <strong>${file.name}</strong> (${(file.size / 1024 / 1024).toFixed(1)} Mo) — transféré en P2P</span>`;
+          await sendMessage(content, activeConvId);
+          
+          // Supprimer l'UI de progression après 3s
+          setTimeout(() => {
+            p2pTransfers.delete(progressId);
+            p2pTransfers = new Map(p2pTransfers);
+          }, 3000);
+          
+          input.value = '';
+        },
+        // Callback d'erreur
+        (error) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.status = 'error';
+            transfer.error = error;
+            p2pTransfers = new Map(p2pTransfers);
+          }
+          
+          chatStore.connectionError = `Échec du transfert P2P: ${error}`;
+          setTimeout(() => chatStore.connectionError = null, 5000);
+        }
+      );
+    } catch (err) {
+      console.error('[P2P Transfer]', err);
+      p2pTransfers.delete(progressId);
+      p2pTransfers = new Map(p2pTransfers);
+      
+      chatStore.connectionError = err instanceof Error ? err.message : "Échec du transfert P2P";
       setTimeout(() => chatStore.connectionError = null, 5000);
     }
   }
@@ -900,6 +1030,37 @@
         <h2>{activeConvName}</h2>
         {#if chatStore.connectionError}
           <span class="conn-error">⚠️ {chatStore.connectionError}</span>
+        {/if}
+        
+        <!-- Transferts P2P en cours -->
+        {#if p2pTransfers.size > 0}
+          <div class="p2p-transfers">
+            {#each [...p2pTransfers.entries()] as [id, transfer]}
+              <div class="p2p-transfer" class:completed={transfer.status === 'completed'} class:error={transfer.status === 'error'}>
+                <div class="p2p-transfer-info">
+                  <span class="p2p-transfer-name">{transfer.fileName}</span>
+                  <span class="p2p-transfer-size">{(transfer.fileSize / 1024 / 1024).toFixed(1)} Mo</span>
+                </div>
+                <div class="p2p-transfer-progress">
+                  <div class="p2p-progress-bar">
+                    <div class="p2p-progress-fill" style="width: {transfer.progress}%"></div>
+                  </div>
+                  <div class="p2p-transfer-stats">
+                    {#if transfer.status === 'encrypting'}
+                      <span>🔐 Chiffrement...</span>
+                    {:else if transfer.status === 'sending'}
+                      <span>📤 Envoi... {transfer.speed.toFixed(0)} KB/s</span>
+                    {:else if transfer.status === 'completed'}
+                      <span>✅ Terminé</span>
+                    {:else if transfer.status === 'error'}
+                      <span>❌ {transfer.error}</span>
+                    {/if}
+                    <span>{transfer.progress.toFixed(0)}%</span>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
         {/if}
         {#if activeConv && activeConv.is_group && activeConv.id !== 'default_global'}
           <button class="rename-btn" onclick={startRename} title="Renommer le groupe" aria-label="Renommer">✏️</button>
@@ -1454,6 +1615,102 @@
   }
   .chat-header h2 { margin: 0; font-size: .85rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-error { font-size: .78rem; color: #dc2626; }
+  
+  /* Transferts P2P */
+  .p2p-transfers {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-primary, #fff);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    padding: .5rem;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .p2p-transfer {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .5rem;
+    border-radius: .35rem;
+    background: var(--bg-secondary, #f8fafc);
+    margin-bottom: .5rem;
+  }
+  
+  .p2p-transfer:last-child {
+    margin-bottom: 0;
+  }
+  
+  .p2p-transfer.completed {
+    background: rgba(34, 197, 94, 0.1);
+  }
+  
+  .p2p-transfer.error {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  
+  .p2p-transfer-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .85rem;
+  }
+  
+  .p2p-transfer-name {
+    font-weight: 500;
+    color: var(--text-primary, #1e293b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  
+  .p2p-transfer-size {
+    color: var(--text-secondary, #64748b);
+    font-size: .78rem;
+  }
+  
+  .p2p-transfer-progress {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  
+  .p2p-progress-bar {
+    height: 6px;
+    background: var(--border, #e2e8f0);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .p2p-progress-fill {
+    height: 100%;
+    background: var(--accent, #4ade80);
+    transition: width .3s ease;
+  }
+  
+  .p2p-transfer.completed .p2p-progress-fill {
+    background: #22c55e;
+  }
+  
+  .p2p-transfer.error .p2p-progress-fill {
+    background: #ef4444;
+  }
+  
+  .p2p-transfer-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: .78rem;
+    color: var(--text-secondary, #64748b);
+  }
+  
+  .p2p-transfer-stats span:first-child {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+  }
   .call-actions { display: flex; gap: .35rem; flex-shrink: 0; margin-left: auto; }
   .call-btn {
     display: flex; align-items: center; justify-content: center;
