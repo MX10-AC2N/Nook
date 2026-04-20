@@ -89,8 +89,14 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     // Vérifier si un SW est déjà enregistré
     reg = await navigator.serviceWorker.getRegistration();
     if (!reg) {
-      // Enregistrer le SW maintenant
-      reg = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+      // Enregistrer le SW maintenant avec timeout
+      console.log('[push] Registering SW...');
+      reg = await Promise.race([
+        navigator.serviceWorker.register('/service-worker.js', { scope: '/' }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SW register timeout (5s) — certificat SSL probablement non approuvé')), 5000)
+        )
+      ]);
       console.log('[push] SW registered:', reg.scope);
     }
 
@@ -129,7 +135,14 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
 
     console.log('[push] SW ready:', reg.scope);
   } catch (err: any) {
-    return { success: false, error: `Service Worker : ${err?.message ?? err}` };
+    const msg = err?.message ?? String(err);
+    if (msg.includes('timeout') || msg.includes('certificat')) {
+      return {
+        success: false,
+        error: `Service Worker impossible — ton certificat SSL auto-signé n'est pas approuvé par le navigateur. Solution : installe le certificat CA sur ton téléphone (Paramètres > Sécurité > Certificats) ou utilise Let's Encrypt.`
+      };
+    }
+    return { success: false, error: `Service Worker : ${msg}` };
   }
 
   // 4. S'abonner via pushManager

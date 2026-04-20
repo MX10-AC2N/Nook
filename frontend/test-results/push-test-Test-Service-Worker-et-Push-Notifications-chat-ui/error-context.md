@@ -84,46 +84,46 @@ Error: page.evaluate: Test timeout of 60000ms exceeded.
               - generic [ref=e72]: Initiales
           - generic [ref=e73]: Choisissez votre avatar
           - generic [ref=e74]:
-            - button "Theo" [ref=e75] [cursor=pointer]:
-              - img "Theo" [ref=e76]
-            - button "Ziggy" [ref=e77] [cursor=pointer]:
-              - img "Ziggy" [ref=e78]
-            - button "Nina" [ref=e79] [cursor=pointer]:
-              - img "Nina" [ref=e80]
-            - button "Ivy" [ref=e81] [cursor=pointer]:
-              - img "Ivy" [ref=e82]
-            - button "Kiki" [ref=e83] [cursor=pointer]:
-              - img "Kiki" [ref=e84]
-            - button "Juno" [ref=e85] [cursor=pointer]:
-              - img "Juno" [ref=e86]
-            - button "Ash" [ref=e87] [cursor=pointer]:
-              - img "Ash" [ref=e88]
-            - button "Cosmo" [ref=e89] [cursor=pointer]:
-              - img "Cosmo" [ref=e90]
-            - button "Jazz" [ref=e91] [cursor=pointer]:
-              - img "Jazz" [ref=e92]
-            - button "Spark" [ref=e93] [cursor=pointer]:
-              - img "Spark" [ref=e94]
-            - button "Sol" [ref=e95] [cursor=pointer]:
-              - img "Sol" [ref=e96]
-            - button "Nova" [ref=e97] [cursor=pointer]:
-              - img "Nova" [ref=e98]
-            - button "Zoe" [ref=e99] [cursor=pointer]:
-              - img "Zoe" [ref=e100]
-            - button "Nori" [ref=e101] [cursor=pointer]:
-              - img "Nori" [ref=e102]
-            - button "Mika" [ref=e103] [cursor=pointer]:
-              - img "Mika" [ref=e104]
-            - button "Bree" [ref=e105] [cursor=pointer]:
-              - img "Bree" [ref=e106]
-            - button "Oscar" [ref=e107] [cursor=pointer]:
-              - img "Oscar" [ref=e108]
-            - button "Felix" [ref=e109] [cursor=pointer]:
-              - img "Felix" [ref=e110]
-            - button "Pixel" [ref=e111] [cursor=pointer]:
-              - img "Pixel" [ref=e112]
-            - button "Vega" [ref=e113] [cursor=pointer]:
-              - img "Vega" [ref=e114]
+            - button "Kiki" [ref=e75] [cursor=pointer]:
+              - img "Kiki" [ref=e76]
+            - button "Ivy" [ref=e77] [cursor=pointer]:
+              - img "Ivy" [ref=e78]
+            - button "Finn" [ref=e79] [cursor=pointer]:
+              - img "Finn" [ref=e80]
+            - button "Ella" [ref=e81] [cursor=pointer]:
+              - img "Ella" [ref=e82]
+            - button "Vega" [ref=e83] [cursor=pointer]:
+              - img "Vega" [ref=e84]
+            - button "Jazz" [ref=e85] [cursor=pointer]:
+              - img "Jazz" [ref=e86]
+            - button "Cosmo" [ref=e87] [cursor=pointer]:
+              - img "Cosmo" [ref=e88]
+            - button "Ziggy" [ref=e89] [cursor=pointer]:
+              - img "Ziggy" [ref=e90]
+            - button "Axel" [ref=e91] [cursor=pointer]:
+              - img "Axel" [ref=e92]
+            - button "Nova" [ref=e93] [cursor=pointer]:
+              - img "Nova" [ref=e94]
+            - button "Leo" [ref=e95] [cursor=pointer]:
+              - img "Leo" [ref=e96]
+            - button "Oscar" [ref=e97] [cursor=pointer]:
+              - img "Oscar" [ref=e98]
+            - button "Felix" [ref=e99] [cursor=pointer]:
+              - img "Felix" [ref=e100]
+            - button "Mochi" [ref=e101] [cursor=pointer]:
+              - img "Mochi" [ref=e102]
+            - button "Ash" [ref=e103] [cursor=pointer]:
+              - img "Ash" [ref=e104]
+            - button "Max" [ref=e105] [cursor=pointer]:
+              - img "Max" [ref=e106]
+            - button "Juno" [ref=e107] [cursor=pointer]:
+              - img "Juno" [ref=e108]
+            - button "Kai" [ref=e109] [cursor=pointer]:
+              - img "Kai" [ref=e110]
+            - button "Mika" [ref=e111] [cursor=pointer]:
+              - img "Mika" [ref=e112]
+            - button "Luna" [ref=e113] [cursor=pointer]:
+              - img "Luna" [ref=e114]
           - button "🔄 Autres propositions" [ref=e115] [cursor=pointer]
         - heading "Informations du profil" [level=2] [ref=e116]
         - generic [ref=e117]:
