@@ -136,10 +136,10 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     console.log('[push] SW ready:', reg.scope);
   } catch (err: any) {
     const msg = err?.message ?? String(err);
-    if (msg.includes('timeout') || msg.includes('certificat')) {
+    if (msg.includes('timeout') || msg.includes('certificat') || msg.includes('SSL')) {
       return {
         success: false,
-        error: `Service Worker impossible — ton certificat SSL auto-signé n'est pas approuvé par le navigateur. Solution : installe le certificat CA sur ton téléphone (Paramètres > Sécurité > Certificats) ou utilise Let's Encrypt.`
+        error: `Le certificat SSL n'est pas approuvé. Installez le CA : ouvrez https://${location.host}/ca dans votre navigateur, téléchargez le fichier, puis installez-le dans Paramètres > Sécurité > Certificats.`
       };
     }
     return { success: false, error: `Service Worker : ${msg}` };
