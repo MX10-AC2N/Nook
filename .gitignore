@@ -11,3 +11,5 @@ build/
 
 # Certificats auto-signés (générés par gen-cert.sh ou nginx-entrypoint.sh)
 nginx-ssl/
+# Generated SSL certificates
+nginx-local/certs/
