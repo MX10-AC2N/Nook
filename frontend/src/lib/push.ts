@@ -83,19 +83,58 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     return { success: false, error: 'Impossible de récupérer la clé VAPID' };
   }
 
-  // 3. S'abonner via pushManager
+  // 3. Enregistrer le SW si nécessaire
+  let reg: ServiceWorkerRegistration;
+  try {
+    // Vérifier si un SW est déjà enregistré
+    reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      // Enregistrer le SW maintenant
+      reg = await navigator.serviceWorker.register('/service-worker.js', { scope: '/' });
+      console.log('[push] SW registered:', reg.scope);
+    }
+
+    // Attendre que le SW soit actif (max 10s)
+    if (!reg.active) {
+      console.log('[push] Waiting for SW to activate...');
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          if (reg.installing) {
+            reg.installing.addEventListener('statechange', () => {
+              if (reg.installing?.state === 'activated') {
+                console.log('[push] SW activated');
+                resolve();
+              }
+            });
+          } else if (reg.waiting) {
+            reg.waiting.addEventListener('statechange', () => {
+              if (reg.waiting?.state === 'activated') {
+                console.log('[push] SW activated');
+                resolve();
+              }
+            });
+          } else {
+            resolve(); // Already active
+          }
+        }),
+        new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('SW activation timeout (10s)')), 10000)
+        )
+      ]);
+    }
+
+    if (!reg.active) {
+      return { success: false, error: 'Service Worker non actif après 10s' };
+    }
+
+    console.log('[push] SW ready:', reg.scope);
+  } catch (err: any) {
+    return { success: false, error: `Service Worker : ${err?.message ?? err}` };
+  }
+
+  // 4. S'abonner via pushManager
   let subscription: PushSubscription;
   try {
-    // Attendre le SW avec timeout (évite le blocage infini si SW pas enregistré)
-    const reg = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<null>((_, reject) => 
-        setTimeout(() => reject(new Error('Service Worker timeout (10s)')), 10000)
-      )
-    ]);
-    if (!reg) {
-      return { success: false, error: 'Service Worker non prêt après 10s' };
-    }
     subscription = await reg.pushManager.subscribe({
       userVisibleOnly:      true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
