@@ -366,15 +366,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let limiter_clone = ip_limiter.clone();
     let public_routes = Router::new()
-        .route(\"/auth/register\", post(auth::register))
-        .route(\"/auth/login\", post(auth::login))
-        .route(\"/join\", post(invites::join))
-        .route(\"/invite/validate\", get(invites::validate_invite))
-        .route(\"/invite/accept\", axum::routing::post(invites::accept_invite))
-        .route(\"/health\", get(|| async { \"OK\" }))
-        .route(\"/ca\", get(ca::get_ca_cert))
-        .route(\"/ca/help\", get(ca::ca_help))
-        .nest(\"/push\", push::public_router())
+        .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
+        .route("/join", post(invites::join))
+        .route("/invite/validate", get(invites::validate_invite))
+        .route("/invite/accept", axum::routing::post(invites::accept_invite))
+        .route("/health", get(|| async { "OK" }))
+        .route("/ca", get(ca::get_ca_cert))
+        .route("/ca/help", get(ca::ca_help))
+        .nest("/push", push::public_router())
         .route_layer(middleware::from_fn(move |
             ConnectInfo(addr): ConnectInfo<SocketAddr>,
             req: Request<Body>,
