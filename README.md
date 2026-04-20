@@ -38,10 +38,10 @@ C'est comme avoir son propre WhatsApp, mais en mieux, parce que c'est le vôtre.
 ## Ce qu'on peut faire avec Nook
 
 **💬 Discuter en famille**
-Envoyez des messages en temps réel, réagissez avec des emojis, partagez des photos et des fichiers (jusqu'à 50 Mo). Il y a un groupe global pour tout le monde, et vous pouvez aussi créer des conversations privées.
+Envoyez des messages en temps réel, réagissez avec des emojis, partagez des photos et des fichiers. Il y a un groupe global pour tout le monde, et vous pouvez aussi créer des conversations privées.
 
 **🔐 Sans compromis sur la vie privée**
-Les messages sont chiffrés de bout en bout (X25519). Les fichiers (jusqu'à 50 Mo) sont chiffrés sur le disque (XChaCha20). Les mots de passe ne sont jamais stockés en clair (Argon2id). Même toi, en tant qu'admin, tu ne peux pas les lire.
+Les messages sont chiffrés de bout en bout (X25519). Les fichiers (jusqu'à 50 Mo) sont chiffrés sur le disque (XChaCha20). Les fichiers volumineux (>50 Mo) sont transférés directement entre appareils via WebRTC (P2P) avec chiffrement E2EE. Les mots de passe ne sont jamais stockés en clair (Argon2id). Même toi, en tant qu'admin, tu ne peux pas les lire.
 
 **🔔 Notifications sur ton téléphone**
 Reçois une notification quand quelqu'un t'écrit — même quand l'onglet est fermé. Ça s'active depuis les Paramètres de Nook.
