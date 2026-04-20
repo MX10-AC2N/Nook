@@ -23,7 +23,7 @@ pub async fn get_ca_cert() -> Response {
                 .header(header::CONTENT_TYPE, "application/x-x509-ca-cert")
                 .header(
                     header::CONTENT_DISPOSITION,
-                    format!("attachment; filename="{}"", filename),
+                    format!("attachment; filename=\"{}\"", filename),
                 )
                 .body(axum::body::Body::from(cert_data))
                 .unwrap()
