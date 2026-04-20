@@ -40,8 +40,8 @@ C'est comme avoir son propre WhatsApp, mais en mieux, parce que c'est le vôtre.
 **💬 Discuter en famille**
 Envoyez des messages en temps réel, réagissez avec des emojis, partagez des photos et des fichiers (jusqu'à 50 Mo). Il y a un groupe global pour tout le monde, et vous pouvez aussi créer des conversations privées.
 
-**🔐 Votre vie privée, vraiment privée**
-Les messages sont chiffrés de bout en bout. Les fichiers sont chiffrés sur le disque. Les mots de passe ne sont jamais stockés en clair. Même toi, en tant qu'admin, tu ne peux pas lire les messages des autres.
+**🔐 Sans compromis sur la vie privée**
+Les messages sont chiffrés de bout en bout (X25519). Les fichiers (jusqu'à 50 Mo) sont chiffrés sur le disque (XChaCha20). Les mots de passe ne sont jamais stockés en clair (Argon2id). Même toi, en tant qu'admin, tu ne peux pas les lire.
 
 **🔔 Notifications sur ton téléphone**
 Reçois une notification quand quelqu'un t'écrit — même quand l'onglet est fermé. Ça s'active depuis les Paramètres de Nook.
@@ -116,11 +116,39 @@ Les essentielles :
 | `PUBLIC_SITE_URL` | L'URL depuis laquelle tu accèdes à Nook (`http://192.168.1.x:6300` ou ton domaine) |
 | `ALLOWED_ORIGINS` | Si tu accèdes depuis plusieurs URLs (LAN + domaine externe), liste-les ici |
 | `DATA_DIR` | Où stocker la base de données et les fichiers uploadés |
-| `VAPID_PRIVATE_KEY` | Pour les notifications push — générer avec `npx web-push generate-vapid-keys` |
+| `VAPID_PRIVATE_KEY` | Pour les notifications push — voir ci-dessous pour générer les clés |
 | `VAPID_PUBLIC_KEY` | Idem — les deux vont ensemble |
 | `GIPHY_API_KEY` | Pour les GIFs — clé SDK gratuite sur [developers.giphy.com](https://developers.giphy.com) |
 
 > Le fichier `.env` reste sur ton serveur. Ne le committe jamais dans git.
+
+---
+
+## Génération des clés VAPID
+
+Les clés VAPID servent à authentifier les notifications push. Tu n'as besoin de les générer qu'une seule fois.
+
+**Option 1 — Avec OpenSSL (recommandé) :**
+```bash
+# Générer la clé privée
+openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
+
+# Extraire la clé privée en base64url (pour VAPID_PRIVATE_KEY)
+openssl ec -in vapid_private.pem -outform DER | tail -c +8 | head -c 32 | base64 -w0 | tr '+/' '-_' | tr -d '='
+
+# Extraire la clé publique en base64url (pour VAPID_PUBLIC_KEY)
+openssl ec -in vapid_private.pem -pubout -outform DER | tail -c 65 | base64 -w0 | tr '+/' '-_' | tr -d '='
+```
+
+**Option 2 — Avec Node.js (si tu l'as installé) :**
+```bash
+npx web-push generate-vapid-keys
+```
+
+**Option 3 — En ligne :**
+Va sur [vapidkeys.com](https://www.vapidkeys.com/) et copie les clés générées.
+
+> Copie les deux clés dans ton `.env` et redémarre Nook avec `docker compose up -d`.
 
 ---
 
@@ -187,26 +215,19 @@ Le dossier `nginx-ssl/` est persistant (volume Docker) et ignoré par git.
 
 ---
 
-## GIFs — Mise à jour hebdomadaire automatique
+## GIFs — Mise à jour automatique
 
 Les GIFs sont stockés dans le volume de données (`DATA_DIR/gifs/`) et servis directement par Nook — aucune requête externe n'est envoyée quand un membre envoie un GIF.
 
-**Première installation** : le dossier est vide. Lance le script une première fois pour peupler la collection :
+**Bonne nouvelle** : la mise à jour des GIFs est **automatique**. Le backend lance une tâche au démarrage qui vérifie toutes les 7 jours si de nouveaux GIFs sont disponibles sur Giphy.
 
-```bash
-# Sur la machine (dans le dossier Nook)
-GIPHY_API_KEY=*** bash scripts/update-gifs.sh
-```
-
-**Mise à jour automatique** — ajoute un cron sur ta machine :
-
-```bash
-crontab -e
-# Ajouter cette ligne (lundi à 3h du matin) :
-0 3 * * 1 cd /chemin/vers/Nook && bash scripts/update-gifs.sh >> logs/gifs-update.log 2>&1
-```
+**Ce qu'il faut :**
+1. Une clé API Giphy (gratuite) dans ton `.env` : `GIPHY_API_KEY=ta-cle-ici`
+2. Redémarrer Nook : `docker compose up -d`
 
 Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires Giphy (réactions, humour, animaux, fête, anniversaire…). Aucun rebuild Docker nécessaire — les GIFs sont servis directement depuis le volume.
+
+> **Note** : Si tu n'as pas de clé Giphy, les GIFs par défaut (inclus dans l'image Docker) seront utilisés.
 
 ---
 
