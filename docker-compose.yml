@@ -10,6 +10,7 @@ services:
     volumes:
       - "${DATA_DIR:-./nook-data}:/app/data"
       - "${LOGS_DIR:-./nook-logs}:/app/logs"
+      - "${NGINX_SSL_DIR:-./nginx-ssl}:/app/ssl:ro"
 
     environment:
       - TZ=${TZ:-Europe/Paris}
