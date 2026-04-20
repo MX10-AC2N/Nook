@@ -139,7 +139,7 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     if (msg.includes('timeout') || msg.includes('certificat') || msg.includes('SSL')) {
       return {
         success: false,
-        error: `Le certificat SSL n'est pas approuvé. Installez le CA : ouvrez https://${location.host}/ca dans votre navigateur, téléchargez le fichier, puis installez-le dans Paramètres > Sécurité > Certificats.`
+        error: `Certificat non approuvé → ouvrez https://${location.host}/ca pour installer le CA (instructions incluses).`
       };
     }
     return { success: false, error: `Service Worker : ${msg}` };
