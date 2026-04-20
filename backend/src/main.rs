@@ -535,6 +535,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
         )
         .merge(webrtc::webrtc_ws_routes())
+        .route("/ca", get(ca::get_ca_cert))
+        .route("/ca/help", get(ca::ca_help))
         .fallback_service(static_service)
 
         // 🛡️ Security headers middleware
