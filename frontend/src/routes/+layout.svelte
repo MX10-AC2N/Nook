@@ -112,6 +112,34 @@
     initThemeGlobal();
 
     // ─────────────────────────────────────────────────────────────────────
+    // Service Worker Registration (pour les notifications push)
+    // ─────────────────────────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      try {
+        const registration = await navigator.serviceWorker.register('/service-worker.js', {
+          scope: '/',
+        });
+        console.log('[SW] Service worker registered:', registration.scope);
+        
+        if (registration.active) {
+          console.log('[SW] Service worker is active');
+        } else if (registration.installing) {
+          console.log('[SW] Service worker is installing...');
+          registration.installing.addEventListener('statechange', () => {
+            console.log('[SW] Service worker state:', registration.installing?.state);
+            if (registration.installing?.state === 'activated') {
+              console.log('[SW] Service worker is now active');
+            }
+          });
+        }
+      } catch (error) {
+        console.error('[SW] Service worker registration failed:', error);
+      }
+    } else {
+      console.warn('[SW] Service workers not supported');
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // ARCHITECTURE : sodium en fire-and-forget, authStore.init() en priorité
     //
     // PROBLÈME PRÉCÉDENT (Bug R37) :

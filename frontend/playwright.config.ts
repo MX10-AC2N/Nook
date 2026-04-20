@@ -52,7 +52,7 @@ export default defineConfig({
     },
     {
       name: 'chat-ui',
-      testMatch: '**/chat-ui.spec.ts',
+      testMatch: ['**/chat-ui.spec.ts', '**/push-test.spec.ts'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],

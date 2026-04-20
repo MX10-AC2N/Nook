@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#4ade80" />
+
+    <!-- Session 36 : base-placeholder supprimé — SvelteKit adapter-static génère
+         des assets avec paths absolus (/_app/...) qui n'ont pas besoin de <base href>.
+         Le middleware base_inject_middleware a été supprimé de main.rs.
+
+         Session 37 : meta CSP supprimée — SvelteKit adapter-static génère des scripts
+         inline (hydratation, __sveltekit_data) bloqués par script-src 'self'.
+         Sur homeserver familial self-hosted, la sécurité vient de l'auth backend
+         + HTTPS Nginx + réseau LAN. La CSP meta apportait une fausse protection
+         tout en cassant 100% des tests E2E (0 requêtes backend en CI headless). -->
+    <link href="/_app/immutable/entry/start.CJSu7Jwe.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/vBMwbmpl.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/BiJu5QHs.js" rel="modulepreload">
+		<link href="/_app/immutable/entry/app.CsGRVjM1.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/PPVm8Dsz.js" rel="modulepreload">
+		
+  </head>
+
+  <body data-sveltekit-preload-data="hover" class="theme-jardin">
+    <div style="display: contents">
+			<script>
+				{
+					__sveltekit_1bc0uk3 = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.CJSu7Jwe.js"),
+						import("/_app/immutable/entry/app.CsGRVjM1.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+  </body>
+</html>
