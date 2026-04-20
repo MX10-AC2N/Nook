@@ -1,18 +1,18 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 957ffc8 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24637811405)
+> **unknown** | commit e52bbbc | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24665976237)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ✅ OK |
-| **cargo check** | ✅ exit=0 |
-| **cargo clippy** | ✅ exit=0 |
+| **cargo build** | ❌ FAIL |
+| **cargo check** | ❌ exit=101 |
+| **cargo clippy** | ❌ exit=101 |
 
 | Métrique | Valeur |
 |----------|--------|
-| **Bin Size** | 14M |
+| **Bin Size** | N/A |
 | **Compile Time** | N/A |
 | **Warnings (check)** | N/A |
 | **Errors (check)** | N/A |
@@ -33,13 +33,13 @@
 ## ❌ Erreurs cargo check
 
 ```
-(aucune erreur)
+error[E0762]: unterminated character literal
 ```
 
 ## ❌ Erreurs cargo build
 
 ```
-(aucune erreur)
+error[E0762]: unterminated character literal
 ```
 
 ## 🔧 Clippy warnings
@@ -71,7 +71,7 @@
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 16s
+
 ```
 
 ---
