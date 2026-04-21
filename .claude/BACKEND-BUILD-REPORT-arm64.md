@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit d3d9c4d | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24709508326)
+> **unknown** | commit 7ae3783 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24734717008)
 
 ## Récapitulatif statuts
 
@@ -8,7 +8,7 @@
 |-------|----------|
 | **cargo build** | ✅ OK |
 | **cargo check** | ✅ exit=0 |
-| **cargo clippy** | ✅ exit=0 |
+| **cargo clippy** | ❌ exit=101 |
 
 | Métrique | Valeur |
 |----------|--------|
@@ -71,7 +71,7 @@
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 3m 02s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 32s
 ```
 
 ---
