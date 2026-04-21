@@ -31,7 +31,7 @@
   }
 
   function getSeed(): string {
-    return seed || userId || username || 'nook';
+    return seed || username || userId || 'nook';
   }
 
   function getDicebearUrl(): string {
