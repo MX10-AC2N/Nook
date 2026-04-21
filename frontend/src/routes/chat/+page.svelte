@@ -589,8 +589,12 @@
       return;
     }
     
-    if (file.size > MAX_BYTES_SERVER && !hasP2PConnection) {
-      chatStore.connectionError = `Fichier > 50 Mo nécessite une connexion P2P. Lancez un appel d'abord.`;
+    // Vérifier si on peut faire un transfert P2P
+    const canDoP2P = hasP2PConnection || file.size > MAX_BYTES_SERVER;
+    
+    if (file.size > MAX_BYTES_SERVER && !canDoP2P) {
+      // Fichier > 50 Mo mais pas de connexion P2P disponible
+      chatStore.connectionError = `Fichier > 50 Mo nécessite une connexion P2P. Lancez un appel d'abord ou utilisez un fichier plus petit.`;
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
@@ -658,8 +662,41 @@
       }
     }
     
+    // Si aucun canal disponible, essayer de créer une connexion dédiée
     if (!channel || !targetUserId) {
-      chatStore.connectionError = 'Aucune connexion P2P disponible. Lancez un appel d\'abord.';
+      // Trouver l'utilisateur cible (premier participant de la conversation)
+      const participants = chatStore.participants.get(activeConvId);
+      if (!participants || participants.length === 0) {
+        chatStore.connectionError = 'Aucun participant trouvé dans la conversation.';
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+      
+      // Prendre le premier participant qui n'est pas l'utilisateur actuel
+      targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
+      if (!targetUserId) {
+        chatStore.connectionError = 'Aucun destinataire trouvé pour le transfert P2P.';
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+      
+      try {
+        // Créer une connexion dédiée au transfert de fichiers
+        chatStore.connectionError = 'Établissement de la connexion P2P...';
+        channel = await callManager.createFileTransferConnection(targetUserId);
+        chatStore.connectionError = null;
+      } catch (error) {
+        chatStore.connectionError = `Impossible d'établir la connexion P2P: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+    }
+    
+    if (!channel || !targetUserId) {
+      chatStore.connectionError = 'Aucune connexion P2P disponible.';
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
