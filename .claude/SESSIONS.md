@@ -1721,3 +1721,48 @@ L'utilisateur a redéployé Nook et demandé de :
 
 ---
 
+
+## Session — 2026-04-21 (Audit global + corrections avatars admin)
+
+### Contexte
+L'utilisateur a redéployé Nook et a demandé un test complet + audit de sécurité.
+
+### Progrès Réalisés
+- **Test de l'application déployée** : Serveur accessible, API fonctionnelle, auth OK
+- **Correction avatars admin** : Ajout de `avatar_style` et `avatar_seed` dans les requêtes SQL de `all_users` et `pending_users` (backend/src/admin.rs)
+- **Audit de sécurité complet** (Score: 82/100) :
+  - 2 CRITIQUE : secrets TURN en dur, log mot de passe admin
+  - 3 HAUTE : CORS localhost, CSP unsafe-inline, .env.example faible
+  - 5 MOYENNE : path traversal, CSRF, rate limiting
+- **Audit Docker** (Score: 75/100) :
+  - 3 CRITIQUE : TURN_SECRET dans docker-compose, chmod 0777, pas de .dockerignore
+  - 2 HAUTE : nginx root, TURN build root
+- **Audit dépendances** (Score: 70/100) :
+  - 1 CRITIQUE : simple-peer non maintenu, Icon.svelte injection HTML
+  - 3 HAUTE : dépendances Rust inutilisées
+- **Configuration hermes update** : Initialisation dépôt git dans /opt/hermes
+
+### Décisions Clés
+- Prioriser la correction des secrets en dur (TURN_SECRET, mot de passe admin)
+- Utiliser des variables d'environnement pour tous les secrets
+- Corriger les permissions Docker (0777 → 0750)
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Avatars admin manquants | backend/src/admin.rs | Ajout avatar_style/avatar_seed dans SQL |
+
+### Fichiers Modifiés
+- `backend/src/admin.rs` : +10/-4 lignes (ajout champs avatar dans SimpleUser et requêtes SQL)
+
+### Prochaines Étapes
+- [ ] Remplacer secrets en dur par variables d'environnement
+- [ ] Corriger permissions Docker (chmod 0777)
+- [ ] Supprimer log mot de passe admin dans main.rs
+- [ ] Restreindre CORS en production
+- [ ] Remplacer simple-peer par alternative maintenue
+
+### État Final
+- Branche: develop (à jour avec origin/develop)
+- CI: Backend #499 ✅, Docker #234 ✅
+- Git: fichiers test-results à nettoyer
