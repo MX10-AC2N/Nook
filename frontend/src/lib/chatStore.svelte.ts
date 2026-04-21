@@ -50,9 +50,47 @@ export interface ChatState {
 
 import { writable, get } from 'svelte/store';
 import { callManager } from '$lib/webrtc-calls.svelte.ts';
+import { cryptoStore } from '$lib/cryptoStore.svelte';
 
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
+
+// ─── Déchiffrement automatique quand le cryptoStore devient prêt ──────────
+// Quand l'utilisateur se reconnecte après un rafraîchissement, les messages
+// sont chargés chiffrés. Dès que cryptoStore.ready devient true, on déchiffre.
+let _cryptoReadyUnsub: (() => void) | null = null;
+
+function _setupCryptoReadyListener(): void {
+  if (_cryptoReadyUnsub) return;
+  // Svelte 5 runes : on ne peut pas faire de $effect hors d'un composant.
+  // On utilise un polling léger (1s) pour détecter ready → true.
+  const interval = setInterval(() => {
+    if (!cryptoStore.ready) return;
+    clearInterval(interval);
+    _cryptoReadyUnsub = null;
+    // Déchiffrer tous les messages chiffrés en attente
+    const msgs = get(messagesStore);
+    const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
+    if (encrypted.length === 0) return;
+    console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages`);
+    import('$lib/cryptoStore.svelte').then(async ({ decryptMessage }) => {
+      for (const msg of encrypted) {
+        try {
+          msg.content = await decryptMessage({
+            messageId: msg.id, conversationId: msg.conversation_id,
+            ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+          });
+          msg.encrypted = false;
+        } catch { msg.content = '🔒 Message chiffré (clé indisponible)'; }
+      }
+      messagesStore.set([...msgs]);
+    });
+  }, 1000);
+  _cryptoReadyUnsub = () => { clearInterval(interval); _cryptoReadyUnsub = null; };
+}
+
+// Démarrer le listener au chargement du module
+_setupCryptoReadyListener();
 
 // Other state as $state (less critical for cross-file reactivity)
 export const chatStore = $state<Omit<ChatState, 'messages'>>({
