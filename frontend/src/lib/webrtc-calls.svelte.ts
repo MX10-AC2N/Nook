@@ -336,13 +336,20 @@ class WebRTCCallManager {
   public async createFileTransferConnection(targetUserId: string): Promise<RTCDataChannel> {
     console.log(`[CallManager] Creating dedicated file transfer connection to ${targetUserId}`);
     
+    // Récupérer la config ICE (TURN) depuis le backend
+    const iceConfig = await fetchIceConfig();
+    const iceServers: RTCIceServer[] = [
+      { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+    ];
+    if (iceConfig.username && iceConfig.credential) {
+      iceServers.push(
+        { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+        { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential }
+      );
+    }
+    
     // Créer une connexion PeerConnection dédiée (sans audio/vidéo)
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
-    });
+    const pc = new RTCPeerConnection({ iceServers });
     
     // Créer un DataChannel pour le transfert de fichiers
     const fileChan = pc.createDataChannel('file-transfer', {
@@ -613,13 +620,20 @@ class WebRTCCallManager {
     console.log(`[FileTransfer] Received offer from ${signal.from_user_id}`);
     
     try {
+      // Récupérer la config ICE (TURN) depuis le backend
+      const iceConfig = await fetchIceConfig();
+      const iceServers: RTCIceServer[] = [
+        { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+      ];
+      if (iceConfig.username && iceConfig.credential) {
+        iceServers.push(
+          { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+          { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential }
+        );
+      }
+      
       // Créer une connexion PeerConnection dédiée
-      const pc = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      });
+      const pc = new RTCPeerConnection({ iceServers });
       
       // Gérer le DataChannel entrant
       pc.ondatachannel = (event) => {

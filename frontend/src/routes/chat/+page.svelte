@@ -574,12 +574,11 @@
     if (!input.files?.length) return;
     const file = input.files[0];
 
-    // Constantes
-    const MAX_BYTES_SERVER = 50 * 1024 * 1024; // 50 Mo pour upload serveur
-    const MAX_BYTES_P2P = 500 * 1024 * 1024; // 500 Mo max pour P2P
-    
     // Vérifier si on a une connexion P2P active
     const hasP2PConnection = callStore.isInCall && callStore.fileDataChannels.size > 0;
+    
+    // Vérifier si la conversation est un groupe (P2P interdit en groupe)
+    const isGroup = activeConv?.is_group === true;
     
     // Logique de routage
     if (file.size > MAX_BYTES_P2P) {
@@ -590,11 +589,18 @@
     }
     
     // Vérifier si on peut faire un transfert P2P
-    const canDoP2P = hasP2PConnection || file.size > MAX_BYTES_SERVER;
+    const canDoP2P = !isGroup && (hasP2PConnection || file.size > MAX_BYTES_SERVER);
+    
+    if (file.size > MAX_BYTES_SERVER && isGroup) {
+      chatStore.connectionError = `Fichier > 50 Mo impossible en groupe. Utilisez un fichier plus petit ou envoyez en privé.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
     
     if (file.size > MAX_BYTES_SERVER && !canDoP2P) {
       // Fichier > 50 Mo mais pas de connexion P2P disponible
-      chatStore.connectionError = `Fichier > 50 Mo nécessite une connexion P2P. Lancez un appel d'abord ou utilisez un fichier plus petit.`;
+      chatStore.connectionError = `Fichier > 50 Mo nécessite une conversation 1-à-1.`;
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
