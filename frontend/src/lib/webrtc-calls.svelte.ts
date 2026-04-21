@@ -328,6 +328,94 @@ class WebRTCCallManager {
     return pc;
   }
 
+  /**
+   * Crée une connexion WebRTC dédiée au transfert de fichiers (sans audio/vidéo).
+   * @param targetUserId - ID de l'utilisateur cible
+   * @returns DataChannel prêt pour le transfert de fichiers
+   */
+  public async createFileTransferConnection(targetUserId: string): Promise<RTCDataChannel> {
+    console.log(`[CallManager] Creating dedicated file transfer connection to ${targetUserId}`);
+    
+    // Créer une connexion PeerConnection dédiée (sans audio/vidéo)
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    });
+    
+    // Créer un DataChannel pour le transfert de fichiers
+    const fileChan = pc.createDataChannel('file-transfer', {
+      ordered: true,
+      maxRetransmits: 3,
+    });
+    fileChan.binaryType = 'arraybuffer';
+    
+    // Stocker le canal dans le store
+    const newFileDataChannels = new Map(callStore.fileDataChannels);
+    newFileDataChannels.set(targetUserId, fileChan);
+    callStore.fileDataChannels = newFileDataChannels;
+    
+    // Gestion des messages entrants
+    fileChan.onmessage = (ev) => {
+      import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+        handleFileTransferMessage(ev.data);
+      }).catch(e => console.error('[FileTransfer] Error:', e));
+    };
+    
+    fileChan.onopen = () => {
+      console.log(`[FileTransfer] Dedicated channel open to ${targetUserId}`);
+    };
+    
+    fileChan.onclose = () => {
+      const updated = new Map(callStore.fileDataChannels);
+      updated.delete(targetUserId);
+      callStore.fileDataChannels = updated;
+      console.log(`[FileTransfer] Dedicated channel closed to ${targetUserId}`);
+    };
+    
+    // Gestion des ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+        this.sendSignal({
+          type: 'file-transfer-ice',
+          to_user_id: targetUserId,
+          candidate: event.candidate,
+        });
+      }
+    };
+    
+    // Créer et envoyer l'offre SDP
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    
+    this.sendSignal({
+      type: 'file-transfer-offer',
+      to_user_id: targetUserId,
+      sdp: offer.sdp,
+    });
+    
+    // Stocker la connexion pour le traitement des réponses
+    const newPeerConnections = new Map(callStore.peerConnections);
+    newPeerConnections.set(`file-${targetUserId}`, pc);
+    callStore.peerConnections = newPeerConnections;
+    
+    // Attendre que le canal soit ouvert (timeout 10s)
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout: File transfer channel not opened'));
+      }, 10000);
+      
+      const checkOpen = setInterval(() => {
+        if (fileChan.readyState === 'open') {
+          clearInterval(checkOpen);
+          clearTimeout(timeout);
+          resolve(fileChan);
+        }
+      }, 100);
+    });
+  }
+
   /** Envoie un signal via le WebSocket (signalling). */
   private sendSignal(signal: Partial<CallSignal>) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
@@ -383,6 +471,16 @@ class WebRTCCallManager {
       case 'call_rejected':
         this.stopRingtone();
         this.handleDecline(signal);
+        break;
+      // ── Transfert de fichiers P2P ──────────────────────────────
+      case 'file-transfer-offer':
+        await this.handleFileTransferOffer(signal);
+        break;
+      case 'file-transfer-answer':
+        await this.handleFileTransferAnswer(signal);
+        break;
+      case 'file-transfer-ice':
+        await this.handleFileTransferIceCandidate(signal);
         break;
       // ── Sonnerie : appel entrant ──────────────────────────────
       case 'call_request':
@@ -502,6 +600,130 @@ class WebRTCCallManager {
       await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
     } catch (err) {
       console.error('Erreur ICE candidate :', err);
+    }
+  }
+
+  /**
+   * Gère un offre de transfert de fichiers P2P.
+   * Crée une connexion PeerConnection et répond avec une réponse SDP.
+   */
+  private async handleFileTransferOffer(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.sdp) return;
+    
+    console.log(`[FileTransfer] Received offer from ${signal.from_user_id}`);
+    
+    try {
+      // Créer une connexion PeerConnection dédiée
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      });
+      
+      // Gérer le DataChannel entrant
+      pc.ondatachannel = (event) => {
+        const ch = event.channel;
+        ch.binaryType = 'arraybuffer';
+        
+        // Stocker le canal dans le store
+        const newFileDataChannels = new Map(callStore.fileDataChannels);
+        newFileDataChannels.set(signal.from_user_id!, ch);
+        callStore.fileDataChannels = newFileDataChannels;
+        
+        // Gérer les messages entrants
+        ch.onmessage = (ev) => {
+          import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+            handleFileTransferMessage(ev.data);
+          }).catch(e => console.error('[FileTransfer] Error:', e));
+        };
+        
+        ch.onopen = () => {
+          console.log(`[FileTransfer] Channel opened from ${signal.from_user_id}`);
+        };
+        
+        ch.onclose = () => {
+          const updated = new Map(callStore.fileDataChannels);
+          updated.delete(signal.from_user_id!);
+          callStore.fileDataChannels = updated;
+          console.log(`[FileTransfer] Channel closed from ${signal.from_user_id}`);
+        };
+      };
+      
+      // Gérer les ICE candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+          this.sendSignal({
+            type: 'file-transfer-ice',
+            to_user_id: signal.from_user_id,
+            candidate: event.candidate,
+          });
+        }
+      };
+      
+      // Stocker la connexion
+      const newPeerConnections = new Map(callStore.peerConnections);
+      newPeerConnections.set(`file-${signal.from_user_id}`, pc);
+      callStore.peerConnections = newPeerConnections;
+      
+      // Traiter l'offre et créer une réponse
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'offer',
+        sdp: signal.sdp,
+      }));
+      
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      // Envoyer la réponse
+      this.sendSignal({
+        type: 'file-transfer-answer',
+        to_user_id: signal.from_user_id,
+        sdp: answer.sdp,
+      });
+      
+    } catch (error) {
+      console.error('[FileTransfer] Error handling offer:', error);
+    }
+  }
+
+  /**
+   * Gère une réponse de transfert de fichiers P2P.
+   */
+  private async handleFileTransferAnswer(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.sdp) return;
+    
+    console.log(`[FileTransfer] Received answer from ${signal.from_user_id}`);
+    
+    const pc = callStore.peerConnections.get(`file-${signal.from_user_id}`);
+    if (!pc) {
+      console.error(`[FileTransfer] No peer connection for ${signal.from_user_id}`);
+      return;
+    }
+    
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'answer',
+        sdp: signal.sdp,
+      }));
+    } catch (error) {
+      console.error('[FileTransfer] Error handling answer:', error);
+    }
+  }
+
+  /**
+   * Gère un ICE candidate de transfert de fichiers P2P.
+   */
+  private async handleFileTransferIceCandidate(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.candidate) return;
+    
+    const pc = callStore.peerConnections.get(`file-${signal.from_user_id}`);
+    if (!pc) return;
+    
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+    } catch (error) {
+      console.error('[FileTransfer] Error adding ICE candidate:', error);
     }
   }
 

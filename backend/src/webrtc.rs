@@ -477,10 +477,12 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     // ── Routage des signaux WebRTC par to_user_id ─────────────────
                     // Types d'appel : offer, answer, ice, join, leave, decline,
                     //                 call_request, call_accepted, call_rejected
+                    //                 file-transfer-offer, file-transfer-answer, file-transfer-ice
                     let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
-                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
+                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate",
+                        "file-transfer-offer", "file-transfer-answer", "file-transfer-ice"];
 
                     // ── Enregistrer les appels manqués ─────────────────────────
                     if msg_type == "decline" || msg_type == "call_rejected" {
