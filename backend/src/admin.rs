@@ -24,6 +24,8 @@ pub struct SimpleUser {
     pub created_at: i64,
     pub role: String,
     pub approved: bool,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -103,19 +105,21 @@ pub async fn pending_users(
     }
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved FROM users WHERE approved = 0 ORDER BY created_at DESC"
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
     .await
     .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
     .into_iter()
-    .map(|u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
+    .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
         username: u.1,
         name: u.2,
         created_at: u.3,
         role: u.4,
         approved: u.5,
+        avatar_style: u.6,
+        avatar_seed: u.7,
     })
     .collect();
 
@@ -134,7 +138,7 @@ pub async fn all_users(
     }
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved FROM users ORDER BY created_at DESC",
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -146,13 +150,15 @@ pub async fn all_users(
     })?
     .into_iter()
     .map(
-        |u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
+        |u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
             id: u.0,
             username: u.1,
             name: u.2,
             created_at: u.3,
             role: u.4,
             approved: u.5,
+            avatar_style: u.6,
+            avatar_seed: u.7,
         },
     )
     .collect();
