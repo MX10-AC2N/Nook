@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | b9d7c23 |
+| **Commit** | 82aa518 |
 | **Node.js** | unknown |
-| **Vite time** | 5.46ms |
+| **Vite time** | 5.52ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 115 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24709178691 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24733752874 |
 
 ---
 
@@ -37,18 +37,18 @@
 ```
 [32m✓[39m 205 modules transformed.
 [32m✓[39m 239 modules transformed.
-[32m✓ built in 5.46s[39m
+[32m✓ built in 5.52s[39m
 [32m✓[39m 1 modules transformed.
 [32m✓ built in 14ms[39m
-[32m✓ built in 9.61s[39m
+[32m✓ built in 9.21s[39m
 
-[2m.svelte-kit/output/server/[22m[36mindex.js                                          [39m[1m[2m  0.07 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/ThemeStore.svelte.js                       [39m[1m[2m  0.14 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36minternal.js                                       [39m[1m[2m  0.27 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/Icon.js                                    [39m[1m[2m  0.70 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/admin/_page.svelte.js               [39m[1m[2m  0.87 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/chatStore.svelte.js                        [39m[1m[2m  0.91 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/_page.svelte.js                     [39m[1m[2m  0.92 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/PasswordInput.js                           [39m[1m[2m  0.92 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.ts.js                       [39m[1m[2m  0.93 kB[22m[1m[22m
@@ -63,14 +63,14 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/change-password/_page.svelte.js     [39m[1m[2m  3.76 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_page.svelte.js               [39m[1m[2m  3.82 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js              [39m[1m[2m  3.84 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                   [39m[1m[2m  5.80 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                   [39m[1m[2m  5.85 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js            [39m[1m[2m  6.28 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js            [39m[1m[2m  6.30 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js                [39m[1m[2m 12.02 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/file-transfer.svelte.js                    [39m[1m[2m 14.80 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                       [39m[1m[2m 16.58 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 23.21 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 34.24 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 22.83 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 34.29 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m303.16 kB[22m[1m[22m
 ```
 
