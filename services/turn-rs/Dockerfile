@@ -41,4 +41,7 @@ COPY --from=builder /usr/local/bin/turn-server /usr/local/bin/turn-server
 
 EXPOSE 3478/udp 3478/tcp
 
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD pgrep turn-server || exit 1
+
 CMD ["/usr/local/bin/turn-server", "--config=/etc/turn-server/config.toml"]
