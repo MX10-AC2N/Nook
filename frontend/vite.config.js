@@ -31,9 +31,6 @@ export default defineConfig({
           // chart.js — uniquement chargé quand un graphique est affiché
           if (id.includes('chart.js')) return 'chart';
 
-          // simple-peer — uniquement chargé pour les appels WebRTC
-          if (id.includes('simple-peer')) return 'webrtc';
-
           // Svelte runtime — séparé pour maximiser le cache navigateur
           if (id.includes('node_modules/svelte') || id.includes('@sveltejs')) return 'svelte';
 
