@@ -41,6 +41,13 @@ services:
           cpus: "${CPUS_RESERVATION:-0.5}"
           memory: "${MEMORY_RESERVATION:-256M}"
 
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
     networks:
       - nook-network
 
@@ -61,7 +68,16 @@ services:
       - "${NGINX_SSL_DIR:-./nginx-ssl}:/etc/nginx/ssl"
       - "./nginx-entrypoint.sh:/etc/nginx/ssl/nginx-entrypoint.sh:ro"
     depends_on:
-      - nook
+      nook:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
     networks:
       - nook-network
 
@@ -78,8 +94,15 @@ services:
       - "${TURN_CONFIG_DIR:-./turn-config}:/etc/turn-server"
 
     environment:
-      - TURN_SECRET=${TURN_SECRET:-}
+      - TURN_SECRET=***
       - TURN_PORT=${TURN_PORT:-3478}
+
+    healthcheck:
+      test: ["CMD", "pgrep", "turn-server"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
     networks:
       - nook-network
