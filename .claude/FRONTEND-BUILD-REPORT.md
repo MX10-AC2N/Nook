@@ -6,7 +6,7 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 82aa518 |
+| **Commit** | acd41e1 |
 | **Node.js** | unknown |
 | **Vite time** | 5.52ms |
 | **Duration** | N/A |
@@ -15,7 +15,7 @@
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 115 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24733752874 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24877429250 |
 
 ---
 
@@ -39,8 +39,8 @@
 [32m✓[39m 239 modules transformed.
 [32m✓ built in 5.52s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 14ms[39m
-[32m✓ built in 9.21s[39m
+[32m✓ built in 16ms[39m
+[32m✓ built in 9.05s[39m
 
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
