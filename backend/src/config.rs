@@ -28,12 +28,17 @@ impl Config {
             env::var("PUBLIC_SITE_URL").unwrap_or_else(|_| "http://localhost:6300".to_string());
 
         // Origines CORS : toujours inclure PUBLIC_SITE_URL + les valeurs de ALLOWED_ORIGINS
+        // En production (release), n'inclure PAS localhost (H2)
         let mut origins: Vec<String> = vec![
-            "http://localhost:5173".to_string(),
-            "http://localhost:6300".to_string(),
-            "http://127.0.0.1:6300".to_string(),
             public_site_url.clone(),
         ];
+
+        // Uniquement en développement : ajouter localhost
+        if cfg!(debug_assertions) {
+            origins.push("http://localhost:5173".to_string());
+            origins.push("http://localhost:6300".to_string());
+            origins.push("http://127.0.0.1:6300".to_string());
+        }
 
         if let Ok(extra) = env::var("ALLOWED_ORIGINS") {
             for origin in extra.split(',') {
@@ -133,11 +138,19 @@ mod tests {
     #[test]
     fn test_allowed_origins_includes_defaults() {
         clear_env();
+        // En développement (debug), localhost est présent
+        // En production (release), il ne l'est pas
         let config = Config::load();
 
-        assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
-        assert!(config.allowed_origins.contains(&"http://localhost:6300".to_string()));
-        assert!(config.allowed_origins.contains(&"http://127.0.0.1:6300".to_string()));
+        if cfg!(debug_assertions) {
+            assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+            assert!(config.allowed_origins.contains(&"http://localhost:6300".to_string()));
+            assert!(config.allowed_origins.contains(&"http://127.0.0.1:6300".to_string()));
+        } else {
+            // En production, localhost ne doit PAS être présent
+            assert!(!config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+            assert!(!config.allowed_origins.contains(&"http://localhost:6300".to_string()));
+        }
     }
 
     #[test]
@@ -148,8 +161,12 @@ mod tests {
 
         assert!(config.allowed_origins.contains(&"https://nook.example.com".to_string()));
         assert!(config.allowed_origins.contains(&"https://api.example.com".to_string()));
-        // Defaults still present
-        assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+        // Defaults : localhost présent uniquement en développement
+        if cfg!(debug_assertions) {
+            assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+        } else {
+            assert!(!config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+        }
     }
 
     #[test]
