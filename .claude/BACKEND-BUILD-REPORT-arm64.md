@@ -1,68 +1,79 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> Généré automatiquement par `Backend.yml` · target `aarch64-unknown-linux-gnu`
-> **2026-04-01 09:03 UTC**
+> **unknown** | commit c08da04 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24938002779)
+
+## Récapitulatif statuts
+
+| Check | Résultat |
+|-------|----------|
+| **cargo build** | ✅ OK |
+| **cargo check** | ✅ exit=0 |
+| **cargo clippy** | ❌ exit=101 |
+
+| Métrique | Valeur |
+|----------|--------|
+| **Bin Size** | 11M |
+| **Compile Time** | N/A |
+| **Warnings (check)** | N/A |
+| **Errors (check)** | N/A |
+| **New Warnings** | N/A |
+| **Deprecated refs** | 0 |
+| **Dead code** | 0 |
+| **Unused vars** | 0 |
+| **Unreachable** | 0 |
 
 ---
 
-## Statut global : ✅ OK
-
-| Champ | Valeur |
-|-------|--------|
-| **Architecture** | `arm64` (`aarch64-unknown-linux-gnu`) |
-| **Branche** | `main` |
-| **Commit** | [`107c22c`](https://github.com/MX10-AC2N/Nook/commit/107c22c8bd3c067cfef5e4ad04f6440c20455589) |
-| **Rust** | `rustc 1.94.1 (e408947bf 2026-03-25)` |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/23840121315) |
-
----
-
-## Étapes
-
-| Étape | Statut | Détail |
-|-------|--------|--------|
-| **cargo check** | ✅ | exit 0 |
-| **cargo clippy** | ✅ | exit 0 (-D warnings) |
-| **cargo build --release** | ✅ | binaire 8.9M stripped |
-
----
-
-## Erreurs cargo check
+## ⚠️ Warnings cargo check (top)
 
 ```
-(aucune)
+(aucun warning)
 ```
 
----
-
-## Warnings clippy (-D warnings = fail si présents)
+## ❌ Erreurs cargo check
 
 ```
-(aucun)
+(aucune erreur)
 ```
 
-### Contexte complet (fichier + ligne)
+## ❌ Erreurs cargo build
 
 ```
-(aucun)
+(aucune erreur)
 ```
 
----
-
-## Erreurs cargo build --release
+## 🔧 Clippy warnings
 
 ```
-(aucune)
+(non disponible ou aucun)
 ```
 
----
-
-## Résumé compilation
+### Clippy lint types (top 10)
 
 ```
-    Finished `release` profile [optimized] target(s) in 2m 32s
+(non disponible)
 ```
 
 ---
 
-*Rapport généré par `.github/workflows/Backend.yml` · job `aarch64-unknown-linux-gnu`*
+## 🧪 Tests
+
+```
+(non disponible)
+
+(non disponible)
+```
+
+---
+
+## 📦 Compilation (30 derniers crates)
+
+```
+
+
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 3m 09s
+```
+
+---
+
+*Rapport généré par `.github/scripts/generate-backend-report.sh`*

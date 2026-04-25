@@ -2,51 +2,34 @@ name: 🔄 Update Cargo.lock
 
 on:
   push:
-    branches: [develop, main]
     paths:
-      - 'backend/Cargo.toml'   # Se déclenche seulement si Cargo.toml change
-  workflow_dispatch:  # Pour le lancer manuellement si besoin
+      - 'backend/Cargo.toml'
+  workflow_dispatch:
 
 jobs:
-  update-lockfile:
+  update-lock:
     name: Generate & Commit Cargo.lock
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}  # Important pour pouvoir pousser
+      - uses: actions/checkout@v4
 
-      - name: Setup Rust
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
 
-      - name: Generate Cargo.lock
-        run: |
-          if [ ! -f "Cargo.lock" ]; then
-            echo "Cargo.lock absent → génération"
-          else
-            echo "Cargo.lock présent → mise à jour"
-          fi
-          cargo generate-lockfile
+      - name: Update Cargo.lock
+        working-directory: backend
+        run: cargo update
 
-      - name: Commit & Push Cargo.lock if changed
+      - name: Commit & Push
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions@github.com"
-          
-          git add Cargo.lock
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/Cargo.lock
           if git diff --staged --quiet; then
-            echo "✅ Cargo.lock inchangé, rien à committer"
+            echo "Aucun changement"
             exit 0
           fi
-          
-          git commit -m "chore: update Cargo.lock" || echo "Commit échoué (normal si rien à faire)"
-          git push origin HEAD:${{ github.ref }}
-          echo "✅ Cargo.lock mis à jour et poussé"
+          git commit -m "chore: Update Cargo.lock"
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }} || true
+          git push --force-with-lease origin HEAD:${{ github.ref_name }}

@@ -1,11 +1,15 @@
-name: 3 ==> Turn-Server Build and Artifact
+name: 3 ==> Turn-Server Build
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'services/turn-rs/**'
+      - '.github/workflows/turn.yml'
 
 jobs:
   turn-build:
-    name: Turn-Server (${{ matrix.arch }})
+    name: Build Turn-Server (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -19,36 +23,30 @@ jobs:
 
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Install musl tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+      - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt, clippy
-
-      - name: Build turn-server
+      - name: Build turn-server on Alpine (Docker)
         run: |
-          rustup target add ${{ matrix.target }}
-          git clone --depth 1 https://github.com/mycrl/turn-rs.git /tmp/turn-rs
-          cd /tmp/turn-rs
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
-            cargo build --release --target ${{ matrix.target }}
-          else
-            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc \
-            cargo build --release --target ${{ matrix.target }}
-          fi
+          docker build \
+            --target builder \
+            --tag turn-builder:latest \
+            -f services/turn-rs/Dockerfile \
+            services/turn-rs
+
+      - name: Extract turn-server binary
+        run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
+          id=$(docker create turn-builder:latest /bin/sh -c "cat /usr/local/bin/turn-server")
+          docker start -a $id > artifacts/turn-server-${{ matrix.arch }}
+          docker rm $id
+          chmod +x artifacts/turn-server-${{ matrix.arch }}
+          file artifacts/turn-server-${{ matrix.arch }}
+          ls -la artifacts/turn-server-${{ matrix.arch }}
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload turn-server artifact
+        uses: actions/upload-artifact@v4
         with:
           name: nook-turn-server-${{ matrix.arch }}
-          path: /tmp/turn-rs/artifacts/
+          path: artifacts/turn-server-${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 7

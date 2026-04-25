@@ -218,4 +218,5 @@ export interface ConversationResponse {
 
 export interface MessageResponse {
   success: boolean;
-  message?
+  message?: Message;
+}

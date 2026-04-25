@@ -11,25 +11,27 @@
 //   Pas de race condition, pas de pollution entre suites.
 //   user-flow dépend de api-sanity (serveur up) mais PAS de admin-flow :
 //   une erreur admin ne doit pas skippper tous les tests user.
+//
 
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 60_000,           // timeout global par test (↑ de 30s pour les tests UI lents)
+  timeout: 60_000,
   expect: { timeout: 8_000 },
-  fullyParallel: false,      // OBLIGATOIRE — voir historique R21 dans helpers.ts
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,  // 1 seul retry en CI (était 2 → trop de logins)
-  workers: 1,                // toujours 1 worker — même contexte DB partagé
-  reporter: [
-    ['html'],
-    ['json', { outputFile: '/tmp/playwright-results.json' }],
-  ],
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: 'http://localhost:6300',
     trace: 'on-first-retry',
   },
+  reporter: [
+    ['list'],
+    ['html', { outputFolder: 'playwright-report' }],
+    ['json', { outputFile: '/tmp/playwright-results.json' }],
+  ],
   projects: [
     {
       name: 'api-sanity',
@@ -48,10 +50,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['api-sanity'],
     },
+    {
+      name: 'chat-ui',
+      testMatch: ['**/chat-ui.spec.ts', '**/push-test.spec.ts'],
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:6300',
-    reuseExistingServer: !!process.env.CI,
-  },
 });

@@ -26,23 +26,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialisation libsodium (singleton, dynamic import)
 // ─────────────────────────────────────────────────────────────────────────────
+import { waitForSodium, getSodiumInstance } from './sodium.svelte.js';
+
 type SodiumType = typeof import('libsodium-wrappers').default;
 
-let _sodium: SodiumType | null = null;
-let _loadPromise: Promise<SodiumType> | null = null;
-
 async function ensureSodium(): Promise<SodiumType> {
-  if (_sodium) return _sodium;
-  if (_loadPromise) return _loadPromise;
-
-  _loadPromise = (async () => {
-    const { default: sodium } = await import('libsodium-wrappers');
-    await sodium.ready;
-    _sodium = sodium;
-    return sodium;
-  })();
-
-  return _loadPromise;
+  // Use shared instance from sodium.svelte.js
+  const existing = getSodiumInstance();
+  if (existing) return existing;
+  return await waitForSodium();
 }
 
 /** Smoke-test libsodium au démarrage. Retourne true si OK. */
@@ -54,8 +46,7 @@ export async function initCryptoSystem(): Promise<boolean> {
       !na.randombytes_buf ||
       !na.crypto_box_keypair ||
       !na.crypto_box_easy ||
-      !na.crypto_secretbox_easy ||
-      !na.crypto_pwhash
+      !na.crypto_secretbox_easy
     ) {
       console.error('[crypto] Primitives manquantes dans libsodium');
       return false;
@@ -194,16 +185,14 @@ export async function encryptPrivateKey(
   password:   string
 ): Promise<string> {
   const na   = await ensureSodium();
-  const salt = na.randombytes_buf(na.crypto_pwhash_SALTBYTES);
+  const salt = na.randombytes_buf(16);
 
-  const key = na.crypto_pwhash(
-    na.crypto_secretbox_KEYBYTES,
-    password,
-    salt,
-    na.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-    na.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-    na.crypto_pwhash_ALG_DEFAULT
-  );
+  // Derive key using BLAKE2b (crypto_pwhash not available in this build)
+  const passwordBytes = new TextEncoder().encode(password);
+  const saltedPw = new Uint8Array(passwordBytes.length + salt.length);
+  saltedPw.set(passwordBytes);
+  saltedPw.set(salt, passwordBytes.length);
+  const key = na.crypto_generichash(na.crypto_secretbox_KEYBYTES, saltedPw);
 
   const nonce     = na.randombytes_buf(na.crypto_secretbox_NONCEBYTES);
   const encrypted = na.crypto_secretbox_easy(privateKey, nonce, key);
@@ -226,18 +215,16 @@ export async function decryptPrivateKey(
   const na   = await ensureSodium();
   const data = na.from_base64(encryptedB64, na.base64_variants.ORIGINAL);
 
-  const salt       = data.slice(0, na.crypto_pwhash_SALTBYTES);
-  const nonce      = data.slice(na.crypto_pwhash_SALTBYTES, na.crypto_pwhash_SALTBYTES + na.crypto_secretbox_NONCEBYTES);
-  const ciphertext = data.slice(na.crypto_pwhash_SALTBYTES + na.crypto_secretbox_NONCEBYTES);
+  const salt       = data.slice(0, 16);
+  const nonce      = data.slice(16, 16 + na.crypto_secretbox_NONCEBYTES);
+  const ciphertext = data.slice(16 + na.crypto_secretbox_NONCEBYTES);
 
-  const key = na.crypto_pwhash(
-    na.crypto_secretbox_KEYBYTES,
-    password,
-    salt,
-    na.crypto_pwhash_OPSLIMIT_INTERACTIVE,
-    na.crypto_pwhash_MEMLIMIT_INTERACTIVE,
-    na.crypto_pwhash_ALG_DEFAULT
-  );
+  // Derive key using BLAKE2b (crypto_pwhash not available in this build)
+  const passwordBytes = new TextEncoder().encode(password);
+  const saltedPw = new Uint8Array(passwordBytes.length + salt.length);
+  saltedPw.set(passwordBytes);
+  saltedPw.set(salt, passwordBytes.length);
+  const key = na.crypto_generichash(na.crypto_secretbox_KEYBYTES, saltedPw);
 
   return na.crypto_secretbox_open_easy(ciphertext, nonce, key);
 }

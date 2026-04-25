@@ -28,6 +28,9 @@ export default defineConfig({
           // chess.js / chessground — uniquement chargé sur /chess
           if (id.includes('chess.js') || id.includes('chessground')) return 'chess';
 
+          // chart.js — uniquement chargé quand un graphique est affiché
+          if (id.includes('chart.js')) return 'chart';
+
           // Svelte runtime — séparé pour maximiser le cache navigateur
           if (id.includes('node_modules/svelte') || id.includes('@sveltejs')) return 'svelte';
 

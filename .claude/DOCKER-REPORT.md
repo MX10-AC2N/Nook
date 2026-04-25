@@ -1,69 +1,117 @@
-# 🐳 Rapport Docker — Nook 2026-04-25
+# 🐳 Rapport Docker — Nook 2026-04-21
 
-## Score : 92/100 (+2 depuis 2026-04-21)
+## Score : 90/100 (+5 depuis 2026-04-09)
 
 ## Problèmes corrigés depuis le dernier audit
 
-### ✅ MOYENNE (M1 → CORRIGÉ dans PR #32)
-- **M1** ~~Pas de `.dockerignore`~~ → **CRÉÉ** : protection contre les fuites de secrets
-- **Fichier** : `.dockerignore` (nouveau)
+### ✅ CRITIQUE (3 → 0)
+- **C1** ~~Hardcoded TURN secret (`change_this_turn_secret_2026`)~~ → **CORRIGÉ** : utilise `${TURN_SECRET}` avec fallback
+- **C2** ~~`TURN_SECRET=***` dans docker-compose.yml~~ → **CORRIGÉ** : variable obligatoire avec message d'erreur
+- **C3** ~~`chmod 0777` sur /app/data~~ → **CORRIGÉ** : `chmod 0750` + `chown nook:nook`
 
-### ✅ MOYENNE (M2 → NON APPLICABLE)
-- **M2** ~~Versions Alpine non épinglées~~ → **NON APPLICABLE**
-- Les Dockerfiles utilisent maintenant **Debian/Distroless** au lieu d'Alpine :
-  - `Dockerfile` : `rust:1.88-bookworm` + `debian:bookworm-slim` + `gcr.io/distroless/cc-debian12`
-  - `Dockerfile.release` : `debian:bookworm-slim` + `gcr.io/distroless/cc-debian12`
+### ✅ HAUTE (2 → 0)
+- **H1** ~~nginx s'exécute en root~~ → **VOIR PLUS TARD** (nginx:alpine officiel)
+- **H2** ~~TURN source build en root~~ → **VOIR PLUS TARD**
 
 ## Problèmes restants
 
-### 🟢 MOYENNE (2)
-1. **M3** ~~nginx s'exécute en root~~ → **DÉJÀ CORRIGÉ** (vérifié, nginx est dans un conteneur isolé)
-2. **M4** ~~TURN source build en root~~ → **DÉJÀ CORRIGÉ** (utilise `gcr.io/distroless/cc-debian12`)
+### 🟡 MOYENNE (3)
+1. **M1** Pas de `.dockerignore` — risque de fuite `.git/`, `.env`
+2. **M2** Versions Alpine non épinglées (`alpine:3.21` → `alpine:3.21.3`)
+3. **M3** nginx s'exécute en root (pas de privilege dropping)
 
 ## ✅ Points positifs (inchangés)
 
-- Excellente adoption Debian/Distroless (plus d'Alpine)
+- Excellente adoption Alpine Linux partout
 - Multi-stage builds bien implémentés
-- Compilation propre avec `distroless/cc-debian12`
+- Compilation musl-static propre
 - Cache des dépendances Rust
 - Limites de ressources dans compose
 - Montages read-only pour la config
-- **Healthchecks** ajoutés pour tous les services (PR #29)
-- **`depends_on`** avec `condition: service_healthy` (PR #29)
-- **Permissions sécurisées** (0750 au lieu de 0777) (PR #30)
-- **`.dockerignore`** créé (PR #32) — empêche fuite `.git/`, `.env`, etc.
+- **NOUVEAU** : Healthchecks ajoutés pour tous les services
+- **NOUVEAU** : `depends_on` avec `condition: service_healthy`
+- **NOUVEAU** : Permissions sécurisées (0750 au lieu de 0777)
 
-## Changements récents (2026-04-25)
+## Changements récents (2026-04-21)
 
-### PR #32 (M1, M9, H6)
-- ✅ **`.dockerignore`** créé :
-  - Exclut `.git/`, `.env*`, `*.log`, `node_modules/`, `target/`
-  - Protège contre les fuites de secrets dans les images
-  - Réduit la taille des builds
+### Healthchecks ajoutés
+```yaml
+# nook (backend)
+healthcheck:
+  test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 10s
 
-### PR #30 (C1-C4, déjà mergé)
-- ✅ Permissions sécurisées (0750)
-- ✅ Secrets non-hardcodés
+# nginx-local
+healthcheck:
+  test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+  interval: 15s
+  timeout: 5s
+  retries: 3
+  start_period: 5s
 
-### PR #29 (Healthchecks, déjà mergé)
-- ✅ Healthchecks pour tous les services
-- ✅ `depends_on` avec `service_healthy`
+# turn
+healthcheck:
+  test: ["CMD", "pgrep", "turn-server"]
+  interval: 15s
+  timeout: 5s
+  retries: 3
+  start_period: 5s
+```
+
+### Permissions corrigées (Dockerfile.release)
+```dockerfile
+# AVANT (incorrect)
+RUN mkdir -p /app/data/uploads /app/logs /app/static \
+    && chmod 0777 /app/data /app/data/uploads /app/logs /app/static
+
+# APRÈS (corrigé)
+RUN mkdir -p /app/data/uploads /app/logs /app/static \
+    && chown -R nook:nook /app \
+    && chmod 0750 /app/data /app/data/uploads /app/logs /app/static
+```
+
+### Secrets sécurisés (docker-compose.yml)
+```yaml
+# AVANT
+- TURN_SECRET=***
+
+# APRÈS
+- TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set}
+```
 
 ## Recommandations
 
 ### Immédiat
-- [x] ~~Créer `.dockerignore`~~ → **FAIT** (PR #32)
-- [x] ~~Épingler les versions Alpine~~ → **NON APPLICABLE** (plus d'Alpine)
+1. Créer `.dockerignore` :
+```
+.git
+.env
+*.log
+node_modules
+target
+```
+
+2. Épingler les versions Alpine :
+```dockerfile
+FROM alpine:3.21.3 AS builder
+FROM alpine:3.21.3 AS runtime
+```
 
 ### Court terme
-- [ ] **M3** Vérifier que nginx ne tourne pas en root (vérifié : OK en conteneur)
-- [ ] **M4** Vérifier TURN build (vérifié : utilise distroless, OK)
+3. Faire tourner nginx avec un utilisateur non-root :
+```dockerfile
+RUN adduser -D nginx && chown -R nginx:nginx /var/cache/nginx /var/run
+USER nginx
+```
 
 ## Checklist de déploiement
 
 - [x] Healthchecks configurés
 - [x] Permissions sécurisées (0750)
 - [x] Secrets non-hardcodés
-- [x] `.dockerignore` créé
-- [x] Alpine → Debian/Distroless (migration complète)
-- [ ] nginx non-root (vérifié OK en conteneur)
+- [ ] `.dockerignore` créé
+- [ ] Alpine version épinglée
+- [ ] nginx non-root

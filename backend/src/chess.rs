@@ -24,7 +24,7 @@ use crate::chess_engine::{
 };
 use crate::{auth::CurrentUser, SharedState};
 use axum::{
-    extract::{Path, Query, State as AxumState},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -164,19 +164,18 @@ fn ai_tt_size(difficulty: Difficulty) -> usize {
     }
 }
 
-// Calculer le délai d'affichage (sans dormir — juste retourner la durée)
 fn ai_display_delay(difficulty: Difficulty) -> u64 {
     let base_ms: u64 = match difficulty {
-        Difficulty::Harmless => 1000,
-        Difficulty::Easy => 2500,
-        Difficulty::Medium => 4000,
-        Difficulty::Hard => 6000,
-        Difficulty::Expert => 9000,
-        Difficulty::Godlike => 12000,
+        Difficulty::Harmless => 200,
+        Difficulty::Easy    => 300,
+        Difficulty::Medium  => 500,
+        Difficulty::Hard    => 800,
+        Difficulty::Expert  => 1200,
+        Difficulty::Godlike => 2000,
     };
-    // Jitter : ±30% de la valeur de base
-    let jitter = (base_ms as f64 * 0.3 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
-    (base_ms as i64 + jitter).max(500) as u64
+    // Jitter : ±20% de la valeur de base
+    let jitter = (base_ms as f64 * 0.2 * (rand::rng().random::<f64>() * 2.0 - 1.0)) as i64;
+    (base_ms as i64 + jitter).max(100) as u64
 }
 
 // Retourne (san, from_alg, to_alg, new_fen, game_status_str, delay_ms)
@@ -203,7 +202,7 @@ fn play_ai(mut game: Game, difficulty: Difficulty) -> Result<(String, String, St
 // ════════════════════════════════════════════════════════════════
 
 pub async fn create_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(req): Json<CreateGameRequest>,
 ) -> impl IntoResponse {
@@ -296,7 +295,7 @@ pub async fn create_game(
 }
 
 pub async fn list_games(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     type Row = (String, String, String, Option<String>, i64);
@@ -324,7 +323,7 @@ pub async fn list_games(
 }
 
 pub async fn get_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -395,7 +394,7 @@ pub async fn get_game(
 }
 
 pub async fn join_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -478,7 +477,7 @@ pub async fn join_game(
 }
 
 pub async fn make_move(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Json(req): Json<MakeMoveRequest>,
@@ -682,7 +681,7 @@ pub async fn make_move(
 }
 
 pub async fn ai_move(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     body: Option<axum::extract::Json<AiMoveRequest>>,
@@ -785,8 +784,16 @@ pub async fn ai_move(
         Color::Black => "black",
     };
 
+    // FIX: In case of checkmate, the AI just won — set winner_id to the AI player
     let (winner_id, db_status): (Option<String>, &str) = match game_status_str.as_str() {
-        "checkmate" => (None, "finished"),
+        "checkmate" => {
+            // AI wins: if AI plays white, winner is player1, else player2
+            let p2_id: Option<String> = row.get("player2_id");
+            match ai_color {
+                Color::White => (Some(row.get::<String, _>("player1_id")), "finished"),
+                Color::Black => (p2_id.clone(), "finished"),
+            }
+        }
         "stalemate" | "draw" | "insufficient_material" | "repetition" | "fifty_moves" => (None, "finished"),
         _ => (None, "playing"),
     };
@@ -797,7 +804,8 @@ pub async fn ai_move(
     };
     history.push(json!({ "san": san, "from": ai_from, "to": ai_to, "by": "ai", "color": ai_color_str }));
     let new_history = serde_json::to_string(&history).unwrap();
-    let next_turn = if db_status == "finished" { 0 } else { 1 };
+    // Alternate turns: 1=human, 2=AI for AI games
+    let next_turn = if db_status == "finished" { 0 } else { 2 };
 
     sqlx::query(
         r#"UPDATE chess_games
@@ -840,7 +848,7 @@ pub async fn ai_move(
             "id": game_id,
             "created_by": row.get::<String, _>("created_by"),
             "player1_id": row.get::<Option<String>, _>("player1_id"),
-            "player2_id": serde_json::Value::Null,
+            "player2_id": row.get::<Option<String>, _>("player2_id"),
             "player1_color": row.get::<String, _>("player1_color"),
             "player2_color": row.get::<String, _>("player2_color"),
             "status": game_status_str.as_str(),
@@ -857,7 +865,7 @@ pub async fn ai_move(
 }
 
 pub async fn resign_game(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
@@ -921,7 +929,7 @@ pub async fn resign_game(
 }
 
 pub async fn legal_moves(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Query(params): Query<LegalMovesQuery>,
@@ -995,7 +1003,7 @@ pub async fn legal_moves(
 // ════════════════════════════════════════════════════════════════
 
 pub async fn invite_player(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
     Json(req): Json<InvitePlayerRequest>,
@@ -1031,7 +1039,7 @@ pub async fn invite_player(
 }
 
 pub async fn my_invitations(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let rows: Vec<(String, String, i32, String)> = sqlx::query_as(
@@ -1046,7 +1054,7 @@ pub async fn my_invitations(
 }
 
 pub async fn accept_invitation(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(inv_id): Path<String>,
 ) -> impl IntoResponse {
@@ -1085,7 +1093,7 @@ pub async fn accept_invitation(
 }
 
 pub async fn decline_invitation(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(inv_id): Path<String>,
 ) -> impl IntoResponse {
@@ -1104,6 +1112,53 @@ pub async fn decline_invitation(
 // ROUTES
 // ════════════════════════════════════════════════════════════════
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PGN EXPORT
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// GET /api/chess/{id}/pgn — Exporte une partie en format PGN
+pub async fn export_pgn(
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(_user)): Extension<CurrentUser>,
+    Path(game_id): Path<String>,
+) -> impl IntoResponse {
+    // Récupérer les coups de la partie
+    let moves = sqlx::query_as::<_, (String,)>(
+        "SELECT san FROM chess_moves WHERE game_id = ? ORDER BY move_number"
+    )
+    .bind(&game_id)
+    .fetch_all(&state.db)
+    .await;
+
+    match moves {
+        Ok(rows) => {
+            let mut pgn = String::new();
+
+            // Header PGN
+            pgn.push_str("[Result *]\r\n\r\n");
+
+            // Corps: numéroter les coups
+            for (i, row) in rows.iter().enumerate() {
+                let san = &row.0;
+                if i % 2 == 0 {
+                    // Coup blanc
+                    pgn.push_str(&format!("{}. {} ", (i / 2) + 1, san));
+                } else {
+                    // Coup noir
+                    pgn.push_str(&format!("{} ", san));
+                }
+            }
+            pgn.push_str("*\r\n");
+
+            (StatusCode::OK, pgn).into_response()
+        }
+        Err(e) => {
+            (StatusCode::NOT_FOUND, format!("Partie non trouvée: {}", e)).into_response()
+        }
+    }
+}
+
+
 pub fn chess_routes() -> Router<Arc<SharedState>> {
     Router::new()
         .route("/chess/create", post(create_game))
@@ -1118,4 +1173,6 @@ pub fn chess_routes() -> Router<Arc<SharedState>> {
         .route("/chess/{id}/resign", post(resign_game))
         .route("/chess/{id}/moves", get(legal_moves))
         .route("/chess/{id}/invite", post(invite_player))
+        .route("/chess/{id}/pgn", get(export_pgn))
+
 }

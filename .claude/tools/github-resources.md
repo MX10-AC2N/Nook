@@ -34,7 +34,10 @@ iceServers: [
 **Repo :** https://github.com/restsend/rustrtc  
 **Décision :** 🔵 **LOT 4** — remplace le mesh P2P pour les appels groupe (4+ personnes)  
 **Pourquoi :** 2.8x plus rapide que pion, SFU intégré, Rust natif  
-**Note :** Intégration lourde — prioriser turn-rs d'abord
+**Intégré :** SFU dans backend/src/sfu.rs + WS routing dans webrtc.rs
+**Frontend :** SFU auto pour 3+ participants, toggle P2P/SFU dans call page
+**Architecture :** Room/Peer/Track via MediaRelay, RTCP PLI forwarding
+**Commits :** c1c04b7 (backend) + 9be007c (frontend)
 
 ---
 

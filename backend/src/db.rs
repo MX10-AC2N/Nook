@@ -28,6 +28,9 @@ pub struct User {
     pub needs_password_change: bool,
     pub token: Option<String>,
     pub created_at: i64,
+    pub avatar_url: Option<String>,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -64,6 +67,8 @@ pub struct MessageWithSender {
     pub conversation_id: String,
     pub sender_id: String,
     pub sender_name: String, // COALESCE(users.name, users.username)
+    pub sender_avatar_style: Option<String>, // DiceBear style of the sender
+    pub sender_avatar_seed: Option<String>, // DiceBear seed chosen by the sender
     pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
     pub content: String,
     pub message_type: String,
@@ -345,21 +350,42 @@ pub async fn send_message(
     let id = Uuid::new_v4().to_string();
     let now = chrono::Utc::now().timestamp();
 
-    // Vérifier que la conversation existe
-    let exists: Option<(i64,)> =
-        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+    // FIX C5: Verifier que la conversation existe ET que l'utilisateur y est participant
+    let is_participant: Option<(i64,)> =
+        sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM conversations c
+             INNER JOIN conversation_participants p ON c.id = p.conversation_id
+             WHERE c.id = ? AND p.user_id = ?"
+        )
             .bind(&conversation_id)
+            .bind(&user.id)
             .fetch_optional(&state.db)
             .await
             .ok()
             .flatten();
 
-    if exists.map(|(c,)| c).unwrap_or(0) == 0 {
+    if is_participant.map(|(c,)| c).unwrap_or(0) == 0 {
+        // La conversation n'existe pas OU l'utilisateur n'en est pas participant
+        let conv_exists: Option<(i64,)> =
+            sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM conversations WHERE id = ?")
+                .bind(&conversation_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+        if conv_exists.map(|(c,)| c).unwrap_or(0) == 0 {
+            return Err(StatusCode::NOT_FOUND);
+        }
         eprintln!(
-            "[send_message] Conversation '{}' introuvable",
-            conversation_id
+            "[send_message] Utilisateur {} n'est pas participant de la conversation {}",
+            user.id, conversation_id
         );
-        return Err(StatusCode::NOT_FOUND);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // FIX M2: limiter la taille du message a 8000 caracteres
+    if req.content.len() > 8000 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     sqlx::query(
@@ -443,11 +469,24 @@ pub async fn send_message(
             .map(|(n,)| n)
             .unwrap_or_else(|| user.username.clone());
 
+    // Récupérer le style et seed d'avatar de l'expéditeur
+    let avatar_data: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT avatar_style, avatar_seed FROM users WHERE id = ?"
+    )
+        .bind(&user.id)
+        .fetch_one(&state.db)
+        .await
+        .ok();
+    let sender_avatar_style = avatar_data.as_ref().and_then(|(s, _)| s.clone());
+    let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s)| s.clone());
+
     let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
         "sender_id": user.id,
         "sender_name": sender_name,
+        "sender_avatar_style": sender_avatar_style,
+        "sender_avatar_seed": sender_avatar_seed,
         "sender_public_key": null,
         "content": req.content,
         "message_type": "text",
@@ -459,16 +498,29 @@ pub async fn send_message(
         "edited_at": null
     });
 
-    // ── Broadcast WS → tous les clients (filtrés côté client par conversation_id) ──
+    // ── C4 FIX : Broadcast WS uniquement aux participants de la conversation ──
     {
         let ws_payload = serde_json::json!({
             "type": "new_message",
             "conversation_id": conversation_id,
             "message": msg_json.clone(),
         });
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() {
-            let _ = tx.send(ws_payload.to_string());
+        // Recuperer les participants de la conversation
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        )
+            .bind(&conversation_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+
+        // Envoyer uniquement aux participants connectes
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in participant_ids {
+            // L'expe?iteur recoit aussi sa confirmation via le WS
+            if let Some(tx) = guard.get(&user_id) {
+                let _ = tx.send(ws_payload.to_string());
+            }
         }
     }
 
@@ -522,12 +574,19 @@ pub async fn edit_message(
 
     {
         let ws = serde_json::json!({"type": "message_edited", "conversation_id": conv_id, "message_id": msg_id, "content": content, "edited_at": now});
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in &participant_ids {
+            if let Some(tx) = guard.get(user_id) {
+                let _ = tx.send(ws.to_string());
+            }
+        }
     }
 
     tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message édité");
-    Json(json!({"success": true, "edited_at": now})).into_response()
+    Json(json!({"success": true, "content": content, "edited_at": now})).into_response()
 }
 
 // ── DELETE /api/conversations/{conv_id}/messages/{msg_id} ──────────────────
@@ -564,8 +623,15 @@ pub async fn delete_message(
 
     {
         let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
-        let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() { let _ = tx.send(ws.to_string()); }
+        let participant_ids: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?"
+        ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
+        let guard = state.webrtc_state.user_senders.lock().await;
+        for (user_id,) in &participant_ids {
+            if let Some(tx) = guard.get(user_id) {
+                let _ = tx.send(ws.to_string());
+            }
+        }
     }
 
     tracing::info!(msg_id = %msg_id, user_id = %user.id, "Message supprimé");
@@ -586,6 +652,8 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.avatar_style AS sender_avatar_style,
+                u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -605,6 +673,8 @@ pub async fn get_conversation_messages(
             "SELECT
                 m.id, m.conversation_id, m.sender_id,
                 COALESCE(u.name, u.username) AS sender_name,
+                u.avatar_style AS sender_avatar_style,
+                u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
@@ -633,6 +703,9 @@ pub async fn get_conversation_messages(
 pub struct UpdateProfileRequest {
     pub name: Option<String>,
     pub email: Option<String>,
+    pub avatar_url: Option<String>,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 pub async fn update_user_profile(
@@ -674,6 +747,64 @@ pub async fn update_user_profile(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "success": false, "message": "Erreur de mise à jour de l'email" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_url) = req.avatar_url {
+        if sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?")
+            .bind(avatar_url.trim())
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour de l'avatar" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_style) = req.avatar_style {
+        let valid_styles = ["adventurer", "avataaars", "open-peeps", "notionists", "fun-emoji", "big-smile", "lorelei", "personas", "bottts", "initials"];
+        let style = if valid_styles.contains(&avatar_style.as_str()) {
+            avatar_style.trim()
+        } else {
+            "adventurer"
+        };
+        if sqlx::query("UPDATE users SET avatar_style = ? WHERE id = ?")
+            .bind(style)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour du style d'avatar" })),
+            );
+        }
+    }
+
+    if let Some(ref avatar_seed) = req.avatar_seed {
+        let seed = avatar_seed.trim();
+        if seed.len() > 64 {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(json!({ "success": false, "message": "Seed d'avatar trop long" })),
+            );
+        }
+        if sqlx::query("UPDATE users SET avatar_seed = ? WHERE id = ?")
+            .bind(seed)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "success": false, "message": "Erreur de mise à jour du seed d'avatar" })),
             );
         }
     }
@@ -751,7 +882,20 @@ pub async fn create_event(
     .execute(&state.db)
     .await
     {
-        Ok(_) => (StatusCode::OK, Json(json!({ "success": true, "id": id }))),
+        Ok(_) => {
+            // Broadcast WS: new_event
+            let notif = serde_json::json!({
+                "type": "new_event",
+                "event_id": id,
+                "title": req.title.trim(),
+                "date": req.date.trim(),
+                "creator": user.username,
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() { let _ = tx.send(notif.clone()); }
+
+            (StatusCode::OK, Json(json!({ "success": true, "id": id })))
+        },
         Err(e) => {
             eprintln!("[events] INSERT error: {}", e);
             (
@@ -977,6 +1121,8 @@ pub struct AvailableUser {
     pub id: String,
     pub username: String,
     pub name: Option<String>,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 pub async fn get_available_users(
@@ -984,7 +1130,7 @@ pub async fn get_available_users(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
     let users = sqlx::query_as::<_, AvailableUser>(
-        r#"SELECT id, username, name FROM users
+        r#"SELECT id, username, name, avatar_style, avatar_seed FROM users
            WHERE approved = 1 AND id != ?
            ORDER BY COALESCE(name, username) ASC"#,
     )

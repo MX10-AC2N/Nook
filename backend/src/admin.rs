@@ -4,7 +4,8 @@
 //               à default_global → GET /api/conversations retournait [] après approbation
 
 use crate::{auth::CurrentUser, SharedState};
-use axum::{extract::{State as AxumState, Path}, http::StatusCode, response::IntoResponse, Extension, Json};
+use sysinfo::System;
+use axum::{extract::State, extract::Path, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -23,6 +24,8 @@ pub struct SimpleUser {
     pub created_at: i64,
     pub role: String,
     pub approved: bool,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -54,8 +57,44 @@ pub struct DeleteInvitePayload {
 
 // ====================== HANDLERS (avec CurrentUser) ======================
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/admin/metrics
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn get_system_metrics(
+    State(_state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> impl IntoResponse {
+    if user.role != "admin" {
+        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin uniquement" }))).into_response();
+    }
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    let cpu = sys.global_cpu_usage();
+    let mem_used = sys.used_memory();
+    let mem_total = sys.total_memory();
+    let uptime = System::uptime();
+    let la = System::load_average();
+    let disks: Vec<serde_json::Value> = Vec::new();
+    // NOTE: In sysinfo 0.32, disk access requires specific refresh calls
+    // For now, skip disk info (can be added back with correct 0.32 API later)
+    sys.refresh_memory();
+    Json(json!({
+        "cpu_usage_percent": cpu,
+        "memory_used_mb": mem_used / 1_048_576,
+        "memory_total_mb": mem_total / 1_048_576,
+        "uptime_seconds": uptime,
+        "load_avg_one": la.one,
+        "load_avg_five": la.five,
+        "disks": disks,
+        "process_count": sys.processes().len(),
+    })).into_response()
+}
+
 pub async fn pending_users(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -66,19 +105,21 @@ pub async fn pending_users(
     }
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved FROM users WHERE approved = 0 ORDER BY created_at DESC"
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
     .await
     .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
     .into_iter()
-    .map(|u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
+    .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
         username: u.1,
         name: u.2,
         created_at: u.3,
         role: u.4,
         approved: u.5,
+        avatar_style: u.6,
+        avatar_seed: u.7,
     })
     .collect();
 
@@ -86,7 +127,7 @@ pub async fn pending_users(
 }
 
 pub async fn all_users(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<UsersResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -97,7 +138,7 @@ pub async fn all_users(
     }
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved FROM users ORDER BY created_at DESC",
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users ORDER BY created_at DESC",
     )
     .fetch_all(&state.db)
     .await
@@ -109,13 +150,15 @@ pub async fn all_users(
     })?
     .into_iter()
     .map(
-        |u: (String, String, Option<String>, i64, String, bool)| SimpleUser {
+        |u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
             id: u.0,
             username: u.1,
             name: u.2,
             created_at: u.3,
             role: u.4,
             approved: u.5,
+            avatar_style: u.6,
+            avatar_seed: u.7,
         },
     )
     .collect();
@@ -124,7 +167,7 @@ pub async fn all_users(
 }
 
 pub async fn approve_user(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<ApprovePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -169,7 +212,7 @@ pub async fn approve_user(
 }
 
 pub async fn list_invites(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<InvitesResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -190,7 +233,7 @@ pub async fn list_invites(
 }
 
 pub async fn delete_invite(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<DeleteInvitePayload>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -240,7 +283,7 @@ pub struct AnalyticsResponse {
 }
 
 pub async fn get_analytics(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> Result<Json<AnalyticsResponse>, (StatusCode, Json<serde_json::Value>)> {
     if user.role != "admin" {
@@ -328,7 +371,7 @@ pub async fn get_analytics(
 /// Supprimer un membre (ADMIN ONLY)
 /// DELETE /api/users/{id}
 pub async fn delete_user(
-    AxumState(state): AxumState<Arc<SharedState>>,
+    State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(admin)): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> impl IntoResponse {

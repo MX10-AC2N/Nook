@@ -223,3 +223,54 @@ Workflows utilitaires (indépendants) :
 | `cryptoStore.ready` | `true` si les clés X25519 sont chargées en mémoire → messages chiffrés |
 | `DT-01` | libsodium-wrappers 938 kB — cosmétique (fire-and-forget depuis S37, non bloquant) |
 | `DT-02` | Chess temps réel — **résolu S39** (WS broadcast serveur + refreshGame client) |
+
+
+## 🌐 SFU — Debug
+
+### Vérifier le SFU est actif
+```bash
+# Logs backend
+docker logs nook 2>&1 | grep -i sfu
+
+# Logs SFU join/leave
+docker logs nook 2>&1 | grep "SFU join\|SFU remove"
+
+# Logs track forwarding
+docker logs nook 2>&1 | grep "SFU track received\|SFU track relayed"
+
+# Logs ICE state
+docker logs nook 2>&1 | grep "SFU ICE"
+
+# Logs PLI forwarding
+docker logs nook 2>&1 | grep "SFU forwarding PLI"
+```
+
+### Debug callStore SFU state (browser console)
+```javascript
+// Depuis la console du navigateur (dev tools)
+// Le callStore est accessible via l'instance Svelte
+```
+
+### Scenarios de debug
+
+| Symptôme | Cause probable | Vérification |
+|----------|---------------|--------------|
+| "sfu_join" jamais reçu par backend | WS pas connecté ou pas auth | Vérifier ws.readyState === 1 |
+| Answer SDP vide | create_answer() avant set_remote() | Vérifier l'ordre dans handle_join |
+| Track non relayée | added_sources contient déjà la clé | Logs: "SFU track already added, skip" |
+| Video freeze sur un peer | PLI pas forwardé | Logs: "SFU forwarding PLI" absent |
+| Negotiation échoue | signaling_state pas Stable | Logs: "SFU negotiation deferred" |
+
+## 📖 Glossaire SFU
+
+| Terme | Définition |
+|-------|-----------|
+| **SFU** | Selective Forwarding Unit — serveur qui relaye les streams media entre participants |
+| **Mesh P2P** | Chaque pair se connecte à tous les autres (N×(N-1) connexions) |
+| **MediaRelay** | Mécanisme rustrtc pour dupliquer une track vers plusieurs subscribers |
+| **PLI** | Picture Loss Indication — demande RTCP pour forcer une keyframe |
+| **FIR** | Full Intra Request — comme PLI mais plus fort |
+| **Negotiation** | Échange SDP offer/answer pour ajouter/retirer des tracks |
+| **added_sources** | HashSet pour éviter d'ajouter deux fois la même track au même peer |
+| **SfuJoinResponse** | Réponse du backend: answer SDP + liste peers + offre renegotiation pending |
+| **drain_pending_offer** | Méthode pour récupérer et vider l'offer de renegotiation pending |

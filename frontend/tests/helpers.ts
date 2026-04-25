@@ -33,21 +33,20 @@ export async function clearSession(page: Page): Promise<void> {
 // ─────────────────────────────────────────────────────────────────
 export async function loginAs(page: Page, username: string, password: string): Promise<void> {
   await clearSession(page);
-  await page.goto('/login');
-  await page.locator('#username').waitFor({ state: 'visible', timeout: 20_000 });
-  await page.fill('#username', username);
-  await page.fill('#password', password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
-  try {
-    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
-  } catch {
-    // Retry unique
-    await page.locator('#username').waitFor({ state: 'visible', timeout: 5_000 });
-    await page.fill('#username', username);
-    await page.fill('#password', password);
-    await page.getByRole('button', { name: 'Se connecter' }).click();
-    await expect(page).toHaveURL(/\/(chat|admin|change-password)/, { timeout: 15_000 });
+  
+  // API-first login: set cookie via API, then navigate
+  const loginRes = await page.request.post(`${BASE}/auth/login`, {
+    data: { username, password },
+  });
+  
+  if (!loginRes.ok()) {
+    const body = await loginRes.json().catch(() => ({}));
+    throw new Error(`loginAs(${username}) API failed: HTTP ${loginRes.status()} - ${body.message || 'unknown'}`);
   }
+  
+  // Cookie is now set, navigate to app
+  await page.goto('/chat');
+  await page.waitForLoadState('networkidle', { timeout: 15_000 });
 }
 
 // ─────────────────────────────────────────────────────────────────

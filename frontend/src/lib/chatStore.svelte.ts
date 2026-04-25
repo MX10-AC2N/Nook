@@ -19,6 +19,8 @@ export interface ChatMessage {
   conversation_id: string;
   sender_id: string;
   sender_name: string;
+  sender_avatar_style: string | null;
+  sender_avatar_seed: string | null;
   sender_public_key: string | null;
   content: string;
   message_type: string;
@@ -46,8 +48,52 @@ export interface ChatState {
 // 2️⃣ État réactif
 // -----------------------------------------------------------------
 
-export const chatStore = $state<ChatState>({
-  messages: [],
+import { writable, get } from 'svelte/store';
+import { callManager } from '$lib/webrtc-calls.svelte.ts';
+import { cryptoStore } from '$lib/cryptoStore.svelte';
+
+// Svelte writable store for messages — proper cross-file reactivity
+export const messagesStore = writable<ChatMessage[]>([]);
+
+// ─── Déchiffrement automatique quand le cryptoStore devient prêt ──────────
+// Quand l'utilisateur se reconnecte après un rafraîchissement, les messages
+// sont chargés chiffrés. Dès que cryptoStore.ready devient true, on déchiffre.
+let _cryptoReadyUnsub: (() => void) | null = null;
+
+function _setupCryptoReadyListener(): void {
+  if (_cryptoReadyUnsub) return;
+  // Svelte 5 runes : on ne peut pas faire de $effect hors d'un composant.
+  // On utilise un polling léger (1s) pour détecter ready → true.
+  const interval = setInterval(() => {
+    if (!cryptoStore.ready) return;
+    clearInterval(interval);
+    _cryptoReadyUnsub = null;
+    // Déchiffrer tous les messages chiffrés en attente
+    const msgs = get(messagesStore);
+    const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
+    if (encrypted.length === 0) return;
+    console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages`);
+    import('$lib/cryptoStore.svelte').then(async ({ decryptMessage }) => {
+      for (const msg of encrypted) {
+        try {
+          msg.content = await decryptMessage({
+            messageId: msg.id, conversationId: msg.conversation_id,
+            ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+          });
+          msg.encrypted = false;
+        } catch { msg.content = '🔒 Message chiffré (clé indisponible)'; }
+      }
+      messagesStore.set([...msgs]);
+    });
+  }, 1000);
+  _cryptoReadyUnsub = () => { clearInterval(interval); _cryptoReadyUnsub = null; };
+}
+
+// Démarrer le listener au chargement du module
+_setupCryptoReadyListener();
+
+// Other state as $state (less critical for cross-file reactivity)
+export const chatStore = $state<Omit<ChatState, 'messages'>>({
   connectionError: null,
   showEmojiPicker: false,
   hasMore: false,
@@ -124,32 +170,77 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
     const id      = msg.message_id as string;
     const content = msg.content as string;
     const editedAt = msg.edited_at as number;
-    const idx = chatStore.messages.findIndex(m => m.id === id);
-    if (idx !== -1) {
-      chatStore.messages[idx] = { ...chatStore.messages[idx], content, edited_at: editedAt };
-    }
+    messagesStore.update(msgs => msgs.map(m => m.id === id ? { ...m, content, edited_at: editedAt } : m));
     return;
   }
 
   if (type === 'message_deleted') {
     const id = msg.message_id as string;
-    chatStore.messages = chatStore.messages.filter(m => m.id !== id);
+    messagesStore.update(msgs => msgs.filter(m => m.id !== id));
     return;
   }
 
   if (type === 'reaction_updated') {
-    // Le frontend recharge les réactions depuis la page chat — ici on émet juste un signal
-    // via un champ réactif pour que la page puisse réagir si besoin
+    const msgId = msg.message_id as string;
+    const convId = msg.conversation_id as string;
+    // Reactions are handled by the +page.svelte via lastReactionUpdate signal
     chatStore.lastReactionUpdate = {
-      messageId: msg.message_id as string,
-      conversationId: msg.conversation_id as string,
+      messageId: msgId,
+      conversationId: convId,
       ts: Date.now(),
     };
+    return;
+  }
+
+  // ── Poll notifications ──
+  if (type === 'new_poll') {
+    const title = msg.title as string || 'Nouveau sondage';
+    notifyPoll('📊 Sondage créé', title, '/polls');
+    return;
+  }
+
+  if (type === 'poll_voted') {
+    const voter = msg.voter as string || 'Quelqu\'un';
+    notifyPoll('🗳️ Nouveau vote', `${voter} a voté`, '/polls');
+    return;
+  }
+
+  if (type === 'poll_closed') {
+    notifyPoll('📊 Sondage fermé', 'Un sondage est terminé', '/polls');
+    return;
+  }
+
+  // ── Calendar notifications ──
+  if (type === 'new_event') {
+    const title = msg.title as string || 'Nouvel événement';
+    const creator = msg.creator as string || 'Quelqu\'un';
+    notifyCalendar('📅 Événement créé', `${creator}: ${title}`, '/calendar');
+    return;
+  }
+
+  // ── Call signaling ──
+  const CALL_TYPES = ['call_request', 'call_accepted', 'call_rejected', 'offer', 'answer', 'ice', 'ice_candidate', 'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate', 'join', 'leave', 'decline'];
+  if (type && CALL_TYPES.includes(type)) {
+    console.log(`[WS] Call signal received: ${type}`, msg);
+    // Forward to webrtc-calls handler via its signal handler
+    callManager.handleSignal?.(msg as any);
+    return;
+  }
+
+  // ── Admin notifications ──
+  if (type === 'user_approved') {
+    notifyAdmin('✅ Utilisateur approuvé', 'Votre compte a été approuvé !', '/chat');
     return;
   }
 }
 
 async function _injectMessage(raw: ChatMessage): Promise<void> {
+  const existing = get(messagesStore).findIndex(m => m.id === raw.id);
+  // If existing message is already plaintext, skip encrypted WS update
+  if (existing !== -1 && !get(messagesStore)[existing].encrypted && raw.encrypted) {
+    console.debug('[WS] Skip encrypted update for plaintext msg', raw.id);
+    return;
+  }
   if (raw.encrypted && raw.nonce && raw.sender_public_key) {
     try {
       const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -158,11 +249,14 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
           messageId: raw.id, conversationId: raw.conversation_id,
           ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
         });
+        raw.encrypted = false;
       }
     } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
-  if (!chatStore.messages.find(m => m.id === raw.id)) {
-    chatStore.messages = [...chatStore.messages, raw];
+  if (existing === -1) {
+    messagesStore.update(msgs => [...msgs, raw]);
+  } else {
+    messagesStore.update(msgs => { msgs[existing] = raw; return [...msgs]; });
   }
 }
 
@@ -177,7 +271,14 @@ export function disconnectWs(): void {
 export function setActiveConv(convId: string): void {
   _wsConvId = convId;
   chatStore.unreadCounts[convId] = 0;
+  _updatePageTitle();
   connectWs(convId);
+}
+
+function _updatePageTitle(): void {
+  if (typeof document === 'undefined') return;
+  const unread = Object.values(chatStore.unreadCounts).reduce((a, b) => a + b, 0);
+  document.title = unread > 0 ? `(${unread}) Nook` : 'Nook';
 }
 
 // -----------------------------------------------------------------
@@ -191,14 +292,12 @@ export async function requestNotificationPermission(): Promise<void> {
   }
 }
 
+import { notifyMessage, notifyPoll, notifyCalendar, notifyAdmin } from '$lib/notificationStore.svelte';
+
 function _sendBrowserNotification(sender: string, content: string): void {
-  if (typeof Notification === 'undefined') return;
-  if (Notification.permission !== 'granted') return;
+  const text = content.startsWith('<img') ? '📷 Image' : content.startsWith('<audio') ? '🎙️ Message vocal' : content.slice(0, 80);
   if (typeof document !== 'undefined' && document.visibilityState === 'visible') return;
-  const text = content.startsWith('<img') ? '📷 Image' : content.slice(0, 80);
-  try {
-    new Notification(`Nook — ${sender}`, { body: text, icon: '/favicon.png', tag: 'nook-msg', renotify: true });
-  } catch { /* silent */ }
+  notifyMessage(sender, text);
 }
 
 // -----------------------------------------------------------------
@@ -214,7 +313,7 @@ export function setConnectionError(err: string | null): void {
 }
 
 export function resetChat(): void {
-  chatStore.messages = [];
+  messagesStore.set([]);
   chatStore.connectionError = null;
   chatStore.showEmojiPicker = false;
   
@@ -270,11 +369,13 @@ export async function loadMessages(conversationId: string): Promise<void> {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
+    console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
-    chatStore.messages = msgs;
+    messagesStore.set([...msgs]);
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
+    console.log('[Chat] messagesStore set:', get(messagesStore).length);
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
@@ -284,7 +385,7 @@ export async function loadMessages(conversationId: string): Promise<void> {
 /** Charge les messages plus anciens (pagination vers le haut) */
 export async function loadMoreMessages(conversationId: string): Promise<void> {
   if (chatStore.loadingMore || !chatStore.hasMore) return;
-  const oldest = chatStore.messages[0];
+  const oldest = get(messagesStore).at(-1);
   if (!oldest) return;
   chatStore.loadingMore = true;
   try {
@@ -297,7 +398,8 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
     const older: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     older.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(older);
-    chatStore.messages = [...older, ...chatStore.messages];
+    // Append older messages at end (bottom) — display is reversed
+    messagesStore.update(msgs => [...msgs, ...older]);
     chatStore.hasMore  = older.length >= PAGE_SIZE;
   } catch (err) {
     console.error('[Chat] loadMoreMessages:', err);
@@ -310,8 +412,8 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 // 8️⃣ API — sendMessage
 // -----------------------------------------------------------------
 
-export async function sendMessage(content: string, conversationId: string): Promise<void> {
-  if (!content.trim()) return;
+export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
+  if (!content.trim()) return null;
   try {
     const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
     let body: Record<string, unknown>;
@@ -330,12 +432,22 @@ export async function sendMessage(content: string, conversationId: string): Prom
       credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    // WS injectera automatiquement via new_message
-    if (!chatStore.wsConnected) await loadMessages(conversationId);
+    const msgData: ChatMessage = await res.json();
     chatStore.connectionError = null;
+    // Use plaintext content locally (API returns encrypted)
+    msgData.content = content.trim();
+    msgData.encrypted = false;
+    // Always update store with plaintext — overwrites WS encrypted entry if race
+    messagesStore.update(msgs => {
+      const idx = msgs.findIndex(m => m.id === msgData.id);
+      if (idx !== -1) { msgs[idx] = msgData; return [...msgs]; }
+      return [...msgs, msgData];
+    });
+    return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
     console.error('[Chat] sendMessage:', err);
+    return null;
   }
 }
 
@@ -350,12 +462,9 @@ export async function editMessage(msgId: string, convId: string, newContent: str
       credentials: 'include', body: JSON.stringify({ content: newContent }),
     });
     if (!res.ok) return false;
-    if (!chatStore.wsConnected) {
-      const idx = chatStore.messages.findIndex(m => m.id === msgId);
-      if (idx !== -1) {
-        chatStore.messages[idx] = { ...chatStore.messages[idx], content: newContent, edited_at: Math.floor(Date.now() / 1000) };
-      }
-    }
+    // Optimistic local update (WS will confirm or overwrite)
+    const editedAt = Math.floor(Date.now() / 1000);
+    messagesStore.update(msgs => msgs.map(m => m.id === msgId ? { ...m, content: newContent, edited_at: editedAt } : m));
     return true;
   } catch { return false; }
 }
@@ -371,13 +480,14 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
     });
     if (res.status !== 204 && !res.ok) return false;
     if (!chatStore.wsConnected) {
-      chatStore.messages = chatStore.messages.filter(m => m.id !== msgId);
+      messagesStore.update(msgs => msgs.filter(m => m.id !== msgId));
     }
     return true;
   } catch { return false; }
 }
 
 // -----------------------------------------------------------------
+
 // 1️⃣1️⃣ API — sendEmoji (envoie un emoji comme message standalone)
 // -----------------------------------------------------------------
 

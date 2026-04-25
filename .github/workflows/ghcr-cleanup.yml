@@ -1,219 +1,177 @@
-name: 5==> 🧹 GHCR – Nettoyage des anciennes images
+name: 8 ==> GHCR Cleanup
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Déclenchement :
-#   • Automatique après chaque push réussi de "4==> 🐳 Docker Build & Push"
-#   • Manuel via workflow_dispatch (options : keep, dry_run)
-# ─────────────────────────────────────────────────────────────────────────────
 on:
   workflow_run:
-    workflows: ["4==> 🐳 Docker Build & Push"]
+    workflows: ["4 ==> Docker Build and Push"]
     types: [completed]
 
   workflow_dispatch:
     inputs:
       keep:
-        description: "Versions taguées à conserver (défaut : 5)"
+        description: "Number of versions to keep (default: 8)"
         required: false
         default: "8"
       dry_run:
-        description: "Simulation — liste sans supprimer"
+        description: "Dry run - list without deleting"
         type: boolean
         required: false
         default: false
 
-permissions:
-  packages: write
-
 jobs:
-  cleanup:
-    name: 🧹 Nettoyer GHCR
+  ghcr-cleanup:
+    name: GHCR Cleanup
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
 
     steps:
-      # ── 1. Paramètres ─────────────────────────────────────────────────────
-      - name: "⚙️ Paramètres"
+      - name: Set params
         id: params
         run: |
-          KEEP="${{ github.event.inputs.keep || '5' }}"
-          DRY="${{ github.event.inputs.dry_run || 'false' }}"
-          PACKAGE=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          echo "keep=$KEEP"       >> $GITHUB_OUTPUT
-          echo "dry_run=$DRY"     >> $GITHUB_OUTPUT
-          echo "package=$PACKAGE" >> $GITHUB_OUTPUT
-          echo "📦 Package   : ghcr.io/${{ github.repository_owner }}/$PACKAGE"
-          echo "📌 Conserver : $KEEP versions versionnées"
-          echo "🔍 Dry-run   : $DRY"
-
-      # ── 2. Récupération paginée des versions ──────────────────────────────
-      - name: "📥 Récupération des versions GHCR"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE:  ${{ steps.params.outputs.package }}
-        run: |
-          echo "[]" > /tmp/versions.json
-          PAGE=1
-          while true; do
-            gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/user/packages/container/${PACKAGE}/versions?per_page=100&page=${PAGE}" \
-              > /tmp/page.json 2>/dev/null || echo "[]" > /tmp/page.json
-
-            COUNT=$(python3 -c "import json; print(len(json.load(open('/tmp/page.json'))))")
-            [ "$COUNT" -eq 0 ] && break
-
-            python3 - << 'PY'
-          import json
-          old = json.load(open('/tmp/versions.json'))
-          new = json.load(open('/tmp/page.json'))
-          json.dump(old + new, open('/tmp/versions.json', 'w'))
-          PY
-
-            PAGE=$((PAGE + 1))
-          done
-
-          TOTAL=$(python3 -c "import json; print(len(json.load(open('/tmp/versions.json'))))")
-          echo "📊 $TOTAL version(s) trouvée(s)"
-
-      # ── 3. Analyse : classification et sélection ──────────────────────────
-      - name: "🔍 Analyse des versions"
-        id: analyze
-        env:
-          KEEP:    ${{ steps.params.outputs.keep }}
-          DRY_RUN: ${{ steps.params.outputs.dry_run }}
-        run: |
-          python3 - << 'PY'
-          import json, os, re
-
-          keep    = int(os.environ.get('KEEP', '5'))
-          dry_run = os.environ.get('DRY_RUN', 'false').lower() == 'true'
-
-          versions = json.load(open('/tmp/versions.json'))
-
-          SPECIAL = {'latest', 'edge', 'stable', 'main', 'dev', 'beta', 'alpha'}
-
-          versioned = []
-          special   = []
-          dangling  = []
-
-          for v in versions:
-              tags = v.get('metadata', {}).get('container', {}).get('tags', [])
-              vid  = v['id']
-              cat  = v.get('created_at', '')
-              vtags = [t for t in tags if re.match(r'^v\d', t) or re.match(r'^\d+\.\d+', t)]
-              stags = [t for t in tags if t.lower() in SPECIAL]
-              if stags:
-                  special.append({'id': vid, 'tags': tags, 'created_at': cat})
-              elif vtags:
-                  versioned.append({'id': vid, 'tags': vtags, 'created_at': cat})
-              elif not tags:
-                  dangling.append({'id': vid, 'created_at': cat})
-
-          versioned.sort(key=lambda x: x['created_at'], reverse=True)
-          dangling.sort(key=lambda x: x['created_at'], reverse=True)
-
-          to_keep_v   = versioned[:keep]
-          to_delete_v = versioned[keep:]
-          to_keep_d   = dangling[:keep * 2]
-          to_delete_d = dangling[keep * 2:]
-
-          SEP = '-' * 60
-          print(f'\n{SEP}')
-          print(f'  Tags versionnés    : {len(versioned)}')
-          print(f'  Tags spéciaux      : {len(special)}')
-          print(f'  Manifests dangling : {len(dangling)}')
-          print(SEP)
-
-          print(f'\n✅ CONSERVATION')
-          for v in to_keep_v:
-              print(f"   [{v['created_at'][:10]}]  id={v['id']:<12}  {v['tags']}")
-          for v in special:
-              print(f"   [{v['created_at'][:10]}]  id={v['id']:<12}  {v['tags']}  ⭐")
-
-          all_delete = to_delete_v + to_delete_d
-          if all_delete:
-              print(f'\n🗑️  SUPPRESSION ({len(to_delete_v)} versionnés + {len(to_delete_d)} dangling)')
-              for v in to_delete_v:
-                  print(f"   [{v['created_at'][:10]}]  id={v['id']:<12}  {v['tags']}")
-              for v in to_delete_d:
-                  print(f"   [{v['created_at'][:10]}]  id={v['id']:<12}  (manifest arch)")
-          else:
-              print('\n✅ Rien à supprimer — déjà propre !')
-
-          if dry_run:
-              print('\n🔍 MODE SIMULATION — aucune suppression')
-
-          ids = [str(v['id']) for v in all_delete]
-          open('/tmp/to_delete.txt', 'w').write('\n'.join(ids))
-          print(f'\n📋 Total à supprimer : {len(ids)}')
-          PY
-
-          COUNT=$(grep -c . /tmp/to_delete.txt 2>/dev/null || echo 0)
-          echo "delete_count=$COUNT" >> $GITHUB_OUTPUT
-
-      # ── 4. Suppression ────────────────────────────────────────────────────
-      - name: "🗑️ Suppression des versions obsolètes"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PACKAGE:  ${{ steps.params.outputs.package }}
-          DRY_RUN:  ${{ steps.params.outputs.dry_run }}
-        run: |
-          if [ ! -s /tmp/to_delete.txt ]; then
-            echo "✅ Rien à supprimer"
-            exit 0
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "keep=${{ inputs.keep }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            echo "keep=8" >> $GITHUB_OUTPUT
+            echo "dry_run=false" >> $GITHUB_OUTPUT
           fi
 
-          DELETED=0
-          ERRORS=0
-
-          while IFS= read -r VID; do
-            [ -z "$VID" ] && continue
-
-            if [ "$DRY_RUN" = "true" ]; then
-              echo "  [DRY] id=$VID → simulé"
-              DELETED=$((DELETED + 1))
-              continue
-            fi
-
-            if gh api \
-              --method DELETE \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              --silent \
-              "/user/packages/container/${PACKAGE}/versions/${VID}"; then
-              echo "  ✅ id=$VID supprimé"
-              DELETED=$((DELETED + 1))
-            else
-              echo "  ⚠️  id=$VID — erreur"
-              ERRORS=$((ERRORS + 1))
-            fi
-
-            sleep 0.3
-          done < /tmp/to_delete.txt
-
-          echo ""
-          echo "────────────────────────────────"
-          echo "✅ Supprimé : $DELETED"
-          echo "⚠️  Erreurs : $ERRORS"
-
-          [ "$ERRORS" -eq 0 ] || exit 1
-
-      # ── 5. Résumé ─────────────────────────────────────────────────────────
-      - name: "📊 Résumé"
-        if: always()
+      - name: Cleanup GHCR (nook)
+        env:
+          PACKAGE: nook
+          KEEPN: ${{ steps.params.outputs.keep }}
+          DRY_RUN: ${{ steps.params.outputs.dry_run }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          {
-            echo "## 🧹 Nettoyage GHCR"
-            echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| **Package** | \`ghcr.io/${{ github.repository_owner }}/${{ steps.params.outputs.package }}\` |"
-            echo "| **Versions conservées** | \`${{ steps.params.outputs.keep }}\` versionnées + tous les tags spéciaux |"
-            echo "| **Supprimées** | \`${{ steps.analyze.outputs.delete_count }}\` |"
-            echo "| **Simulation** | \`${{ steps.params.outputs.dry_run }}\` |"
-            echo "| **Déclencheur** | \`${{ github.event_name }}\` |"
-          } >> $GITHUB_STEP_SUMMARY
+          set -e
+
+          python3 -c "
+          import sys, json, subprocess, os
+
+          token = os.environ['GITHUB_TOKEN']
+          package = os.environ['PACKAGE']
+          keepn = int(os.environ['KEEPN'])
+          dry_run = os.environ['DRY_RUN'] == 'true'
+
+          def api(method, path):
+              import urllib.request
+              url = 'https://api.github.com' + path
+              req = urllib.request.Request(
+                  url, method=method,
+                  headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  }
+              )
+              if method == 'DELETE':
+                  try:
+                      urllib.request.urlopen(req)
+                      return None
+                  except Exception as e:
+                      return e
+              else:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read().decode())
+
+          # Fetch all versions (paginate)
+          versions = []
+          page = 1
+          while True:
+              resp = api('GET', f'/user/packages/container/{package}/versions?per_page=100&page={page}')
+              if not resp:
+                  break
+              versions.extend(resp)
+              page += 1
+
+          versions.sort(key=lambda v: v['created_at'], reverse=True)
+
+          kept = 0
+          for v in versions:
+              tags = v.get('metadata', {}).get('container', {}).get('tags', [])
+              is_latest = 'latest' in tags
+              if is_latest or kept < keepn:
+                  kept += 1
+                  print(f'  KEEP  id={v['id']}  tags={tags}')
+              else:
+                  if dry_run:
+                      print(f'  DRY   id={v['id']}  tags={tags}')
+                  else:
+                      err = api('DELETE', f'/user/packages/container/{package}/versions/{v['id']}')
+                      if err:
+                          print(f'  FAIL  id={v['id']}  {err}')
+                      else:
+                          print(f'  DEL   id={v['id']}  tags={tags}')
+
+          print(f'Done: {len(versions)} versions, kept {kept}')
+          "
+
+      - name: Cleanup GHCR (turn-server)
+        env:
+          PACKAGE: turn-server
+          KEEPN: ${{ steps.params.outputs.keep }}
+          DRY_RUN: ${{ steps.params.outputs.dry_run }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          python3 -c "
+          import sys, json, subprocess, os
+
+          token = os.environ['GITHUB_TOKEN']
+          package = os.environ['PACKAGE']
+          keepn = int(os.environ['KEEPN'])
+          dry_run = os.environ['DRY_RUN'] == 'true'
+
+          def api(method, path):
+              import urllib.request
+              url = 'https://api.github.com' + path
+              req = urllib.request.Request(
+                  url, method=method,
+                  headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  }
+              )
+              if method == 'DELETE':
+                  try:
+                      urllib.request.urlopen(req)
+                      return None
+                  except Exception as e:
+                      return e
+              else:
+                  with urllib.request.urlopen(req) as r:
+                      return json.loads(r.read().decode())
+
+          versions = []
+          page = 1
+          while True:
+              resp = api('GET', f'/user/packages/container/{package}/versions?per_page=100&page={page}')
+              if not resp:
+                  break
+              versions.extend(resp)
+              page += 1
+
+          versions.sort(key=lambda v: v['created_at'], reverse=True)
+
+          kept = 0
+          for v in versions:
+              tags = v.get('metadata', {}).get('container', {}).get('tags', [])
+              is_latest = 'latest' in tags
+              if is_latest or kept < keepn:
+                  kept += 1
+                  print(f'  KEEP  id={v['id']}  tags={tags}')
+              else:
+                  if dry_run:
+                      print(f'  DRY   id={v['id']}  tags={tags}')
+                  else:
+                      err = api('DELETE', f'/user/packages/container/{package}/versions/{v['id']}')
+                      if err:
+                          print(f'  FAIL  id={v['id']}  {err}')
+                      else:
+                          print(f'  DEL   id={v['id']}  tags={tags}')
+
+          print(f'Done: {len(versions)} versions, kept {kept}')
+          "

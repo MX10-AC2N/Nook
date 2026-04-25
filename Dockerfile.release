@@ -1,54 +1,36 @@
-# ===============================================
-# Dockerfile.release – Image de production Nook
-# Utilisé par Docker.yml et ci-new2.yml
-# Les binaires sont pré-compilés par Backend.yml
-#
-# Contexte attendu (docker-context/) :
-#   backend/nook-backend-amd64
-#   backend/nook-backend-arm64
-#   frontend/           (build SvelteKit)
-# ===============================================
+# Nook - Backend (runtime only, pre-compiled binary)
+# Zero Google dependency - Alpine 3.21 (~15MB)
 
-# ===============================================
-# ÉTAPE 1 : Préparation (sélection binaire par arch)
-# ===============================================
-FROM debian:bookworm-slim AS prep
+FROM alpine:3.21 AS runtime
 
-ARG TARGETARCH
+RUN apk add --no-cache \
+    sqlite-libs \
+    libsodium \
+    su-exec \
+    ca-certificates
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsqlite3-0 libsodium23 libssl3 ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
-RUN mkdir -p /app/data /app/static
+RUN mkdir -p /app/data/uploads /app/logs /app/static \
+    && chown -R nook:nook /app \
+    && chmod 0750 /app/data /app/data/uploads /app/logs /app/static
 
-# Copie du binaire correspondant à l'architecture cible
-COPY backend/nook-backend-${TARGETARCH} /app/nook-backend
-RUN chmod +x /app/nook-backend
-
-# Copie du frontend build
+ARG TARGETARCH=amd64
+COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
 COPY frontend/ /app/static/
 
-# ===============================================
-# ÉTAPE 2 : Image finale Distroless
-# ===============================================
-FROM gcr.io/distroless/cc-debian12:latest
-
-COPY --from=prep /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=prep /usr/lib/*/libsqlite3.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libsodium.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libssl.so* /usr/lib/
-COPY --from=prep /usr/lib/*/libcrypto.so* /usr/lib/
-
-COPY --from=prep /app /app
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 WORKDIR /app
+
 EXPOSE 3000
 
-ENV RUST_LOG=info \
-    PORT=3000 \
-    DATABASE_URL=sqlite:/app/data/nook.db \
-    STATIC_FILES_DIR=/app/static \
-    UPLOADS_DIR=/app/data/uploads
+ENV DATA_DIR=/app/data
+ENV STATIC_DIR=/app/static
+ENV LOG_DIR=/app/logs
 
-ENTRYPOINT ["/app/nook-backend"]
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

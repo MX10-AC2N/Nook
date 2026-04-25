@@ -28,6 +28,7 @@ pub struct RegisterPayload {
     pub password: String,
     pub email: String,
     pub name: String,
+    pub invite_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -50,6 +51,8 @@ pub struct UserInfo {
     pub role: String,
     pub approved: bool,
     pub needs_password_change: bool,
+    pub avatar_style: Option<String>,
+    pub avatar_seed: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -105,19 +108,54 @@ pub async fn register(
     AxumState(state): AxumState<Arc<SharedState>>,
     Json(payload): Json<RegisterPayload>,
 ) -> impl IntoResponse {
+    // FIX M1: validation cote serveur - minimum 8 caracteres
+    if payload.password.trim().len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(AuthResponse {
+                success: false,
+                message: "Le mot de passe doit contenir au moins 8 caracteres".to_string(),
+                user: None,
+            }),
+        )
+            .into_response();
+    }
+
     let hashed_password = hash_password(&payload.password);
     let user_id = Uuid::new_v4().to_string();
     let created_at = Utc::now().timestamp();
 
+    // Check if invite token is valid → auto-approve
+    let auto_approve = if let Some(ref token) = payload.invite_token {
+        let valid: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM invite_links WHERE token = ? AND expires_at > ?)"
+        )
+        .bind(token)
+        .bind(created_at)
+        .fetch_one(&state.db)
+        .await
+        .unwrap_or(false);
+        if valid {
+            let _ = sqlx::query("DELETE FROM invite_links WHERE token = ?")
+                .bind(token)
+                .execute(&state.db)
+                .await;
+        }
+        valid
+    } else {
+        false
+    };
+
     let result = sqlx::query(
         "INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)\
-         VALUES (?, ?, ?, ?, ?, 'user', 0, 0, ?)",
+         VALUES (?, ?, ?, ?, ?, 'user', ?, 0, ?)",
     )
     .bind(&user_id)
     .bind(&payload.username)
     .bind(&payload.email)
     .bind(&hashed_password)
     .bind(&payload.name)
+    .bind(if auto_approve { 1i32 } else { 0i32 })
     .bind(created_at)
     .execute(&state.db)
     .await;
@@ -125,7 +163,7 @@ pub async fn register(
     match result {
         Ok(_) => Json(AuthResponse {
             success: true,
-            message: "Inscription réussie ! En attente d'approbation.".to_string(),
+            message: if auto_approve { "Inscription réussie !".to_string() } else { "Inscription réussie ! En attente d'approbation.".to_string() },
             user: None,
         })
         .into_response(),
@@ -169,6 +207,8 @@ pub async fn login(
                 role: user.role,
                 approved: user.approved,
                 needs_password_change: user.needs_password_change,
+                avatar_style: user.avatar_style.clone(),
+                avatar_seed: user.avatar_seed.clone(),
             };
 
             // Détection HTTPS via X-Forwarded-Proto (injecté par Nginx Proxy Manager)
@@ -216,6 +256,8 @@ pub async fn me(Extension(CurrentUser(user)): Extension<CurrentUser>) -> impl In
         role: user.role,
         approved: user.approved,
         needs_password_change: user.needs_password_change,
+        avatar_style: user.avatar_style,
+        avatar_seed: user.avatar_seed,
     };
 
     // Note : on ne retourne PAS le token ici — il est dans le cookie HttpOnly.
@@ -263,7 +305,24 @@ pub async fn change_password(
     headers: axum::http::HeaderMap,
     Json(payload): Json<ChangePasswordPayload>,
 ) -> impl IntoResponse {
+    // FIX C1: seul un admin ou le proprietaire du compte peut changer le mot de passe
     let target_id = payload.user_id.unwrap_or_else(|| current_user.id.clone());
+    if current_user.role != "admin" && target_id != current_user.id {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({"success": false, "message": "Permission refusee"})),
+        )
+            .into_response();
+    }
+
+    // Validation minimale de la force du mot de passe (cote API egalement)
+    if payload.new_password.trim().len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"success": false, "message": "Le mot de passe doit contenir au moins 8 caracteres"})),
+        )
+            .into_response();
+    }
 
     let hashed = hash_password(&payload.new_password);
     let new_token = Uuid::new_v4().to_string();
@@ -371,4 +430,58 @@ pub async fn require_admin(
     }
 
     next.run(req).await
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_password_creates_hash() {
+        let hash = hash_password("testpassword123");
+        assert!(!hash.is_empty());
+        assert!(hash.starts_with("$argon2"), "Should use Argon2id");
+    }
+
+    #[test]
+    fn test_hash_password_unique_salt() {
+        let hash1 = hash_password("samepassword");
+        let hash2 = hash_password("samepassword");
+        assert_ne!(hash1, hash2, "Each hash should have unique salt");
+    }
+
+    #[test]
+    fn test_verify_password_correct() {
+        let password = "MySecurePass2026!";
+        let hash = hash_password(password);
+        assert!(verify_password(password, &hash));
+    }
+
+    #[test]
+    fn test_verify_password_wrong() {
+        let hash = hash_password("correctpassword");
+        assert!(!verify_password("wrongpassword", &hash));
+    }
+
+    #[test]
+    fn test_verify_password_invalid_hash() {
+        assert!(!verify_password("anypassword", "not_a_valid_hash"));
+    }
+
+    #[test]
+    fn test_build_cookie_http() {
+        let cookie = build_set_cookie("user123", "token456", false, 86400);
+        assert!(cookie.contains("auth_token=user123:token456"));
+        assert!(cookie.contains("SameSite=Lax"));
+        assert!(!cookie.contains("Secure"));
+    }
+
+    #[test]
+    fn test_build_cookie_https() {
+        let cookie = build_set_cookie("user123", "token456", true, 86400);
+        assert!(cookie.contains("auth_token=user123:token456"));
+        assert!(cookie.contains("SameSite=None"));
+        assert!(cookie.contains("Secure"));
+    }
 }

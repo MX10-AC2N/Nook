@@ -1,0 +1,161 @@
+name: 🔎 Security Audit — Nook
+
+on:
+  workflow_dispatch:
+    inputs:
+      depth:
+        description: "Profondeur du scan"
+        required: true
+        default: "quick"
+        type: choice
+        options:
+          - quick
+          - full
+  schedule:
+    # Tous les lundis à 04:00 UTC
+    - cron: "0 4 * * 1"
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'develop' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ── 1. npm audit ──
+      - name: npm audit (frontend)
+        working-directory: frontend
+        run: |
+          set +e
+          npm audit --json > /tmp/npm-audit.json 2>&1 || true
+          npm audit > /tmp/npm-audit.txt 2>&1 || true
+          echo "## npm audit" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/npm-audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 2. Cargo audit (si cargo-audit disponible) ──
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked || true
+
+      - name: cargo audit (backend)
+        working-directory: backend
+        run: |
+          set +e
+          cargo audit --ignore RUSTSEC-2020-0071 2>&1 | tee /tmp/cargo-audit.txt || true
+          echo "## cargo audit" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/cargo-audit.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      # ── 3. Clippy (qualité + sécurité basique) ──
+      - name: cargo clippy
+        working-directory: backend
+        run: |
+          cargo clippy -- -D warnings 2>&1 | tee /tmp/clippy.txt || {
+            echo "## Clippy warnings" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/clippy.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          }
+
+      # ── 4. Scan patterns sécurité (custom) ──
+      - name: Scan patterns de vulnérabilités
+        run: |
+          echo "## Scan patterns de sécurité" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### {@html} non sanitize" >> $GITHUB_STEP_SUMMARY
+          matches=$(grep -rn '{@html' frontend/src --include='*.svelte' | grep -v 'sanitize' | grep -v 'DOMPurify' || true)
+          if [ -n "$matches" ]; then
+            echo "⚠️ {@html} sans sanitisation détecté:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$matches" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Aucun {@html} non sanitize" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Routes sans require_auth" >> $GITHUB_STEP_SUMMARY
+          # Vérifier que webrtc_routes est dans protected_routes
+          if grep -q 'merge(webrtc::webrtc_routes())' backend/src/main.rs; then
+            echo "⚠️ webrtc_routes() est mergée hors de protected_routes" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ webrtc_routes() dans protected_routes" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### innerHTML dans le frontend" >> $GITHUB_STEP_SUMMARY
+          inner_html=$(grep -rn 'innerHTML\|outerHTML' frontend/src --include='*.ts' --include='*.svelte' --include='*.js' | grep -v node_modules || true)
+          if [ -n "$inner_html" ]; then
+            echo "⚠️ innerHTML/outerHTML détecté:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$inner_html" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Pas d'innerHTML/outerHTML" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### eval() dans le frontend" >> $GITHUB_STEP_SUMMARY
+          eval_usage=$(grep -rn '\beval\s*(' frontend/src --include='*.ts' --include='*.svelte' --include='*.js' | grep -v node_modules || true)
+          if [ -n "$eval_usage" ]; then
+            echo "⚠️ eval() détecté:" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$eval_usage" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ Pas d'eval()" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ── 5. E2E tests (si depth=full) ──
+      - name: Full scan — E2E security tests
+        if: github.event.inputs.depth == 'full'
+        run: |
+          echo "## E2E Security Tests" >> $GITHUB_STEP_SUMMARY
+          echo "Exécuter test-nook.yml séparément pour les tests E2E de sécurité." >> $GITHUB_STEP_SUMMARY
+          echo "Voir: tests/api-sanity.spec.ts (48 tests 401) + tests/webrtc.spec.ts" >> $GITHUB_STEP_SUMMARY
+
+      # ── 6. Générer le rapport ──
+      - name: Mettre à jour le rapport audit
+        run: |
+          cat > .claude/SECURITY-AUDIT-LATEST.md << 'EOF'
+          # 🔎 Security Audit — Rapport automatique
+
+          > Généré par `security-audit.yml` le $(date -u +"%Y-%m-%d %H:%M UTC")
+
+          ## Résumé
+          - npm audit : voir step summary CI
+          - cargo audit : voir step summary CI
+          - Clippy : voir step summary CI
+          - Patterns XSS/injection : scan custom intégré
+          EOF
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .claude/SECURITY-AUDIT-LATEST.md
+          git commit -m "ci: security audit report" || echo "No changes to commit"
+          git push || echo "Push failed (may be expected on schedule trigger)"

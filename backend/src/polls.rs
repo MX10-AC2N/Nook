@@ -255,7 +255,7 @@ pub async fn list_polls(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
-    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls ORDER BY created_at DESC LIMIT 100")
+    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls WHERE (closed_at IS NULL OR closed_at > datetime('now')) ORDER BY created_at DESC LIMIT 100")
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -368,7 +368,20 @@ pub async fn create_poll(
     }
 
     match load_poll(&state.db, &poll_id, &user.id).await {
-        Some(p) => (StatusCode::CREATED, Json(json!({ "poll": p }))).into_response(),
+        Some(p) => {
+            // Broadcast WS notification: new_poll created
+            let notif = serde_json::json!({
+                "type": "new_poll",
+                "poll_id": poll_id,
+                "title": question,
+                "options": options.len(),
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() {
+                let _ = tx.send(notif.clone());
+            }
+            (StatusCode::CREATED, Json(json!({ "poll": p }))).into_response()
+        }
         None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({}))).into_response(),
     }
 }
@@ -509,7 +522,17 @@ pub async fn close_poll(
         .ok();
 
     match load_poll(&state.db, &poll_id, &user.id).await {
-        Some(p) => Json(json!({ "poll": p })).into_response(),
+        Some(p) => {
+            // Broadcast WS: poll_closed
+            let notif = serde_json::json!({
+                "type": "poll_closed",
+                "poll_id": poll_id,
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for (_, tx) in guard.iter() { let _ = tx.send(notif.clone()); }
+
+            Json(json!({ "poll": p })).into_response()
+        },
         None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({}))).into_response(),
     }
 }
