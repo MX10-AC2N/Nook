@@ -2,7 +2,7 @@
 
 <div align="center">
 
-> **v0.4.0-beta.2**
+> **v0.5.0**
 
 [![CI Backend](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml)
 [![CI Frontend](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml)
@@ -175,6 +175,18 @@ Nook/
 
 ---
 
+## Sécurité & Audit
+
+Nook passe régulièrement des audits de sécurité, Docker et dépendances. Derniers scores (2026-04-25) :
+
+- 🔒 Sécurité : **92/100** — CSP renforcée, pas de secrets en dur, sanitisation SVG
+- 🐳 Docker : **92/100** — Images distroless, healthchecks, `.dockerignore`
+- 📦 Dépendances : **74/100** — `chacha20poly1305` à jour, dépendances inutilisées supprimées
+
+Pour plus de détails, voir le dossier `.claude/` dans le dépôt.
+
+---
+
 ## Questions fréquentes
 
 **Mes données sont où ?**
@@ -183,8 +195,8 @@ Dans le dossier `DATA_DIR` sur ta machine. Rien ne sort de chez toi.
 **Ça tourne sur Raspberry Pi ?**
 Oui. L'image est compilée nativement pour `arm64` — Raspberry Pi 4+, Zimaboard, NAS Synology/QNAP/TrueNAS.
 
-**Le chiffrement est vraiment activé ?**
-Oui depuis la v0.4.0-beta.2 : les clés X25519 sont générées à la première connexion de chaque membre et stockées chiffrées sur leur appareil. Les fichiers partagés sont chiffrés sur le disque depuis le début.
+|**Le chiffrement est vraiment activé ?**
+|Oui depuis la v0.5.0 : les clés X25519 sont générées à la première connexion de chaque membre et stockées chiffrées sur leur appareil. Les fichiers partagés sont chiffrés sur le disque depuis le début.
 
 **Les appels passent par ton serveur ?**
 Non. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial.
