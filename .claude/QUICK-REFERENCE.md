@@ -177,24 +177,28 @@ docker exec nook-turn pgrep turn-server  # TURN process
 | Fichier | Contenu |
 |---------|----------|
 | `.claude/DOCKER-REPORT.md` | Score 90/100 — Healthchecks ✅, permissions ✅ |
-| `.claude/SECURITY-REPORT.md` | Score 88/100 — 0 secret en dur ✅ |
-| `.claude/GLOBAL-AUDIT-2026-04-21.md` | Rapport consolidé (82/100, +3) |
+| `.claude/SECURITY-REPORT.md` | Score 92/100 — 0 secret en dur ✅, CSP ✅ |
+| `.claude/GLOBAL-AUDIT-2026-04-21.md` | Rapport consolidé (84/100, +9) |
+| `.claude/DEPENDENCES-REPORT.md` | Score 72/100 — 4 deps supprimées ✅ |
 | `.claude/rules/secrets-management.md` | ⚠️ NOUVEAU — Gestion des secrets |
 | `.claude/QUICK-REFERENCE.md` | ⚠️ CETTE PAGE — Référence rapide |
 
 ---
 
 ## 🔗 Audit en cours
-
 | Domaine | Score | Progression |
 |---------|-------|------------|
-| 🔒 Sécurité | 88/100 (+6) | 4 critiques corrigés ✅ |
-| 🐳 Docker | 90/100 (+5) | Healthchecks ✅, permissions ✅ |
-| 📦 Dépendances | 70/100 (=) | simple-peer ✅, chacha20poly1305 à faire |
+| 🔒 Sécurité | **92/100** | +10 (H3, H5 fixed) |
+| 🐳 Docker | **90/100** | +5 (healthchecks + permissions) |
+| 📦 Dépendances | **72/100** | +2 (H6 - 4 deps removed) |
+| **GLOBAL** | **84/100** | **+9** |
 
 **Prochaines étapes :**
-1. Restreindre CORS en production (H2)
-2. Renforcer CSP — retirer 'unsafe-inline' (H3)
-3. Sanitiser Icon.svelte — éviter `{@html}` (H5)
-4. Supprimer dépendances Rust inutilisées (H6)
-5. Épingler versions Alpine (M2)
+1. ~~Restreindre CORS en production (H2)~~ → H3, H5, H6 fixed in PR #31!
+2. ~~Renforcer CSP — retirer 'unsafe-inline' (H3)~~ ✅ Fixed
+3. ~~Sanitiser Icon.svelte — éviter `{@html}` (H5)~~ ✅ Fixed  
+4. ~~Supprimer dépendances Rust inutilisées (H6)~~ ✅ Fixed
+5. **H2** — Restreindre CORS en production
+6. **M1** — Créer `.dockerignore`
+7. **M2** — Épingler versions Alpine
+8. **M9** — Mettre à jour `chacha20poly1305`

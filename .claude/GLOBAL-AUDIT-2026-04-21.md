@@ -4,11 +4,11 @@
 
 | Domaine | Score | Critique | Haute | Moyenne |
 |---------|-------|----------|-------|---------|
-| 🔒 Sécurité | 88/100 (+6) | 0 (-3) | 2 (-1) | 5 |
+| 🔒 Sécurité | 92/100 (+10) | 0 (-3) | 0 (-2) | 5 |
 | 🐳 Docker | 90/100 (+5) | 0 (-3) | 0 (-2) | 3 |
-| 📦 Dépendances | 70/100 | 1 | 3 | 2 |
+| 📦 Dépendances | 72/100 (+2) | 1 | 3 | 2 |
 
-**Progression depuis le 2026-04-09** : +7 points global, 5 problèmes critiques corrigés.
+**Progression depuis le 2026-04-09** : +9 points global, 8 problèmes corrigés.
 
 ---
 
@@ -56,13 +56,10 @@ let allowed_origins = if cfg!(debug_assertions) {
 ```
 - **Fichier** : `backend/src/main.rs`
 
-### H3 — CSP allows `'unsafe-inline'` for scripts (HAUTE)
-- **Problème** : `script-src 'self' 'unsafe-inline'` affaiblit la protection XSS
-- **Recommandation** : Utiliser des nonces ou hashes pour les scripts inline :
-```rust
-// backend/src/main.rs (dans cors_layer ou équivalent)
-"content-security-policy": "default-src 'self'; script-src 'self' 'nonce-...'; ..."
-```
+### ✅ H3 (CORRIGÉ dans PR #31) — CSP `unsafe-inline` for scripts
+- **Avant** : `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'` dans `backend/src/main.rs:549`
+- **Correction** : Supprimé `'unsafe-inline'` de `script-src` et `style-src`
+- **Après** : `script-src 'self' 'wasm-unsafe-eval'`
 - **Fichier** : `backend/src/main.rs`
 
 ### H4 — `simple-peer` non maintenu (HAUTE → RÉSOLU)
@@ -70,25 +67,19 @@ let allowed_origins = if cfg!(debug_assertions) {
 - **Correction** : ✅ **DÉJÀ RÉSOLU** en PR #28 — supprimé, utilise `RTCPeerConnection` natif
 - **Fichiers** : `frontend/package.json`, `frontend/vite.config.js`, `frontend/src/lib/webrtc.ts` (supprimé)
 
-### H5 — Icon.svelte `{@html svgContent}` (HAUTE)
-- **Problème** : Injection HTML non sanitisée dans le DOM
-- **Recommandation** : Utiliser DOMPurify ou éviter `{@html}` :
-```svelte
-// Remplacer
-{@html svgContent}
+### ✅ H5 (CORRIGÉ dans PR #31) — Icon.svelte `{@html svgContent}`
+- **Avant** : Injection HTML non sanitisée dans le DOM
+- **Correction** : Ajout de DOMPurify pour sanitiser le SVG avant rendu
+- **Fichiers** : `frontend/src/lib/components/Icon.svelte`, `frontend/package.json` (+dompurify)
 
-// Par
-{@html DOMPurify.sanitize(svgContent)}
-```
-- **Fichier** : `frontend/src/lib/Icon.svelte` (si existe)
-
-### H6 — Dépendances Rust inutilisées (HAUTE)
-- **Problème** : `tower-service`, `lazy_static`, `home`, `serde_urlencoded` — aucun import trouvé
-- **Recommandation** : Supprimer les dépendances inutilisées :
-```bash
-cargo remove tower-service lazy_static home serde_urlencoded
-```
+### ✅ H6 (CORRIGÉ dans PR #31) — Dépendances Rust inutilisées
+- **Avant** : `tower-service`, `lazy_static`, `home`, `serde_urlencoded` — aucun import trouvé
+- **Correction** : Supprimés de `backend/Cargo.toml`
 - **Fichier** : `backend/Cargo.toml`
+
+### Dépendances conservées (utilisées)
+- ✅ `urlencoding = "2.1"` — utilisé dans `gifs_updater.rs`
+- ✅ `sysinfo = "0.32"` — utilisé dans `admin.rs`
 
 ---
 
