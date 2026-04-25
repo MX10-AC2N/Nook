@@ -30,9 +30,9 @@
 - **Correction** : Mise à jour vers 0.10.8 dans `backend/Cargo.toml`
 - **Fichier** : `backend/Cargo.toml`
 
-### M10 — `uuid` frontend 13 → 14 (major)
-- **Problème** : Version majeure disponible
-- **Recommandation** : Vérifier la compatibilité et migrer
+### ✅ M10 (CORRIGÉ dans PR #32) — `uuid` frontend 13 → 14
+- **Avant** : version ^13.0.0, `@types/uuid` inutile
+- **Correction** : Mise à jour vers ^14.0.0, suppression de `@types/uuid`
 - **Fichier** : `frontend/package.json`
 
 ---

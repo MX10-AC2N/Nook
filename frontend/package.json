@@ -21,7 +21,6 @@
     "@sveltejs/kit": "^2.49.4",
     "@types/dompurify": "^3.0.5",
     "@types/libsodium-wrappers": "^0.7.14",
-    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
@@ -41,7 +40,7 @@
     "dompurify": "^3.2.4",
     "libsodium-wrappers": "^0.8.0",
     "simple-peer": "^9.11.1",
-    "uuid": "^13.0.0",
+    "uuid": "^14.0.0",
     "yaml": "^2.4.2"
   }
 }
