@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - 'backend/Cargo.toml'
-  workflow_dispatch:
 
 jobs:
   update-lock:
@@ -12,13 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Update Cargo.lock
+      - name: Generate Cargo.lock
         working-directory: backend
-        run: cargo update
+        run: |
+          # Generate lock file without updating all deps
+          cargo generate-lockfile
+          # Verify it works
+          cargo check
 
       - name: Commit & Push
         run: |
@@ -29,7 +34,7 @@ jobs:
             echo "Aucun changement"
             exit 0
           fi
-          git commit -m "chore: Update Cargo.lock"
+          git commit -m "chore: Update Cargo.lock [$(date +'%Y-%m-%d')]"
           git fetch origin ${{ github.ref_name }}
           git rebase origin/${{ github.ref_name }} || true
           git push --force-with-lease origin HEAD:${{ github.ref_name }}
