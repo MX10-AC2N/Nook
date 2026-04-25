@@ -23,14 +23,20 @@
 
 ---
 
-## 🟡 HAUTE (2)
+## 🟡 HAUTE (2 → 0 après PR #31)
 
-### H1 — `.env.example` contient des secrets faibles
-- **Problème** : Les exemples `change_this_password!` et `change_this_turn_secret_2026` sont copiés tel quel
-- **Recommandation** : ✅ **DÉJÀ CORRIGÉ** dans le nouveau `.env.example` — utilise `openssl rand -base64` et documente clairement les étapes
-- **Fichier** : `.env.example`
+### ✅ H3 (CORRIGÉ dans PR #31) — CSP `unsafe-inline` for scripts
+- **Avant** : `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'` dans `backend/src/main.rs:549`
+- **Correction** : Supprimé `'unsafe-inline'` de `script-src` et `style-src`
+- **Après** : `script-src 'self' 'wasm-unsafe-eval'`
+- **Fichier** : `backend/src/main.rs`
 
-### H2 — CORS always allows localhost origins
+### ✅ H5 (CORRIGÉ dans PR #31) — Icon.svelte `{@html svgContent}`
+- **Avant** : Injection HTML non sanitisée via `{@html svgContent}` dans `Icon.svelte`
+- **Correction** : Ajout de DOMPurify pour sanitiser le SVG avant rendu
+- **Fichiers** : `frontend/src/lib/components/Icon.svelte`, `frontend/package.json` (+dompurify)
+
+### H2 — CORS allows localhost origins (RESTE)
 - **Problème** : En production, `localhost` ne devrait pas être autorisé (vol de credentials)
 - **Recommandation** : Désactiver localhost en production :
 ```rust

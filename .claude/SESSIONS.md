@@ -29,6 +29,38 @@ Audit complet (Sécurité, Docker, Dépendances) + Corrections critiques identif
 - ✅ **C1** : Secret TURN hardcoded → `${TURN_SECRET}` avec fallback
   - Fichiers : `services/turn-rs/turnserver.conf.template`, `services/turn-rs/docker-entrypoint.sh`
 - ✅ **C2** : Supprime log admin password (`main.rs:152`)
+## Session 51 — 2026-04-21 : Fix H3, H5, H6 (PR #31)
+
+### Objectif
+Fixer les problèmes HAUTES de laudit 2026-04-21 : H3 (CSP), H5 (SVG), H6 (deps).
+
+### Réalisations
+
+#### H3 — CSP `unsafe-inline` (Sécurité)
+- ✅ Supprime `unsafe-inline` de `script-src` et `style-src` (main.rs:549)
+- ✅ CSP renforcée : `script-src self wasm-unsafe-eval`
+- ✅ Fichier : `backend/src/main.rs`
+
+#### H5 — Icon.svelte `{@html svgContent}` (Sécurité)
+- ✅ Ajoute DOMPurify pour sanitiser le SVG avant rendu
+- ✅ Installe `dompurify` dans le frontend
+- ✅ Fichiers : `frontend/src/lib/components/Icon.svelte`, `frontend/package.json`
+
+#### H6 — Dépendances Rust inutilisées (Dépendances)
+- ✅ Supprime `tower-service`, `serde_urlencoded`, `lazy_static`, `home`
+- ✅ Garde `urlencoding` (gifs_updater.rs) et `sysinfo` (admin.rs)
+- ✅ Fichier : `backend/Cargo.toml`
+
+### PR Créée
+- ✅ **PR #31** : `fix/high-priority-issues` (H3, H5, H6)
+
+### Prochaines Étapes
+- [ ] H2 — Restreindre CORS en production
+- [ ] M1 — Créer `.dockerignore`
+- [ ] M2 — Épingler versions Alpine
+- [ ] M9 — Mettre à jour `chacha20poly1305`
+
+---
 - ✅ **C3** : `TURN_SECRET=***` → Variable obligatoire (`docker-compose.yml`)
 - ✅ **C4** : `chmod 0777` → `chmod 0750` + `chown nook:nook` (`Dockerfile.release`)
 
