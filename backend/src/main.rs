@@ -149,7 +149,6 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             role = "admin",
             "✓ Administrateur initial créé avec succès"
         );
-        eprintln!("[Init] Admin initial cree - utilisateur : admin / mot de passe : {}", random_password);
         eprintln!("[Init] ⚠️  Changez le mot de passe des la premiere connexion !");
     } else {
         tracing::debug!("Administrateur initial déjà existant");

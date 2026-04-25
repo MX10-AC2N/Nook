@@ -9,6 +9,16 @@ TEMPLATE_FILE="/opt/turn-server/turnserver.conf.template"
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "No config.toml found, copying from template..."
     cp "$TEMPLATE_FILE" "$CONFIG_FILE"
+    
+    # Replace placeholder with actual TURN_SECRET from environment
+    if [ -n "$TURN_SECRET" ]; then
+        sed -i "s|\\${TURN_SECRET}|$TURN_SECRET|g" "$CONFIG_FILE"
+        echo "TURN_SECRET configured"
+    else
+        echo "ERROR: TURN_SECRET must be set!"
+        exit 1
+    fi
+    
     echo "Configuration initialized at $CONFIG_FILE"
 else
     echo "Using existing config.toml at $CONFIG_FILE"
