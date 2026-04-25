@@ -1,3 +1,64 @@
+## Session 50 — 2026-04-21 : Audit Global + Corrections Critiques
+
+### Objectif
+Audit complet (Sécurité, Docker, Dépendances) + Corrections critiques identifiées lors de l'audit.
+
+### Réalisations
+
+#### Audits Complétés
+- ✅ **Sécurité** : 88/100 (+6 depuis 2026-04-09)
+  - Rapport : `.claude/SECURITY-REPORT.md`
+- ✅ **Docker** : 90/100 (+5)
+  - Rapport : `.claude/DOCKER-REPORT.md`
+- ✅ **Dépendances** : 70/100
+  - Rapport : `.claude/DEPENDENCIES-REPORT.md`
+- ✅ **Global** : 82/100 (+3)
+  - Rapport : `.claude/GLOBAL-AUDIT-2026-04-21.md`
+
+#### PRs Créées
+- ✅ **PR #28** : `refactor/remove-simple-peer` (merged)
+  - Supprime `simple-peer` v9.11.1 (unmaintained)
+  - Utilise `RTCPeerConnection` natif
+- ✅ **PR #29** : `feat/healthchecks` (merged)
+  - Healthchecks ajoutés pour tous les services
+  - `depends_on` avec `condition: service_healthy`
+- ✅ **PR #30** : `fix/hardcoded-secrets` (en cours)
+  - Corrige 4 problèmes critiques (C1-C4)
+
+#### Corrections Critiques (C1-C4)
+- ✅ **C1** : Secret TURN hardcoded → `${TURN_SECRET}` avec fallback
+  - Fichiers : `services/turn-rs/turnserver.conf.template`, `services/turn-rs/docker-entrypoint.sh`
+- ✅ **C2** : Supprime log admin password (`main.rs:152`)
+- ✅ **C3** : `TURN_SECRET=***` → Variable obligatoire (`docker-compose.yml`)
+- ✅ **C4** : `chmod 0777` → `chmod 0750` + `chown nook:nook` (`Dockerfile.release`)
+
+#### Documentation Mise à Jour
+- ✅ `.env.example` : Documentation complète avec `openssl rand` + warnings
+- ✅ `.claude/DOCKER-REPORT.md` : Mis à jour (90/100)
+- ✅ `.claude/SECURITY-REPORT.md` : Créé (88/100)
+- ✅ `.claude/GLOBAL-AUDIT-2026-04-21.md` : Rapport consolidé
+- ✅ `.claude/QUICK-REFERENCE.md` : Mis à jour
+- ✅ `.claude/CLAUDE.md` : Mis à jour (session 50)
+- ✅ `.claude/rules/secrets-management.md` : Créé
+
+### Fichiers Modifiés
+- `services/turn-rs/turnserver.conf.template`
+- `services/turn-rs/docker-entrypoint.sh`
+- `backend/src/main.rs`
+- `docker-compose.yml`
+- `Dockerfile.release`
+- `.env.example`
+- `.claude/` (8 fichiers mis à jour/créés)
+
+### Prochaines Étapes
+- [ ] Restreindre CORS en production (H2)
+- [ ] Renforcer CSP — retirer `'unsafe-inline'` (H3)
+- [ ] Sanitiser Icon.svelte — éviter `{@html}` (H5)
+- [ ] Supprimer dépendances Rust inutilisées (H6)
+- [ ] Épingler versions Alpine (M2)
+
+---
+
 # 📅 SESSIONS.md — Historique des sessions de travail
 
 ---

@@ -1,11 +1,25 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.5.0-beta.2** | Session courante : **49** | Mis à jour : **2026-04-12**
+> Version projet : **0.5.0** | Session courante : **50*** | Mis à jour : **2026-04-21***
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
 > Déploiement : Docker multi-arch (Alpine 3.21), Zimaboard via docker-compose
 > HTTPS local : nginx-alpine sur port 6443 (cert auto-signé) pour enregistrement audio/vidéo
+> ## 📋 RÉSUMÉ DES SESSIONS RÉCENTES
+>
+> ### Session 50 (2026-04-21)
+> - ✅ **Audit global** : 82/100 (+3 depuis 2026-04-09)
+> - ✅ **PR #28** : `refactor/remove-simple-peer` → supprime dépendance obsolète
+> - ✅ **PR #29** : `feat/healthchecks` → healthchecks pour tous les services
+> - ✅ **PR #30** : `fix/hardcoded-secrets` → corrige 4 problèmes critiques
+> - ✅ **0 secret en dur** : TURN_SECRET, admin password logging, chmod 0777
+> - ✅ **Documentation** : `.env.example`, `.claude/` mis à jour
+>
+> ### Sessions précédentes (rappel)
+> - Session 38-49 : MCP Servers, Svelte 5 migration, WebRTC calls, Chess, Polls, Calendar, Events
+> - Session 37 : E2EE tests, Playwright setup, CI/CD fixes
+
 
 ---
 
