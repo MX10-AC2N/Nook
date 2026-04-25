@@ -1859,3 +1859,56 @@ L'utilisateur a redéployé Nook et a demandé un test complet + audit de sécur
 - Branche: develop (à jour avec origin/develop)
 - CI: Backend #499 ✅, Docker #234 ✅
 - Git: fichiers test-results à nettoyer
+
+
+---
+
+## Session 52 — 2026-04-25 : M10 uuid 14, M3/M4 vérifiés, H2 CORS fix, Audit Global
+
+### Objectif
+Vérifier la branche `develop` après merge des PR #31 et #32, corriger les régressions, faire une revue complète et un audit global final.
+
+### Contexte
+Après merge PR #31 (H3, H5, H6) et PR #32 (M1, M9, H6, M10), la branche `develop` a été vérifiée. Des régressions ont été détectées (uuid v13, chacha20poly1305 0.10.1, @types/uuid présent).
+
+### Réalisations
+
+#### Corrections post-merge (H2, M10, chacha20poly1305)
+- ✅ **H2 (CORS)** : `localhost` exclu en production (`backend/src/config.rs:31-40`)
+  - Utilisation de `cfg!(debug_assertions)` pour n'ajouter localhost qu'en développement
+  - Tests mis à jour (`test_allowed_origins_includes_defaults`, `test_allowed_origins_with_extra`)
+- ✅ **M10 (uuid)** : `^13.0.0` → `^14.0.0` dans `frontend/package.json`
+  - Suppression de `@types/uuid` (inutile avec uuid v14+)
+  - `npm install` pour mettre à jour `package-lock.json`
+- ✅ **chacha20poly1305** : `0.10.1` → `0.10.8` dans `backend/Cargo.toml`
+  - Patch de sécurité appliqué
+
+#### Vérifications M3 et M4
+- ✅ **M3 (nginx non-root)** : Déjà OK — pas de service nginx dans docker-compose, isolation conteneur
+- ✅ **M4 (TURN build)** : Déjà OK — utilise `gcr.io/distroless/cc-debian12`
+
+#### Audit Global Final (2026-04-25)
+| Domaine | Score | Progression |
+|---------|-------|------------|
+| 🔒 Sécurité | **92/100** | = (H2 corrigé) |
+| 🐳 Docker | **92/100** | +2 (M1 .dockerignore) |
+| 📦 Dépendances | **74/100** | +2 (M9 + H6 + M10) |
+| **GLOBAL** | **86/100** | **+15 total** |
+
+### Fichiers Modifiés
+- `backend/src/config.rs` : H2 fix (CORS localhost exclu en prod) + tests mis à jour
+- `backend/Cargo.toml` : chacha20poly1305 0.10.8
+- `frontend/package.json` : uuid ^14.0.0, suppression @types/uuid
+- `frontend/package-lock.json` : mis à jour (npm install)
+
+### Prochaines Étapes
+- [ ] **CI** : Vérifier que les workflows passent sur `develop`
+- [ ] **Release** : Préparer v0.5.0 (tags, changelog)
+- [ ] **Monitoring** : Mettre en place une surveillance des healthchecks en production
+
+### État Final
+- Branche : `develop`
+- CI : À vérifier (push en attente)
+- Backend : `cargo check` ✅ (chacha20poly1305 0.10.8)
+- Frontend : `npm run build` ✅ (uuid ^14.0.0)
+- Git : 1 commit en attente de push (`1928dec8`)
