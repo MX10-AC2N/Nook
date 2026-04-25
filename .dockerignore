@@ -1,0 +1,66 @@
+# Git
+.git
+.gitignore
+
+# Environment files (never copy secrets into Docker images)
+.env
+.env.*
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Dependencies (will be re-installed in Docker)
+node_modules/
+target/
+
+# Build artifacts
+dist/
+build/
+.next/
+.cache/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+*.lcov
+.coverage/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Database files (should be mounted as volumes)
+*.db
+*.sqlite
+*.sqlite3
+
+# SSL certificates (should be mounted as secrets)
+*.pem
+*.key
+*.crt
+*.cert
+
+# Media files (should be mounted as volumes)
+media/
+uploads/
+
+# Documentation (not needed in Docker)
+*.md
+docs/
+!.dockerignore
+!docker-compose.yml
+!Dockerfile*
+!services/
