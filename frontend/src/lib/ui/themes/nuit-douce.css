@@ -70,6 +70,12 @@
   --radius-lg:   .75rem;
   --radius-xl:   1rem;
   --radius-full: 9999px;
+
+  /* ═══ Hermes: added variables ═══ */
+  --bg-hover: var(--bg-tertiary);
+  --accent-danger: #dc2626;
+  --text-danger: #dc2626;
+  --bg-danger: #fee2e2;
 }
 
 .theme-nuit-douce .btn-primary {

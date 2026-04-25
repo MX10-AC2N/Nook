@@ -3,853 +3,516 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { browser } from '$app/environment';
-  
-  // -----------------------------------------------------------------
-  // Import des runes (Svelte 5)
-  // -----------------------------------------------------------------
   import { authStore } from '$lib/authStore.svelte.js';
   import { getCurrentTheme } from '$lib/ui/ThemeStore.svelte.ts';
   import {
-    startGroupCall,
-    endCurrentCall,
-    callStore,
     callManager,
+    callStore,
+    endCurrentCall,
+    startGroupCall,
   } from '$lib/webrtc-calls.svelte.ts';
   import {
     participants,
     loadParticipants,
+    conversations,
   } from '$lib/conversationStore.svelte.ts';
 
-  // -----------------------------------------------------------------
-  // 1️⃣ États locaux (Svelte 5)
-  // -----------------------------------------------------------------
-  let loading = $state(true);
-  let error = $state<string | null>(null);
-  let showIncomingCallModal = $state(false);
-  let incomingCallFrom     = $state('');     // user_id de l'appelant
-  let incomingCallFromName = $state('');     // nom affiché dans la sonnerie
-  let incomingCallConvId   = $state('');
-  let incomingCallType     = $state<'audio'|'video'>('audio');
+  // ── Route params ─────────────────────────────────────────────────────
+  let conversationId = $derived(($page.params.id as string) ?? '');
+  let isVideo        = $derived(($page.url?.searchParams?.get('type') ?? 'audio') !== 'audio');
 
-  // Ajout pour l'accessibilité : référence au contenu du modal
-  let modalOverlay = $state<HTMLElement | undefined>(undefined);
+  // ── Local state ──────────────────────────────────────────────────────
+  let loading        = $state(true);
+  let error          = $state<string | null>(null);
+  let callDuration   = $state(0);
+  let timerInterval: ReturnType<typeof setInterval> | null = null;
+  let showDebugPanel = $state(false);
 
-  // Focus automatique sur le bouton Accepter quand le modal s'ouvre
-  $effect(() => {
-    if (showIncomingCallModal && modalOverlay) {
-      const acceptBtn = modalOverlay.querySelector('.accept-btn') as HTMLButtonElement | null;
-      if (acceptBtn) acceptBtn.focus();
-    }
-  });
-
-  // -----------------------------------------------------------------
-  // 2️⃣ Accès réactif aux paramètres d'URL (Svelte 5)
-  // -----------------------------------------------------------------
-  const conversationId = $derived($page.params?.id ?? '');
-  const callType       = $derived(($page.url?.searchParams?.get('type') ?? 'audio') as 'audio'|'video');
-
-  // BUG-CALL-6 FIX : nom de la conversation (pas l'UUID brut)
-  // participants.value est le tableau des Participant[], chargé par loadParticipants()
-  const convTitle = $derived(
-    (() => {
-      const parts = participants.value.filter((p) => p.id !== authStore.user?.id);
-      if (parts.length === 0) return 'Appel';
-      if (parts.length === 1) return parts[0].name ?? parts[0].username ?? 'Appel';
-      return parts.map(p => p.name ?? p.username).join(', ');
-    })()
+  let callPhase = $derived(
+    callStore.isInCall   ? 'active' :
+    callStore.isCalling  ? 'connecting' :
+    error                ? 'error' :
+    loading              ? 'loading' :
+                           'idle'
   );
 
-  // -----------------------------------------------------------------
-  // 3️⃣ Cycle de vie
-  // -----------------------------------------------------------------
+  // Title
+  function _computeCallTitle(): string {
+    const conv = conversations.value.find((c: any) => c.id === conversationId);
+    if (conv?.name && conv.name !== 'Groupe Global') return conv.name;
+    const others = participants.value.filter((p: any) => p.id !== authStore.user?.id);
+    if (others.length === 0) return 'Appel';
+    if (others.length === 1) return others[0].name ?? others[0].username ?? 'Appel';
+    return `${others.length} participants`;
+  }
+  const callTitle = $derived(_computeCallTitle());
+
+  const formattedDuration = $derived(
+    `${Math.floor(callDuration / 60).toString().padStart(2, '0')}:${(callDuration % 60).toString().padStart(2, '0')}`
+  );
+
+  // ── Lifecycle ────────────────────────────────────────────────────────
   onMount(async () => {
-    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    if (!authStore.isAuthenticated) {
+      goto('/login');
+      return;
+    }
+    loading = true;
+    error = null;
     try {
-      loading = true;
-      error = null;
       await loadParticipants(conversationId);
-
-      // BUG-CALL-2 FIX : participants.value (objet { value, subscribe }, pas un Array)
-      if ($page.url?.searchParams?.has('call')) {
-        const ids = participants.value.map((p) => p.id);
-        await startGroupCall(conversationId, ids, callType);
-      }
-
-      loading = false;
       if (browser) {
-        window.addEventListener('incoming-call', handleIncomingCall as EventListener);
+        if (!navigator.mediaDevices?.getUserMedia) {
+          error = 'Les appels nécessitent un contexte sécurisé (HTTPS). Accédez à Nook via https://';
+        }
         window.addEventListener('keydown', handleKeydown);
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err) || "Erreur d'initialisation de l'appel";
+      error = err instanceof Error ? err.message : "Erreur d'initialisation";
+    } finally {
       loading = false;
-      console.error('Appel init error:', err);
     }
   });
 
   onDestroy(() => {
     if (browser) {
-      window.removeEventListener('incoming-call', handleIncomingCall as EventListener);
       window.removeEventListener('keydown', handleKeydown);
     }
-    // Stopper la sonnerie si la page est quittée
     callManager.stopRingtone();
+    if (timerInterval) clearInterval(timerInterval);
   });
 
-  // -----------------------------------------------------------------
-  // 4️⃣ Gestion d'un appel entrant (custom event émis par webrtc-calls)
-  // -----------------------------------------------------------------
-  function handleIncomingCall(event: CustomEvent) {
-    const { from_user_id, from_user_name, conversationId: convId, callType: ct } = event.detail;
-    incomingCallFrom     = from_user_id;
-    incomingCallFromName = from_user_name ?? from_user_id;
-    incomingCallConvId   = convId;
-    incomingCallType     = ct ?? 'audio';
-    showIncomingCallModal = true;
-  }
-
-  function closeIncomingCallModal() {
-    showIncomingCallModal = false;
-    incomingCallFrom     = '';
-    incomingCallFromName = '';
-    incomingCallConvId   = '';
-  }
-
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape' && showIncomingCallModal) {
-      rejectCall();
-    }
-  }
-
-  // -----------------------------------------------------------------
-  // 5️⃣ Acceptation / rejet d'un appel entrant
-  // -----------------------------------------------------------------
-  async function acceptCall() {
-    if (!incomingCallConvId) return;
+  // ── Call actions ─────────────────────────────────────────────────────
+  async function startCall(type: 'audio' | 'video') {
     try {
-      callManager.stopRingtone();
-      // BUG-CALL-2 FIX : participants.value
-      const ids = participants.value.map((p) => p.id);
-      await startGroupCall(incomingCallConvId, ids, incomingCallType);
-      closeIncomingCallModal();
+      error = null;
+      if (browser && !navigator.mediaDevices?.getUserMedia) {
+        error = 'Les appels nécessitent HTTPS. Vérifiez votre connexion sécurisée.';
+        return;
+      }
+      const ids = participants.value.map((p: any) => p.id);
+      await Promise.race([
+        startGroupCall(conversationId, ids, type),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Délai d'initialisation dépassé (15s) — vérifiez HTTPS et les permissions")), 15000)
+        ),
+      ]);
+      startTimer();
     } catch (err) {
-      console.error('Erreur acceptation appel :', err);
+      error = err instanceof Error ? err.message : "Erreur de démarrage de l'appel";
     }
   }
 
-  function rejectCall() {
+  function endCall() {
     callManager.stopRingtone();
-    // Envoyer signal call_rejected à l'appelant
-    callManager.sendReject(incomingCallConvId, incomingCallFrom);
-    closeIncomingCallModal();
+    endCurrentCall();
+    stopTimer();
+    goto('/chat');
   }
 
-  // -----------------------------------------------------------------
-  // 6️⃣ Contrôles de l'appel en cours
-  // -----------------------------------------------------------------
-  function toggleMute()  { callManager.toggleMute(); }
-  function toggleVideo() { callManager.toggleVideo(); }
-  async function endCall() { await endCurrentCall(); }
+  function toggleMute() {
+    callStore.isMuted = !callStore.isMuted;
+    callStore.localStream?.getAudioTracks()?.forEach((t: MediaStreamTrack) => (t.enabled = !callStore.isMuted));
+  }
+
+  function toggleVideo() {
+    callStore.isVideoOff = !callStore.isVideoOff;
+    callStore.localStream?.getVideoTracks()?.forEach((t: MediaStreamTrack) => (t.enabled = !callStore.isVideoOff));
+  }
+
+  function toggleScreenShare() {
+    if (callStore.isScreenSharing) {
+      callStore.screenShareLocalVideoElement?.srcObject?.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      callStore.isScreenSharing = false;
+      return;
+    }
+    navigator.mediaDevices.getDisplayMedia({ video: true })
+      .then((stream) => {
+        if (callStore.screenShareLocalVideoElement) callStore.screenShareLocalVideoElement.srcObject = stream;
+        stream.getVideoTracks()[0].addEventListener('ended', () => { callStore.isScreenSharing = false; });
+        callStore.isScreenSharing = true;
+      })
+      .catch((err) => { error = 'Impossible de partager l\'écran : ' + err.message; });
+  }
+
+  // ── Timer ────────────────────────────────────────────────────────────
+  function startTimer() {
+    callDuration = 0;
+    timerInterval = setInterval(() => { callDuration++; }, 1000);
+  }
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  // ── Keyboard ─────────────────────────────────────────────────────────
+  function handleKeydown(e: KeyboardEvent) {
+    if (!callStore.isInCall) return;
+    if (e.key === 'm' || e.key === 'M') toggleMute();
+    if (e.key === 'v' || e.key === 'V') toggleVideo();
+    if (e.key === 'Escape') endCall();
+    if (e.ctrlKey && e.key === 'd') { e.preventDefault(); showDebugPanel = !showDebugPanel; }
+  }
 </script>
 
-<svelte:head>
-  <title>Appel - Nook</title>
-</svelte:head>
+<!-- ════════════════════════════════════════════════════════════════════════
+     CALL PAGE
+     ════════════════════════════════════════════════════════════════════════ -->
 
-<div class="call-page">
+<div class="call-page" class:dark={getCurrentTheme()?.isDark}>
   {#if loading}
-    <!-- LOADING -->
-    <div class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Préparation de l'appel…</p>
+    <div class="call-center">
+      <div class="spinner" />
+      <p class="call-center-text">Chargement…</p>
     </div>
 
-  {:else if error}
-    <!-- ERREUR GLOBALE -->
-    <div class="error-container">
-      <div class="error-content">
-        <h1>❌ Erreur</h1>
-        <p class="error-message">{error}</p>
-        <button onclick={() => goto('/chat')} class="back-button">
-          ← Retour au chat
+  {:else if error && !callStore.isInCall}
+    <div class="call-center error-state">
+      <svg class="call-center-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+      </svg>
+      <p class="call-center-text error">{error}</p>
+      <button class="btn btn-secondary" onclick={() => goto('/chat')}>Retour au chat</button>
+    </div>
+
+  {:else if callStore.isInCall}
+    <!-- ═══ ACTIVE CALL ═══ -->
+    <div class="call-active">
+      <header class="call-header">
+        <div class="call-header-info">
+          <span class="call-header-title">{callTitle}</span>
+          <span class="call-timer">{formattedDuration}</span>
+        </div>
+        <div class="call-header-badges">
+          {#if callStore.callQuality}
+            <span class="quality-dot" class:good={callStore.callQuality === 'good'} class:fair={callStore.callQuality === 'fair'} class:poor={callStore.callQuality === 'poor'} />
+          {/if}
+          <span class="call-type-badge">
+            {#if isVideo}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+            {:else}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            {/if}
+          </span>
+        </div>
+      </header>
+
+      <div class="participants-grid" class:video-mode={isVideo}>
+        {#if callStore.isScreenSharing}
+          <div class="participant-card screen-share">
+            <video bind:this={callStore.screenShareLocalVideoElement} autoplay muted playsinline class="video-stream" />
+            <div class="participant-overlay">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>Partage d'écran</span>
+            </div>
+          </div>
+        {/if}
+
+        <div class="participant-card local" class:without-video={!isVideo || callStore.isVideoOff}>
+          {#if isVideo && !callStore.isVideoOff}
+            <video bind:this={callStore.localVideoElement} autoplay muted playsinline class="video-stream" />
+          {/if}
+          <div class="participant-overlay">
+            <span class="participant-name">Vous</span>
+            <div class="participant-badges">
+              {#if callStore.isMuted}<span class="badge muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .41-.04.81-.1 1.2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>{/if}
+              {#if callStore.isVideoOff && isVideo}<span class="badge cam-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 7l-5.2 3.3M2 5h15a2 2 0 0 1 2 2v6m-2 0V5H2v14h13"/></svg></span>{/if}
+            </div>
+          </div>
+        </div>
+
+        {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
+          {@const participant = participants.value.find((p: any) => p.id === userId)}
+          <div class="participant-card remote" class:without-video={!isVideo}>
+            {#if isVideo}
+              <video srcObject={stream} autoplay playsinline class="video-stream" />
+            {/if}
+            <div class="participant-overlay">
+              <span class="participant-name">{participant?.name ?? participant?.username ?? 'Participant'}</span>
+            </div>
+          </div>
+        {/each}
+
+        {#if callStore.remoteStreams.size === 0}
+          <div class="waiting">
+            <div class="pulse-ring" />
+            <p>En attente des participants…</p>
+          </div>
+        {/if}
+      </div>
+
+      <div class="call-controls">
+        <button onclick={toggleMute} class="ctrl-btn" class:active={callStore.isMuted} aria-label={callStore.isMuted ? 'Activer micro' : 'Couper micro'}>
+          {#if callStore.isMuted}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .41-.04.81-.1 1.2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          {:else}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          {/if}
+          <span>{callStore.isMuted ? 'Muté' : 'Micro'}</span>
+        </button>
+
+        <button onclick={toggleVideo} class="ctrl-btn" class:active={callStore.isVideoOff} aria-label={callStore.isVideoOff ? 'Activer vidéo' : 'Couper vidéo'}>
+          {#if callStore.isVideoOff}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M21 7l-5.2 3.3M2 5h15a2 2 0 0 1 2 2v6m-2 0V5H2v14h13"/></svg>
+          {:else}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          {/if}
+          <span>{callStore.isVideoOff ? 'Vidéo off' : 'Vidéo'}</span>
+        </button>
+
+        <button onclick={toggleScreenShare} class="ctrl-btn" class:active={callStore.isScreenSharing} aria-label="Partager écran">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span>Écran</span>
+        </button>
+
+        <button onclick={endCall} class="ctrl-btn hangup" aria-label="Raccrocher">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="23" y1="1" x2="1" y2="23"/></svg>
+          <span>Raccrocher</span>
         </button>
       </div>
+    </div>
+
+  {:else if callStore.isCalling}
+    <!-- ═══ CONNECTING ═══ -->
+    <div class="call-center connecting">
+      <div class="pulse-ring large" />
+      <div class="connecting-icon">
+        {#if isVideo}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        {:else}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        {/if}
+      </div>
+      <p class="call-center-text">Connexion en cours…</p>
+      <p class="call-center-hint">Appel vers {callTitle}</p>
+      <button class="btn btn-danger" onclick={endCall}>Annuler</button>
     </div>
 
   {:else}
-    <!-- CONTENU DE L'APPEL -->
-    <div class="call-container">
-      <!-- HEADER -->
-      <header class="call-header">
-        <div class="header-theme">
-          {#if getCurrentTheme === 'jardin-secret'}
-            🌿 Appel Jardin Secret
-          {:else if getCurrentTheme === 'space-hub'}
-            🚀 Appel Space Hub
-          {:else if getCurrentTheme === 'maison-chaleureuse'}
-            🏠 Appel Maison Chaleureuse
-          {/if}
-        </div>
-
-        <h1 class="call-title">Appel avec {convTitle}</h1>
-
-        {#if participants.value.length > 1}
-          <p class="participants-count">{participants.value.length} participants</p>
+    <!-- ═══ IDLE — Pre-call ═══ -->
+    <div class="call-center idle">
+      <div class="idle-avatar">
+        {#if isVideo}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        {:else}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
         {/if}
-
-        <button
-          onclick={() => goto('/chat')}
-          class="back-button"
-          aria-label="Retour au chat"
-        >
-          ← Retour
-        </button>
-      </header>
-
-      <!-- ÉTAT DE L'APPEL (en cours / en attente) -->
-      {#if callStore.isInCall}
-        <!-- CALL ACTIVE -->
-        <div class="video-grid" role="region" aria-label="Participants à l'appel">
-          <!-- Local stream (self) -->
-          {#if callStore.localStream}
-            <div class="video-participant local">
-              <video
-                bind:this={callStore.localVideoElement}
-                autoplay
-                muted
-                playsinline
-                class="local-video"
-              ></video>
-
-              <div class="participant-info">
-                <span class="participant-name">Vous</span>
-                <span
-                  class="icon"
-                  aria-label={callStore.isMuted ? 'Microphone coupé' : 'Microphone activé'}
-                >
-                  {callStore.isMuted ? '🔇' : '🔊'}
-                </span>
-                <span
-                  class="icon"
-                  aria-label={callStore.isVideoOff ? 'Vidéo désactivée' : 'Vidéo activée'}
-                >
-                  {callStore.isVideoOff ? '📹❌' : '📹'}
-                </span>
-              </div>
-            </div>
-          {/if}
-
-          <!-- Remote streams -->
-          {#each Array.from(callStore.remoteStreams.entries()) as [userId, stream]}
-            <div class="video-participant remote">
-              <video srcObject={stream} autoplay playsinline class="remote-video"></video>
-              <div class="participant-info">
-                <span class="participant-name">
-                  {participants.value.find((p) => p.id === userId)?.name || userId}
-                </span>
-              </div>
-            </div>
-          {/each}
-
-          {#if callStore.remoteStreams.size === 0 && !callStore.localStream}
-            <div class="waiting-message">
-              <p>Connexion aux participants…</p>
-              <div class="spinner"></div>
-            </div>
-          {/if}
-        </div>
-
-        <!-- Controls -->
-        <div class="call-controls" role="toolbar" aria-label="Contrôles de l'appel">
-          <button
-            onclick={toggleMute}
-            class="control-button"
-            aria-label={callStore.isMuted ? 'Activer le son' : 'Couper le son'}
-          >
-            {callStore.isMuted ? '🔇' : '🔊'}
-          </button>
-
-          <button
-            onclick={toggleVideo}
-            class="control-button"
-            aria-label={callStore.isVideoOff ? 'Activer la vidéo' : 'Désactiver la vidéo'}
-          >
-            {callStore.isVideoOff ? '📹❌' : '📹'}
-          </button>
-
-          <button onclick={endCall} class="control-button hangup" aria-label="Raccrocher">
-            📵
-          </button>
-
-          <div class="call-info">
-            <span>💬 {callStore.remoteStreams.size + 1} participants</span>
-            <span class="secure-badge">✅ Connexion sécurisée P2P</span>
-          </div>
-        </div>
-
-      {:else if callStore.isCalling || callStore.isAnswering}
-        <!-- CALL EN COURS DE SETUP -->
-        <div class="call-status" role="status" aria-live="polite">
-          <span class="icon large" aria-hidden="true">✆</span>
-
-          {#if callStore.isCalling}
-            <p>Appel en cours vers les participants…</p>
-          {:else}
-            <p>Appel entrant de {incomingCallFromName || incomingCallFrom}</p>
-          {/if}
-
-          <div class="spinner"></div>
-          <p class="secure-badge">Connexion sécurisée P2P</p>
-        </div>
-
-      {:else}
-        <!-- AUCUN APPEL EN COURS -->
-        <div class="no-call">
-          <div class="theme-icon" aria-hidden="true">
-            {#if getCurrentTheme === 'jardin-secret'}
-              🌸
-            {:else if getCurrentTheme === 'space-hub'}
-              🌌
-            {:else if getCurrentTheme === 'maison-chaleureuse'}
-              🏡
-            {/if}
-          </div>
-
-          <h2 class="no-call-title">Aucun appel en cours</h2>
-          <p class="no-call-description">
-            Cette conversation n'a pas d'appel actif.
-          </p>
-
-          <div class="start-call-buttons">
-            <button
-              class="start-audio-call"
-              onclick={async () => {
-                const ids = participants.value.map((p) => p.id);
-                await startGroupCall(conversationId, ids, 'audio');
-              }}
-              aria-label="Démarrer un appel audio avec les participants"
-            >
-              🎤 Démarrer un appel audio
-            </button>
-
-            <button
-              class="start-video-call"
-              onclick={async () => {
-                const ids = participants.value.map((p) => p.id);
-                await startGroupCall(conversationId, ids, 'video');
-              }}
-              aria-label="Démarrer un appel vidéo avec les participants"
-            >
-              📹 Démarrer un appel vidéo
-            </button>
-          </div>
-        </div>
-      {/if}
-
-      <!-- ERREUR CALL STORE (ex. problème WebRTC) -->
-      {#if callStore.error}
-        <div class="error-modal" role="alertdialog" aria-label="Erreur">
-          <p>{callStore.error}</p>
-          <button
-            onclick={() => (callStore.error = null)}
-            aria-label="Fermer"
-          >
-            ✕
-          </button>
-        </div>
-      {/if}
-    </div>
-
-    <!-- MODAL APPEL ENTRANT -->
-    {#if showIncomingCallModal}
-      <div
-        bind:this={modalOverlay}
-        class="modal-overlay"
-        onclick={closeIncomingCallModal}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Appel entrant"
-        tabindex="-1"
-        onkeydown={handleKeydown}
-      >
-        <!-- eslint-disable-next-line svelte/a11y-click-events-have-key-events -->
-        <!-- eslint-disable-next-line svelte/a11y-no-noninteractive-element-interactions -->
-        <div
-          class="incoming-call-modal"
-          role="document"
-          onclick={(e) => e.stopPropagation()}
-          onkeydown={(e) => e.stopPropagation()}
-          tabindex="-1"
-        >
-          <div class="caller-avatar" aria-hidden="true">
-            <span>✆</span>
-          </div>
-
-          <h2 class="caller-name">Appel entrant</h2>
-          <p class="caller-from">De : {incomingCallFromName || incomingCallFrom}</p>
-          <p class="call-info-text">Vous avez un appel entrant</p>
-
-          <div class="call-actions">
-            <button onclick={acceptCall} class="accept-btn" aria-label="Accepter l'appel">
-              ✅ Accepter
-            </button>
-
-            <button onclick={rejectCall} class="reject-btn" aria-label="Rejeter l'appel">
-              ❌ Rejeter
-            </button>
-          </div>
-        </div>
       </div>
-    {/if}
+      <h2 class="call-center-title">{callTitle}</h2>
+      <p class="call-center-hint">
+        {participants.value.filter((p: any) => p.id !== authStore.user?.id).length} participant{participants.value.filter((p: any) => p.id !== authStore.user?.id).length !== 1 ? 's' : ''}
+      </p>
+
+      {#if error}
+        <div class="call-error-inline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          <span>{error}</span>
+        </div>
+      {/if}
+
+      <div class="idle-actions">
+        <button class="btn btn-primary btn-audio" onclick={() => startCall('audio')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          Appel audio
+        </button>
+        <button class="btn btn-secondary btn-video" onclick={() => startCall('video')}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          {isVideo ? 'Appel vidéo' : 'Ajouter la vidéo'}
+        </button>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Debug panel -->
+  {#if showDebugPanel && callStore.isInCall}
+    <div class="debug-panel">
+      <h3>Qualité d'appel</h3>
+      <table>
+        <tbody>
+          <tr><td>Qualité</td><td>{callStore.callQuality}</td></tr>
+          <tr><td>Latence</td><td>{callStore.rtt} ms</td></tr>
+          <tr><td>Jitter</td><td>{callStore.jitter} ms</td></tr>
+          <tr><td>Pertes</td><td>{callStore.packetsLost}</td></tr>
+          <tr><td>Paires</td><td>{callStore.peerConnections.size}</td></tr>
+        </tbody>
+      </table>
+      <p class="debug-hint">Ctrl+D pour fermer</p>
+    </div>
+  {/if}
+
+  <!-- Error banner (during call) -->
+  {#if callStore.error && callStore.isInCall}
+    <div class="error-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>{callStore.error}</span>
+      <button onclick={() => (callStore.error = null)}>✕</button>
+    </div>
   {/if}
 </div>
 
 <style>
-  * { box-sizing: border-box; }
-
   .call-page {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);
-    padding: 1rem;
-  }
-
-  .loading-container,
-  .error-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    gap: 1rem;
-    padding: 1.5rem;
-  }
-
-  .loading-spinner,
-  .spinner {
-    width: 48px;
-    height: 48px;
-    border: 4px solid #e0f2fe;
-    border-top-color: #2d5a27;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .error-content {
-    background: white;
-    padding: 2rem;
-    border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    text-align: center;
-    max-width: 400px;
-    width: 100%;
-  }
-
-  .error-content h1 {
-    font-size: 1.5rem;
-    margin: 0 0 0.5rem 0;
-    color: #1e293b;
-  }
-
-  .error-message {
-    color: #dc2626;
-    margin: 0 0 1.5rem 0;
-    line-height: 1.5;
-  }
-
-  .back-button {
-    padding: 0.75rem 1.5rem;
-    background: #2d5a27;
-    color: white;
-    border: none;
-    border-radius: 0.75rem;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .back-button:hover {
-    background: #3d7a37;
-    transform: translateY(-1px);
-  }
-
-  .call-container {
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-
-  .call-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.25rem 1.5rem;
-    background: white;
-    border-radius: 16px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    margin-bottom: 1.5rem;
-  }
-
-  .header-theme {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: #2d5a27;
-  }
-
-  .call-title {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0;
-  }
-
-  .participants-count {
-    font-size: 0.875rem;
-    color: #64748b;
-  }
-
-  .video-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-
-  .video-participant {
-    position: relative;
-    background: #1e293b;
-    border-radius: 16px;
+    height: 100dvh; width: 100%;
+    display: flex; flex-direction: column;
+    background: var(--bg-primary, #0f172a);
+    color: var(--text-primary, #f1f5f9);
     overflow: hidden;
-    aspect-ratio: 16/9;
+  }
+  .call-center {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 1rem; padding: 2rem; text-align: center;
+  }
+  .call-center-icon { width: 4rem; height: 4rem; opacity: 0.6; }
+  .call-center-text { font-size: 1.125rem; color: var(--text-secondary, #94a3b8); margin: 0; }
+  .call-center-hint { font-size: 0.875rem; color: var(--text-muted, #64748b); margin: 0; }
+  .call-center-title { font-size: 1.5rem; font-weight: 600; margin: 0; }
+  .error-state .call-center-icon { color: var(--danger, #ef4444); }
+  .call-center-text.error { color: var(--danger, #ef4444); max-width: 400px; }
+  .call-error-inline {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1rem; background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3); border-radius: 0.75rem;
+    color: var(--danger, #ef4444); font-size: 0.875rem; max-width: 400px;
+  }
+  .call-error-inline svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+
+  /* Idle */
+  .idle .idle-avatar {
+    width: 6rem; height: 6rem; display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; background: var(--bg-secondary, #1e293b);
+    border: 2px solid var(--border, #334155); margin-bottom: 0.5rem;
+  }
+  .idle .idle-avatar svg { width: 3rem; height: 3rem; color: var(--accent, #60a5fa); }
+  .idle-actions { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; justify-content: center; }
+
+  /* Connecting */
+  .connecting .connecting-icon {
+    width: 5rem; height: 5rem; display: flex; align-items: center; justify-content: center; z-index: 2;
+  }
+  .connecting .connecting-icon svg { width: 2.5rem; height: 2.5rem; color: var(--accent, #60a5fa); }
+
+  /* Active call header */
+  .call-active { flex: 1; display: flex; flex-direction: column; }
+  .call-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 1rem; background: var(--bg-secondary, #1e293b);
+    border-bottom: 1px solid var(--border, #334155);
+  }
+  .call-header-info { display: flex; flex-direction: column; }
+  .call-header-title { font-weight: 600; font-size: 0.95rem; }
+  .call-timer { font-size: 0.8rem; color: var(--text-muted, #64748b); font-variant-numeric: tabular-nums; }
+  .call-header-badges { display: flex; align-items: center; gap: 0.5rem; }
+  .quality-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--text-muted, #64748b); }
+  .quality-dot.good { background: #22c55e; }
+  .quality-dot.fair { background: #f59e0b; }
+  .quality-dot.poor { background: #ef4444; }
+  .call-type-badge { width: 1.5rem; height: 1.5rem; display: flex; align-items: center; justify-content: center; opacity: 0.7; }
+  .call-type-badge svg { width: 1rem; height: 1rem; }
+
+  /* Participant grid */
+  .participants-grid {
+    flex: 1; display: grid; gap: 0.5rem; padding: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-content: center;
+  }
+  .participant-card {
+    position: relative; border-radius: 0.75rem; overflow: hidden;
+    background: var(--bg-tertiary, #334155); aspect-ratio: 16/9; min-height: 150px;
+  }
+  .participant-card.without-video {
+    aspect-ratio: auto; min-height: 100px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .participant-card.screen-share { grid-column: 1 / -1; min-height: 300px; }
+  .video-stream { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .participant-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.75rem; background: linear-gradient(transparent, rgba(0,0,0,0.7)); font-size: 0.8rem;
+  }
+  .participant-overlay svg { width: 1rem; height: 1rem; }
+  .participant-name { font-weight: 500; }
+  .participant-badges { display: flex; gap: 0.25rem; margin-left: auto; }
+  .badge {
+    display: flex; align-items: center; justify-content: center;
+    width: 1.25rem; height: 1.25rem; background: rgba(0,0,0,0.5); border-radius: 50%;
+  }
+  .badge svg { width: 0.75rem; height: 0.75rem; }
+  .badge.muted, .badge.cam-off { color: #ef4444; }
+  .waiting {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    grid-column: 1 / -1; padding: 3rem; color: var(--text-muted, #64748b);
+    font-size: 0.9rem; position: relative;
   }
 
-  video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .participant-info {
-    position: absolute;
-    bottom: 1rem;
-    left: 1rem;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .participant-name {
-    font-weight: 600;
-  }
-
-  .icon {
-    font-size: 1.125rem;
-  }
-
-  .waiting-message {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 3rem;
-    background: white;
-    border-radius: 16px;
-    color: #64748b;
-  }
-
+  /* Controls */
   .call-controls {
-    position: fixed;
-    bottom: 2rem;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    background: white;
-    padding: 1rem 1.5rem;
-    border-radius: 3rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    display: flex; justify-content: center; gap: 0.75rem;
+    padding: 1rem; background: var(--bg-secondary, #1e293b);
+    border-top: 1px solid var(--border, #334155);
   }
-
-  .control-button {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    border: none;
-    background: #f1f5f9;
-    color: #1e293b;
-    font-size: 1.5rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .ctrl-btn {
+    display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+    padding: 0.75rem 1rem; border: none; border-radius: 0.75rem;
+    background: var(--bg-tertiary, #334155); color: var(--text-primary, #f1f5f9);
+    cursor: pointer; transition: all 0.15s; font-size: 0.75rem;
   }
+  .ctrl-btn svg { width: 1.5rem; height: 1.5rem; }
+  .ctrl-btn:hover { background: var(--bg-hover, #475569); }
+  .ctrl-btn.active { background: var(--danger, #ef4444); color: #fff; }
+  .ctrl-btn.hangup { background: var(--danger, #ef4444); color: #fff; }
+  .ctrl-btn.hangup:hover { background: #dc2626; }
 
-  .control-button:hover {
-    background: #e2e8f0;
-    transform: scale(1.05);
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1.5rem; border: none; border-radius: 0.75rem;
+    font-size: 1rem; font-weight: 500; cursor: pointer; transition: all 0.15s;
   }
+  .btn svg { width: 1.25rem; height: 1.25rem; }
+  .btn-primary { background: var(--accent, #3b82f6); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover, #2563eb); }
+  .btn-secondary { background: var(--bg-tertiary, #334155); color: var(--text-primary, #f1f5f9); }
+  .btn-secondary:hover { background: var(--bg-hover, #475569); }
+  .btn-danger { background: var(--danger, #ef4444); color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
 
-  .control-button.hangup {
-    background: #dc2626;
-    color: white;
+  /* Spinner & pulse */
+  .spinner {
+    width: 3rem; height: 3rem; border: 0.25rem solid var(--bg-tertiary, #334155);
+    border-top-color: var(--accent, #3b82f6); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
   }
-
-  .control-button.hangup:hover {
-    background: #b91c1c;
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .pulse-ring {
+    position: absolute; width: 5rem; height: 5rem;
+    border: 2px solid var(--accent, #3b82f6); border-radius: 50%;
+    animation: pulse-out 1.5s ease-out infinite; z-index: 1;
   }
+  .pulse-ring.large { width: 8rem; height: 8rem; }
+  @keyframes pulse-out { 0% { transform: scale(0.5); opacity: 1; } 100% { transform: scale(2); opacity: 0; } }
 
-  .call-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    margin-left: 1rem;
-    font-size: 0.875rem;
-    color: #64748b;
+  /* Error banner */
+  .error-banner {
+    position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1rem; background: rgba(239,68,68,0.9);
+    color: #fff; border-radius: 0.75rem; z-index: 1000; max-width: 90vw;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-size: 0.875rem;
   }
+  .error-banner svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+  .error-banner button { background: none; border: none; color: #fff; cursor: pointer; font-size: 1rem; margin-left: 0.5rem; }
 
-  .secure-badge {
-    color: #2d5a27;
-    font-weight: 500;
+  /* Debug panel */
+  .debug-panel {
+    position: fixed; bottom: 5rem; left: 50%; transform: translateX(-50%);
+    background: var(--bg-secondary, #1e293b); border: 1px solid var(--border, #334155);
+    border-radius: 0.75rem; padding: 1rem; z-index: 1000;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3); min-width: 260px;
   }
-
-  .call-status {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    gap: 1.5rem;
-    text-align: center;
-  }
-
-  .icon.large {
-    font-size: 4rem;
-  }
-
-  .no-call {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    gap: 2rem;
-    text-align: center;
-  }
-
-  .theme-icon {
-    font-size: 5rem;
-  }
-
-  .no-call-title {
-    font-size: 2rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0;
-  }
-
-  .no-call-description {
-    color: #64748b;
-    font-size: 1.125rem;
-    margin: 0;
-  }
-
-  .start-call-buttons {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .start-audio-call,
-  .start-video-call {
-    padding: 1rem 2rem;
-    border: none;
-    border-radius: 1rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .start-audio-call {
-    background: #2d5a27;
-    color: white;
-  }
-
-  .start-video-call {
-    background: #0ea5e9;
-    color: white;
-  }
-
-  .start-audio-call:hover,
-  .start-video-call:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-  }
-
-  .error-modal {
-    position: fixed;
-    top: 2rem;
-    right: 2rem;
-    background: #fee2e2;
-    color: #dc2626;
-    padding: 1rem 1.5rem;
-    border-radius: 0.75rem;
-    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-    max-width: 400px;
-    z-index: 1000;
-  }
-
-  .error-modal button {
-    background: none;
-    border: none;
-    color: #dc2626;
-    font-size: 1.5rem;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(4px);
-  }
-
-  .incoming-call-modal {
-    background: white;
-    padding: 2.5rem;
-    border-radius: 1.5rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-    max-width: 400px;
-    width: 90%;
-    text-align: center;
-  }
-
-  .caller-avatar {
-    width: 80px;
-    height: 80px;
-    background: #2d5a27;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 2.5rem;
-    margin: 0 auto 1.5rem;
-  }
-
-  .caller-name {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0 0 0.5rem 0;
-  }
-
-  .caller-from {
-    color: #64748b;
-    margin: 0 0 1rem 0;
-  }
-
-  .call-info-text {
-    color: #64748b;
-    margin: 0 0 2rem 0;
-  }
-
-  .call-actions {
-    display: flex;
-    gap: 1rem;
-    justify-content: center;
-  }
-
-  .accept-btn,
-  .reject-btn {
-    padding: 1rem 2rem;
-    border: none;
-    border-radius: 0.75rem;
-    font-size: 1.125rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .accept-btn {
-    background: #2d5a27;
-    color: white;
-  }
-
-  .reject-btn {
-    background: #dc2626;
-    color: white;
-  }
-
-  .accept-btn:hover {
-    background: #3d7a37;
-  }
-
-  .reject-btn:hover {
-    background: #b91c1c;
-  }
-
-  @media (max-width: 768px) {
-    .call-header {
-      padding: 1rem;
-      flex-direction: column;
-      gap: 0.75rem;
-      text-align: center;
-    }
-
-    .video-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .call-controls {
-      bottom: 1rem;
-      padding: 0.75rem 1rem;
-      gap: 0.5rem;
-    }
-
-    .control-button {
-      width: 48px;
-      height: 48px;
-      font-size: 1.25rem;
-    }
-
-    .call-info {
-      display: none;
-    }
-
-    .start-call-buttons {
-      flex-direction: column;
-      width: 100%;
-      padding: 0 1rem;
-    }
-
-    .start-audio-call,
-    .start-video-call {
-      width: 100%;
-    }
-  }
+  .debug-panel h3 { margin: 0 0 0.5rem; font-size: 0.8rem; color: var(--accent, #60a5fa); }
+  .debug-panel table { width: 100%; font-size: 0.75rem; border-collapse: collapse; }
+  .debug-panel td { padding: 0.2rem 0; }
+  .debug-panel td:first-child { color: var(--text-muted, #64748b); padding-right: 1rem; }
+  .debug-panel td:last-child { font-family: monospace; }
+  .debug-hint { margin: 0.5rem 0 0; font-size: 0.625rem; color: var(--text-muted, #64748b); text-align: right; }
 </style>

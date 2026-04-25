@@ -257,3 +257,45 @@ Messages WS reçus par le client :
 | `VAPID_SUBJECT` | `mailto:admin@nook.local` | Contact pour les serveurs push (RFC 8292) |
 
 > **Zimaboard** : `DATA_DIR=/media/ac2n-cloud/volume_docker_Nook/nook-data` | `LOGS_DIR=.../nook-logs`
+
+
+## 🌐 SFU (Selective Forwarding Unit) — Appels groupe 3+
+
+| Méthode | Route | Auth | Description |
+|---------|-------|------|-------------|
+| `POST` | `/api/sfu/join` | oui | Rejoindre une room SFU avec offer SDP |
+| `POST` | `/api/sfu/answer` | oui | Répondre à une offre de renegotiation SFU |
+| `POST` | `/api/sfu/candidate` | oui | Ajouter un ICE candidate au SFU |
+| `POST` | `/api/sfu/leave` | oui | Quitter la room SFU |
+
+### Signalisation SFU via WebSocket
+
+Le SFU utilise le même canal WebSocket `/ws` que le signaling P2P, avec des types de messages dédiés:
+
+| Type WS | Direction | Payload |
+|---------|-----------|---------|
+| `sfu_join` | Client → Backend | `{ conversation_id, sdp: "offer" }` |
+| `sfu_answer` | Backend → Client | `{ answer, peers[], renegotiate_offer? }` |
+| `sfu_renegotiate_offer` | Backend → Client | `{ offer }` |
+| `sfu_peers` | Backend → Client | `{ peers[] }` |
+| `sfu_error` | Backend → Client | `{ error }` |
+| `sfu_answer` | Client → Backend | `{ conversation_id, sdp: "answer" }` (confirme renegotiation) |
+| `sfu_candidate` | Client → Backend | `{ conversation_id, candidate }` |
+| `sfu_leave` | Client → Backend | `{ conversation_id }` |
+
+### Architecture backend
+
+```
+SfuState ──> rooms: HashMap<conversation_id, Room>
+               └─> Room { peers: HashMap<user_id, Peer>, tracks: Vec<TrackInfo> }
+                    └─> Peer { pc: PeerConnection, added_sources: HashSet<String>, negotiation_pending: AtomicBool }
+                    └─> TrackInfo { relay: MediaRelay, remote_track, user_id, peer_id, kind, params }
+```
+
+### Pattern MediaRelay
+
+Quand un participant envoie une track:
+1. Le SFU crée `MediaRelay::with_capacity(local_track, 500)`
+2. Abonne chaque autre peer via `pc.add_track_with_stream_id(relay.subscribe(), stream_id, params)`
+3. Forward PLI/RTCP depuis les peers vers la source originale
+4. PLI périodique toutes les 3s pour rafraîchir les keyframes

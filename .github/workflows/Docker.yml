@@ -1,42 +1,39 @@
-name: 4==> 🐳 Docker Build & Push
+name: 6 ==> Docker Build & Push
 
 on:
   workflow_dispatch:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  workflow_run:
+    workflows:
+      - "1 ==> Backend Build"
+      - "2 ==> Frontend Build"
+      - "3 ==> Turn-Server Build"
+    types:
+      - completed
 
 jobs:
-  docker:
-    name: 🐳 Docker Multi-Arch (Distroless)
+  docker-build:
+    name: Build and Push
     runs-on: ubuntu-latest
+    # Only run if triggered manually OR if all upstream workflows succeeded
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success')
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
-      contents: write
+      contents: read
       packages: write
-
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Lire la version
-        id: version
-        run: |
-          VERSION=$(cat VERSION | tr -d '[:space:]')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "📦 Version : $VERSION"
-
-      # ── Téléchargement des artifacts cross-workflow ───────────────────
+      # Download backend
       - name: Download backend amd64
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
-          name: nook-backend-x86_64-unknown-linux-gnu
+          name: nook-backend-x86_64-unknown-linux-musl
           path: docker-context/backend
 
       - name: Download backend arm64
@@ -45,9 +42,29 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ github.ref_name }}
-          name: nook-backend-aarch64-unknown-linux-gnu
+          name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
+      # Download turn-server
+      - name: Download turn amd64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: turn.yml
+          branch: ${{ github.ref_name }}
+          name: nook-turn-server-amd64
+          path: docker-context/turn
+
+      - name: Download turn arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: turn.yml
+          branch: ${{ github.ref_name }}
+          name: nook-turn-server-arm64
+          path: docker-context/turn
+
+      # Download frontend
       - name: Download frontend
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -57,167 +74,86 @@ jobs:
           name: nook-frontend
           path: docker-context/frontend
 
-      - name: Vérification du contexte
+      - name: Set lowercase repo name and version
+        id: info
+        run: |
+          echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+          # Determine branch-specific tag
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "branch_tag=latest" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref_name }}" = "develop" ]; then
+            echo "branch_tag=dev" >> $GITHUB_OUTPUT
+          else
+            echo "branch_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Copy turn-rs config files to docker context
+        run: |
+          cp services/turn-rs/turnserver.conf.template docker-context/turn/
+          cp services/turn-rs/docker-entrypoint.sh docker-context/turn/
+          chmod +x docker-context/turn/docker-entrypoint.sh
+
+      - name: Copy nook entrypoint to docker context
+        run: |
+          cp docker-entrypoint.sh docker-context/
+          chmod +x docker-context/docker-entrypoint.sh
+
+      - name: Verify context
         id: ctx
         run: |
           echo "=== Backend ==="
           ls -la docker-context/backend/
+          echo "=== Turn ==="
+          ls -la docker-context/turn/
           echo "=== Frontend ==="
           ls -la docker-context/frontend/
-          test -f docker-context/backend/nook-backend-amd64 || (echo "❌ amd64 manquant" && exit 1)
-          test -f docker-context/backend/nook-backend-arm64 || (echo "❌ arm64 manquant" && exit 1)
-          test -f docker-context/frontend/index.html        || (echo "❌ index.html manquant" && exit 1)
+          test -f docker-context/backend/nook-backend-amd64 || (echo "backend amd64 missing" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "backend arm64 missing" && exit 1)
+          test -f docker-context/turn/turn-server-amd64 || (echo "turn amd64 missing" && exit 1)
+          test -f docker-context/turn/turn-server-arm64 || (echo "turn arm64 missing" && exit 1)
+          test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
+          test -f docker-context/turn/turnserver.conf.template || (echo "turn template missing" && exit 1)
+          test -f docker-context/turn/docker-entrypoint.sh || (echo "entrypoint missing" && exit 1)
           chmod +x docker-context/backend/nook-backend-amd64
           chmod +x docker-context/backend/nook-backend-arm64
+          chmod +x docker-context/turn/turn-server-amd64
+          chmod +x docker-context/turn/turn-server-arm64
 
-          AMD64_SIZE=$(ls -lh docker-context/backend/nook-backend-amd64 | awk '{print $5}')
-          ARM64_SIZE=$(ls -lh docker-context/backend/nook-backend-arm64 | awk '{print $5}')
-          FRONT_FILES=$(ls docker-context/frontend | wc -l)
-          echo "amd64_size=$AMD64_SIZE" >> $GITHUB_OUTPUT
-          echo "arm64_size=$ARM64_SIZE" >> $GITHUB_OUTPUT
-          echo "front_files=$FRONT_FILES" >> $GITHUB_OUTPUT
-          echo "✅ Contexte Docker prêt — v${{ steps.version.outputs.version }}"
-
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.tag }}
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build & Push
-        id: push
+      # Build and push nook
+      - name: Build and push nook (backend + frontend)
         uses: docker/build-push-action@v6
         with:
           context: docker-context
           file: Dockerfile.release
-          platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
+            ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.branch_tag }}
+          build-args: |
+            TARGETARCH
 
-      # ── Génération DOCKER-BUILD-REPORT.md ────────────────────────────
-      - name: Générer DOCKER-BUILD-REPORT.md
-        if: always()
-        run: |
-          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-          COMMIT_SHA="${{ github.sha }}"
-          COMMIT_SHORT="${COMMIT_SHA:0:7}"
-          BRANCH="${{ github.ref_name }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          VERSION="${{ steps.version.outputs.tag }}"
-          AMD64_SIZE="${{ steps.ctx.outputs.amd64_size }}"
-          ARM64_SIZE="${{ steps.ctx.outputs.arm64_size }}"
-          FRONT_FILES="${{ steps.ctx.outputs.front_files }}"
-          IMAGE="ghcr.io/${{ github.repository }}"
-          PUSH_DIGEST="${{ steps.push.outputs.digest }}"
-
-          # Statut global du push
-          if [ -n "$PUSH_DIGEST" ]; then
-            PUSH_STATUS="✅ OK"
-          else
-            PUSH_STATUS="❌ FAIL"
-          fi
-
-          REPORT=".claude/DOCKER-BUILD-REPORT.md"
-          cat > "$REPORT" << ENDOFMD
-          # 🐳 Docker Build Report — Nook
-
-          > Généré automatiquement par \`Docker.yml\`
-          > **${RUN_DATE}**
-
-          ---
-
-          ## Statut
-
-          | Champ | Valeur |
-          |-------|--------|
-          | **Push GHCR** | ${PUSH_STATUS} |
-          | **Version** | \`${VERSION}\` |
-          | **Image** | \`${IMAGE}\` |
-          | **Digest** | \`${PUSH_DIGEST:-N/A}\` |
-          | **Branche** | \`${BRANCH}\` |
-          | **Commit** | [\`${COMMIT_SHORT}\`](https://github.com/${{ github.repository }}/commit/${COMMIT_SHA}) |
-          | **Run** | [Voir le run](${RUN_URL}) |
-
-          ---
-
-          ## Artifacts intégrés
-
-          | Composant | Taille | Statut |
-          |-----------|--------|--------|
-          | **Backend amd64** | ${AMD64_SIZE} | ✅ |
-          | **Backend arm64** | ${ARM64_SIZE} | ✅ |
-          | **Frontend** | ${FRONT_FILES} fichiers | ✅ |
-
-          ---
-
-          ## Tags publiés
-
-          \`\`\`
-          ${{ steps.meta.outputs.tags }}
-          \`\`\`
-
-          ---
-
-          ## Plateformes
-
-          - \`linux/amd64\` → Zimaboard x86 + CI GitHub
-          - \`linux/arm64\` → Raspberry Pi, Apple M1/M2
-
-          ---
-
-          ## Utilisation homeserver
-
-          \`\`\`bash
-          # Mettre à jour le homeserver Zimaboard
-          docker pull ${IMAGE}:${VERSION}
-          # ou
-          docker pull ${IMAGE}:latest
-          \`\`\`
-
-          ---
-
-          *Rapport généré par \`.github/workflows/Docker.yml\`*
-          ENDOFMD
-
-          echo "✅ DOCKER-BUILD-REPORT.md généré"
-          cat "$REPORT"
-
-      - name: Commit DOCKER-BUILD-REPORT.md
-        if: always()
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/DOCKER-BUILD-REPORT.md
-          if git diff --staged --quiet; then
-            echo "Aucune modification — pas de commit"
-          else
-            git commit -m "ci: DOCKER-BUILD-REPORT.md [run ${{ github.run_id }}]"
-            git pull --rebase origin ${{ github.ref_name }}
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
-          fi
-
-      - name: Résumé GitHub
-        run: |
-          echo "## 🐳 Docker ${{ steps.version.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| | |" >> $GITHUB_STEP_SUMMARY
-          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Image** | \`ghcr.io/${{ github.repository }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Version** | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Platforms** | \`linux/amd64\` · \`linux/arm64\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Registry** | https://ghcr.io/${{ github.repository }} |" >> $GITHUB_STEP_SUMMARY
+      # Build and push turn-server
+      - name: Build and push turn-server
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context/turn
+          file: services/turn-rs/Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
+            ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.branch_tag }}
+          build-args: |
+            TARGETARCH

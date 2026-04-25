@@ -9,9 +9,11 @@
      NOTE : Une migration complète (table poll_invitations) est prévue.
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { notifyPoll } from '$lib/notificationStore.svelte';
 
   interface PollOption {
     id: string; text: string; position: number; votes: number; voters: string[];
@@ -104,6 +106,7 @@
       }
 
       polls = [data.poll, ...polls];
+    notifyPoll('Sondage créé', `"${question.trim().slice(0, 40)}" est en ligne`);
       newQuestion = ''; newOptions = ['', '', '', ''];
       audienceMode = 'all'; selectedMemberIds = []; closingDate = '';
       showCreate = false;
@@ -129,6 +132,7 @@
   async function closePoll(pollId: string) {
     try {
       const res = await fetch(`/api/polls/${pollId}/close`, { method: 'POST', credentials: 'include' });
+    if (res.ok) notifyPoll('Sondage fermé', 'Le sondage a été clôturé');
       if (!res.ok) return;
       const data = await res.json();
       polls = polls.map(p => p.id === pollId ? data.poll : p);
@@ -189,7 +193,7 @@
   <!-- En-tête -->
   <div class="page-header">
     <div class="header-left">
-      <h1>📊 Sondages</h1>
+      <h1><Icon name="check-circle" size="24" /> Sondages</h1>
       <p class="subtitle">Décidez ensemble</p>
     </div>
     <button class="btn-create" onclick={() => showCreate = !showCreate}>
@@ -218,7 +222,7 @@
 
       <!-- Date de clôture automatique -->
       <label class="form-label" style="margin-top:.5rem;">
-        📅 Fermeture automatique (optionnel)
+        Fermeture automatique (optionnel)
         <input type="date" class="form-input" bind:value={closingDate}
           min={new Date().toISOString().slice(0,10)}
           style="margin-top:.3rem;" />
@@ -453,5 +457,67 @@
     .page-header  { flex-direction: column; align-items: stretch; }
     .btn-create   { width: 100%; text-align: center; }
     .audience-toggle { flex-direction: column; }
+  }
+
+  /* Vote animations */
+  .poll-option {
+    transition: all 0.3s ease;
+  }
+  .poll-option:hover {
+    transform: translateX(4px);
+  }
+  .poll-option.voted {
+    animation: vote-pulse 0.5s ease;
+  }
+  @keyframes vote-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Progress bar animation */
+  .vote-bar {
+    transition: width 0.5s ease-out;
+  }
+  .vote-bar.new-vote {
+    animation: bar-fill 0.6s ease-out;
+  }
+  @keyframes bar-fill {
+    from { width: 0; }
+  }
+  
+  /* Winner highlight */
+  .poll-option.winner {
+    background: var(--accent-bg, #dcfce7);
+    border-color: var(--accent, #4ade80);
+  }
+  .winner-badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: var(--accent, #4ade80);
+    color: white;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    animation: badge-pop 0.3s ease;
+  }
+  @keyframes badge-pop {
+    0% { transform: scale(0); }
+    70% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Vote count animation */
+  .vote-count {
+    transition: all 0.3s ease;
+  }
+  .vote-count.updated {
+    animation: count-bump 0.3s ease;
+  }
+  @keyframes count-bump {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); color: var(--accent, #4ade80); }
+    100% { transform: scale(1); }
   }
 </style>

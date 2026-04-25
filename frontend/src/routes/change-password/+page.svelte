@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import PasswordInput from '$lib/components/PasswordInput.svelte';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
   import { unlockCrypto, cryptoStore } from '$lib/cryptoStore.svelte.ts';
@@ -22,6 +23,7 @@
   let error           = $state('');
   let success         = $state('');
   let isLoading       = $state(false);
+
   let e2eeStatus      = $state<'idle' | 'generating' | 'done' | 'error'>('idle');
 
   onMount(() => {
@@ -97,8 +99,10 @@
       success = payload.message ?? 'Mot de passe mis à jour avec succès !';
       authStore.updateUser({ needs_password_change: false });
 
-      setTimeout(() => {
-        goto(authStore.user?.role === 'admin' ? '/admin' : '/chat');
+      setTimeout(async () => {
+        // Logout and redirect to login page
+      await authStore.logout();
+      goto('/login');
       }, 2000);
 
     } catch (e: any) {
@@ -153,16 +157,12 @@
       <form class="form" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         <div class="input-group">
           <label for="new-password">Nouveau mot de passe</label>
-          <input id="new-password" type="password" bind:value={newPassword}
-            placeholder="Au moins 8 caractères" required disabled={isLoading}
-            autocomplete="new-password" />
+          <PasswordInput id="new-password" bind:value={newPassword} placeholder="Au moins 8 caractères" autocomplete="new-password" required disabled={isLoading} />
           <p class="help-text">Utilisez lettres, chiffres et symboles pour plus de sécurité.</p>
         </div>
         <div class="input-group">
           <label for="confirm-password">Confirmer le mot de passe</label>
-          <input id="confirm-password" type="password" bind:value={confirmPassword}
-            placeholder="Répétez le mot de passe" required disabled={isLoading}
-            autocomplete="new-password" />
+          <PasswordInput id="confirm-password" bind:value={confirmPassword} placeholder="Répétez le mot de passe" autocomplete="new-password" required disabled={isLoading} />
         </div>
 
         {#if isLoading}
@@ -264,4 +264,5 @@
     .icon { font-size: 3rem; }
     h1 { font-size: 1.5rem; }
   }
+
 </style>

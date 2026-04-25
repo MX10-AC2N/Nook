@@ -1,33 +1,31 @@
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
-  import Chart from 'chart.js/auto';
+  import type { Chart as ChartType } from 'chart.js/auto';
 
-  // ─── Types ────────────────────────────────────────────────────
   interface DayCount { day: string; count: number; }
   interface Analytics {
-    user_count:        number;
-    message_count:     number;
+    user_count: number;
+    message_count: number;
     conversation_count: number;
-    poll_count:        number;
-    upload_count:      number;
-    active_users_7d:   number;
-    messages_7d:       number;
-    messages_per_day:  DayCount[];
+    poll_count: number;
+    upload_count: number;
+    active_users_7d: number;
+    messages_7d: number;
+    messages_per_day: DayCount[];
   }
 
-  // ─── État ─────────────────────────────────────────────────────
   let analytics = $state<Analytics | null>(null);
   let loading    = $state(true);
   let error      = $state<string | null>(null);
 
   let doughnutCanvas = $state<HTMLCanvasElement | undefined>(undefined);
   let barCanvas      = $state<HTMLCanvasElement | undefined>(undefined);
-  let doughnutChart: Chart | undefined;
-  let barChart: Chart | undefined;
+  let doughnutChart: ChartType | undefined;
+  let barChart: ChartType | undefined;
 
-  // ─── Chargement ───────────────────────────────────────────────
   async function loadAnalytics() {
     loading = true;
     error   = null;
@@ -37,7 +35,6 @@
       if (res.status === 403) { goto('/chat');  return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       analytics = await res.json();
-      // Charts rendus au prochain tick (après mise à jour DOM)
       setTimeout(renderCharts, 0);
     } catch (e: any) {
       error = `Impossible de charger les statistiques : ${e.message}`;
@@ -46,38 +43,38 @@
     }
   }
 
-  // ─── Charts ───────────────────────────────────────────────────
-  function renderCharts() {
+  async function renderCharts() {
     if (!analytics) return;
+    const { default: Chart } = await import('chart.js/auto');
+    (window as any).__Chart = Chart;
     renderDoughnut();
     renderBar();
+  }
+
+  function getCSSVar(name: string): string {
+    if (typeof window === 'undefined') return '#64748b';
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#64748b';
   }
 
   function renderDoughnut() {
     if (!doughnutCanvas || !analytics) return;
     doughnutChart?.destroy();
+    const Chart = (window as any).__Chart;
     doughnutChart = new Chart(doughnutCanvas, {
       type: 'doughnut',
       data: {
         labels: ['Utilisateurs', 'Messages', 'Conversations', 'Sondages', 'Fichiers'],
         datasets: [{
-          data: [
-            analytics.user_count,
-            analytics.message_count,
-            analytics.conversation_count,
-            analytics.poll_count,
-            analytics.upload_count,
-          ],
+          data: [analytics.user_count, analytics.message_count, analytics.conversation_count, analytics.poll_count, analytics.upload_count],
           backgroundColor: ['#4ade80', '#60a5fa', '#f59e0b', '#a78bfa', '#fb7185'],
           borderWidth: 2,
-          borderColor: '#ffffff22',
+          borderColor: getCSSVar('--bg-primary') || '#ffffff',
         }],
       },
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#64748b', padding: 16 } },
-          tooltip: { enabled: true },
+          legend: { position: 'bottom', labels: { color: getCSSVar('--text-secondary') || '#64748b', padding: 14, font: { size: 12 } } },
         },
         cutout: '60%',
       },
@@ -87,17 +84,15 @@
   function renderBar() {
     if (!barCanvas || !analytics) return;
     barChart?.destroy();
-
-    // Remplir les jours manquants avec 0 pour un affichage continu
+    const Chart = (window as any).__Chart;
     const last7: DayCount[] = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const key = d.toISOString().split('T')[0];
       const found = analytics.messages_per_day.find(r => r.day === key);
-      last7.push({ day: key.slice(5), count: found?.count ?? 0 }); // MM-DD
+      last7.push({ day: key.slice(5), count: found?.count ?? 0 });
     }
-
     barChart = new Chart(barCanvas, {
       type: 'bar',
       data: {
@@ -105,7 +100,7 @@
         datasets: [{
           label: 'Messages',
           data: last7.map(r => r.count),
-          backgroundColor: '#60a5fa99',
+          backgroundColor: 'rgba(96,165,250,0.6)',
           borderColor: '#60a5fa',
           borderWidth: 1,
           borderRadius: 6,
@@ -114,12 +109,8 @@
       options: {
         responsive: true,
         scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { color: '#64748b', stepSize: 1 },
-            grid: { color: '#e2e8f033' },
-          },
-          x: { ticks: { color: '#64748b' }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: getCSSVar('--text-secondary') || '#64748b', stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.06)' } },
+          x: { ticks: { color: getCSSVar('--text-secondary') || '#64748b' }, grid: { display: false } },
         },
         plugins: { legend: { display: false } },
       },
@@ -130,21 +121,25 @@
 </script>
 
 <svelte:head>
-  <title>Analytics Admin — Nook</title>
+  <title>Analytics — Nook</title>
 </svelte:head>
 
 <div class="analytics-page">
-  <h1>📊 Analytics</h1>
+  <div class="analytics-header">
+    <h1>Analytics</h1>
+    <div class="header-actions">
+      <button class="btn-back" onclick={() => goto('/admin')}>← Administration</button>
+      <button class="btn-refresh" onclick={loadAnalytics}>🔄</button>
+    </div>
+  </div>
   <p class="subtitle">Tableau de bord — {new Date().toLocaleDateString('fr-FR', { dateStyle: 'long' })}</p>
 
   {#if loading}
-    <div class="loading">Chargement des statistiques…</div>
-
+    <div class="loading">Chargement…</div>
   {:else if error}
     <div class="error-box">{error}</div>
-
   {:else if analytics}
-    <!-- Compteurs globaux -->
+    <!-- Stats cards -->
     <section class="stats-grid">
       <div class="stat-card">
         <span class="stat-icon">👥</span>
@@ -189,10 +184,6 @@
         <canvas bind:this={barCanvas}></canvas>
       </div>
     </section>
-
-    <div class="refresh-row">
-      <button onclick={loadAnalytics} class="refresh-btn">🔄 Actualiser</button>
-    </div>
   {/if}
 </div>
 
@@ -200,127 +191,122 @@
   .analytics-page {
     max-width: 900px;
     margin: 0 auto;
-    padding: 1.5rem;
+    padding: 1rem 1.25rem 2rem;
   }
-
+  .analytics-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
   h1 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    margin: 0 0 0.25rem 0;
-    color: #1e293b;
+    margin: 0;
+    color: var(--text-primary, #1e293b);
   }
-
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .btn-back {
+    padding: 0.4rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    color: var(--text-secondary, #64748b);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-back:hover { background: var(--bg-tertiary, #e2e8f0); color: var(--text-primary); }
+  .btn-refresh {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+  .btn-refresh:hover { background: var(--bg-tertiary, #e2e8f0); }
   .subtitle {
-    color: #64748b;
-    margin: 0 0 2rem 0;
-    font-size: 0.9rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0.25rem 0 1.5rem;
+    font-size: 0.85rem;
   }
-
   .loading {
     text-align: center;
     padding: 3rem;
-    color: #64748b;
+    color: var(--text-secondary, #64748b);
   }
-
   .error-box {
     background: #fef2f2;
     border: 1px solid #fecaca;
     color: #dc2626;
     padding: 1rem 1.25rem;
     border-radius: 0.75rem;
-    margin-bottom: 1rem;
   }
 
-  /* Grille de compteurs */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
   }
-
   .stat-card {
-    background: white;
-    border-radius: 1rem;
-    padding: 1.25rem 1rem;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.4rem;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    border: 1px solid #e2e8f0;
+    gap: 0.3rem;
     transition: transform 0.15s;
   }
-
   .stat-card:hover { transform: translateY(-2px); }
-
   .stat-card.highlight {
-    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
-    border-color: #bbf7d0;
+    background: var(--accent-light, #f0fdf4);
+    border-color: var(--accent, #4ade80);
   }
-
-  .stat-icon { font-size: 1.5rem; }
-
+  .stat-icon { font-size: 1.3rem; }
   .stat-value {
-    font-size: 2rem;
+    font-size: 1.75rem;
     font-weight: 800;
-    color: #1e293b;
+    color: var(--text-primary, #1e293b);
     line-height: 1;
   }
-
   .stat-label {
-    font-size: 0.75rem;
-    color: #64748b;
-    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-secondary, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 
-  /* Grille de charts */
   .charts-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
   }
-
   .chart-card {
-    background: white;
-    border-radius: 1rem;
-    padding: 1.5rem;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
-    border: 1px solid #e2e8f0;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 12px;
+    padding: 1.25rem;
   }
-
   .chart-card h2 {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #475569;
-    margin: 0 0 1rem 0;
-  }
-
-  .refresh-row {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .refresh-btn {
-    padding: 0.6rem 1.25rem;
-    background: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    color: #475569;
     font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .refresh-btn:hover {
-    background: #e2e8f0;
-    color: #1e293b;
+    font-weight: 600;
+    color: var(--text-primary, #475569);
+    margin: 0 0 1rem;
   }
 
   @media (max-width: 640px) {
     .charts-grid { grid-template-columns: 1fr; }
-    .stats-grid  { grid-template-columns: repeat(3, 1fr); }
+    .stats-grid  { grid-template-columns: repeat(2, 1fr); }
     .stat-value  { font-size: 1.5rem; }
   }
 </style>

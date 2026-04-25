@@ -14,11 +14,15 @@ pub struct Config {
     /// Exemple : "http://192.168.1.10:6300,https://nook.mondomaine.com"
     /// Si vide, seules localhost:5173 et localhost:6300 sont autorisées.
     pub allowed_origins: Vec<String>,
+    /// Configuration TURN pour WebRTC
+    pub turn_host: String,
+    pub turn_port: u16,
+    pub turn_secret: String,
 }
 
 impl Config {
     pub fn load() -> Self {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         let public_site_url =
             env::var("PUBLIC_SITE_URL").unwrap_or_else(|_| "http://localhost:6300".to_string());
@@ -43,6 +47,26 @@ impl Config {
         // Dédoublonnage
         origins.dedup();
 
+        let turn_host = env::var("TURN_HOST")
+            .unwrap_or_else(|_| {
+                // Fallback: utiliser l'hôte PUBLIC_SITE_URL si TURN_HOST non défini
+                public_site_url
+                    .replace("http://", "")
+                    .replace("https://", "")
+                    .split(':')
+                    .next()
+                    .unwrap_or("localhost")
+                    .to_string()
+            });
+
+        let turn_port: u16 = env::var("TURN_PORT")
+            .unwrap_or_else(|_| "3478".to_string())
+            .parse()
+            .unwrap_or(3478);
+
+        let turn_secret = env::var("TURN_SECRET")
+            .unwrap_or_else(|_| String::new());
+
         Self {
             port: env::var("PORT")
                 .unwrap_or_else(|_| "3000".to_string())
@@ -63,6 +87,112 @@ impl Config {
 
             public_site_url,
             allowed_origins: origins,
+            turn_host,
+            turn_port,
+            turn_secret,
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn clear_env() {
+        for key in &[
+            "PORT", "DATABASE_URL", "STATIC_FILES_DIR", "UPLOADS_DIR",
+            "GIFS_DIR", "PUBLIC_SITE_URL", "ALLOWED_ORIGINS",
+            "TURN_HOST", "TURN_PORT", "TURN_SECRET",
+        ] {
+            std::env::remove_var(key);
+        }
+    }
+
+    #[test]
+    fn test_default_values() {
+        clear_env();
+        let config = Config::load();
+
+        assert_eq!(config.port, 3000);
+        assert_eq!(config.database_url, "sqlite:/app/data/nook.db");
+        assert_eq!(config.static_dir, "/app/static");
+        assert_eq!(config.uploads_dir, "/app/data/uploads");
+        assert_eq!(config.gifs_dir, "/app/data/gifs");
+        assert_eq!(config.turn_port, 3478);
+    }
+
+    #[test]
+    fn test_custom_port() {
+        clear_env();
+        std::env::set_var("PORT", "8080");
+        let config = Config::load();
+        assert_eq!(config.port, 8080);
+    }
+
+    #[test]
+    fn test_allowed_origins_includes_defaults() {
+        clear_env();
+        let config = Config::load();
+
+        assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+        assert!(config.allowed_origins.contains(&"http://localhost:6300".to_string()));
+        assert!(config.allowed_origins.contains(&"http://127.0.0.1:6300".to_string()));
+    }
+
+    #[test]
+    fn test_allowed_origins_with_extra() {
+        clear_env();
+        std::env::set_var("ALLOWED_ORIGINS", "https://nook.example.com,https://api.example.com");
+        let config = Config::load();
+
+        assert!(config.allowed_origins.contains(&"https://nook.example.com".to_string()));
+        assert!(config.allowed_origins.contains(&"https://api.example.com".to_string()));
+        // Defaults still present
+        assert!(config.allowed_origins.contains(&"http://localhost:5173".to_string()));
+    }
+
+    #[test]
+    fn test_allowed_origins_no_duplicates() {
+        clear_env();
+        std::env::set_var("ALLOWED_ORIGINS", "http://localhost:5173,https://example.com");
+        let config = Config::load();
+
+        let count_5173 = config.allowed_origins.iter()
+            .filter(|o| *o == "http://localhost:5173")
+            .count();
+        assert_eq!(count_5173, 1, "Should not have duplicates");
+    }
+
+    #[test]
+    fn test_turn_host_from_env() {
+        clear_env();
+        std::env::set_var("TURN_HOST", "turn.example.com");
+        let config = Config::load();
+        assert_eq!(config.turn_host, "turn.example.com");
+    }
+
+    #[test]
+    fn test_turn_host_fallback() {
+        clear_env();
+        std::env::set_var("PUBLIC_SITE_URL", "https://nook.mydomain.com:6300");
+        let config = Config::load();
+        assert_eq!(config.turn_host, "nook.mydomain.com");
+    }
+
+    #[test]
+    fn test_turn_port_custom() {
+        clear_env();
+        std::env::set_var("TURN_PORT", "5349");
+        let config = Config::load();
+        assert_eq!(config.turn_port, 5349);
+    }
+
+    #[test]
+    fn test_turn_port_invalid_fallback() {
+        clear_env();
+        std::env::set_var("TURN_PORT", "not_a_number");
+        let config = Config::load();
+        assert_eq!(config.turn_port, 3478, "Should fallback to 3478 on invalid");
     }
 }

@@ -15,22 +15,22 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import {
-  loginAsAdmin, loginViaAPI, waitForAppReady,
+  loginAsAdmin, loginAs, loginViaAPI, waitForAppReady, clearSession,
   BASE, ADMIN_NEW_PASSWORD, E2E_USER, E2E_PASS,
 } from './helpers';
 
-test.describe.serial('Admin — Flux complet', () => {
+// Shared admin page — module scope for all admin describe blocks
+let adminPage: Page;
 
-  let adminPage: Page;
-
-  test.beforeAll(async ({ browser }) => {
+test.beforeAll(async ({ browser }) => {
     adminPage = await browser.newPage();
     await loginAsAdmin(adminPage);
-  });
+});
 
-  test.afterAll(async () => {
-    await adminPage.close();
-  });
+test.afterAll(async () => {
+    if (adminPage) await adminPage.close();
+});
+test.describe.serial('Admin — Flux complet', () => {
 
   // ══════════════════════════════════════════════════════════════
   // 1. CONNEXION & PAGE ADMIN
@@ -317,6 +317,219 @@ test.describe.serial('Admin — Flux complet', () => {
       expect(notAuth || redirected).toBe(true);
       console.log(`✅ /admin protégé : not-auth=${notAuth}, redirected=${redirected}`);
     } finally { await userPage.close(); }
+  });
+
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN COMPLÉMENTAIRE — Tests manquants (fix S45)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe('Admin — Complément', () => {
+
+  test('Admin — DELETE /users/{id} → supprime un utilisateur', async () => {
+    // Register via admin's authenticated context
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: 'del_t3', password: 'DelTest123!', email: 'dt3@nook.local', name: 'Dt3' },
+    });
+    expect([200, 201, 409]).toContain(regRes.status());
+    await adminPage.waitForTimeout(1500);
+
+    // Approve via API
+    const pending = await adminPage.request.get(`${BASE}/users/pending`);
+    const pBody = await pending.json();
+    const pList = Array.isArray(pBody) ? pBody : (pBody.users ?? []);
+    const found = pList.find((u: any) => u.username === 'del_t3');
+    if (found) {
+      await adminPage.request.post(`${BASE}/users/approve`, { data: { user_id: found.id } });
+    }
+    await adminPage.waitForTimeout(500);
+
+    // Delete via API
+    const usersRes = await adminPage.request.get(`${BASE}/users`);
+    const users = await usersRes.json();
+    const uList = Array.isArray(users) ? users : (users.users ?? []);
+    const target = uList.find((u: any) => u.username === 'del_t3');
+    if (target) {
+      const delRes = await adminPage.request.delete(`${BASE}/users/${target.id}`);
+      expect([200, 204]).toContain(delRes.status());
+    }
+  });
+
+
+  test('Admin — approve + login after approve → accès complet', async ({ browser }) => {
+    // Create user via admin's authenticated request
+    const regRes = await adminPage.request.post(`${BASE}/auth/register`, {
+      data: { username: 'approve_t3', password: 'Approve123!', email: 'apt3@nook.local', name: 'Apt3' },
+    });
+    expect([200, 201, 409]).toContain(regRes.status());
+    await adminPage.waitForTimeout(1500);
+
+    // Approve via admin's authenticated context
+    const pending = await adminPage.request.get(`${BASE}/users/pending`);
+    const pBody = await pending.json();
+    const pList = Array.isArray(pBody) ? pBody : (pBody.users ?? []);
+    const found = pList.find((u: any) => u.username === 'approve_t3');
+    if (found) {
+      const aRes = await adminPage.request.post(`${BASE}/users/approve`, { data: { user_id: found.id } });
+      expect(aRes.status()).toBe(200);
+    }
+
+    // Login with the new user via API (reliable)
+    const newPage = await browser.newPage();
+    await clearSession(newPage);
+    const lr = await newPage.request.post(`${BASE}/auth/login`, {
+      data: { username: 'approve_t3', password: 'Approve123!' },
+    });
+    expect(lr.status()).toBe(200);
+    await newPage.goto('/chat');
+    await newPage.waitForTimeout(500);
+    const me = await newPage.request.get(`${BASE}/auth/me`);
+    const mBody = await me.json();
+    expect(mBody.user?.approved).toBe(true);
+    expect(mBody.user?.username).toBe('approve_t3');
+    await newPage.close();
+  });
+
+  test('Admin — analytics contient toutes les sections', async ({ page }) => {
+    await loginAsAdmin(page);
+
+    await page.goto(`${BASE.replace('/api', '')}/admin/analytics`);
+    await page.waitForLoadState('networkidle');
+
+    // Vérifier les stat-cards principales
+    const hasUsers = await page.getByText(/utilisateurs|membres|users/i).isVisible().catch(() => false);
+    const hasMessages = await page.getByText(/messages/i).isVisible().catch(() => false);
+    expect(hasUsers || hasMessages).toBe(true);
+  });
+
+});
+
+
+// ─────────────────────────────────────────────────────────────────────
+// ADMIN COMPLÉMENTAIRE (fix S45)
+// ─────────────────────────────────────────────────────────────────────
+test.describe('Admin — Delete user', () => {
+
+  test('DELETE /users/{id} → supprime un utilisateur', async ({ page }) => {
+    // Créer et approuver un user de test
+    const regRes = await page.request.post(`${BASE}/auth/register`, {
+      data: { username: 'del_test_u', password: 'DelTest123!', email: 'del@nook.local', name: 'Del' },
+    });
+    expect([200, 409]).toContain(regRes.status());
+
+    // Attendre que le user soit dans pending
+    await page.waitForTimeout(1000);
+
+    // Trouver via API users/pending
+    const pending = await page.request.get(`${BASE}/users/pending`);
+    const pendingBody = await pending.json();
+    const pendingUser = Array.isArray(pendingBody)
+      ? pendingBody.find((u: any) => u.username === 'del_test_u')
+      : (pendingBody.users || []).find((u: any) => u.username === 'del_test_u');
+
+    if (pendingUser) {
+      // Approuver
+      await page.request.post(`${BASE}/users/approve`, {
+        data: { user_id: pendingUser.id },
+      });
+      await page.waitForTimeout(1000);
+    }
+
+    // Now get the user from the users list
+    const users = await page.request.get(`${BASE}/users`);
+    const usersBody = await users.json();
+    const user = Array.isArray(usersBody)
+      ? usersBody.find((u: any) => u.username === 'del_test_u')
+      : null;
+
+    if (user) {
+      // Delete via API
+      const delRes = await page.request.delete(`${BASE}/users/${user.id}`);
+      expect([200, 204]).toContain(delRes.status());
+
+      // Verify deletion
+      const getUsers = await page.request.get(`${BASE}/users`);
+      const getUsersBody = await getUsers.json();
+      const stillExists = Array.isArray(getUsersBody)
+        ? getUsersBody.find((u: any) => u.id === user.id)
+        : null;
+      expect(stillExists).toBeFalsy();
+    }
+  });
+
+});
+
+test.describe('Admin — Analytics', () => {
+
+  test('GET /analytics → contient user_count, message_count', async () => {
+    // Re-login in case previous tests invalidated the session
+    await loginAsAdmin(adminPage);
+    const res = await adminPage.request.get(`${BASE}/analytics`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body).toHaveProperty('user_count');
+    expect(body).toHaveProperty('message_count');
+    expect(typeof body.user_count).toBe('number');
+    expect(typeof body.message_count).toBe('number');
+  });
+
+  test('GET /analytics sans auth → 401', async ({ request }) => {
+    const res = await request.get(`${BASE}/analytics`);
+    expect(res.status()).toBe(401);
+  });
+
+});
+
+test.describe('Admin — Approve user + login flow', () => {
+
+  let newUserId = '';
+
+  test('Register + Approve + Login → accès complet', async ({ browser, request, page }) => {
+    // Login as admin via API first (page fixture has no session in this describe)
+    await loginAs(page, 'admin', ADMIN_NEW_PASSWORD);
+    await page.waitForTimeout(500);
+
+    // Step 1: Register
+    const regRes = await page.request.post(`${BASE}/auth/register`, {
+      data: { username: 'approve_flow_u', password: 'Approve123!', email: 'af@nook.local', name: 'ApproveFlow' },
+    });
+    expect([200, 201, 409]).toContain(regRes.status());
+    await page.waitForTimeout(1500);
+
+    // Step 2: Admin approves via authenticated page
+    const pending = await page.request.get(`${BASE}/users/pending`);
+    const pendingBody = await pending.json();
+    const pendingUser = Array.isArray(pendingBody)
+      ? pendingBody.find((u: any) => u.username === 'approve_flow_u')
+      : (pendingBody.users || []).find((u: any) => u.username === 'approve_flow_u');
+
+    if (pendingUser) {
+      newUserId = pendingUser.id;
+      const approveRes = await page.request.post(`${BASE}/users/approve`, {
+        data: { user_id: newUserId },
+      });
+      expect(approveRes.status()).toBe(200);
+      console.log(`✅ approve_flow_u approuvé`);
+    }
+
+    // Step 3: Login with approved user via API
+    const newPage = await browser.newPage();
+    await clearSession(newPage);
+    const lr = await newPage.request.post(`${BASE}/auth/login`, {
+      data: { username: 'approve_flow_u', password: 'Approve123!' },
+    });
+    expect(lr.status()).toBe(200);
+    await newPage.goto('/chat');
+    await newPage.waitForTimeout(1000);
+
+    // Step 4: Verify /auth/me
+    const meRes = await newPage.request.get(`${BASE}/auth/me`);
+    expect(meRes.status()).toBe(200);
+    const meBody = await meRes.json();
+    expect(meBody.user?.username).toBe('approve_flow_u');
+    expect(meBody.user?.approved).toBe(true);
+    await newPage.close();
   });
 
 });

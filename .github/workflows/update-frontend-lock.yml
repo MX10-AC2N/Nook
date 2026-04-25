@@ -2,6 +2,9 @@ name: 🔄 Update Frontend package-lock.json
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'frontend/package.json'
 
 jobs:
   update-lock:
@@ -9,23 +12,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Régénérer package-lock.json
-        working-directory: ./frontend
-        run: |
-          rm -f package-lock.json
-          npm install --legacy-peer-deps
+      - name: Update package-lock.json
+        working-directory: frontend
+        run: npm install --package-lock-only
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add frontend/package-lock.json
-          git diff --staged --quiet || git commit -m "chore(frontend): regenerate package-lock.json"
-          git push
+          if git diff --staged --quiet; then
+            echo "Aucun changement"
+            exit 0
+          fi
+          git commit -m "chore: Update package-lock.json"
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }} || true
+          git push --force-with-lease origin HEAD:${{ github.ref_name }}

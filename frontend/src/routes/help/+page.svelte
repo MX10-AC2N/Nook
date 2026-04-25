@@ -1,12 +1,6 @@
-<!-- frontend/src/routes/help/+page.svelte — Session 39
-     Nook v0.4.0-beta.2 :
-     - Picker emoji natif + GIFs locaux (plus de proxy Tenor)
-     - E2EE actif (clés X25519 générées au login, chiffrement transparent)
-     - Push notifications VAPID (Paramètres → Sécurité)
-     - Bouton d'urgence connecté (push à tous les membres)
-     - Chess IA temps réel (WS broadcast)
--->
+<!-- frontend/src/routes/help/+page.svelte -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   let searchQuery = $state('');
   let openFaq     = $state<number | null>(null);
 
@@ -26,6 +20,29 @@
         "• Via lien d'invitation → L'administrateur génère un lien (valable 48h, usage unique). Votre compte est approuvé automatiquement.",
     },
     {
+      question: 'Comment changer mon avatar ?',
+      answer:
+        "Allez dans Paramètres → Profil. Vous pouvez :\n" +
+        "• Choisir un avatar DiceBear parmi 10 styles (Adventurer, Avataaars, Bots, Fun-Emoji…) en cliquant sur votre avatar actuel.\n" +
+        "• Ou téléverser votre propre image d'avatar.\n" +
+        "L'avatar est visible par tous les membres dans le chat et les échecs.",
+    },
+    {
+      question: 'Comment envoyer un message dans le chat ?',
+      answer:
+        "Sélectionnez une conversation dans la barre latérale, puis tapez votre message en bas de l'écran et appuyez sur Entrée.\n" +
+        "Pour mentionner un membre, tapez @ suivi de son nom — une liste de suggestions apparaît automatiquement.\n" +
+        "Pour réagir à un message, survolez-le et cliquez sur l'icône de réaction pour choisir un emoji.",
+    },
+    {
+      question: 'Comment envoyer un fichier ou une image ?',
+      answer:
+        "Dans le chat, cliquez sur l'icône de trombone en bas de l'écran. " +
+        "Les images sont affichées directement dans la conversation. " +
+        "Les autres fichiers (PDF, documents…) apparaissent comme un lien cliquable à télécharger. " +
+        "Limite : 50 Mo par fichier. Les fichiers sont supprimés automatiquement après 48h.",
+    },
+    {
       question: 'Pourquoi les images envoyées dans le chat ne s\'affichent pas immédiatement ?',
       answer:
         "Tous les fichiers envoyés dans Nook sont chiffrés automatiquement (XChaCha20-Poly1305) " +
@@ -33,20 +50,12 @@
         "Si une image apparaît comme un nom de fichier brisé, c'est un ancien message envoyé avant la mise à jour — cliquez dessus pour le télécharger.",
     },
     {
-      question: 'Comment envoyer un fichier ou une image ?',
-      answer:
-        "Dans le chat, cliquez sur l'icône 📎 en bas de l'écran. " +
-        "Les images sont affichées directement dans la conversation. " +
-        "Les autres fichiers (PDF, documents...) apparaissent comme un lien cliquable à télécharger. " +
-        "Limite : 50 Mo par fichier. Les fichiers sont supprimés automatiquement après 48h.",
-    },
-    {
       question: 'Comment utiliser les emojis et les GIFs ?',
       answer:
-        "Cliquez sur le bouton 😊 dans la barre de saisie du chat.\n" +
-        "• Onglet Emoji : 292 emojis répartis en 8 catégories (Visages, Cœurs, Fête, Animaux…). " +
+        "Cliquez sur le bouton emoji dans la barre de saisie du chat.\n" +
+        "• Onglet Emoji : emojis répartis en catégories (Visages, Cœurs, Fête, Animaux…). " +
         "Cliquer sur un emoji l'insère dans votre texte en cours, ou l'envoie directement si l'input est vide.\n" +
-        "• Onglet GIF 🎬 : collection de GIFs curatés stockés directement sur votre serveur. " +
+        "• Onglet GIF : collection de GIFs curatés stockés directement sur votre serveur. " +
         "Aucune donnée ne sort de chez vous — tout est local.",
     },
     {
@@ -64,7 +73,7 @@
       answer:
         "Nook utilise deux niveaux de chiffrement :\n" +
         "• Fichiers : toujours chiffrés (XChaCha20-Poly1305) côté serveur.\n" +
-        "• Messages texte : chiffrement de bout en bout (E2EE) avec libsodium/Curve25519 quand les deux parties ont activé leurs clés dans Paramètres → Sécurité. " +
+        "• Messages texte : chiffrement de bout en bout (E2EE) avec Curve25519 quand les deux parties ont activé leurs clés dans Paramètres → Sécurité. " +
         "Les messages E2EE ne sont lisibles que par les destinataires — ni l'admin ni le serveur ne peuvent les lire.",
     },
     {
@@ -76,23 +85,33 @@
         "Le créateur ou l'administrateur peut fermer le sondage à tout moment — les résultats restent visibles.",
     },
     {
-      question: 'Comment jouer aux échecs contre l\'IA ?',
+      question: 'Comment gérer les événements ?',
       answer:
-        "Dans la page Échecs, créez une nouvelle partie et choisissez votre couleur + la difficulté IA (Facile / Moyen / Difficile). " +
-        "L'IA utilise l'algorithme Minimax avec élagage alpha-bêta. " +
-        "Pour jouer contre un autre membre, laissez la difficulté sur \"Humain vs Humain\".",
+        "La page Événements permet de créer des événements familiaux (anniversaires, sorties, rappels…). " +
+        "Donnez un titre, une date et une description. " +
+        "Le Calendrier (/calendar) affiche tous les événements sous forme mensuelle — " +
+        "cliquez sur un jour pour voir les événements associés.",
+    },
+    {
+      question: 'Comment jouer aux échecs ?',
+      answer:
+        "Dans la page Échecs, créez une nouvelle partie :\n" +
+        "• Contre l'IA : choisissez votre couleur et la difficulté (🐣 Facile, 🧩 Moyen, 💪 Difficile, 🎓 Expert, 😈 Divin). " +
+        "L'IA utilise l'algorithme Minimax avec élagage alpha-bêta.\n" +
+        "• Contre un membre : choisissez \"Humain\" comme adversaire. L'autre membre doit rejoindre la partie depuis le lobby.\n" +
+        "Le plateau se met à jour en temps réel via WebSocket.",
     },
     {
       question: 'Comment accéder aux statistiques (admin) ?',
       answer:
-        "Si vous êtes administrateur, allez dans /admin et cliquez sur l'onglet \"📊 Analytics\". " +
+        "Si vous êtes administrateur, allez dans /admin et cliquez sur l'onglet Analytics. " +
         "Vous y trouverez : nombre d'utilisateurs, messages, conversations, sondages, fichiers, " +
         "utilisateurs actifs sur 7 jours, et un graphique des messages par jour.",
     },
     {
       question: 'Comment activer les notifications push ?',
       answer:
-        "Allez dans Paramètres → Sécurité → \"🔔 Notifications push\". " +
+        "Allez dans Paramètres → Sécurité → Notifications push. " +
         "Cliquez \"Activer les notifications\" et acceptez la demande de permission du navigateur. " +
         "Vous recevrez une notification sur cet appareil pour chaque nouveau message, " +
         "même quand l'application est fermée ou en arrière-plan. " +
@@ -108,9 +127,9 @@
         "Le message est également enregistré dans les logs du serveur.",
     },
     {
-      question: 'Comment faire un appel vidéo ?',
+      question: 'Comment faire un appel vidéo ou audio ?',
       answer:
-        "Dans une conversation, cliquez sur l'icône 📞. Nook utilise WebRTC en pair-à-pair (P2P) : " +
+        "Dans une conversation, cliquez sur l'icône d'appel. Nook utilise WebRTC en pair-à-pair (P2P) : " +
         "les flux vidéo/audio passent directement entre les participants sans transiter par le serveur. " +
         "⚠️ Les appels sont stables en réseau local (LAN). Depuis internet (WAN) un serveur TURN est nécessaire — " +
         "cette fonctionnalité est en cours d'amélioration.",
@@ -157,13 +176,13 @@
 <div class="help-page">
 
   <header class="help-header">
-    <h1>❓ Aide</h1>
+    <h1><Icon name="help" size="24" /> Aide</h1>
     <p class="subtitle">Questions fréquentes sur Nook</p>
   </header>
 
   <!-- Recherche -->
   <div class="search-wrapper">
-    <span class="search-icon">🔍</span>
+    <span class="search-icon"><Icon name="search" size="18" /></span>
     <input
       type="search"
       class="search-input"
@@ -207,12 +226,12 @@
 
   <!-- Contact admin -->
   <div class="contact-card">
-    <h2>💬 Besoin d'aide supplémentaire ?</h2>
+    <h2><Icon name="chat" size="24" /> Besoin d'aide supplémentaire ?</h2>
     <p>Envoyez un message à votre administrateur familial directement dans le chat Nook (conversation Groupe Global), ou demandez-lui de régénérer votre accès.</p>
   </div>
 
   <!-- Version -->
-  <p class="version-note">Nook v0.4.0-beta.2 — Auto-hébergé, chiffré, familial 🌿</p>
+  <p class="version-note">Nook v0.5.0 — Auto-hébergé, chiffré, familial 🌿</p>
 
 </div>
 

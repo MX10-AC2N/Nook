@@ -1,3 +1,4 @@
+import { notifyChess } from '$lib/notificationStore.svelte';
 // src/lib/chessStore.svelte.ts
 // Store Svelte 5 Runes — moteur d'échecs FIDE (backend Rust)
 //
@@ -190,7 +191,7 @@ class ChessStore {
   private _timerInterval: ReturnType<typeof setInterval> | null = null;
 
   // ── Dérivés ───────────────────────────────────────────────────
-  myColor = $derived((): SideToMove | null => {
+  myColor = $derived.by((): SideToMove | null => {
     const g = this.currentGame;
     const uid = authStore.user?.id;
     if (!g || !uid) return null;
@@ -200,9 +201,9 @@ class ChessStore {
   });
 
   isMyTurn = $derived(
-    this.currentGame?.engine?.side_to_move === this.myColor() &&
+    this.currentGame?.engine?.side_to_move === this.myColor &&
     this.currentGame?.status === 'playing' &&
-    this.myColor() !== null
+    this.myColor !== null
   );
 
   isVsAI = $derived(!!this.currentGame?.ai_difficulty); // true seulement si chaîne non vide
@@ -220,7 +221,7 @@ class ChessStore {
   );
 
   // Plateau courant sous forme de tableau 8×8 (ou tableau vide)
-  board = $derived((): string[][] => {
+  board = $derived.by((): string[][] => {
     return this.currentGame?.engine?.board ?? Array.from({ length: 8 }, () => Array(8).fill(''));
   });
 
@@ -233,6 +234,8 @@ class ChessStore {
   private wsGameId: string | null = null;
   private _wsRetries = 0;
   private _wsTimer: ReturnType<typeof setTimeout> | null = null;
+  wsConnected = $state(false);
+  wsReconnecting = $state(false);
 
   // ════════════════════════════════════════════════════════════════
   // API
@@ -242,13 +245,20 @@ class ChessStore {
     this.loading = true;
     this.error = null;
     try {
-      const res = await fetch('/api/chess/list', { credentials: 'include' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      this.gameList = data.games ?? [];
-    } catch (e: any) {
-      this.error = e?.message ?? 'Impossible de charger les parties';
-    } finally {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
+      try {
+        const res = await fetch('/api/chess/list', { credentials: 'include', signal: ctrl.signal });
+        clearTimeout(timeout);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        this.gameList = data.games ?? [];
+      } catch (e: any) {
+        this.error = e?.message ?? 'Impossible de charger les parties';
+      } finally {
+        this.loading = false;
+      }
+    } catch {
       this.loading = false;
     }
   }
@@ -261,12 +271,16 @@ class ChessStore {
     this.loading = true;
     this.error = null;
     try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 15_000);
       const res = await fetch('/api/chess/create', {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal:      ctrl.signal,
         body:        JSON.stringify({ opponent: params.opponent, color: params.color, time_limit_secs: params.time_limit_secs ?? 0 }),
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
       return data.game_id as string;
@@ -282,11 +296,14 @@ class ChessStore {
     this.loading = true;
     this.error = null;
     try {
-      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
+      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include', signal: ctrl.signal });
+      clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.message ?? 'Erreur serveur');
-      this.currentGame = data.game;
+      this.currentGame = { ...data.game };
       this.selected    = null;
       this.legalTargets = [];
 
@@ -312,9 +329,12 @@ class ChessStore {
     }
   }
 
-  private async refreshGame(gameId: string): Promise<void> {
+  async refreshGame(gameId: string): Promise<void> {
     try {
-      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include' });
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
+      const res = await fetch(`/api/chess/${gameId}`, { credentials: 'include', signal: ctrl.signal });
+      clearTimeout(timeout);
       if (!res.ok) return;
       const data = await res.json();
       if (!data.success) return;
@@ -329,9 +349,14 @@ class ChessStore {
   async joinGame(gameId: string): Promise<boolean> {
     this.error = null;
     try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
       const res = await fetch(`/api/chess/${gameId}/join`, {
-        method: 'POST', credentials: 'include',
+        method: 'POST',
+        credentials: 'include',
+        signal: ctrl.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
       await this.loadGame(gameId);
@@ -349,7 +374,7 @@ class ChessStore {
     const alg   = toAlgebraic(row, col);
     const piece  = this.currentGame.engine.board[row]?.[col] ?? '';
     const color  = piece ? piece[0] : '';
-    const myColorChar = this.myColor() === 'white' ? 'w' : 'b';
+    const myColorChar = this.myColor === 'white' ? 'w' : 'b';
 
     // Clic sur une cible légale → jouer le coup
     if (this.selected && this.legalTargets.includes(alg)) {
@@ -392,17 +417,21 @@ class ChessStore {
 
     this.error = null;
     try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
       const res = await fetch(`/api/chess/${gameId}/move`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal:      ctrl.signal,
         body:        JSON.stringify({ from, to, promotion: promotion ?? null }),
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (!data.success) throw new Error(data.message ?? 'Coup invalide');
 
       this.lastMove    = { from, to };
-      this.currentGame = data.game;
+      this.currentGame = { ...data.game };
       this.selected    = null;
       this.legalTargets = [];
       this.pendingPromotion = null;
@@ -441,20 +470,24 @@ class ChessStore {
     this.aiThinking = true;
 
     // Démarrer le timer du camp adverse (IA) PENDANT qu'il réfléchit
-    const myColor = this.myColor();
+    const myColor = this.myColor;
     const aiColor = myColor === 'white' ? 'black' : 'white';
     this.switchTimer(aiColor);
 
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 30_000); // 30s for slower difficulties
     try {
       const res = await fetch(`/api/chess/${this.currentGame.id}/ai-move`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
+        signal:      ctrl.signal,
         body:        JSON.stringify({ difficulty: this.currentGame.ai_difficulty }),
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (data.success && data.game) {
-        this.currentGame = data.game;
+        this.currentGame = { ...data.game };
         // Mettre à jour lastMove depuis le dernier coup IA (from/to maintenant disponibles)
         const history: Array<{ from?: string; to?: string; by?: string }> =
           data.game.move_history ?? [];
@@ -468,6 +501,7 @@ class ChessStore {
     } catch {
       // Silencieux — le joueur peut retenter
     } finally {
+      clearTimeout(timeout);
       this.aiThinking = false;
     }
   }
@@ -514,7 +548,7 @@ class ChessStore {
     if (!game || game.status !== 'playing') return;
     tracing: console.warn(`⏰ Temps écoulé pour les ${side === 'white' ? 'Blancs' : 'Noirs'}`);
     // Si c'est notre tour qui expire → on abandonne automatiquement
-    const myColor = this.myColor();
+    const myColor = this.myColor;
     if (myColor === side) {
       this.resign().catch(() => {});
     }
@@ -534,22 +568,24 @@ class ChessStore {
     if (!this.currentGame) return;
     const gameId = this.currentGame.id;
     try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 10_000);
       const res = await fetch(`/api/chess/${gameId}/resign`, {
-        method: 'POST', credentials: 'include',
+        method: 'POST',
+        credentials: 'include',
+        signal: ctrl.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
-      if (data.success) {
-        // Le backend retourne { success, status, winner_id } — pas de data.game
-        // On met à jour currentGame directement pour éviter un fetch supplémentaire
-        this.currentGame = {
-          ...this.currentGame!,
-          status: data.status ?? 'finished',
-          winner_id: data.winner_id ?? null,
-        };
-        this.stopTimer();
-      } else {
-        await this.refreshGame(gameId);
-      }
+      if (!data.success) throw new Error('Failed to resign');
+      // Le backend retourne { success, status, winner_id } — pas de data.game
+      // On met à jour currentGame directement pour éviter un fetch supplémentaire
+      this.currentGame = {
+        ...this.currentGame!,
+        status: data.status ?? 'finished',
+        winner_id: data.winner_id ?? null,
+      };
+      this.stopTimer();
     } catch (e: any) {
       this.error = e?.message ?? 'Erreur abandon';
       await this.refreshGame(gameId);
@@ -572,6 +608,8 @@ class ChessStore {
     this.ws = ws;
 
     ws.onopen = () => {
+      this.wsConnected = true;
+      this.wsReconnecting = false;
       this._wsRetries = 0;
       if (this._wsTimer) { clearTimeout(this._wsTimer); this._wsTimer = null; }
     };
@@ -582,10 +620,20 @@ class ChessStore {
         const gameId = this.wsGameId!;
         if (msg.game_id !== gameId) return; // autre partie ou autre type
         if (msg.type === 'chess_move' || msg.type === 'chess_ai_move') {
-          this.refreshGame(gameId).catch(console.error);
+          if (msg.type === 'chess_ai_move') notifyChess('Tour de l\'IA', 'L\'IA a joué', gameId);
+          // Refresh game state from server (updates board, legal_moves, etc.)
+          this.refreshGame(gameId).then(() => {
+            // After board update, clear stale selection if it exists
+            // The user can reselect their piece to see updated legal moves
+            if (this.selected) {
+              this.selected = null;
+              this.legalTargets = [];
+            }
+          }).catch(console.error);
         }
         if (msg.type === 'chess_player_joined') {
           this.refreshGame(gameId).catch(console.error);
+          notifyChess('Adversaire rejoint', 'Un joueur a rejoint la partie', gameId);
         }
       } catch { /* non-JSON ok */ }
     };
@@ -593,7 +641,9 @@ class ChessStore {
     ws.onerror = () => {};
 
     ws.onclose = () => {
-      if (this._wsRetries < 8) {
+      this.wsConnected = false;
+      if (this._wsRetries < 12) {
+        this.wsReconnecting = true;
         const delay = Math.min(1000 * 2 ** this._wsRetries, 30_000);
         this._wsRetries++;
         this._wsTimer = setTimeout(() => this._wsConnect(), delay);
@@ -622,6 +672,35 @@ class ChessStore {
     this.blackTime        = 0;
     this.timerLimit       = 0;
   }
+
+  /** Génère la notation PGN complète à partir de move_history */
+  toPgn(): string {
+    const history = this.currentGame?.move_history ?? [];
+    if (history.length === 0) return '';
+
+    let pgn = '';
+    for (let i = 0; i < history.length; i++) {
+      const moveNum = Math.floor(i / 2) + 1;
+      if (i % 2 === 0) {
+        pgn += moveNum + '. ';
+      }
+      pgn += history[i].san + ' ';
+    }
+    return pgn.trim();
+  }
+
+  /** Copie le PGN dans le presse-papier */
+  async copyPgn(): Promise<boolean> {
+    const pgn = this.toPgn();
+    if (!pgn) return false;
+    try {
+      await navigator.clipboard.writeText(pgn);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
 }
 
 export const chessStore = new ChessStore();

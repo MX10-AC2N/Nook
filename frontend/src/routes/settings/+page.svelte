@@ -2,6 +2,9 @@
      Ajout : section notifications push dans l'onglet Sécurité
 -->
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
+  import PasswordInput from '$lib/components/PasswordInput.svelte';
+  import Avatar from '$lib/components/Avatar.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -16,6 +19,50 @@
   let saving           = $state(false);
   let activeTab        = $state<'profile' | 'security' | 'appearance'>('profile');
   let selectedTheme    = $state('jardin-secret');
+  let avatarUrl        = $state<string | null>(null);
+  let avatarUploading  = $state(false);
+  let avatarError      = $state('');
+
+  // ── DiceBear avatar styles ───────────────────────────────────────
+  let selectedAvatarStyle = $state<string>('adventurer');
+  let selectedAvatarSeed = $state<string>('');
+  let avatarGridSeeds = $state<string[]>([]);
+
+  const avatarStyles = [
+    { id: 'adventurer',  label: 'Aventurier',  icon: '🎮' },
+    { id: 'avataaars',   label: 'Cartoon',     icon: '😊' },
+    { id: 'open-peeps',  label: 'Illustré',    icon: '✏️' },
+    { id: 'notionists',  label: 'Minimaliste', icon: '🎨' },
+    { id: 'fun-emoji',   label: 'Emoji',       icon: '😄' },
+    { id: 'big-smile',   label: 'Sourire',     icon: '😁' },
+    { id: 'lorelei',     label: 'Portrait',    icon: '🧑' },
+    { id: 'personas',    label: 'Personas',    icon: '💼' },
+    { id: 'bottts',      label: 'Robot',       icon: '🤖' },
+    { id: 'initials',    label: 'Initiales',   icon: '🔤' },
+  ];
+
+  const NICKNAMES = [
+    'Luna','Felix','Nova','Cosmo','Pixel','Spark','Ziggy','Bree','Mochi','Nori',
+    'Kiki','Zara','Remy','Juno','Ash','Sky','Rio','Sol','Mika','Leo',
+    'Ava','Kai','Zoe','Max','Sam','Ivy','Theo','Lily','Oscar','Nina',
+    'Hugo','Ella','Finn','Mila','Axel','Rosa','Cleo','Jazz','Vega','Ludo',
+  ];
+
+  function regenerateGrid() {
+    const shuffled = [...NICKNAMES].sort(() => Math.random() - 0.5);
+    avatarGridSeeds = shuffled.slice(0, 20);
+  }
+
+  function selectStyle(styleId: string) {
+    selectedAvatarStyle = styleId;
+    selectedAvatarSeed = '';
+    regenerateGrid();
+  }
+
+  function selectSeed(seed: string) {
+    selectedAvatarSeed = seed;
+  }
+
   let darkMode         = $state(false);
 
   // ── Push notifications ────────────────────────────────────────────────────
@@ -50,9 +97,14 @@
 
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
-    if (authStore.user) userName = authStore.user.name ?? '';
+    if (authStore.user) {
+      userName = authStore.user.name ?? '';
+      selectedAvatarStyle = authStore.user.avatar_style ?? 'adventurer';
+      selectedAvatarSeed = authStore.user.avatar_seed ?? '';
+    }
     loadTheme();
     pushState = await getPushState();
+    regenerateGrid();
   });
 
   function loadTheme() {
@@ -85,12 +137,15 @@
     try {
       const response = await fetch('/api/user/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ name: userName }),
+        credentials: 'include', body: JSON.stringify({ name: userName, avatar_style: selectedAvatarStyle, avatar_seed: selectedAvatarSeed }),
       });
       const raw = await response.text();
       let data: any = {};
       if (raw.trim()) { try { data = JSON.parse(raw); } catch {} }
-      if (response.ok) { authStore.updateUser({ name: userName }); message = 'Profil mis à jour avec succès'; }
+      if (response.ok) {
+        authStore.updateUser({ name: userName, avatar_style: selectedAvatarStyle, avatar_seed: selectedAvatarSeed });
+        message = 'Profil mis à jour avec succès';
+      }
       else error = data?.message ?? `Erreur ${response.status}`;
     } catch (e) { error = e instanceof Error ? e.message : 'Erreur de connexion'; }
     finally { saving = false; }
@@ -140,18 +195,71 @@
 
 <div class="settings-container">
   <header class="page-header">
-    <h1>⚙️ Paramètres</h1>
+    <h1><Icon name="settings" size="24" /> Paramètres</h1>
   </header>
 
   <div class="tabs" role="tablist">
-    <button role="tab" class="tab" class:active={activeTab === 'profile'}    onclick={() => (activeTab = 'profile')}>👤 Profil</button>
-    <button role="tab" class="tab" class:active={activeTab === 'security'}   onclick={() => (activeTab = 'security')}>🔒 Sécurité</button>
-    <button role="tab" class="tab" class:active={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>🎨 Apparence</button>
+    <button role="tab" class="tab" class:active={activeTab === 'profile'}    onclick={() => (activeTab = 'profile')}>Profil</button>
+    <button role="tab" class="tab" class:active={activeTab === 'security'}   onclick={() => (activeTab = 'security')}><Icon name="lock" size="18" /> Sécurité</button>
+    <button role="tab" class="tab" class:active={activeTab === 'appearance'} onclick={() => (activeTab = 'appearance')}>Apparence</button>
   </div>
 
   <!-- PROFIL -->
   {#if activeTab === 'profile'}
     <div class="settings-section">
+      <!-- Avatar -->
+      <div class="avatar-section">
+        <label>Avatar</label>
+        <p class="help-text">Choisissez un style puis sélectionnez votre avatar parmi les propositions.</p>
+        <div class="avatar-preview">
+          <Avatar username={authStore.user?.username ?? ''} name={userName} size={80} userId={authStore.user?.id} style={selectedAvatarStyle} seed={selectedAvatarSeed} />
+        </div>
+
+        <!-- Style selector -->
+        <label>Sélectionner un style</label>
+        <div class="avatar-style-grid">
+          {#each avatarStyles as opt}
+            <button
+              type="button"
+              class="avatar-style-option"
+              class:selected={selectedAvatarStyle === opt.id}
+              onclick={() => selectStyle(opt.id)}
+              title={opt.label}
+            >
+              <img
+                src="https://api.dicebear.com/9.x/{opt.id}/svg?seed=Nook&size=36"
+                alt={opt.label}
+                class="avatar-style-img"
+                loading="lazy"
+              />
+              <span class="avatar-style-label">{opt.label}</span>
+            </button>
+          {/each}
+        </div>
+
+        <!-- Seed grid (avatars within chosen style) -->
+        <label>Choisissez votre avatar</label>
+        <div class="avatar-seed-grid">
+          {#each avatarGridSeeds as s}
+            <button
+              type="button"
+              class="avatar-seed-option"
+              class:selected={selectedAvatarSeed === s}
+              onclick={() => selectSeed(s)}
+              title={s}
+            >
+              <img
+                src="https://api.dicebear.com/9.x/{selectedAvatarStyle}/svg?seed={s}&size=48"
+                alt={s}
+                class="avatar-seed-img"
+                loading="lazy"
+              />
+            </button>
+          {/each}
+        </div>
+        <button type="button" class="regenerate-btn" onclick={regenerateGrid}>🔄 Autres propositions</button>
+      </div>
+
       <h2>Informations du profil</h2>
       <form onsubmit={(e) => { e.preventDefault(); updateProfile(); }}>
         <div class="form-group">
@@ -177,16 +285,16 @@
       <form onsubmit={(e) => { e.preventDefault(); changePassword(); }}>
         <div class="form-group">
           <label for="currentPassword">Mot de passe actuel</label>
-          <input type="password" id="currentPassword" bind:value={currentPassword} autocomplete="current-password" />
+          <PasswordInput id="currentPassword" bind:value={currentPassword} autocomplete="current-password" />
         </div>
         <div class="form-group">
           <label for="newPassword">Nouveau mot de passe</label>
-          <input type="password" id="newPassword" bind:value={newPassword} autocomplete="new-password" />
+          <PasswordInput id="newPassword" bind:value={newPassword} autocomplete="new-password" />
           <p class="help-text">Au moins 8 caractères</p>
         </div>
         <div class="form-group">
           <label for="confirmPassword">Confirmer le nouveau mot de passe</label>
-          <input type="password" id="confirmPassword" bind:value={confirmPassword} autocomplete="new-password" />
+          <PasswordInput id="confirmPassword" bind:value={confirmPassword} autocomplete="new-password" />
         </div>
         <button type="submit" class="btn btn-primary" disabled={saving}>
           {saving ? 'Modification…' : 'Changer le mot de passe'}
@@ -521,5 +629,107 @@
     .settings-container { padding: 1rem 0.75rem; }
     .btn { width: 100%; }
     .toggle-label { flex-direction: row; }
+  }
+
+  .avatar-section {
+    margin-bottom: 1.5rem;
+  }
+  .avatar-section > label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    margin-top: 1rem;
+    color: var(--text-primary);
+  }
+  .avatar-section > label:first-child {
+    margin-top: 0;
+  }
+  .avatar-preview {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+  }
+  /* Style selector (horizontal row) */
+  .avatar-style-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .avatar-style-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    border: 2px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .avatar-style-option:hover {
+    border-color: var(--accent-color, #4ade80);
+    transform: scale(1.05);
+  }
+  .avatar-style-option.selected {
+    border-color: var(--accent-color, #4ade80);
+    border-width: 3px;
+    background: var(--bg-accent, #dcfce7);
+  }
+  .avatar-style-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+  }
+  .avatar-style-label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  /* Seed grid (clickable avatars) */
+  .avatar-seed-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 0.75rem;
+  }
+  .avatar-seed-option {
+    padding: 4px;
+    border-radius: 12px;
+    border: 3px solid transparent;
+    background: var(--bg-secondary, #f8fafc);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .avatar-seed-option:hover {
+    border-color: var(--accent-color, #4ade80);
+    transform: scale(1.08);
+  }
+  .avatar-seed-option.selected {
+    border-color: var(--accent-color, #4ade80);
+    background: var(--bg-accent, #dcfce7);
+    box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+  }
+  .avatar-seed-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+  }
+  .regenerate-btn {
+    padding: 6px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+  .regenerate-btn:hover {
+    background: var(--bg-tertiary, #e2e8f0);
   }
 </style>

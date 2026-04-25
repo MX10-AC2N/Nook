@@ -1,83 +1,77 @@
-# 🎨 Frontend Build Report — Nook
+# Frontend Build Report — Nook
 
-> Généré automatiquement par `Frontend.yml`
-> **2026-04-01 09:01 UTC**
-
----
-
-## Statut
+**unknown**
 
 | Champ | Valeur |
 |-------|--------|
 | **Build** | ✅ OK |
-| **Branche** | `main` |
-| **Commit** | [`d334413`](https://github.com/MX10-AC2N/Nook/commit/d334413b49bb47623d40775c490def24723c23ae) |
-| **Node.js** | `v20.20.1` |
-| **Run** | [Voir le run](https://github.com/MX10-AC2N/Nook/actions/runs/23840726466) |
+| **Branche** | fix/high-priority-issues |
+| **Commit** | c08da04 |
+| **Node.js** | unknown |
+| **Vite time** | 5.79ms |
+| **Duration** | N/A |
+| **Output** | N/A |
+| **Files** | 14 |
+| **Warnings** | 2 |
+| **Errors** | 0 |
+| **Chunks** | 115 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/24938013744 |
 
- ---
+---
 
-## Erreurs TypeScript / Vite
+## Erreurs
+
+```
+
+```
+
+## Warnings
 
 ```
 ▲ [WARNING] Cannot find base config file "./.svelte-kit/tsconfig.json" [tsconfig.json]
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
 ```
 
----
-
-## Warnings svelte-vite-plugin (a11y, imports)
+## Bundle
 
 ```
-▲ [WARNING] Cannot find base config file "./.svelte-kit/tsconfig.json" [tsconfig.json]
-- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[32m✓[39m 205 modules transformed.
+[32m✓[39m 239 modules transformed.
+[32m✓ built in 5.79s[39m
+[32m✓[39m 1 modules transformed.
+[32m✓ built in 14ms[39m
+[32m✓ built in 9.46s[39m
+
+[2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/ThemeStore.svelte.js                       [39m[1m[2m  0.14 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36minternal.js                                       [39m[1m[2m  0.27 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/Icon.js                                    [39m[1m[2m  0.72 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/_page.svelte.js               [39m[1m[2m  0.89 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/chatStore.svelte.js                        [39m[1m[2m  0.91 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_page.svelte.js                     [39m[1m[2m  0.92 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/PasswordInput.js                           [39m[1m[2m  0.92 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.ts.js                       [39m[1m[2m  0.93 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/invite/_page.svelte.js              [39m[1m[2m  1.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_game_id_/_page.svelte.js     [39m[1m[2m  1.05 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/admin/analytics/_page.svelte.js     [39m[1m[2m  1.19 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/polls/_page.svelte.js               [39m[1m[2m  1.20 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/Avatar.js                                  [39m[1m[2m  2.19 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/register/_page.svelte.js            [39m[1m[2m  2.55 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/authStore.svelte.js                        [39m[1m[2m  2.99 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/login/_page.svelte.js               [39m[1m[2m  3.11 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/change-password/_page.svelte.js     [39m[1m[2m  3.76 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chess/_page.svelte.js               [39m[1m[2m  3.82 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/events/_page.svelte.js              [39m[1m[2m  3.84 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                   [39m[1m[2m  5.87 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/calendar/_page.svelte.js            [39m[1m[2m  6.28 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/settings/_page.svelte.js            [39m[1m[2m  6.30 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js                [39m[1m[2m 12.02 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/file-transfer.svelte.js                    [39m[1m[2m 14.80 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                       [39m[1m[2m 16.58 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 22.83 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 34.29 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m303.16 kB[22m[1m[22m
 ```
 
----
-
-## Bundle — modules et tailles (gzip)
-
-```
-vite v7.3.1 building ssr environment for production...
-✓ 189 modules transformed.
-rendering chunks...
-vite v7.3.1 building client environment for production...
-✓ 222 modules transformed.
-rendering chunks...
-✓ built in 5.19s
-vite v7.3.1 building client environment for production...
-✓ 1 modules transformed.
-rendering chunks...
-
-.svelte-kit/output/server/entries/pages/admin/_page.svelte.js              0.75 kB
-.svelte-kit/output/server/chunks/Icon.js                                   0.77 kB
-.svelte-kit/output/server/entries/pages/_page.svelte.js                    0.92 kB
-.svelte-kit/output/server/entries/pages/admin/analytics/_page.svelte.js    0.93 kB
-.svelte-kit/output/server/entries/pages/chess/_game_id_/_page.svelte.js    0.98 kB
-.svelte-kit/output/server/entries/pages/invite/_page.svelte.js             1.04 kB
-.svelte-kit/output/server/entries/pages/polls/_page.svelte.js              1.06 kB
-.svelte-kit/output/server/entries/pages/login/_page.svelte.js              2.53 kB
-.svelte-kit/output/server/entries/pages/register/_page.svelte.js           2.55 kB
-.svelte-kit/output/server/entries/pages/settings/_page.svelte.js           2.64 kB
-.svelte-kit/output/server/entries/pages/change-password/_page.svelte.js    2.88 kB
-.svelte-kit/output/server/chunks/authStore.svelte.js                       2.99 kB
-.svelte-kit/output/server/entries/pages/chess/_page.svelte.js              3.68 kB
-.svelte-kit/output/server/entries/pages/events/_page.svelte.js             3.87 kB
-.svelte-kit/output/server/entries/pages/calendar/_page.svelte.js           5.33 kB
-.svelte-kit/output/server/entries/pages/help/_page.svelte.js              10.41 kB
-.svelte-kit/output/server/entries/pages/chat/_page.svelte.js              12.62 kB
-.svelte-kit/output/server/chunks/chessStore.svelte.js                     14.55 kB
-.svelte-kit/output/server/entries/pages/call/_id_/_page.svelte.js         15.13 kB
-.svelte-kit/output/server/chunks/svelte.js                               298.42 kB
-```
-
----
-
-## npm audit
-
-```
-
-```
-
----
-
-*Rapport généré par `.github/workflows/Frontend.yml`*
+*Generated by .github/scripts/generate-frontend-report.sh*

@@ -28,10 +28,12 @@ use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
+    set_header::SetResponseHeaderLayer,
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
 use chrono::Utc;
+use rand::{rng, distr::Alphanumeric, Rng};
 
 mod admin;
 mod auth;
@@ -41,6 +43,7 @@ mod config;
 mod db;
 mod e2ee;
 mod invites;
+mod missed_calls;
 mod polls;
 mod reactions;
 mod push;
@@ -48,10 +51,15 @@ mod prune;
 mod upload;
 mod emergency;
 mod gifs_updater;
+mod search;
+mod presence;
 mod webrtc;
+mod sfu;
+mod ca;
 
 use crate::config::Config;
 use crate::prune::prune_old_data;
+use sfu::SfuState;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
@@ -66,6 +74,9 @@ pub struct SharedState {
     pub db: SqlitePool,
     pub webrtc_state: WebRtcState,
     pub file_manager: Arc<FileManager>,
+    pub sfu_state: SfuState,
+    pub config: Config,
+    pub presence_state: presence::PresenceState,
 }
 
 // ---------------------------------------------------------------------
@@ -106,7 +117,17 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     if count.0 == 0 {
         tracing::warn!("⚠️  Aucun utilisateur trouvé - création de l'administrateur initial");
 
-        let password_hash = crate::auth::hash_password("changeme2026");
+        // FIX C2: generer un mot de passe aleatoire au lieu d'un mot de passe statique
+        // Si ADMIN_INITIAL_PASSWORD est defini (CI/testing), l'utiliser
+        let random_password: String = std::env::var("ADMIN_INITIAL_PASSWORD")
+            .unwrap_or_else(|_| {
+                rng()
+                    .sample_iter(&Alphanumeric)
+                    .take(16)
+                    .map(char::from)
+                    .collect()
+            });
+        let password_hash = crate::auth::hash_password(&random_password);
         let now = Utc::now().timestamp();
 
         sqlx::query(
@@ -128,8 +149,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             role = "admin",
             "✓ Administrateur initial créé avec succès"
         );
-        eprintln!("[Init] Admin initial créé — identifiants : admin / changeme2026");
-        eprintln!("[Init] ⚠️  Changez le mot de passe dès la première connexion !");
+        eprintln!("[Init] ⚠️  Changez le mot de passe des la premiere connexion !");
     } else {
         tracing::debug!("Administrateur initial déjà existant");
     }
@@ -183,7 +203,12 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
         if e2e_count.0 == 0 {
             let e2e_id = uuid::Uuid::new_v4().to_string();
-            let e2e_hash = crate::auth::hash_password("E2eTest123!");
+            let e2e_password = std::env::var("E2E_PASSWORD")
+            .unwrap_or_else(|_| {
+                eprintln!("[E2E] ATTENTION: E2E_PASSWORD non défini, utilisation d'un mot de passe aléatoire");
+                uuid::Uuid::new_v4().to_string()
+            });
+        let e2e_hash = crate::auth::hash_password(&e2e_password);
             let now = Utc::now().timestamp();
             sqlx::query(
                 r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
@@ -287,6 +312,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
 
     let webrtc_state = WebRtcState::new();
+    let sfu_state = SfuState::new();
     tracing::info!("✓ État WebRTC initialisé");
 
     let fm_clone = (*file_manager).clone();
@@ -318,6 +344,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         db: pool,
         webrtc_state,
         file_manager,
+        sfu_state,
+        config: config.clone(),
+        presence_state: presence::PresenceState::new(),
     });
 
     // ============================================================
@@ -383,6 +412,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invites/delete", post(admin::delete_invite))
         .route("/analytics", get(admin::get_analytics))
         .route("/users/{id}", axum::routing::delete(admin::delete_user))
+        .route("/metrics", get(admin::get_system_metrics))
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
@@ -422,6 +452,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(chess::chess_routes())
         .merge(e2ee::e2ee_routes())
         .merge(reactions::reactions_routes())
+        .merge(webrtc::webrtc_api_routes())
+        .merge(missed_calls::missed_calls_routes())
+        .merge(search::search_routes())
+        .merge(presence::presence_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
@@ -497,8 +531,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServeDir::new(&config.gifs_dir)
                 .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
         )
-        .merge(webrtc::webrtc_routes())
+        .merge(webrtc::webrtc_ws_routes())
+        .route("/ca", get(ca::get_ca_cert))
+        .route("/ca/help", get(ca::ca_help))
         .fallback_service(static_service)
+
+        // 🛡️ Security headers middleware
+        .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
+            let mut response = next.run(req).await;
+            let headers = response.headers_mut();
+            headers.insert("X-Frame-Options", "DENY".parse().unwrap());
+            headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+            headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
+            headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
+            headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
+            headers.insert("Content-Security-Policy",
+                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
+            response
+        }))
+        // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("public, max-age=3600"),
+        ))
         .layer(CompressionLayer::new())
         .layer(cors_layer)
         .with_state(shared_state)

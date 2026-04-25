@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -11,6 +12,7 @@
   let currentDate  = $state(new Date());
   let events       = $state<CalEvent[]>([]);
   let loading      = $state(true);
+  import { notifyCalendar } from '$lib/notificationStore.svelte';
   let error        = $state<string | null>(null);
   let showAddModal = $state(false);
   let newEvent     = $state({ title: '', date: '', time: '', description: '' });
@@ -21,9 +23,33 @@
   let editMode     = $state(false);
   let editData     = $state({ title: '', date: '', time: '', description: '' });
   let editSaving   = $state(false);
+  let viewMode     = $state<'month' | 'week' | 'day'>('month');
 
   const today    = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  function getWeekDays(): Date[] {
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - (start.getDay() === 0 ? 6 : start.getDay() - 1));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }
+
+  function isDateToday(d: Date): boolean {
+    const t = new Date();
+    return d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getFullYear() === t.getFullYear();
+  }
+
+  function getEventsForDate(d: Date): CalEvent[] {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dateStr = y + '-' + m + '-' + day;
+    return events.filter(e => e.date === dateStr).sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+  }
+
   const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
   onMount(async () => {
@@ -82,7 +108,8 @@
     try {
       const res = await fetch(`/api/events/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      events = events.filter(e => e.id !== id); closeDetail();
+      events = events.filter(e => e.id !== id);
+    notifyCalendar('Evenement supprime', 'L evenement a ete retire du calendrier'); closeDetail();
     } catch (e) { alert(e instanceof Error ? e.message : 'Erreur'); }
   }
 
@@ -121,6 +148,56 @@
     if (!ds) return '';
     return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   }
+
+  // ── Drag & Drop ─────────────────────────────────────────────────
+  let dragEvent = $state<CalEvent | null>(null);
+  let dragOverDay = $state<number | null>(null);
+
+  function handleDragStart(e: DragEvent, evt: CalEvent) {
+    dragEvent = evt;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', evt.id);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, day: number) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    dragOverDay = day;
+  }
+
+  function handleDragLeave() {
+    dragOverDay = null;
+  }
+
+  async function handleDrop(e: DragEvent, day: number) {
+    e.preventDefault();
+    dragOverDay = null;
+    if (!dragEvent) return;
+
+    const year = currentDate.getFullYear();
+    const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    const newDate = `${year}-${m}-${d}`;
+
+    if (newDate === dragEvent.date) return; // No change
+
+    try {
+      const res = await fetch(`/api/calendar/${dragEvent.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...dragEvent, date: newDate }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        events = events.map(ev => ev.id === updated.id ? updated : ev);
+      }
+    } catch (err) {
+      console.error('[Calendar] Drag-drop error:', err);
+    }
+    dragEvent = null;
+  }
 </script>
 
 <svelte:head><title>Calendrier — Nook</title></svelte:head>
@@ -128,13 +205,13 @@
 <div class="cal-page">
   <div class="cal-header">
     <div>
-      <h1>📅 Calendrier</h1>
+      <h1><Icon name="calendar" size="24" /> Calendrier</h1>
       <p class="subtitle">Événements familiaux</p>
     </div>
     <button class="add-event-btn" onclick={() => { newEvent.date = todayStr; showAddModal = true; }}>＋ Ajouter</button>
   </div>
 
-  {#if error}<div class="error-banner">⚠️ {error}</div>{/if}
+  {#if error}<div class="error-banner"><Icon name="warning" size="18" /> {error}</div>{/if}
 
   <div class="cal-container">
     <div class="cal-nav">
@@ -144,8 +221,14 @@
         {#if !isCurrentMonth()}<button class="today-btn" onclick={goToday}>Aujourd'hui</button>{/if}
       </div>
       <button class="nav-btn" onclick={nextMonth}>›</button>
+      <div class="view-switcher">
+        <button class="view-btn" class:active={viewMode === 'month'} onclick={() => viewMode = 'month'}>Mois</button>
+        <button class="view-btn" class:active={viewMode === 'week'} onclick={() => viewMode = 'week'}>Sem.</button>
+        <button class="view-btn" class:active={viewMode === 'day'} onclick={() => viewMode = 'day'}>Jour</button>
+      </div>
     </div>
 
+    {#if viewMode === 'month'}
     <div class="calendar-grid">
       {#each ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'] as d}
         <div class="day-hdr">{d}</div>
@@ -157,19 +240,60 @@
         {@const day = i+1}
         {@const dayEvts = eventsForDay(day)}
         <button class="cal-cell" class:today={isToday(day)} class:has-events={dayEvts.length>0}
-          class:selected-day={selectedDay===day} onclick={() => openDay(day)}>
+          class:selected-day={selectedDay===day} class:drag-over={dragOverDay===day}
+          ondragover={(e) => handleDragOver(e, day)} ondragleave={handleDragLeave}
+          ondrop={(e) => handleDrop(e, day)} onclick={() => openDay(day)}>
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
             {#each dayEvts.slice(0,2) as evt}
-              <span class="evt-pill" onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
+              <span class="evt-pill" draggable="true" ondragstart={(e) => handleDragStart(e, evt)} onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
             {/each}
             {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
           </div>
         </button>
       {/each}
+    </div><!-- /calendar-grid -->
+    {:else if viewMode === 'week'}
+    <div class="week-view">
+      <div class="week-header">
+        {#each getWeekDays() as day}
+          <div class="week-day-hdr" class:today={isDateToday(day)}>
+            <span class="week-day-name">{['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'][day.getDay() === 0 ? 6 : day.getDay() - 1]}</span>
+            <span class="week-day-num">{day.getDate()}</span>
+          </div>
+        {/each}
+      </div>
+      <div class="week-body">
+        {#each getWeekDays() as day}
+          <div class="week-col">
+            {#each getEventsForDate(day) as evt}
+              <div class="week-event" onclick={() => openDetail(evt)}>
+                {evt.time ? evt.time + ' ' : ''}{evt.title}
+              </div>
+            {/each}
+          </div>
+        {/each}
+      </div>
     </div>
+    {:else}
+    <div class="day-view">
+      <h3>{currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
+      {#each getEventsForDate(currentDate) as evt}
+        <div class="day-event" onclick={() => openDetail(evt)}>
+          <span class="day-event-time">{evt.time || '—'}</span>
+          <div>
+            <span class="day-event-title">{evt.title}</span>
+            {#if evt.description}<p class="day-event-desc">{evt.description}</p>{/if}
+          </div>
+        </div>
+      {:else}
+        <p class="no-events">Aucun événement ce jour</p>
+      {/each}
+    </div>
+    {/if}
   </div>
 
+  {#if viewMode === 'month'}
   <div class="upcoming">
     <h3>🗓 À venir</h3>
     {#if loading}<p class="empty-txt">Chargement…</p>
@@ -194,6 +318,7 @@
       </ul>
     {/if}
   </div>
+  {/if}
 </div>
 
 <!-- MODAL AJOUT -->
@@ -296,6 +421,7 @@
   .cal-cell:hover { background: var(--bg-tertiary, #f1f5f9); border-color: var(--border, #e2e8f0); }
   .cal-cell.empty { background: transparent; cursor: default; border: none; }
   .cal-cell.today { background: color-mix(in srgb, var(--accent, #4ade80) 12%, var(--bg-primary, #fff)); border-color: var(--accent, #4ade80); }
+  .cal-cell.drag-over { outline: 2px dashed var(--accent, #4ade80); outline-offset: -2px; }
   .cal-cell.selected-day { border-color: var(--accent, #4ade80); background: color-mix(in srgb, var(--accent, #4ade80) 15%, var(--bg-primary, #fff)); }
   .cal-cell.has-events { border-color: color-mix(in srgb, var(--accent, #4ade80) 35%, transparent); }
   .day-num { font-size: .78rem; font-weight: 600; color: var(--text-secondary, #64748b); align-self: flex-end; }
@@ -351,5 +477,141 @@
     .day-num { font-size: .7rem; }
     .cal-header { flex-direction: column; gap: .5rem; }
     .add-event-btn { width: 100%; text-align: center; }
+  }
+
+  .view-switcher {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-radius: 8px;
+    padding: 2px;
+  }
+  .view-btn {
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-secondary, #64748b);
+    transition: all 0.2s;
+  }
+  .view-btn.active {
+    background: var(--bg-primary, #fff);
+    color: var(--text-primary, #1e293b);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .week-view, .day-view {
+    background: var(--bg-primary, #fff);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .week-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    background: var(--bg-secondary, #f8fafc);
+  }
+  .week-day-hdr {
+    padding: 8px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+  }
+  .week-day-hdr.today { background: var(--accent-bg, #dcfce7); }
+  .week-day-name { display: block; font-size: 0.75rem; color: var(--text-secondary, #64748b); }
+  .week-day-num { display: block; font-weight: 600; }
+  .week-body {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    min-height: 200px;
+  }
+  .week-col {
+    border-right: 1px solid var(--border-color, #e2e8f0);
+    padding: 4px;
+    min-height: 200px;
+  }
+  .week-col:last-child { border-right: none; }
+  .week-event {
+    background: var(--accent-bg, #dcfce7);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    margin-bottom: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .day-view { padding: 1rem; }
+  .day-event {
+    display: flex;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    background: var(--bg-secondary, #f8fafc);
+    margin-bottom: 0.5rem;
+    cursor: pointer;
+  }
+  .day-event:hover { background: var(--accent-bg, #dcfce7); }
+  .day-event-time { font-weight: 600; min-width: 60px; }
+  .day-event-desc { font-size: 0.85rem; color: var(--text-secondary, #64748b); margin-top: 4px; }
+  .no-events { text-align: center; color: var(--text-secondary, #64748b); padding: 2rem; }
+
+  /* Calendar cell animations */
+  .cal-cell {
+    transition: all 0.2s ease;
+  }
+  .cal-cell:hover {
+    transform: scale(1.05);
+    z-index: 1;
+  }
+  .cal-cell.today {
+    animation: today-pulse 2s ease-in-out infinite;
+  }
+  @keyframes today-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(74, 222, 128, 0.2); }
+  }
+  
+  /* Event pill animations */
+  .evt-pill {
+    transition: all 0.2s ease;
+    animation: pill-slide-in 0.3s ease;
+  }
+  .evt-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  @keyframes pill-slide-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  /* View switcher animation */
+  .view-btn {
+    transition: all 0.2s ease;
+  }
+  .view-btn:hover {
+    background: var(--bg-tertiary, #f1f5f9);
+  }
+  .view-btn.active {
+    animation: btn-activate 0.2s ease;
+  }
+  @keyframes btn-activate {
+    0% { transform: scale(0.95); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Upcoming events list */
+  .evt-item {
+    transition: all 0.2s ease;
+    animation: item-fade-in 0.3s ease;
+  }
+  .evt-item:hover {
+    transform: translateX(4px);
+    background: var(--bg-tertiary, #f8fafc);
+  }
+  @keyframes item-fade-in {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
   }
 </style>

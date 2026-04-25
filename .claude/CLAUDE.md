@@ -1,9 +1,25 @@
 # 🤖 CLAUDE.md — Nook · Orchestrateur Principal
 
 > **Lire EN PREMIER. Ce fichier gouverne tout le reste.**
-> Version projet : **0.5.0** | Session courante : **52** | Mis à jour : **2026-04-25**
+> Version projet : **0.5.0** | Session courante : **50*** | Mis à jour : **2026-04-21***
 > Repo : `https://github.com/MX10-AC2N/Nook` | Branche : `develop`
 > Raw base : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
+> Déploiement : Docker multi-arch (Alpine 3.21), Zimaboard via docker-compose
+> HTTPS local : nginx-alpine sur port 6443 (cert auto-signé) pour enregistrement audio/vidéo
+> ## 📋 RÉSUMÉ DES SESSIONS RÉCENTES
+>
+> ### Session 50 (2026-04-21)
+> - ✅ **Audit global** : 82/100 (+3 depuis 2026-04-09)
+> - ✅ **PR #28** : `refactor/remove-simple-peer` → supprime dépendance obsolète
+> - ✅ **PR #29** : `feat/healthchecks` → healthchecks pour tous les services
+> - ✅ **PR #30** : `fix/hardcoded-secrets` → corrige 4 problèmes critiques
+> - ✅ **0 secret en dur** : TURN_SECRET, admin password logging, chmod 0777
+> - ✅ **Documentation** : `.env.example`, `.claude/` mis à jour
+>
+> ### Sessions précédentes (rappel)
+> - Session 38-49 : MCP Servers, Svelte 5 migration, WebRTC calls, Chess, Polls, Calendar, Events
+> - Session 37 : E2EE tests, Playwright setup, CI/CD fixes
+
 
 ---
 
@@ -83,7 +99,7 @@
 □ Fichiers .rs backend hors chess_engine/ ?              → 🦀 RUST
 □ Fichiers .svelte, .svelte.ts, .svelte.js ?             → 🎨 SVELTE  (+ MCP Svelte)
 □ Workflows .yml, Dockerfile*, docker-compose* ?         → 🚀 DEVOPS
-□ e2e.spec.ts, playwright.config.ts, TEST_REPORT ?       → 🧪 E2E
+□ `chess-extended.spec.ts`, `webrtc.spec.ts`, `TEST_REPORT` ?  → 🧪 E2E
 □ Auth, crypto, clés, cookies, WebRTC, E2EE ?            → 🔐 CRYPTO
 □ chess_engine/, chess.rs, chessStore ?                  → ♟️ CHESS
 □ polls.rs, analytics, calendar, events, DB données ?    → 📊 DATA
@@ -262,10 +278,48 @@ Chaque agent possède une section **`## 📚 Apprentissages`** dans son fichier 
 | `BACKEND-BUILD-REPORT-amd64.md` | 🦀 RUST | `Backend.yml` |
 | `BACKEND-BUILD-REPORT-arm64.md` | 🦀 RUST | `Backend.yml` |
 | `DOCKER-BUILD-REPORT.md` | 🚀 DEVOPS | `Docker.yml` |
-| `TEST_REPORT.md` | 🧪 E2E | `test-nook.yml` |
+| `TEST-AND-SECURITY-AUDIT-2026.md` | 🧪 E2E + 🔐 CRYPTO | Tests étendus + findings ouvertes |
+| `E2E-TARGETED-REPORT.md` | 🧪 E2E | `e2e-targeted.yml` |
 
 ---
 
+## 🛠️ WORKFLOWS DISPONIBLES — Catalogue rapide
+
+> 20 workflows au total. Voir détails dans `rules/workflows.md`.
+
+| Catégorie | Workflows | Déclencheur |
+|-----------|-----------|-------------|
+| CI principale | `test-nook.yml` | push/PR sur develop/main |
+| Build artifacts | `Backend.yml`, `Frontend.yml`, `Docker.yml`, `ci-new2.yml` | `workflow_dispatch` |
+| E2E debug | `e2e-targeted.yml` | `workflow_dispatch` (input: suite) |
+| Maintenance auto | `update-cargo-lock.yml`, `update-frontend-lock.yml`, `sqlx-prepare.yml` | push sur paths |
+| Bundle/audit | `bundle-analysis.yml`, `npm-audit-report.yml` | push/cron |
+| Nettoyage | `clear-cache.yml`, `ghcr-cleanup.yml` | cron/workflow_run |
+| Assets | `fetch-gifs.yml`, `generate-pwa-icons.yml`, `generate-android-instruction.yml` | push/dispatch |
+| Migration | `auto-svelte5-migration.yml`, `fix-svelte5-runes.yml` | `workflow_dispatch` |
+| Release | `Release.yml` | `workflow_dispatch` |
+
+> ⚠️ **Nettoyage recommandé** (détails dans [WORKFLOW-CATALOG.md](#workflow-cleansing) ci-dessous):
+> - `auto-svelte5-migration.yml` — migration S5 terminée depuis S37
+> - `fix-svelte5-runes.yml` — idem, plus nécessaire
+> - `ci-new2.yml` — doublon avec `Backend.yml`+`Docker.yml`
+> - `generate-android-instruction.yml` — usage ponctuel, pas besoin de workflow dédié
+> - `update-cargo-lock.yml` + `update-frontend-lock.yml` — redondants si `sqlx-prepare.yml` gère lock
+
+---
+
+## 🚦 Statut CI (2026-04-12 — Session 49)
+- **Tests E2E**: 163/163 PASS | 0 fail | 0 skip | ~1.5min
+- **Fichiers**: admin.spec.ts (25 tests), user.spec.ts (75 tests), api-sanity.spec.ts (76 tests)
+- **Backend**: build OK `nook-backend v0.5.0`
+- **Docker**: image `nook:dev` OK
+- **Regles**: `npx playwright test --list` obligatoire avant push
+- **Bugs CI**: 0 connu bloquant
+- **Coverage**: Auth, Chat, Reactions, Upload, Polls, Chess, Calendar, Settings, Admin, E2EE, Push, Navigation
+
+### Commandes Chat Disponibles
+- `/fini` — Termine la session proprement: resume, update .claude docs, push state, exit.
+  *Voir `.claude/skills/nook-fin/SKILL.md` pour les details*
 ## 📖 Référence rapide des commandes slash
 
 | Commande | Agent | Skill lu | Résultat |

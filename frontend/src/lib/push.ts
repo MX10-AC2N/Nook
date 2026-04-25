@@ -28,15 +28,26 @@ export async function getPushState(): Promise<PushState> {
     return { supported: false, permission: 'unsupported', subscribed: false, error: null };
   }
 
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.getSubscription();
+  try {
+    // Check if SW is actually registered before waiting on .ready (which hangs forever if none)
+    const reg = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error('SW timeout')), 3000))
+    ]);
+    if (!reg) {
+      return { supported: true, permission: Notification.permission, subscribed: false, error: 'Service Worker non enregistré' };
+    }
+    const sub = await reg.pushManager.getSubscription();
 
-  return {
-    supported:  true,
-    permission: Notification.permission,
-    subscribed: !!sub,
-    error:      null,
-  };
+    return {
+      supported:  true,
+      permission: Notification.permission,
+      subscribed: !!sub,
+      error:      null,
+    };
+  } catch {
+    return { supported: true, permission: Notification.permission, subscribed: false, error: 'Service Worker non prêt' };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,10 +83,71 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     return { success: false, error: 'Impossible de récupérer la clé VAPID' };
   }
 
-  // 3. S'abonner via pushManager
+  // 3. Enregistrer le SW si nécessaire
+  let reg: ServiceWorkerRegistration;
+  try {
+    // Vérifier si un SW est déjà enregistré
+    reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      // Enregistrer le SW maintenant avec timeout
+      console.log('[push] Registering SW...');
+      reg = await Promise.race([
+        navigator.serviceWorker.register('/service-worker.js', { scope: '/' }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SW register timeout (5s) — certificat SSL probablement non approuvé')), 5000)
+        )
+      ]);
+      console.log('[push] SW registered:', reg.scope);
+    }
+
+    // Attendre que le SW soit actif (max 10s)
+    if (!reg.active) {
+      console.log('[push] Waiting for SW to activate...');
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          if (reg.installing) {
+            reg.installing.addEventListener('statechange', () => {
+              if (reg.installing?.state === 'activated') {
+                console.log('[push] SW activated');
+                resolve();
+              }
+            });
+          } else if (reg.waiting) {
+            reg.waiting.addEventListener('statechange', () => {
+              if (reg.waiting?.state === 'activated') {
+                console.log('[push] SW activated');
+                resolve();
+              }
+            });
+          } else {
+            resolve(); // Already active
+          }
+        }),
+        new Promise<void>((_, reject) => 
+          setTimeout(() => reject(new Error('SW activation timeout (10s)')), 10000)
+        )
+      ]);
+    }
+
+    if (!reg.active) {
+      return { success: false, error: 'Service Worker non actif après 10s' };
+    }
+
+    console.log('[push] SW ready:', reg.scope);
+  } catch (err: any) {
+    const msg = err?.message ?? String(err);
+    if (msg.includes('timeout') || msg.includes('certificat') || msg.includes('SSL')) {
+      return {
+        success: false,
+        error: `Certificat non approuvé → ouvrez ${location.origin}/ca/help pour installer le CA (instructions incluses).`
+      };
+    }
+    return { success: false, error: `Service Worker : ${msg}` };
+  }
+
+  // 4. S'abonner via pushManager
   let subscription: PushSubscription;
   try {
-    const reg = await navigator.serviceWorker.ready;
     subscription = await reg.pushManager.subscribe({
       userVisibleOnly:      true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),

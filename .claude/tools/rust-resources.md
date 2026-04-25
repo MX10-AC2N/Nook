@@ -118,9 +118,17 @@ let containers = docker.list_containers::<String>(None).await?;
 
 ## 🔵 Crates à ajouter — LOT 4
 
-### turn-rs — Serveur TURN pour appels WAN
-Pas une crate — déployer comme service Docker séparé.  
+### turn-rs — Serveur TURN/STUN pour appels WAN
+Pas une crate — déployé comme service Docker `ghcr.io/mycrl/turn-rs:latest`.
 Voir `github-resources.md` pour la config docker-compose.
+
+### rustrtc — SFU WebRTC haute performance (✅ LOT 6)
+**Crate :** https://crates.io/crates/rustrtc (v0.3.40)  
+**Intégré :** backend/src/sfu.rs
+**Usage :** SFU pour appels 3+ participants, auto-activé depuis frontend.
+**Pattern :** Room → Peer → MediaRelay → RTCP PLI forwarding.
+**APIs clés :** PeerConnection::new, create_offer/answer, add_track_with_stream_id, MediaRelay::with_capacity, subscribe_rtcp, request_key_frame.
+**Signalisation :** Via WebSocket Nook (types sfu_join/sfu_answer/sfu_candidate/sfu_leave).
 
 ---
 

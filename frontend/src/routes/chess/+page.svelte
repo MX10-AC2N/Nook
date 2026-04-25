@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
@@ -60,7 +61,7 @@
   <!-- ── En-tête ── -->
   <header class="lobby-header">
     <div class="title-row">
-      <span class="crown">♟</span>
+      <span class="crown"><Icon name="home" size="36" /></span>
       <h1>Échecs</h1>
     </div>
     <p class="subtitle">Échecs FIDE standard — 2 joueurs humains ou contre l'IA</p>

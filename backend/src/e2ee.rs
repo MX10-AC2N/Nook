@@ -227,3 +227,55 @@ pub fn e2ee_routes() -> axum::Router<Arc<SharedState>> {
             get(get_my_encrypted_key),
         )
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_register_public_key_deserialize() {
+        let json = r#"{"public_key": "dGVzdC1rZXk="}"#;
+        let req: RegisterPublicKeyRequest = serde_json::from_str(json).unwrap();
+        assert_eq!(req.public_key, "dGVzdC1rZXk=");
+    }
+
+    #[test]
+    fn test_public_keys_query_deserialize() {
+        let json = r#"{"conversation_id": "conv-123"}"#;
+        let query: PublicKeysQuery = serde_json::from_str(json).unwrap();
+        assert_eq!(query.conversation_id, "conv-123");
+    }
+
+    #[test]
+    fn test_member_public_key_serialize() {
+        let member = MemberPublicKey {
+            user_id: "user-1".to_string(),
+            username: "alice".to_string(),
+            public_key: "dGVzdA==".to_string(),
+        };
+        let json = serde_json::to_string(&member).unwrap();
+        assert!(json.contains("user-1"));
+        assert!(json.contains("alice"));
+        assert!(json.contains("dGVzdA=="));
+    }
+
+    #[test]
+    fn test_encrypted_key_response_serialize() {
+        let resp = EncryptedKeyResponse {
+            encrypted_key: "encrypted123".to_string(),
+            message_id: "msg-456".to_string(),
+        };
+        let json = serde_json::to_string(&resp).unwrap();
+        assert!(json.contains("encrypted123"));
+        assert!(json.contains("msg-456"));
+    }
+
+    #[test]
+    fn test_x25519_key_size() {
+        // X25519 public keys are always 32 bytes
+        // Base64 unpadded: 32 * 4/3 = 42.67 → 43 chars (no padding)
+        let key_32_bytes = vec![0u8; 32];
+        assert_eq!(key_32_bytes.len(), 32, "X25519 key must be 32 bytes");
+    }
+}

@@ -84,6 +84,14 @@ export const participants = {
   },
 };
 
+export const conversations = {
+  get value() { return conversationStore.conversations; },
+  subscribe(fn: (v: Conversation[]) => void) {
+    fn(conversationStore.conversations);
+    return () => {};
+  },
+};
+
 // -----------------------------------------------------------------
 // 3️⃣ Chargement des données depuis le backend
 // -----------------------------------------------------------------

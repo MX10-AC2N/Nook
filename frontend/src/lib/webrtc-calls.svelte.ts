@@ -1,9 +1,52 @@
 // src/lib/webrtc-calls.ts (Svelte 5 avec runes)
+import { notifyCall } from '$lib/notificationStore.svelte';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import type { CallSignal } from './types';
 import { authStore } from './authStore.svelte.js';
 
+/** Génère les credentials TURN long-term (RFC 5389). */
+async function generateTurnCredentials(secret: string, validityHours = 24): Promise<{ username: string; credential: string }> {
+  const username = String(Math.floor(Date.now() / 1000) + (validityHours * 3600));
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const msgData = encoder.encode(username);
+  const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
+  const credential = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  return { username, credential };
+}
+
+// ── TURN/STUN Configuration ────
+// Credentials fetched dynamically from /api/webrtc/ice-config
+
+interface IceConfig {
+  host: string;
+  port: number;
+  username: string;
+  credential: string;
+}
+
+let cachedIceConfig: IceConfig | null = null;
+let iceConfigExpiry = 0;
+
+async function fetchIceConfig(): Promise<IceConfig> {
+  if (cachedIceConfig && Date.now() < iceConfigExpiry) return cachedIceConfig;
+  try {
+    const res = await fetch('/api/webrtc/ice-config', { credentials: 'include' });
+    if (!res.ok) {
+      console.error('[WebRTC] ICE config fetch failed:', res.status);
+      return { host: window.location.hostname, port: 3478, username: '', credential: '' };
+    }
+    const config: IceConfig = await res.json();
+    cachedIceConfig = config;
+    iceConfigExpiry = Date.now() + 12 * 3600 * 1000;
+    return config;
+  } catch (e) {
+    console.error('[WebRTC] ICE config error:', e);
+    return { host: window.location.hostname, port: 3478, username: '', credential: '' };
+  }
+}
 // -----------------------------------------------------------------
 // 1️⃣ Types & état réactif (Svelte 5)
 // -----------------------------------------------------------------
@@ -15,11 +58,35 @@ export interface CallState {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
   peerConnections: Map<string, RTCPeerConnection>;
+  fileDataChannels: Map<string, RTCDataChannel>;
   currentConversationId: string | null;
   error: string | null;
   isMuted: boolean;
   isVideoOff: boolean;
   localVideoElement: HTMLVideoElement | null; // Ajout pour Svelte 5
+  isScreenSharing: boolean;
+  screenShareStream: MediaStream | null;
+  screenShareLocalVideoElement: HTMLVideoElement | null;
+  // Call quality monitoring
+  callQuality: 'good' | 'fair' | 'poor' | 'unknown';
+  currentBitrate: number; // kbps average
+  packetsLost: number;
+  jitter: number; // ms
+  rtt: number; // round-trip ms
+  remoteResolution: string | null; // e.g. "1280x720"
+  remoteFps: number;
+    // SFU state
+    useSfu: false,
+    sfuAnswer: null,
+    sfuRenegotiateOffer: null,
+    sfuPeers: [],
+    sfuPendingOffer: null,
+    // ═══ SFU state ═══
+    useSfu: boolean;
+    sfuAnswer: string | null;
+    sfuRenegotiateOffer: string | null;
+    sfuPeers: string[];
+    sfuPendingOffer: string | null; // offer from SFU for renegotiation
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
@@ -32,11 +99,23 @@ function createInitialState(): CallState {
     localStream: null,
     remoteStreams: new Map<string, MediaStream>(),
     peerConnections: new Map<string, RTCPeerConnection>(),
+    fileDataChannels: new Map<string, RTCDataChannel>(),
     currentConversationId: null,
     error: null,
     isMuted: false,
     isVideoOff: false,
     localVideoElement: null,
+    isScreenSharing: false,
+    screenShareStream: null,
+    screenShareLocalVideoElement: null,
+    // Call quality monitoring defaults
+    callQuality: 'unknown',
+    currentBitrate: 0,
+    packetsLost: 0,
+    jitter: 0,
+    rtt: 0,
+    remoteResolution: null,
+    remoteFps: 0,
   };
 }
 
@@ -52,6 +131,10 @@ class WebRTCCallManager {
   // ── Sonnerie ────────────────────────────────────────────────
   private ringtoneCtx: AudioContext | null = null;
   private ringtoneInterval: ReturnType<typeof setInterval> | null = null;
+  // ── Call quality monitoring ─────────────────────────────────
+  private prevBytesSent = new Map<string, number>();
+  private prevStatsTime = new Map<string, number>();
+  private callQualityInterval: ReturnType<typeof setInterval> | null = null;
 
   // userId est un getter réactif — toujours synchronisé avec authStore
   private get userId(): string {
@@ -59,7 +142,7 @@ class WebRTCCallManager {
   }
 
   // ── Sonnerie : tonalité synthétisée (pas de fichier externe) ─
-  private playRingtone(): void {
+  public startRingtone(): void {
     if (this.ringtoneInterval) return; // déjà en cours
     this._ringOnce();
     this.ringtoneInterval = setInterval(() => this._ringOnce(), 3000);
@@ -86,8 +169,7 @@ class WebRTCCallManager {
       playTone(1100, 0.45, 0.3); // Do#6
     } catch { /* AudioContext non disponible */ }
   }
-
-  public stopRingtone(): void {
+  public stopRingtone() {
     if (this.ringtoneInterval) {
       clearInterval(this.ringtoneInterval);
       this.ringtoneInterval = null;
@@ -140,18 +222,68 @@ class WebRTCCallManager {
   }
 
   /** Crée (ou récupère) une RTCPeerConnection pour un participant distant. */
-  private createPeerConnection(remoteUserId: string): RTCPeerConnection {
+  private async createPeerConnection(remoteUserId: string): Promise<RTCPeerConnection> {
+    // Fetch ICE config from backend (credentials generated server-side)
+    const iceConfig = await fetchIceConfig();
+    const iceServers: RTCIceServer[] = [
+      { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+      { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+      { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential },
+    ];
+
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun.relay.metered.ca:80' },
-      ],
+      iceServers,
       iceCandidatePoolSize: 10,
+      // Latency optimizations
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      // Prefer low-latency codecs
+      encodedInsertableStreams: false,
     });
+
+    // ── File Transfer Data Channel ──
+    const fileChan = pc.createDataChannel('file-transfer', {
+      ordered: true,
+      maxRetransmits: 3,
+    });
+    fileChan.binaryType = 'arraybuffer';
+    this.fileDataChannels.set(remoteUserId, fileChan);
+    
+    fileChan.onmessage = (ev) => {
+      import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+        handleFileTransferMessage(ev.data);
+      }).catch(e => console.error('[FileChannel] Error:', e));
+    };
+    fileChan.onopen = () => {
+      console.log(`[FileChannel] Open to ${remoteUserId}`);
+    };
+    fileChan.onclose = () => {
+      this.fileDataChannels.delete(remoteUserId);
+      console.log(`[FileChannel] Closed to ${remoteUserId}`);
+    };
+
+    // Handle incoming DataChannel requests from peer
+    pc.ondatachannel = (event) => {
+      const ch = event.channel;
+      ch.binaryType = 'arraybuffer';
+      ch.onmessage = (ev) => {
+        import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+          handleFileTransferMessage(ev.data);
+        }).catch(e => console.error('[FileChannel] Incoming error:', e));
+      };
+    };
 
     // Ajouter le flux local (audio/vidéo) à la connexion
     if (callStore.localStream) {
       callStore.localStream.getTracks().forEach((track) => pc.addTrack(track, callStore.localStream!));
+    }
+
+    // Si le partage d'ecran est actif, ajouter egalement la piste d'ecran
+    if (callStore.isScreenSharing && callStore.screenShareStream) {
+      const screenTrack = callStore.screenShareStream.getVideoTracks()[0];
+      if (screenTrack) {
+        pc.addTrack(screenTrack.clone(), callStore.screenShareStream);
+      }
     }
 
     // -------------------------------------------------------------
@@ -196,6 +328,101 @@ class WebRTCCallManager {
     return pc;
   }
 
+  /**
+   * Crée une connexion WebRTC dédiée au transfert de fichiers (sans audio/vidéo).
+   * @param targetUserId - ID de l'utilisateur cible
+   * @returns DataChannel prêt pour le transfert de fichiers
+   */
+  public async createFileTransferConnection(targetUserId: string): Promise<RTCDataChannel> {
+    console.log(`[CallManager] Creating dedicated file transfer connection to ${targetUserId}`);
+    
+    // Récupérer la config ICE (TURN) depuis le backend
+    const iceConfig = await fetchIceConfig();
+    const iceServers: RTCIceServer[] = [
+      { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+    ];
+    if (iceConfig.username && iceConfig.credential) {
+      iceServers.push(
+        { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+        { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential }
+      );
+    }
+    
+    // Créer une connexion PeerConnection dédiée (sans audio/vidéo)
+    const pc = new RTCPeerConnection({ iceServers });
+    
+    // Créer un DataChannel pour le transfert de fichiers
+    const fileChan = pc.createDataChannel('file-transfer', {
+      ordered: true,
+      maxRetransmits: 3,
+    });
+    fileChan.binaryType = 'arraybuffer';
+    
+    // Stocker le canal dans le store
+    const newFileDataChannels = new Map(callStore.fileDataChannels);
+    newFileDataChannels.set(targetUserId, fileChan);
+    callStore.fileDataChannels = newFileDataChannels;
+    
+    // Gestion des messages entrants
+    fileChan.onmessage = (ev) => {
+      import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+        handleFileTransferMessage(ev.data);
+      }).catch(e => console.error('[FileTransfer] Error:', e));
+    };
+    
+    fileChan.onopen = () => {
+      console.log(`[FileTransfer] Dedicated channel open to ${targetUserId}`);
+    };
+    
+    fileChan.onclose = () => {
+      const updated = new Map(callStore.fileDataChannels);
+      updated.delete(targetUserId);
+      callStore.fileDataChannels = updated;
+      console.log(`[FileTransfer] Dedicated channel closed to ${targetUserId}`);
+    };
+    
+    // Gestion des ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+        this.sendSignal({
+          type: 'file-transfer-ice',
+          to_user_id: targetUserId,
+          candidate: event.candidate,
+        });
+      }
+    };
+    
+    // Créer et envoyer l'offre SDP
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    
+    this.sendSignal({
+      type: 'file-transfer-offer',
+      to_user_id: targetUserId,
+      sdp: offer.sdp,
+    });
+    
+    // Stocker la connexion pour le traitement des réponses
+    const newPeerConnections = new Map(callStore.peerConnections);
+    newPeerConnections.set(`file-${targetUserId}`, pc);
+    callStore.peerConnections = newPeerConnections;
+    
+    // Attendre que le canal soit ouvert (timeout 10s)
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout: File transfer channel not opened'));
+      }, 10000);
+      
+      const checkOpen = setInterval(() => {
+        if (fileChan.readyState === 'open') {
+          clearInterval(checkOpen);
+          clearTimeout(timeout);
+          resolve(fileChan);
+        }
+      }, 100);
+    });
+  }
+
   /** Envoie un signal via le WebSocket (signalling). */
   private sendSignal(signal: Partial<CallSignal>) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
@@ -208,6 +435,9 @@ class WebRTCCallManager {
       sdp: signal.sdp ?? null,
       candidate: signal.candidate ?? null,
       timestamp: Date.now(),
+      // Pass through optional fields for call_request
+      from_user_name: signal.from_user_name,
+      callType: signal.callType,
     };
 
     this.ws.send(JSON.stringify(fullSignal));
@@ -216,9 +446,13 @@ class WebRTCCallManager {
   // -----------------------------------------------------------------
   // Signal handling (receiving)
   // -----------------------------------------------------------------
-  private async handleSignal(signal: CallSignal) {
+  public async handleSignal(signal: CallSignal) {
+    console.log('[CallManager] handleSignal called:', signal.type, signal);
     // Ignorer les signaux provenant de soi-même
-    if (signal.from_user_id === this.userId) return;
+    if (signal.from_user_id === this.userId) {
+      console.log('[CallManager] Ignoring signal from self');
+      return;
+    }
 
     switch (signal.type) {
       case 'offer':
@@ -245,12 +479,23 @@ class WebRTCCallManager {
         this.stopRingtone();
         this.handleDecline(signal);
         break;
+      // ── Transfert de fichiers P2P ──────────────────────────────
+      case 'file-transfer-offer':
+        await this.handleFileTransferOffer(signal);
+        break;
+      case 'file-transfer-answer':
+        await this.handleFileTransferAnswer(signal);
+        break;
+      case 'file-transfer-ice':
+        await this.handleFileTransferIceCandidate(signal);
+        break;
       // ── Sonnerie : appel entrant ──────────────────────────────
       case 'call_request':
         this.stopRingtone();
         this.playRingtone();
         if (browser) {
-          window.dispatchEvent(new CustomEvent('incoming-call', {
+          notifyCall(signal.from_user_name || 'Quelqu un');
+        window.dispatchEvent(new CustomEvent('incoming-call', {
             detail: {
               from_user_id: signal.from_user_id,
               from_user_name: signal.from_user_name ?? signal.from_user_id,
@@ -259,6 +504,30 @@ class WebRTCCallManager {
             }
           }));
         }
+        break;
+      // ━━━ SFU Signalisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      case 'sfu_answer':
+        if (signal.answer) {
+          this.handleSfuJoinResponse({
+            answer: signal.answer as string,
+            peers: signal.peers as string[] || [],
+            renegotiate_offer: signal.renegotiate_offer as string,
+          });
+        }
+        break;
+      case 'sfu_renegotiate_offer':
+        if (signal.offer) {
+          this.handleSfuRenegotiateOffer(signal.offer as string);
+        }
+        break;
+      case 'sfu_peers':
+        if (signal.peers) {
+          this.handleSfuPeers({ peers: signal.peers as string[] });
+        }
+        break;
+      case 'sfu_error':
+        callStore.error = (signal.error as string) || 'SFU error';
+        callStore.isCalling = false;
         break;
       case 'call_accepted':
         this.stopRingtone();
@@ -287,7 +556,7 @@ class WebRTCCallManager {
       }
     }
 
-    const pc = this.createPeerConnection(signal.from_user_id);
+    const pc = await this.createPeerConnection(signal.from_user_id);
     try {
       await pc.setRemoteDescription(
         new RTCSessionDescription({ type: 'offer', sdp: signal.sdp })
@@ -341,6 +610,137 @@ class WebRTCCallManager {
     }
   }
 
+  /**
+   * Gère un offre de transfert de fichiers P2P.
+   * Crée une connexion PeerConnection et répond avec une réponse SDP.
+   */
+  private async handleFileTransferOffer(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.sdp) return;
+    
+    console.log(`[FileTransfer] Received offer from ${signal.from_user_id}`);
+    
+    try {
+      // Récupérer la config ICE (TURN) depuis le backend
+      const iceConfig = await fetchIceConfig();
+      const iceServers: RTCIceServer[] = [
+        { urls: `stun:${iceConfig.host}:${iceConfig.port}` },
+      ];
+      if (iceConfig.username && iceConfig.credential) {
+        iceServers.push(
+          { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=udp`, username: iceConfig.username, credential: iceConfig.credential },
+          { urls: `turn:${iceConfig.host}:${iceConfig.port}?transport=tcp`, username: iceConfig.username, credential: iceConfig.credential }
+        );
+      }
+      
+      // Créer une connexion PeerConnection dédiée
+      const pc = new RTCPeerConnection({ iceServers });
+      
+      // Gérer le DataChannel entrant
+      pc.ondatachannel = (event) => {
+        const ch = event.channel;
+        ch.binaryType = 'arraybuffer';
+        
+        // Stocker le canal dans le store
+        const newFileDataChannels = new Map(callStore.fileDataChannels);
+        newFileDataChannels.set(signal.from_user_id!, ch);
+        callStore.fileDataChannels = newFileDataChannels;
+        
+        // Gérer les messages entrants
+        ch.onmessage = (ev) => {
+          import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
+            handleFileTransferMessage(ev.data);
+          }).catch(e => console.error('[FileTransfer] Error:', e));
+        };
+        
+        ch.onopen = () => {
+          console.log(`[FileTransfer] Channel opened from ${signal.from_user_id}`);
+        };
+        
+        ch.onclose = () => {
+          const updated = new Map(callStore.fileDataChannels);
+          updated.delete(signal.from_user_id!);
+          callStore.fileDataChannels = updated;
+          console.log(`[FileTransfer] Channel closed from ${signal.from_user_id}`);
+        };
+      };
+      
+      // Gérer les ICE candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+          this.sendSignal({
+            type: 'file-transfer-ice',
+            to_user_id: signal.from_user_id,
+            candidate: event.candidate,
+          });
+        }
+      };
+      
+      // Stocker la connexion
+      const newPeerConnections = new Map(callStore.peerConnections);
+      newPeerConnections.set(`file-${signal.from_user_id}`, pc);
+      callStore.peerConnections = newPeerConnections;
+      
+      // Traiter l'offre et créer une réponse
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'offer',
+        sdp: signal.sdp,
+      }));
+      
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      
+      // Envoyer la réponse
+      this.sendSignal({
+        type: 'file-transfer-answer',
+        to_user_id: signal.from_user_id,
+        sdp: answer.sdp,
+      });
+      
+    } catch (error) {
+      console.error('[FileTransfer] Error handling offer:', error);
+    }
+  }
+
+  /**
+   * Gère une réponse de transfert de fichiers P2P.
+   */
+  private async handleFileTransferAnswer(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.sdp) return;
+    
+    console.log(`[FileTransfer] Received answer from ${signal.from_user_id}`);
+    
+    const pc = callStore.peerConnections.get(`file-${signal.from_user_id}`);
+    if (!pc) {
+      console.error(`[FileTransfer] No peer connection for ${signal.from_user_id}`);
+      return;
+    }
+    
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({
+        type: 'answer',
+        sdp: signal.sdp,
+      }));
+    } catch (error) {
+      console.error('[FileTransfer] Error handling answer:', error);
+    }
+  }
+
+  /**
+   * Gère un ICE candidate de transfert de fichiers P2P.
+   */
+  private async handleFileTransferIceCandidate(signal: CallSignal) {
+    if (!signal.from_user_id || !signal.candidate) return;
+    
+    const pc = callStore.peerConnections.get(`file-${signal.from_user_id}`);
+    if (!pc) return;
+    
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+    } catch (error) {
+      console.error('[FileTransfer] Error adding ICE candidate:', error);
+    }
+  }
+
   private async handleJoin(signal: CallSignal) {
     if (signal.from_user_id === this.userId || !callStore.localStream) return;
 
@@ -371,6 +771,12 @@ class WebRTCCallManager {
   ): Promise<void> {
     try {
       // Met à jour l'état réactif
+    // Auto-switch to SFU for 3+ participants
+    if (participantIds.length >= 3) {
+      callStore.useSfu = true;
+      return this.startSfuCall(conversationId, participantIds, type);
+    }
+
       callStore.isCalling = true;
       callStore.callType = type;
       callStore.currentConversationId = conversationId;
@@ -447,7 +853,7 @@ class WebRTCCallManager {
 
   /** Initialise un appel (offer) vers un utilisateur distant. */
   private async initiateCallWithUser(remoteUserId: string): Promise<void> {
-    const pc = this.createPeerConnection(remoteUserId);
+    const pc = await this.createPeerConnection(remoteUserId);
     try {
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
@@ -499,6 +905,154 @@ class WebRTCCallManager {
     this.applyMuteVideoState();
   }
 
+  /** Demarre le partage d'ecran via getDisplayMedia. */
+  public async startScreenShare(): Promise<void> {
+    if (callStore.isScreenSharing) return;
+
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { cursor: 'always', displaySurface: 'monitor' },
+      audio: false, // On ne capture pas l'audio systeme pour un appel familial
+    });
+
+    // Remplacer la piste video des peerConnections existantes
+    const videoTrack = displayStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    // Ecouter l'arret du partage (bouton navigateur)
+    videoTrack.onended = () => {
+      this.stopScreenShare();
+    };
+
+    // Remplacer la piste dans chaque RTCPeerConnection
+    callStore.peerConnections.forEach(async (pc, remoteUserId) => {
+      const senders = pc.getSenders();
+      const videoSender = senders.find((s) => s.track?.kind === 'video');
+      if (videoSender) {
+        await videoSender.replaceTrack(videoTrack.clone());
+      }
+    });
+
+    callStore.isScreenSharing = true;
+    callStore.screenShareStream = displayStream;
+
+    if (callStore.screenShareLocalVideoElement && displayStream) {
+      callStore.screenShareLocalVideoElement.srcObject = displayStream;
+    }
+  }
+
+  /** Arrete le partage d'ecran et restaure le flux camera local. */
+  public stopScreenShare(): void {
+    if (!callStore.isScreenSharing) return;
+
+    // Stopper les tracks du display
+    if (callStore.screenShareStream) {
+      callStore.screenShareStream.getTracks().forEach((t) => t.stop());
+      callStore.screenShareStream = null;
+    }
+
+    // Remettre le flux local (camera) dans les peerConnections
+    if (callStore.localStream && callStore.localStream.getVideoTracks().length > 0) {
+      const localVideoTrack = callStore.localStream.getVideoTracks()[0];
+      callStore.peerConnections.forEach(async (pc) => {
+        const senders = pc.getSenders();
+        const videoSender = senders.find((s) => s.track?.kind === 'video');
+        if (videoSender) {
+          await videoSender.replaceTrack(localVideoTrack);
+        }
+      });
+    }
+
+    if (callStore.screenShareLocalVideoElement) {
+      callStore.screenShareLocalVideoElement.srcObject = null;
+    }
+
+    callStore.isScreenSharing = false;
+  }
+
+  /** Toggle partage d'ecran. */
+  public toggleScreenShare(): void {
+    if (callStore.isScreenSharing) {
+      this.stopScreenShare();
+    } else {
+      this.startScreenShare().catch((err) => {
+        callStore.error = `Impossible de partager l'ecran: ${err.message}`;
+      });
+    }
+  }
+
+  /** Collect and update call quality stats every 2 seconds. */
+  public async updateCallQuality(): Promise<void> {
+    if (!callStore.isInCall || callStore.peerConnections.size === 0) return;
+
+    let totalPacketsLost = 0;
+    let maxJitter = 0;
+    let maxRtt = 0;
+    let totalBitrate = 0;
+    let resolution: string | null = null;
+    let fps = 0;
+
+    for (const [remoteUserId, pc] of callStore.peerConnections.entries()) {
+      try {
+        const stats = await pc.getStats();
+        
+        for (const report of stats.values()) {
+          // Inbound RTP (receiving remote media)
+          if (report.type === 'inbound-rtp' && report.kind === 'video') {
+            totalPacketsLost += (report.packetsLost ?? 0);
+            maxJitter = Math.max(maxJitter, report.jitter ?? 0);
+            if (report.frameWidth && report.frameHeight) {
+              resolution = `${report.frameWidth}x${report.frameHeight}`;
+              fps = report.framesPerSecond ?? 0;
+            }
+          }
+          
+          // Candidate pair (network quality)
+          if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+            maxRtt = Math.max(maxRtt, report.currentRoundTripTime ?? 0);
+          }
+        }
+      } catch (err) {
+        // Ignore stats errors
+      }
+    }
+
+    // Jitter in ms (WebRTC reports in seconds)
+    const jitterMs = maxJitter * 1000;
+    
+    // Determine quality level
+    let quality: 'good' | 'fair' | 'poor' = 'good';
+    if (maxRtt > 400 || jitterMs > 100 || totalPacketsLost > 100) {
+      quality = 'poor';
+    } else if (maxRtt > 200 || jitterMs > 30 || totalPacketsLost > 10) {
+      quality = 'fair';
+    }
+
+    callStore.callQuality = quality;
+    callStore.packetsLost = totalPacketsLost;
+    callStore.jitter = Math.round(jitterMs * 10) / 10;
+    callStore.rtt = Math.round(maxRtt * 1000);
+    callStore.remoteResolution = resolution;
+    callStore.remoteFps = fps;
+  }
+
+  /** Start call quality monitoring interval. */
+  private startQualityMonitoring(): void {
+    if (this.callQualityInterval) return;
+    this.callQualityInterval = setInterval(() => {
+      this.updateCallQuality();
+    }, 2000);
+    // Initial call
+    this.updateCallQuality();
+  }
+
+  /** Stop call quality monitoring interval. */
+  private stopQualityMonitoring(): void {
+    if (this.callQualityInterval) {
+      clearInterval(this.callQualityInterval);
+      this.callQualityInterval = null;
+    }
+  }
+
   /** Applique les états `isMuted` et `isVideoOff` sur le flux local. */
   private applyMuteVideoState() {
     if (!callStore.localStream) return;
@@ -510,6 +1064,11 @@ class WebRTCCallManager {
   public endCall(): void {
     // Arrêter la sonnerie (cas où on raccroche pendant que ça sonne)
     this.stopRingtone();
+
+    // Arreter le partage d'ecran si actif
+    if (callStore.isScreenSharing) {
+      this.stopScreenShare();
+    }
 
     // Prévenir les pairs qu'on part
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -535,7 +1094,74 @@ class WebRTCCallManager {
       this.ws = null;
     }
 
+    // Stop quality monitoring
+    this.stopQualityMonitoring();
+
     // Reset de l'état réactif
+  }
+  // ══════════════════════════════════════════════════════════
+  // SFU CALLS — via backend SFU (rustrtc)
+  // ══════════════════════════════════════════════════════════
+
+  /** Demarre un appel SFU pour une conversation (3+ participants). */
+  public async startSfuCall(conversationId: string, participantIds: string[], type: 'audio' | 'video'): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
+
+    callStore.isCalling = true;
+    callStore.callType = type;
+    callStore.currentConversationId = conversationId;
+    callStore.useSfu = true;
+
+    // Obtenir le flux local
+    await this.setupLocalStream(type);
+
+    // Creer une PeerConnection locale pour le join SFU
+    await this.createPeerConnection(this.userId);
+    this.sendSignal({
+      type: 'sfu_join',
+      conversation_id: conversationId,
+      sdp: 'offer',
+    });
+  }
+
+  /** Le backend repond avec answer SDP + peers + renegotiate_offer. */
+  public handleSfuJoinResponse(data: { answer: string; peers: string[]; renegotiate_offer?: string }): void {
+    callStore.sfuAnswer = data.answer;
+    callStore.sfuPeers = data.peers;
+    callStore.sfuRenegotiateOffer = data.renegotiate_offer || null;
+    callStore.isCalling = false;
+    callStore.isInCall = true;
+  }
+
+  /** Le backend envoie une offre de renegotiation (nouvelles tracks). */
+  public handleSfuRenegotiateOffer(offer: string): void {
+    callStore.sfuPendingOffer = offer;
+    // On confirme la reception
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.sendSignal({
+        type: 'sfu_answer',
+        conversation_id: callStore.currentConversationId || '',
+        sdp: 'answer',
+      });
+    }
+  }
+
+  /** Le backend informe sur les peers actuels. */
+  public handleSfuPeers(data: { peers: string[] }): void {
+    callStore.sfuPeers = data.peers;
+  }
+
+  /** Arrete le mode SFU et retourne en P2P mesh. */
+  public async stopSfuMode(): Promise<void> {
+    callStore.useSfu = false;
+    callStore.sfuAnswer = null;
+    callStore.sfuRenegotiateOffer = null;
+    callStore.sfuPeers = [];
+    callStore.sfuPendingOffer = null;
+  }
+
+  /** Reinitialise l'etat d'appel. */
+  resetState(): void {
     Object.assign(callStore, createInitialState());
   }
 
@@ -589,4 +1215,15 @@ export function endCurrentCall(): void {
 /** Retourne l'état actuel (alias pour compatibilité). */
 export function getCallState(): CallState {
   return callStore;
+}
+
+/** Reset call quality monitoring state to defaults. */
+export function resetCallState(): void {
+  callStore.callQuality = 'unknown';
+  callStore.currentBitrate = 0;
+  callStore.packetsLost = 0;
+  callStore.jitter = 0;
+  callStore.rtt = 0;
+  callStore.remoteResolution = null;
+  callStore.remoteFps = 0;
 }

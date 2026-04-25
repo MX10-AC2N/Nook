@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { goto } from '$app/navigation';
+  import { get as storeGet } from 'svelte/store';
+    import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
-    loadMessages,
+    messagesStore,
     loadMoreMessages,
+    loadMessages,
     sendMessage,
     editMessage,
     deleteMessage,
@@ -16,7 +18,7 @@
     disconnectWs,
     requestNotificationPermission,
   } from '$lib/chatStore.svelte.ts';
-  import { sanitizeHtml } from '$lib/sanitize';
+  import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
   import {
     recordingState,
     startRecording,
@@ -24,6 +26,10 @@
     cancelRecording,
     formatDuration,
   } from '$lib/mediaStore.svelte.js';
+  import Avatar from '$lib/components/Avatar.svelte';
+  import MissedCalls from '$lib/components/MissedCalls.svelte';
+  import MessageSearch from '$lib/components/MessageSearch.svelte';
+  import { callStore } from '$lib/webrtc-calls.svelte.ts';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -48,10 +54,19 @@
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // État principal
+  // État principal — messages from store (single source of truth)
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
   let activeConvId    = $state('default_global');
+
+  // Read messages directly from the writable store
+  let localMessages = $state<ChatMessage[]>([]);
+  // Sync store → local state for reactivity
+  $effect(() => {
+    const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
+    return unsub;
+  });
+
   let activeConvName  = $state('🌿 Nook');
   // Conv complète active — pour savoir si DM (is_group=false) → bouton appel
   let activeConv      = $state<Conv | null>(null);
@@ -68,6 +83,17 @@
   let fileInput      = $state<HTMLInputElement | undefined>(undefined);
   let sending        = $state(false);
 
+  // ─── Mention autocomplete ─────────────────────────────────────────
+  let mentionQuery    = $state('');
+  let mentionStart    = $state(-1);
+  let showMentions    = $derived(mentionStart >= 0);
+  let filteredMentions = $derived(
+    availableUsers.filter(u => {
+      const q = mentionQuery.toLowerCase();
+      return (u.username?.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q));
+    }).slice(0, 5)
+  );
+
   // ─── Messages vocaux ──────────────────────────────────────────────
   // Durée max : 2 min audio, 30s vidéo
   const MAX_AUDIO_SEC = 120;
@@ -83,6 +109,17 @@
   // Renommage inline du groupe actif
   let renamingConv   = $state(false);
   let renameValue    = $state('');
+  
+  // Transferts P2P en cours
+  interface P2PTransfer {
+    fileName: string;
+    fileSize: number;
+    progress: number;
+    speed: number;
+    status: 'encrypting' | 'sending' | 'completed' | 'error';
+    error?: string;
+  }
+  let p2pTransfers = $state<Map<string, P2PTransfer>>(new Map());
 
   function startRename() {
     renameValue = activeConv?.name ?? activeConvName.replace(/^[^ ]+ /, '');
@@ -123,6 +160,9 @@
   }
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let typingUsers = $state<string[]>([]);
+  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
+  let sidebarOpen = $state(false);
 
   // État édition de message
   let editingMsgId   = $state<string | null>(null);
@@ -133,11 +173,15 @@
   // ─────────────────────────────────────────────────────────────────
   // Réactions aux messages
   // ─────────────────────────────────────────────────────────────────
-  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
-  // reactions : Map<msgId, { counts: Record<emoji, string[]>, myEmoji: string|null }>
-  let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+  
+
   // picker étendu ouvert pour quel message
+  let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
+  const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
+
+
   let emojiPickerMsgId = $state<string | null>(null);
+  let emojiPickerPos = $state<{top: number; left: number; right: number}>({top: 0, left: 0, right: 0});
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
@@ -184,11 +228,34 @@
   const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
 
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
-  function isSingleEmoji(content: string): boolean {
+  /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
+  function isEmojiOnly(content: string): boolean {
+    if (!content) return false;
     const t = content.trim();
-    if (t.length > 8) return false;
-    const emojiRe = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(\u200D(\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*$/u;
-    return emojiRe.test(t);
+    if (t.length === 0 || t.length > 30) return false;
+    // Simple approach: check if all non-whitespace chars are emoji (codepoint > 0x2300)
+    // This catches 👋, 🤜, 🤛, 🎉, etc. while excluding regular text
+    for (const ch of t) {
+      const code = ch.codePointAt(0);
+      if (!code) return false;
+      // Skip zero-width joiners and variation selectors
+      if (code === 0x200D || code === 0xFE0F || code === 0x200B) continue;
+      // Emoji range checks
+      if (code < 0x2300) return false; // Below emoji ranges
+      // Allow known emoji blocks
+      if (code >= 0x2600 && code <= 0x27BF) continue; // Misc symbols, dingbats
+      if (code >= 0x2300 && code <= 0x23FF) continue; // Misc technical
+      if (code >= 0x2B50 && code <= 0x2B59) continue; // Stars, shapes
+      if (code >= 0x1F000 && code <= 0x1FFFF) continue; // Emoticons, symbols
+      if (code >= 0x2700 && code <= 0x27BF) continue; // Dingbats
+      if (code >= 0xFE00 && code <= 0xFE0F) continue; // Variation selectors
+      if (code >= 0x1F900 && code <= 0x1F9FF) continue; // Supplemental symbols
+      if (code >= 0x1FA00 && code <= 0x1FA6F) continue; // Chess symbols
+      if (code >= 0x1FA70 && code <= 0x1FAFF) continue; // Symbols extended
+      // If we get here, it's not an emoji
+      return false;
+    }
+    return true;
   }
 
   async function toggleReaction(msgId: string, emoji: string) {
@@ -318,14 +385,17 @@
         : (conv.name ?? '💬 Message direct');
     }
 
-    // Activer la conv : connecte le WS, reset badge non-lus, charge les messages
+    // Fermer le sidebar mobile d'abord
+    sidebarOpen = false;
+    
+    // Activer la conv : connecte le WS, reset badge non-lus
     setActiveConv(conv.id);
+    // Load messages (single call)
     await loadMessages(conv.id);
-    // Scroll immédiat en bas après chargement des messages
-    await Promise.resolve();
-    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
-    // Charger les réactions pour les messages visibles
     await loadReactionsForMessages(conv.id);
+    // Scroll to top après chargement — nouveaux messages en haut
+    await Promise.resolve();
+    if (chatContainer) chatContainer.scrollTop = 0;
     // Fallback polling si WS non disponible
     if (pollTimer) clearInterval(pollTimer);
     if (!chatStore.wsConnected) {
@@ -335,7 +405,7 @@
 
   async function loadReactionsForMessages(convId: string) {
     // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = chatStore.messages.slice(-50);
+    const msgs = localMessages.slice(-50);
     await Promise.allSettled(msgs.map(async (msg) => {
       try {
         const res = await fetch(
@@ -428,8 +498,62 @@
     sending = true;
     const content = newMessage;
     newMessage = '';
-    await sendMessage(content, activeConvId);
-    sending = false;
+    chatStore.showEmojiPicker = false;
+    
+    try {
+      await sendMessage(content, activeConvId);
+    } catch (e) {
+      console.error('[Chat] send error:', e);
+    } finally {
+      sending = false;
+    }
+  }
+
+  function handleTyping() {
+    // Mention autocomplete: detect @ in the message
+    const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
+    const beforeCursor = newMessage.slice(0, cursor);
+    const atMatch = beforeCursor.match(/@(\w*)$/);
+    if (atMatch) {
+      mentionStart = cursor - atMatch[0].length;
+      mentionQuery = atMatch[1];
+    } else {
+      mentionStart = -1;
+      mentionQuery = '';
+    }
+
+    // Send typing indicator via WebSocket
+    if (chatStore.ws && chatStore.ws.readyState === WebSocket.OPEN) {
+      chatStore.ws.send(JSON.stringify({
+        type: 'typing',
+        conversation_id: activeConvId,
+      }));
+    }
+    
+    // Clear previous timeout
+    if (typingTimeout) clearTimeout(typingTimeout);
+    
+    // Stop typing after 3 seconds of inactivity
+    typingTimeout = setTimeout(() => {
+      if (chatStore.ws && chatStore.ws.readyState === WebSocket.OPEN) {
+        chatStore.ws.send(JSON.stringify({
+          type: 'stop_typing',
+          conversation_id: activeConvId,
+        }));
+      }
+    }, 3000);
+  }
+
+  function selectMention(username: string) {
+    if (mentionStart < 0) return;
+    const before = newMessage.slice(0, mentionStart);
+    const after = newMessage.slice(mentionStart + mentionQuery.length + 1); // +1 for @
+    newMessage = before + '@' + username + ' ' + after;
+    mentionStart = -1;
+    mentionQuery = '';
+    // Focus back on input
+    const input = document.querySelector('.message-input') as HTMLInputElement;
+    input?.focus();
   }
 
   function handleMessageKeydown(e: KeyboardEvent) {
@@ -439,14 +563,10 @@
   function handleSubmit(e: Event) { e.preventDefault(); handleSendMessage(); }
 
   function handleSelectEmoji(emoji: string) {
-    // Si l'input a le focus et qu'il y a du texte en cours → insérer l'emoji
-    // Sinon → envoyer l'emoji comme message standalone
-    if (newMessage.trim()) {
-      newMessage = newMessage + emoji;
-    } else {
-      sendEmoji(emoji, activeConvId);
-    }
-    chatStore.showEmojiPicker = false;
+    // Toujours ajouter l'emoji au champ de saisie
+    // L'utilisateur peut empiler plusieurs emojis puis envoyer
+    newMessage = newMessage + emoji;
+    // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
 
   async function handleFileUpload(event: Event) {
@@ -454,15 +574,50 @@
     if (!input.files?.length) return;
     const file = input.files[0];
 
-    // Vérification taille côté client (limite backend = 50 Mo)
-    const MAX_BYTES = 50 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 50 Mo.`;
+    // Vérifier si on a une connexion P2P active
+    const hasP2PConnection = callStore.isInCall && callStore.fileDataChannels.size > 0;
+    
+    // Vérifier si la conversation est un groupe (P2P interdit en groupe)
+    const isGroup = activeConv?.is_group === true;
+    
+    // Logique de routage
+    if (file.size > MAX_BYTES_P2P) {
+      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 500 Mo.`;
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
     }
-
+    
+    // Vérifier si on peut faire un transfert P2P
+    const canDoP2P = !isGroup && (hasP2PConnection || file.size > MAX_BYTES_SERVER);
+    
+    if (file.size > MAX_BYTES_SERVER && isGroup) {
+      chatStore.connectionError = `Fichier > 50 Mo impossible en groupe. Utilisez un fichier plus petit ou envoyez en privé.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+    
+    if (file.size > MAX_BYTES_SERVER && !canDoP2P) {
+      // Fichier > 50 Mo mais pas de connexion P2P disponible
+      chatStore.connectionError = `Fichier > 50 Mo nécessite une conversation 1-à-1.`;
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+    
+    // Choix de la méthode de transfert
+    if (file.size > MAX_BYTES_SERVER || hasP2PConnection) {
+      // Transfert P2P via DataChannel
+      await handleP2PFileTransfer(file, input);
+    } else {
+      // Upload serveur classique
+      await handleServerFileUpload(file, input);
+    }
+  }
+  
+  // Upload serveur classique (<= 50 Mo)
+  async function handleServerFileUpload(file: File, input: HTMLInputElement) {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('conversation_id', activeConvId);
@@ -474,12 +629,20 @@
         throw new Error(body.error ?? `Upload échoué (HTTP ${res.status})`);
       }
       const data = await res.json();
-      // data.url pointe maintenant vers /api/download/{id} (déchiffré) — session 34
       const isImage = data.is_image ?? file.type.startsWith('image/');
-      const content = isImage
-        ? `<img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" />`
-        : `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
-      await sendMessage(content, activeConvId);
+      const isAudio = data.is_audio ?? file.type.startsWith('audio/');
+      const isVideo = data.is_video ?? file.type.startsWith('video/');
+      let uploadContent: string;
+      if (isImage) {
+        uploadContent = `<div class="file-preview"><img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" /><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else if (isAudio) {
+        uploadContent = `<div class="file-audio"><audio src="/api/download/${data.file_id}" controls preload="none" class="chat-audio"></audio><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else if (isVideo) {
+        uploadContent = `<div class="file-video"><video src="/api/download/${data.file_id}" controls preload="none" class="chat-video"></video><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+      } else {
+        uploadContent = `<span class="file-attachment">📎 <a href="/api/download/${data.file_id}" download="${data.file_name}">${data.file_name}</a></span>`;
+      }
+      await sendMessage(uploadContent, activeConvId);
       input.value = '';
     } catch (err: unknown) {
       console.error('[Upload]', err);
@@ -487,8 +650,133 @@
       setTimeout(() => chatStore.connectionError = null, 5000);
     }
   }
+  
+  // Transfert P2P via DataChannel
+  async function handleP2PFileTransfer(file: File, input: HTMLInputElement) {
+    // Importer le module de transfert P2P
+    const { sendFile } = await import('$lib/file-transfer.svelte.ts');
+    
+    // Trouver un DataChannel disponible
+    let channel: RTCDataChannel | null = null;
+    let targetUserId: string | null = null;
+    
+    for (const [userId, ch] of callStore.fileDataChannels.entries()) {
+      if (ch.readyState === 'open') {
+        channel = ch;
+        targetUserId = userId;
+        break;
+      }
+    }
+    
+    // Si aucun canal disponible, essayer de créer une connexion dédiée
+    if (!channel || !targetUserId) {
+      // Trouver l'utilisateur cible (premier participant de la conversation)
+      const participants = chatStore.participants.get(activeConvId);
+      if (!participants || participants.length === 0) {
+        chatStore.connectionError = 'Aucun participant trouvé dans la conversation.';
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+      
+      // Prendre le premier participant qui n'est pas l'utilisateur actuel
+      targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
+      if (!targetUserId) {
+        chatStore.connectionError = 'Aucun destinataire trouvé pour le transfert P2P.';
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+      
+      try {
+        // Créer une connexion dédiée au transfert de fichiers
+        chatStore.connectionError = 'Établissement de la connexion P2P...';
+        channel = await callManager.createFileTransferConnection(targetUserId);
+        chatStore.connectionError = null;
+      } catch (error) {
+        chatStore.connectionError = `Impossible d'établir la connexion P2P: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+        input.value = '';
+        setTimeout(() => chatStore.connectionError = null, 5000);
+        return;
+      }
+    }
+    
+    if (!channel || !targetUserId) {
+      chatStore.connectionError = 'Aucune connexion P2P disponible.';
+      input.value = '';
+      setTimeout(() => chatStore.connectionError = null, 5000);
+      return;
+    }
+    
+    // Afficher l'UI de progression
+    const progressId = `p2p_${Date.now()}`;
+    p2pTransfers.set(progressId, {
+      fileName: file.name,
+      fileSize: file.size,
+      progress: 0,
+      speed: 0,
+      status: 'encrypting'
+    });
+    
+    try {
+      await sendFile(
+        file,
+        channel,
+        activeConvId,
+        // Callback de progression
+        (pct, speed) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.progress = pct;
+            transfer.speed = speed;
+            transfer.status = pct < 30 ? 'encrypting' : 'sending';
+            p2pTransfers = new Map(p2pTransfers); // Trigger reactivity
+          }
+        },
+        // Callback de fin
+        async (fileId) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.status = 'completed';
+            transfer.progress = 100;
+            p2pTransfers = new Map(p2pTransfers);
+          }
+          
+          // Envoyer un message dans le chat
+          const content = `<span class="file-p2p">📁 <strong>${file.name}</strong> (${(file.size / 1024 / 1024).toFixed(1)} Mo) — transféré en P2P</span>`;
+          await sendMessage(content, activeConvId);
+          
+          // Supprimer l'UI de progression après 3s
+          setTimeout(() => {
+            p2pTransfers.delete(progressId);
+            p2pTransfers = new Map(p2pTransfers);
+          }, 3000);
+          
+          input.value = '';
+        },
+        // Callback d'erreur
+        (error) => {
+          const transfer = p2pTransfers.get(progressId);
+          if (transfer) {
+            transfer.status = 'error';
+            transfer.error = error;
+            p2pTransfers = new Map(p2pTransfers);
+          }
+          
+          chatStore.connectionError = `Échec du transfert P2P: ${error}`;
+          setTimeout(() => chatStore.connectionError = null, 5000);
+        }
+      );
+    } catch (err) {
+      console.error('[P2P Transfer]', err);
+      p2pTransfers.delete(progressId);
+      p2pTransfers = new Map(p2pTransfers);
+      
+      chatStore.connectionError = err instanceof Error ? err.message : "Échec du transfert P2P";
+      setTimeout(() => chatStore.connectionError = null, 5000);
+    }
+  }
 
-  // ─── Messages vocaux ─────────────────────────────────────────────
   async function handleVoiceRecord(mediaType: 'audio' | 'video' = 'audio') {
     if (recordingState.isRecording) {
       // Arrêt : récupérer le blob et l'envoyer comme upload
@@ -529,17 +817,30 @@
         setTimeout(() => chatStore.connectionError = null, 5000);
       }
     } else {
-      // Démarrage
+      // Démarrage — getUserMedia requis
+      if (!navigator.mediaDevices?.getUserMedia) {
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        if (location.protocol === 'http:' && location.hostname !== 'localhost') {
+          chatStore.connectionError = `Accédez via HTTPS pour l'audio: https://${location.hostname}:6443`;
+        } else {
+          chatStore.connectionError = 'Enregistrement vocal non disponible';
+        }
+        setTimeout(() => chatStore.connectionError = null, 6000);
+        return;
+      }
       try {
         await startRecording(mediaType);
       } catch (err: unknown) {
         console.error('[VoiceRecord start]', err);
-        // Erreur déjà dans recordingState.error — pas de doublon
+        chatStore.connectionError = err instanceof Error ? err.message : 'Erreur microphone';
+        setTimeout(() => chatStore.connectionError = null, 5000);
       }
     }
   }
 
-  function isMyMessage(senderId: string) { return authStore.user?.id === senderId; }
+  function isMyMessage(senderId: string) { 
+    return authStore.user?.id === senderId || senderId === 'Moi' || !senderId;
+  }
 
   function startEdit(msg: { id: string; content: string }) {
     editingMsgId   = msg.id;
@@ -567,15 +868,16 @@
     if (e.key === 'Escape') cancelEdit();
   }
 
-  /** Pagination — déclenché au scroll en haut du conteneur de messages */
+  /** Pagination — déclenché au scroll en bas du conteneur (messages anciens) */
   async function handleMessagesScroll(e: Event) {
     const el = e.target as HTMLElement;
-    if (el.scrollTop < 80 && chatStore.hasMore && !chatStore.loadingMore) {
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distFromBottom < 80 && chatStore.hasMore && !chatStore.loadingMore) {
       const prevHeight = el.scrollHeight;
       await loadMoreMessages(activeConvId);
-      // Maintenir la position de scroll après insertion en haut
+      // Maintenir la position de scroll après insertion en bas
       requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight - prevHeight;
+        el.scrollTop = el.scrollTop + (el.scrollHeight - prevHeight);
       });
     }
   }
@@ -584,14 +886,26 @@
   // Cycle de vie
   // ─────────────────────────────────────────────────────────────────
 
+
+
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
     await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
+    // Scroll to top after initial load — newest messages are at top
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (chatContainer) {
+          chatContainer.scrollTop = 0;
+        }
+      });
+    });
     // Demande permission notifications (non-bloquant)
     requestNotificationPermission();
+    // Charger les utilisateurs disponibles pour l'autocomplete @mentions
+    await loadAvailableUsers();
     // Fallback polling si WS pas connecté après 3s
     setTimeout(() => {
       if (!chatStore.wsConnected) {
@@ -605,24 +919,54 @@
     disconnectWs();
   });
 
+  let initialScrollDone = $state(false);
+
   $effect(() => {
-    const count = chatStore.messages.length;
+    const count = localMessages.length;
     if (!chatContainer || count === 0) return;
-    // Ne pas forcer le scroll si l'utilisateur a remonté pour lire l'historique
-    // Tolérance : si on est à moins de 150px du bas → scroll auto
     const el = chatContainer;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
-    if (isNearBottom || count === 1) {
-      // Attendre le prochain tick (DOM mis à jour)
+    // Force scroll to top on first render (newest messages at top)
+    if (!initialScrollDone) {
+      initialScrollDone = true;
       Promise.resolve().then(() => {
-        if (chatContainer) {
-          chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+        if (chatContainer) chatContainer.scrollTop = 0;
+      });
+      return;
+    }
+    // Auto-scroll to top if user is near top (viewing recent messages)
+    const isNearTop = el.scrollTop < 150;
+    if (isNearTop) {
+      Promise.resolve().then(() => {
+        if (chatContainer) chatContainer.scrollTop = 0;
       });
     }
   });
 
   // Rafraîchir la réaction d'un seul message à la réception du signal WS
+  // Handle typing events from WebSocket
+  $effect(() => {
+    if (chatStore.ws) {
+      const handler = (event: MessageEvent) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'typing' && msg.conversation_id === activeConvId) {
+            if (!typingUsers.includes(msg.user_id)) {
+              typingUsers = [...typingUsers, msg.user_id];
+            }
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+              typingUsers = typingUsers.filter(u => u !== msg.user_id);
+            }, 5000);
+          } else if (msg.type === 'stop_typing' && msg.conversation_id === activeConvId) {
+            typingUsers = typingUsers.filter(u => u !== msg.user_id);
+          }
+        } catch {}
+      };
+      chatStore.ws.addEventListener('message', handler);
+      return () => chatStore.ws?.removeEventListener('message', handler);
+    }
+  });
+
   $effect(() => {
     const update = chatStore.lastReactionUpdate;
     if (!update || update.conversationId !== activeConvId) return;
@@ -640,11 +984,17 @@
 <div class="chat-page">
 
   <!-- ─── SIDEBAR ─── -->
-  <aside class="conversations-sidebar">
+  <aside class="conversations-sidebar" class:open={sidebarOpen}>
     <div class="sidebar-header">
       <h2>Conversations</h2>
       <button class="btn-new-conv" onclick={openNewConv} title="Nouvelle conversation">＋</button>
     </div>
+
+    <!-- Appels manqués -->
+    <MissedCalls />
+
+    <!-- Recherche de messages -->
+    <MessageSearch />
 
     <div class="conversation-list">
       {#if loadingConvs}
@@ -679,7 +1029,13 @@
             <span class="avatar">{convAvatar(conv)}</span>
             <div class="conversation-info">
               <span class="name">{convDisplayName(conv)}</span>
-              <span class="preview">{conv.is_group ? 'Groupe' : 'Message privé'}</span>
+              <span class="preview">
+                {#if conv.is_group}
+                  Groupe
+                {:else}
+                  Message privé
+                {/if}
+              </span>
             </div>
             {#if (chatStore.unreadCounts[conv.id] ?? 0) > 0}
               <span class="unread-badge">{chatStore.unreadCounts[conv.id]}</span>
@@ -698,6 +1054,9 @@
   <main class="chat-area">
 
     <header class="chat-header">
+      <button class="btn-menu-mobile" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
+        ☰
+      </button>
       {#if renamingConv}
         <input
           class="rename-input"
@@ -715,6 +1074,37 @@
         {#if chatStore.connectionError}
           <span class="conn-error">⚠️ {chatStore.connectionError}</span>
         {/if}
+        
+        <!-- Transferts P2P en cours -->
+        {#if p2pTransfers.size > 0}
+          <div class="p2p-transfers">
+            {#each [...p2pTransfers.entries()] as [id, transfer]}
+              <div class="p2p-transfer" class:completed={transfer.status === 'completed'} class:error={transfer.status === 'error'}>
+                <div class="p2p-transfer-info">
+                  <span class="p2p-transfer-name">{transfer.fileName}</span>
+                  <span class="p2p-transfer-size">{(transfer.fileSize / 1024 / 1024).toFixed(1)} Mo</span>
+                </div>
+                <div class="p2p-transfer-progress">
+                  <div class="p2p-progress-bar">
+                    <div class="p2p-progress-fill" style="width: {transfer.progress}%"></div>
+                  </div>
+                  <div class="p2p-transfer-stats">
+                    {#if transfer.status === 'encrypting'}
+                      <span>🔐 Chiffrement...</span>
+                    {:else if transfer.status === 'sending'}
+                      <span>📤 Envoi... {transfer.speed.toFixed(0)} KB/s</span>
+                    {:else if transfer.status === 'completed'}
+                      <span>✅ Terminé</span>
+                    {:else if transfer.status === 'error'}
+                      <span>❌ {transfer.error}</span>
+                    {/if}
+                    <span>{transfer.progress.toFixed(0)}%</span>
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
         {#if activeConv && activeConv.is_group && activeConv.id !== 'default_global'}
           <button class="rename-btn" onclick={startRename} title="Renommer le groupe" aria-label="Renommer">✏️</button>
         {/if}
@@ -727,31 +1117,36 @@
       {/if}
     </header>
 
-    <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll}>
-      {#if chatStore.loadingMore}
-        <div class="load-more-indicator">⏳ Chargement…</div>
-      {:else if chatStore.hasMore}
-        <button class="load-more-btn" onclick={() => handleMessagesScroll({ target: chatContainer } as unknown as Event)}>
-          ↑ Messages précédents
-        </button>
-      {/if}
-
-      {#if chatStore.messages.length === 0}
+      <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
+      {#if localMessages.length === 0 && !loadingConvs}
         <div class="empty-state">
           <span class="empty-icon">💬</span>
           <p>Aucun message — soyez le premier à écrire !</p>
         </div>
+      {:else if localMessages.length === 0 && loadingConvs}
+        <div class="empty-state">
+          <span class="loading-dots">···</span>
+        </div>
       {:else}
-        {#each chatStore.messages as msg (msg.id)}
+        {#each [...localMessages].reverse() as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
+            data-msg-id={msg.id}
             onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
-            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
+            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id && emojiPickerMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
           >
-            {#if !isMyMessage(msg.sender_id)}
-              <div class="message-sender">{msg.sender_name || msg.sender_id}</div>
-            {/if}
+              {#if isMyMessage(msg.sender_id)}
+                <div class="message-header mine-header">
+                  <span class="message-sender">Moi</span>
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
+                </div>
+              {:else}
+                <div class="message-header">
+                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
+                  <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
+                </div>
+              {/if}
 
             {#if editingMsgId === msg.id}
               <div class="edit-zone">
@@ -769,7 +1164,7 @@
             {:else}
               <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
               <!-- Messages vocaux : <audio>/<video> natif si le contenu commence par ces tags -->
-              {#if msg.content.trimStart().startsWith('<audio')}
+              {#if msg.content && msg.content.trimStart().startsWith('<audio')}
                 <div class="voice-message">
                   🎤 <audio
                     src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
@@ -778,7 +1173,7 @@
                     class="voice-audio"
                   ></audio>
                 </div>
-              {:else if msg.content.trimStart().startsWith('<video')}
+              {:else if msg.content && msg.content.trimStart().startsWith('<video')}
                 <div class="voice-message">
                   🎥 <video
                     src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
@@ -788,10 +1183,10 @@
                   ></video>
                 </div>
               {:else}
-                {#if isSingleEmoji(msg.content)}
+                {#if isEmojiOnly(msg.content)}
                   <div class="message-content emoji-only">{msg.content}</div>
                 {:else}
-                  <div class="message-content">{@html sanitizeHtml(msg.content)}</div>
+                  <div class="message-content">{@html sanitizeHtml(highlightMentions(msg.content))}</div>
                 {/if}
               {/if}
             {/if}
@@ -801,7 +1196,7 @@
               <div class="reactions-row">
                 {#each countReactions(msg.id) as r}
                   <button
-                    class="reaction-pill"
+                    class="reaction-pill" data-testid="reaction-pill"
                     class:my-reaction={reactions[msg.id]?.myEmoji === r.emoji}
                     onclick={() => toggleReaction(msg.id, r.emoji)}
                     title={r.names}
@@ -812,7 +1207,7 @@
             {/if}
 
             <div class="message-meta">
-              <span class="message-time">{formatTimestamp(msg.timestamp)}</span>
+              <span class="message-time">{formatTimestamp(msg.created_at)}</span>
               {#if msg.edited_at}
                 <span class="edited-label">(modifié)</span>
               {/if}
@@ -822,8 +1217,16 @@
               <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
                 <!-- Bouton réaction rapide — toujours visible au hover -->
                 <button
-                  class="msg-action-btn reaction-trigger"
-                  onclick={(e) => { e.stopPropagation(); emojiPickerMsgId = emojiPickerMsgId === msg.id ? null : msg.id; }}
+                  class="msg-action-btn reaction-trigger" data-testid="reaction-trigger"
+                  onclick={(e) => { 
+                    e.stopPropagation(); 
+                    if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
+                    else {
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
+                      emojiPickerMsgId = msg.id; 
+                    }
+                  }}
                   title="Réagir"
                   aria-label="Ajouter une réaction"
                 >😊</button>
@@ -838,14 +1241,15 @@
               <!-- Emoji picker rapide (6 fixes + picker étendu) -->
               {#if emojiPickerMsgId === msg.id}
                 <div
-                  class="emoji-picker"
+                  class="emoji-picker" data-testid="emoji-picker"
                   class:picker-mine={isMyMessage(msg.sender_id)}
                   role="dialog"
                   aria-label="Choisir une réaction"
+                  style="top:{emojiPickerPos.top}px; left:{emojiPickerPos.left}px; transform:translateY(-100%);"
                 >
                   {#each QUICK_EMOJIS as emoji}
                     <button
-                      class="emoji-quick-btn"
+                      class="emoji-quick-btn" data-testid="emoji-quick-btn"
                       class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                       onclick={() => toggleReaction(msg.id, emoji)}
                       aria-label={emoji}
@@ -861,7 +1265,7 @@
                   <div class="emoji-extended" style="display:none">
                     {#each ALL_EMOJIS as emoji}
                       <button
-                        class="emoji-quick-btn"
+                        class="emoji-quick-btn" data-testid="emoji-quick-btn"
                         class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                         onclick={() => toggleReaction(msg.id, emoji)}
                         aria-label={emoji}
@@ -873,8 +1277,25 @@
             {/if}
           </div>
         {/each}
+
+        {#if chatStore.loadingMore}
+          <div class="load-more-indicator">⏳ Chargement…</div>
+        {:else if chatStore.hasMore}
+          <button class="load-more-btn" onclick={() => handleMessagesScroll({ target: chatContainer } as unknown as Event)}>
+            ↓ Messages plus anciens
+          </button>
+        {/if}
       {/if}
     </div>
+
+    {#if typingUsers.length > 0}
+      <div class="typing-indicator">
+        <span class="typing-dots">
+          <span></span><span></span><span></span>
+        </span>
+        {typingUsers.length === 1 ? 'Quelqu\'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+      </div>
+    {/if}
 
     {#if chatStore.showEmojiPicker}
       <div class="emoji-panel" role="dialog" aria-label="Picker emoji ou GIF" tabindex="-1">
@@ -966,8 +1387,26 @@
     {/if}
 
     <form class="input-area" onsubmit={handleSubmit}>
+      <!-- Mention autocomplete dropdown -->
+      {#if showMentions && filteredMentions.length > 0}
+        <div class="mention-dropdown">
+          {#each filteredMentions as u}
+            <button
+              type="button"
+              class="mention-option"
+              onclick={() => selectMention(u.username)}
+            >
+              <Avatar username={u.username} name={u.name} size={24} userId={u.id} />
+              <span class="mention-name">{u.name ?? u.username}</span>
+              <span class="mention-handle">@{u.username}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <button type="button" class="icon-btn" onclick={() => fileInput?.click()} title="Joindre">📎</button>
-      <input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
+      <!-- File transfer progress -->
+
+<input type="file" bind:this={fileInput} onchange={handleFileUpload} style="display:none" />
       <button type="button" class="icon-btn emoji-open-btn" onclick={handleToggleEmojiPicker} title="Emoji / GIF" aria-label="Ouvrir le picker emoji ou GIF">😊</button>
       <!-- Bouton message vocal -->
       <button
@@ -985,7 +1424,8 @@
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         onkeydown={handleMessageKeydown}
-        disabled={sending}
+        oninput={handleTyping}
+        disabled={false}
       />
       <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
         {sending ? '…' : 'Envoyer'}
@@ -1085,7 +1525,7 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100svh - var(--header-h, 60px));
+    height: calc(100dvh - var(--header-h, 30px));
     overflow: hidden;
     max-width: 100%;
   }
@@ -1165,7 +1605,7 @@
   .conversation-item:hover { background: var(--bg-tertiary, #e2e8f0); }
   .conversation-item.active { background: var(--bg-tertiary, #e2e8f0); }
 
-  .avatar { font-size: 1.3rem; flex-shrink: 0; }
+  .avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 600; flex-shrink: 0; }
   .conversation-info { flex: 1; min-width: 0; }
   .conversation-info .name {
     display: block;
@@ -1182,23 +1622,138 @@
     color: var(--text-secondary, #64748b);
   }
 
+  /* Online indicator */
+  .online-indicator {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--text-muted, #94a3b8);
+    margin-right: 0.25rem;
+    vertical-align: middle;
+  }
+  
+  .online-indicator.online {
+    background: var(--accent, #4ade80);
+    box-shadow: 0 0 0 2px var(--bg-secondary, #f8fafc);
+  }
+
   /* ─── Zone chat ─── */
   .chat-area {
     flex: 1; min-width: 0;
     display: flex; flex-direction: column;
     background: var(--bg-primary, #fff);
-    overflow: hidden; /* empêche les images/GIFs de pousser input-area hors écran */
+    overflow: hidden;
+    height: 100%;
+    position: relative;
   }
   .chat-header {
-    padding: .75rem 1rem;
+    padding: .15rem .8rem;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border, #e2e8f0);
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: .5rem;
+    min-height: 30px;
   }
-  .chat-header h2 { margin: 0; font-size: 1.05rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-header h2 { margin: 0; font-size: .85rem; color: var(--text-primary, #1e293b); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .conn-error { font-size: .78rem; color: #dc2626; }
+  
+  /* Transferts P2P */
+  .p2p-transfers {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-primary, #fff);
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    padding: .5rem;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .p2p-transfer {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: .5rem;
+    border-radius: .35rem;
+    background: var(--bg-secondary, #f8fafc);
+    margin-bottom: .5rem;
+  }
+  
+  .p2p-transfer:last-child {
+    margin-bottom: 0;
+  }
+  
+  .p2p-transfer.completed {
+    background: rgba(34, 197, 94, 0.1);
+  }
+  
+  .p2p-transfer.error {
+    background: rgba(239, 68, 68, 0.1);
+  }
+  
+  .p2p-transfer-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: .85rem;
+  }
+  
+  .p2p-transfer-name {
+    font-weight: 500;
+    color: var(--text-primary, #1e293b);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  
+  .p2p-transfer-size {
+    color: var(--text-secondary, #64748b);
+    font-size: .78rem;
+  }
+  
+  .p2p-transfer-progress {
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+  }
+  
+  .p2p-progress-bar {
+    height: 6px;
+    background: var(--border, #e2e8f0);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  
+  .p2p-progress-fill {
+    height: 100%;
+    background: var(--accent, #4ade80);
+    transition: width .3s ease;
+  }
+  
+  .p2p-transfer.completed .p2p-progress-fill {
+    background: #22c55e;
+  }
+  
+  .p2p-transfer.error .p2p-progress-fill {
+    background: #ef4444;
+  }
+  
+  .p2p-transfer-stats {
+    display: flex;
+    justify-content: space-between;
+    font-size: .78rem;
+    color: var(--text-secondary, #64748b);
+  }
+  
+  .p2p-transfer-stats span:first-child {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+  }
   .call-actions { display: flex; gap: .35rem; flex-shrink: 0; margin-left: auto; }
   .call-btn {
     display: flex; align-items: center; justify-content: center;
@@ -1233,10 +1788,16 @@
 
   /* ─── Messages ─── */
   .messages-container {
-    flex: 1; min-height: 0; /* min-height: 0 OBLIGATOIRE en flexbox colonne pour éviter débordement */
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overflow-x: visible;
     padding: 1rem;
-    display: flex; flex-direction: column; gap: .5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
   }
   .empty-state {
     flex: 1;
@@ -1265,12 +1826,69 @@
     font-size: .75rem; font-weight: 700;
     color: var(--accent, #4ade80); margin-bottom: .15rem;
   }
+  .message-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .mine-header {
+    flex-direction: row-reverse;
+  }
+  .message-content .mention {
+    display: inline; background: var(--accent-light, rgba(74, 222, 128, 0.2));
+    color: var(--accent-dark, var(--accent)); font-weight: 700;
+    padding: 1px 4px; border-radius: 4px; cursor: pointer;
+  }
+  .mention-dropdown {
+    position: absolute; bottom: 100%; left: 0; right: 0;
+    background: var(--bg-primary, #fff); border: 2px solid var(--border);
+    border-radius: var(--radius-lg, 12px); box-shadow: var(--shadow-lg, 0 4px 12px rgba(0,0,0,.15));
+    max-height: 180px; overflow-y: auto; z-index: 100;
+    padding: 4px; margin-bottom: 4px;
+  }
+  .mention-option {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 8px 12px; border: none; background: transparent;
+    cursor: pointer; border-radius: 8px; font-size: .9rem; color: var(--text-primary);
+  }
+  .mention-option:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .mention-handle { color: var(--text-secondary, #64748b); font-size: .8rem; }
   .message-content {
     font-size: .9rem; color: var(--text-primary, #1e293b); line-height: 1.5;
   }
   .message-content :global(img.uploaded-image),
   .message-content :global(img.chat-gif) {
-    max-width: 260px; border-radius: 8px; margin-top: .3rem; display: block;
+    max-width: 400px; border-radius: 8px; margin-top: .3rem; display: block;
+  }
+  .message-content :global(.file-preview) {
+    position: relative; display: inline-block; max-width: 400px;
+  }
+  .message-content :global(.file-preview img) {
+    max-width: 100%; border-radius: 8px; display: block;
+  }
+  .message-content :global(.file-download) {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,.6); color: #fff;
+    border-radius: 50%; width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: .8rem;
+    opacity: .7; transition: opacity .2s;
+  }
+  .message-content :global(.file-preview:hover .file-download),
+  .message-content :global(.file-audio:hover .file-download),
+  .message-content :global(.file-video:hover .file-download) {
+    opacity: 1;
+  }
+  .message-content :global(.file-audio),
+  .message-content :global(.file-video) {
+    position: relative; display: inline-block;
+  }
+  .message-content :global(audio.chat-audio) {
+    max-width: 300px; height: 36px; border-radius: 8px;
+  }
+  .message-content :global(video.chat-video) {
+    max-width: 350px; border-radius: 8px;
+  }
+  .message-content :global(.file-attachment a) {
+    color: var(--accent, #4ade80); text-decoration: underline;
   }
   .message-time {
     font-size: .68rem; color: var(--text-secondary, #94a3b8);
@@ -1299,16 +1917,6 @@
   .load-more-indicator { text-align: center; font-size: .8rem; color: var(--text-secondary, #94a3b8); padding: .5rem; }
 
   /* Menu contextuel message */
-  .message { position: relative; }
-  .msg-actions {
-    position: absolute; top: .2rem; right: .2rem;
-    display: flex; gap: .2rem;
-    background: var(--bg-primary, #fff);
-    border: 1px solid var(--border, #e2e8f0);
-    border-radius: .45rem; padding: .15rem;
-    box-shadow: 0 2px 8px rgba(0,0,0,.08);
-    z-index: 10;
-  }
   .mine-actions { right: auto; left: .2rem; }
   .msg-action-btn {
     background: none; border: none; cursor: pointer; font-size: .8rem;
@@ -1337,17 +1945,42 @@
     font-weight: 600;
   }
 
+  /* ─── Typing indicator ─── */
+  .typing-indicator {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .3rem 1rem;
+    font-size: .75rem;
+    color: var(--text-secondary, #94a3b8);
+    flex-shrink: 0;
+  }
+  .typing-dots {
+    display: inline-flex; gap: .15rem;
+  }
+  .typing-dots span {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--text-secondary, #94a3b8);
+    animation: typingBounce 1.2s infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: .2s; }
+  .typing-dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
+  }
+
   /* Emoji picker */
   .emoji-picker {
-    position: absolute; bottom: calc(100% + .3rem); right: .2rem;
+    position: fixed;
+    z-index: 9999;
     background: var(--bg-primary, #fff);
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .6rem; padding: .35rem .4rem;
     box-shadow: 0 4px 16px rgba(0,0,0,.12);
     display: flex; flex-wrap: wrap; gap: .2rem; max-width: 240px;
-    z-index: 20; animation: pop .12s var(--animation, ease);
+    animation: pop .12s var(--animation, ease);
   }
-  .emoji-picker.picker-mine { right: auto; left: .2rem; }
+  .emoji-picker.picker-mine { left: auto; right: 10px; }
   .emoji-quick-btn {
     background: none; border: none; font-size: 1.15rem;
     cursor: pointer; padding: .2rem; border-radius: .35rem;
@@ -1430,19 +2063,23 @@
 
   /* ─── Saisie ─── */
   .emoji-only {
-    font-size: 2.5rem !important;
+    font-size: 3.5rem !important;
     line-height: 1.2;
     background: transparent !important;
-    padding: 0 !important;
+    padding: .2rem .4rem !important;
     box-shadow: none !important;
+    border-radius: 0 !important;
+    text-align: center;
   }
 
   .input-area {
     flex-shrink: 0;
+    position: relative;
     display: flex; align-items: center; gap: .4rem;
     padding: .7rem 1rem;
     border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
+    width: 100%;
   }
   .icon-btn {
     padding: .45rem; background: none; border: none;
@@ -1497,7 +2134,7 @@
   }
   .gif-hint { font-size: .78rem; color: var(--text-muted, #94a3b8); }
   .gif-hint code { font-size: .76rem; background: var(--bg-tertiary); padding: .1rem .3rem; border-radius: .25rem; }
-  :global(.chat-gif) { max-width: 200px; max-height: 200px; border-radius: .4rem; display: block; }
+  :global(.chat-gif) { max-width: 600px; max-height: 600px; border-radius: .4rem; display: block; }
   .message-input {
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
@@ -1699,19 +2336,194 @@
 
   /* ─── Mobile ─── */
   @media (max-width: 640px) {
-    .chat-page { flex-direction: column; }
-    .conversations-sidebar {
-      width: 100%; max-height: 90px;
-      border-right: none; border-bottom: 1px solid var(--border, #e2e8f0);
-    }
-    .conversation-list {
-      flex-direction: row;
-      overflow-x: auto;
-      padding: .25rem .5rem;
-    }
-    .conversation-item { flex-shrink: 0; max-width: 140px; }
-    .conversation-info .preview { display: none; }
-    .message { max-width: 88%; }
-    .modal { max-width: 96vw; margin: .75rem; }
+  /* ════════════════════════════════════════════════════════
+     MOBILE — Responsive styles (< 640px)
+     ════════════════════════════════════════════════════════ */
+
+  /* ── Layout: sidebar hidden by default, overlay mode ── */
+  .chat-page {
+    position: relative;
+  }
+
+  .conversations-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 85vw;
+    max-width: 320px;
+    height: 100%;
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+  }
+
+  .conversations-sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop when sidebar open */
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 99;
+  }
+
+  .sidebar-backdrop.visible {
+    display: block;
+  }
+
+  /* Chat main takes full width */
+  .chat-area {
+    width: 100% !important;
+    flex: 1 !important;
+  }
+
+  /* ── Chat header: hamburger + compact ── */
+  .chat-header {
+    padding: .1rem .5rem !important;
+    gap: .25rem;
+    min-height: 28px !important;
+  }
+
+  .btn-menu-mobile {
+    display: flex !important;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+  }
+
+  .btn-menu-mobile:active {
+    background: var(--bg-secondary, #f1f5f9);
+  }
+
+  /* ── Messages: full width, smaller padding ── */
+  .message {
+    max-width: 92% !important;
+  }
+
+  .message-content {
+    font-size: .92rem;
+    padding: .45rem .7rem;
+  }
+
+  /* ── Touch targets: minimum 44px ── */
+  .conversation-item {
+    padding: .65rem .6rem !important;
+    min-height: 48px;
+  }
+
+  .msg-action-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  button {
+    min-height: 36px;
+  }
+
+  /* ── Input area: compact ── */
+  .input-area {
+    padding: .4rem .5rem !important;
+  }
+
+  .message-input {
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: .5rem .7rem;
+  }
+
+  .input-actions {
+    gap: .2rem;
+  }
+
+  .input-actions button {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+  }
+
+  /* ── Emoji picker: smaller ── */
+  .emoji-picker,
+  [data-testid="emoji-picker"] {
+    max-width: 280px !important;
+    right: 0 !important;
+    left: auto !important;
+  }
+
+  /* ── Reactions: compact ── */
+  .reactions-row {
+    max-width: 100%;
+  }
+
+  .reaction-pill {
+    font-size: .7rem;
+    padding: .15rem .4rem;
+  }
+
+  /* ── Audio/Video call buttons ── */
+  .btn-call {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* ── Scrollbar: thinner on mobile ── */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  /* ── GIF viewer ── */
+  :global(.chat-gif) {
+    max-width: 260px !important;
+    max-height: 260px !important;
+  }
+
+  /* ── Hide desktop-only elements ── */
+  .sidebar-header h2 {
+    font-size: .7rem;
+  }
+
+  /* ── Conversation info: smaller ── */
+  .conversation-info .name {
+    font-size: .85rem;
+  }
+
+  .conversation-info .last-msg {
+    font-size: .72rem;
+  }
+  } /* end @media */
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    font-size: .8rem;
+    color: var(--text-secondary, #64748b);
+    animation: fadeIn .3s ease;
+  }
+  .typing-dots {
+    display: flex;
+    gap: 3px;
+  }
+  .typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: var(--accent, #4ade80);
+    border-radius: 50%;
+    animation: typingBounce 1.2s ease-in-out infinite;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-4px); }
   }
 </style>

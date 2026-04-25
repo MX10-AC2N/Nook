@@ -24,11 +24,11 @@
 
   // ── Trouver la case du roi en échec ───────────────────────────
   function findKingSquare(color: 'w' | 'b'): string | null {
-    const board = chessStore.board();
+    const board = chessStore.board;
     const king  = color + 'K';
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
-        if (board[r]?.[c] === king) return toAlgebraic(r, c);
+        if (kingBoard[r]?.[c] === king) return toAlgebraic(r, c);
       }
     }
     return null;
@@ -36,7 +36,7 @@
 
   // La case du roi est en échec si engine.status contient "check" ou "checkmate"
   // CORRECTION: $derived prend une expression, pas une fonction
-  const kingInCheckSquare = $derived(() => {
+  const kingInCheckSquare = $derived.by(() => {
     const engine = chessStore.currentGame?.engine;
     if (!engine) return null;
     const st = engine.status ?? '';
@@ -48,6 +48,8 @@
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
     await chessStore.selectSquare(row, col);
+    // Force re-render after move
+    boardVersion++;
   }
 
   function cellClass(row: number, col: number): string {
@@ -56,7 +58,7 @@
     let cls = `cell ${isLight ? 'cell-light' : 'cell-dark'}`;
     if (chessStore.selected?.algebraic === alg)        cls += ' cell-selected';
     if (chessStore.legalTargets.includes(alg)) {
-      const hasPiece = (chessStore.board()[row]?.[col] ?? '') !== '';
+      const hasPiece = (localBoard[row]?.[col] ?? '') !== '';
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
@@ -70,23 +72,69 @@
   let showResign = $state(false);
   // CORRECTION: Variables manquantes ajoutées
   let showResult = $state(false);
+  let lastMovedFrom = $state<string | null>(null);
+  let lastMovedTo = $state<string | null>(null);
   let resultDismissed = $state(false);
+  let pgnCopied = $state(false);
+
+  async function copyPgn() {
+    const ok = await chessStore.copyPgn();
+    if (ok) {
+      pgnCopied = true;
+      setTimeout(() => pgnCopied = false, 2000);
+    }
+  }
   // Loading LOCAL à cette page — évite la race condition avec chessStore.loading
   // partagé par loadGameList() du lobby qui peut remettre loading=false avant
   // que loadGame() ait terminé → "Partie introuvable" affiché prématurément.
   let pageLoading = $state(true);
 
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     pageLoading = true;
-    await chessStore.loadGame(gameId);
-    pageLoading = false;
+
+    // Safety timeout — force pageLoading=false after 5s even if loadGame hangs
+    const safetyTimer = setTimeout(() => {
+      console.warn('[Chess] loadGame timeout — forcing display');
+      pageLoading = false;
+    }, 5000);
+
+    try {
+      await chessStore.loadGame(gameId);
+      console.log('[Chess] Game loaded:', chessStore.currentGame?.id, 'status:', chessStore.currentGame?.status);
+    } catch (e) {
+      console.error('[Chess] loadGame threw:', e);
+      chessStore.error = 'Erreur inattendue lors du chargement';
+    } finally {
+      clearTimeout(safetyTimer);
+      pageLoading = false;
+    }
+
+    // Polling fallback: refresh game every 5s if WS is not connected
+    pollTimer = setInterval(() => {
+      if (chessStore.currentGame?.status === 'playing') {
+        chessStore.refreshGame(gameId);
+      }
+    }, 5000);
   });
-  onDestroy(() => chessStore.disconnectWebSocket());
+
+  // Auto-show result modal when game finishes
+  $effect(() => {
+    if (chessStore.currentGame?.status === 'finished' && !showResult) {
+      showResult = true;
+      resultDismissed = false;
+    }
+  });
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+    chessStore.disconnectWebSocket();
+  });
 
   // Guard : ne pas dériver si currentGame est null
   // CORRECTION: Utiliser $derived correctement
-  const mySlot = $derived(() => {
+  const mySlot = $derived.by(() => {
     const g = chessStore.currentGame;
     if (!g) return null;
     const uid = authStore.user?.id;
@@ -95,7 +143,23 @@
     return null;
   });
 
-  const flipped  = $derived(chessStore.myColor() === 'black');
+  const flipped  = $derived(chessStore.myColor === 'black');
+  
+  // Simple board state — updated by chessStore
+  let localBoard = $state<string[][]>(Array.from({ length: 8 }, () => Array(8).fill('')));
+  let boardVersion = $state(0);  // Increment to force re-render
+  
+  // Sync from chessStore when it changes
+  let lastFen = $state('');
+  $effect(() => {
+    const board = chessStore.board;
+    const fen = chessStore.currentGame?.fen ?? '';
+    if (board && board.length === 8 && fen !== lastFen) {
+      lastFen = fen;
+      localBoard = board.map((row: string[]) => [...row]);
+      boardVersion++;
+    }
+  });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const recentHistory = $derived((chessStore.currentGame?.move_history ?? []).slice(-20));
@@ -113,6 +177,12 @@
       <p>Chargement de la partie…</p>
     </div>
 
+  {:else if chessStore.error}
+    <div class="error-state">
+      <p>⚠️ {chessStore.error}</p>
+      <a href="/chess" class="btn-back">← Retour au lobby</a>
+    </div>
+
   {:else if !chessStore.currentGame}
     <div class="error-state">
       <p>Partie introuvable.</p>
@@ -122,7 +192,7 @@
   {:else}
     {@const game   = chessStore.currentGame}
     {@const engine = game?.engine ?? null}
-    {@const slot   = mySlot()}
+    {@const slot   = mySlot}
 
     <!-- ══ BARRE COMPACTE MOBILE (status + abandon) ══ -->
     <div class="mobile-bar">
@@ -294,6 +364,17 @@
                 </li>
               {/each}
             </ol>
+
+            <!-- PGN Notation -->
+            <div class="pgn-section">
+              <div class="pgn-header">
+                <span class="pgn-label">PGN</span>
+                <button class="pgn-copy-btn" onclick={copyPgn} title="Copier PGN">
+                  {pgnCopied ? '✓ Copié' : '📋 Copier'}
+                </button>
+              </div>
+              <code class="pgn-code">{chessStore.toPgn()}</code>
+            </div>
           </div>
         {/if}
 
@@ -313,9 +394,9 @@
               {#each rows as r}<span>{8 - r}</span>{/each}
             </div>
             <div class="chess-board">
-              {#each rows as row}
-                {#each cols as col}
-                  {@const piece   = chessStore.board()[row]?.[col] ?? ''}
+              {#each rows as row (row + '-' + boardVersion)}
+                {#each cols as col (col)}
+                  {@const piece   = localBoard[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
                   <div
                     class={cellClass(row, col)}
@@ -326,7 +407,7 @@
                     {#if decoded}
                       <span
                         class="piece"
-                        class:piece-mine={decoded.color === (chessStore.myColor() === 'white' ? 'w' : 'b')}
+                        class:piece-mine={decoded.color === (chessStore.myColor === 'white' ? 'w' : 'b')}
                         class:piece-selected={chessStore.selected?.algebraic === toAlgebraic(row, col)}
                         style="color:{decoded.color === 'w' ? '#fff' : '#1a1a1a'};
                                text-shadow:{decoded.color === 'w'
@@ -361,8 +442,8 @@
             {#each PROMO_PIECES as p}
               <button class="promo-btn" onclick={() => chessStore.confirmPromotion(p)}>
                 <span class="promo-piece"
-                  style="color:{chessStore.myColor() === 'white' ? '#fff' : '#1a1a1a'};
-                         text-shadow:{chessStore.myColor() === 'white'
+                  style="color:{chessStore.myColor === 'white' ? '#fff' : '#1a1a1a'};
+                         text-shadow:{chessStore.myColor === 'white'
                            ? '0 1px 3px rgba(0,0,0,0.8)' : '0 1px 2px rgba(255,255,255,0.3)'};">
                   {PROMO_LABELS[p].split(' ')[0]}
                 </span>
@@ -442,6 +523,7 @@
     gap: 1.5rem;
     padding: 1.25rem;
     align-items: start;
+    min-height: calc(100vh - 60px);
   }
 
   /* ── Sidebar ── */
@@ -507,6 +589,13 @@
   .move-san { font-weight: 700; font-family: monospace; color: #1e293b; }
   .move-by  { color: #94a3b8; font-size: .7rem; }
 
+  .pgn-section { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--border, #e2e8f0); }
+  .pgn-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .3rem; }
+  .pgn-label { font-size: .7rem; font-weight: 600; color: var(--text-secondary, #64748b); text-transform: uppercase; }
+  .pgn-copy-btn { font-size: .7rem; padding: .2rem .5rem; border: 1px solid var(--border, #e2e8f0); border-radius: 4px; background: var(--bg-secondary, #f1f5f9); cursor: pointer; }
+  .pgn-copy-btn:hover { background: var(--accent, #4ade80); color: #fff; border-color: var(--accent, #4ade80); }
+  .pgn-code { display: block; font-size: .75rem; padding: .4rem; background: var(--bg-secondary, #f1f5f9); border-radius: 4px; word-break: break-all; line-height: 1.5; }
+
   .error-panel { background: #fef2f2; border-color: #fecaca; color: #dc2626; font-size: .82rem; }
 
   .resign-panel { padding: .65rem !important; }
@@ -518,13 +607,13 @@
   .rbtn-no  { flex: 1; padding: .35rem; background: #f1f5f9; color: #475569; border: none; border-radius: .35rem; font-size: .78rem; cursor: pointer; }
 
   /* ── Plateau ── */
-  .board-wrap { display: flex; justify-content: center; align-items: flex-start; }
+  .board-wrap { display: flex; justify-content: center; align-items: center; flex: 1; padding: 1rem 0; }
   .board-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .board-and-ranks { display: flex; align-items: stretch; gap: 2px; }
 
   .coords-top, .coords-bottom {
     display: grid; grid-template-columns: repeat(8, 1fr);
-    width: min(74vw, 560px); padding: 0 2px;
+    width: min(85vw, 720px); padding: 0 2px;
   }
   .coords-top span, .coords-bottom span { text-align: center; font-size: .6rem; font-weight: 700; color: #94a3b8; line-height: 1.6; }
   .coords-left, .coords-right { display: flex; flex-direction: column; }
@@ -534,7 +623,7 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: min(74vw, 560px);
+    width: min(85vw, 720px);
     aspect-ratio: 1;
     border: 2.5px solid #374151;
     border-radius: 3px;
@@ -552,7 +641,7 @@
   .cell-last     { background: rgba(255,196,0,0.35) !important; }
   .cell:not(.cell-selected):hover { filter: brightness(1.08); }
 
-  .piece { font-size: clamp(1rem, 4.5vw, 2.2rem); line-height: 1; z-index: 1; transition: transform .1s; cursor: pointer; }
+  .piece { font-size: clamp(1.8rem, 6.5vw, 3.8rem); line-height: 1; z-index: 1; transition: transform .1s; cursor: pointer; }
   .piece.piece-mine:hover { transform: scale(1.12); }
   .piece.piece-selected   { transform: scale(1.25); filter: drop-shadow(0 0 6px rgba(245,158,11,.9)); }
 
@@ -608,6 +697,23 @@
   .mt-side.mt-low    { color: #dc2626; animation: blink-low 1s infinite; }
 
   /* ══════════════════════════════════════════
+     RESPONSIVE TABLET
+  ══════════════════════════════════════════ */
+  @media (min-width: 721px) and (max-width: 1024px) {
+    .game-layout {
+      grid-template-columns: 180px 1fr;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    .chess-board {
+      width: min(80vw, 600px);
+    }
+    .coords-top, .coords-bottom {
+      width: min(80vw, 600px);
+    }
+    .piece { font-size: clamp(1.6rem, 5.5vw, 3rem); }
+  }
+  /* ══════════════════════════════════════════
      RESPONSIVE MOBILE
   ══════════════════════════════════════════ */
   @media (max-width: 720px) {
@@ -638,12 +744,12 @@
 
     /* Board occupe toute la largeur disponible */
     .chess-board {
-      width: calc(100vw - 2.5rem); /* 100vw - padding (.35rem × 2) - coords (.9rem × 2) */
-      max-width: 460px;
+      width: calc(100vw - 1.5rem);
+      max-width: 600px;
     }
     .coords-top, .coords-bottom {
-      width: calc(100vw - 2.5rem);
-      max-width: 460px;
+      width: calc(100vw - 1.5rem);
+      max-width: 600px;
     }
 
     /* Badges statut */
@@ -706,4 +812,127 @@
   .result-btn-secondary { background: #f1f5f9; color: #475569; }
   .result-btn-secondary:hover { background: #e2e8f0; }
 
+
+  /* Piece animation on move */
+  .piece {
+    transition: transform 0.15s ease-out;
+  }
+  .piece.moving {
+    animation: piece-move 0.2s ease-out;
+  }
+  @keyframes piece-move {
+    0% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Better legal move indicators */
+  .cell-target {
+    position: relative;
+  }
+  .cell-target::after {
+    content: '';
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.15);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .cell-capture {
+    background: rgba(220, 50, 50, 0.35) !important;
+    box-shadow: inset 0 0 0 3px rgba(220, 50, 50, 0.5);
+  }
+  
+  /* Selected piece highlight */
+  .cell.selected {
+    background: rgba(255, 215, 0, 0.5) !important;
+  }
+  
+  /* Last move highlight */
+  .cell.last-move {
+    background: rgba(255, 255, 100, 0.35) !important;
+  }
+
+  /* Enhanced piece animations */
+  .piece {
+    transition: transform 0.15s ease-out, opacity 0.15s ease;
+  }
+  .piece.moving {
+    animation: piece-land 0.25s ease-out;
+  }
+  .piece.captured {
+    animation: piece-capture 0.3s ease-out forwards;
+  }
+  @keyframes piece-land {
+    0% { transform: scale(1.2); filter: brightness(1.3); }
+    100% { transform: scale(1); filter: brightness(1); }
+  }
+  @keyframes piece-capture {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.5) rotate(180deg); opacity: 0; }
+  }
+  
+  /* Legal move indicators with ripple effect */
+  .cell-target {
+    position: relative;
+  }
+  .cell-target::after {
+    content: '';
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.2);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: target-ripple 1s ease-in-out infinite;
+  }
+  @keyframes target-ripple {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.3; }
+    50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.5; }
+  }
+  
+  /* Capture indicator with danger highlight */
+  .cell-capture {
+    position: relative;
+  }
+  .cell-capture::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 3px solid rgba(220, 50, 50, 0.6);
+    border-radius: 50%;
+    animation: capture-pulse 0.8s ease-in-out infinite;
+  }
+  @keyframes capture-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  
+  /* Last move highlight with glow */
+  .cell.last-move {
+    box-shadow: inset 0 0 0 2px rgba(255, 215, 0, 0.5);
+  }
+  
+  /* Selected piece glow */
+  .cell.selected {
+    box-shadow: inset 0 0 0 3px rgba(74, 222, 128, 0.8);
+  }
+  
+  /* Move history item animation */
+  .move-item {
+    transition: all 0.2s ease;
+    animation: move-fade-in 0.3s ease;
+  }
+  .move-item:hover {
+    background: var(--bg-tertiary, #f1f5f9);
+  }
+  @keyframes move-fade-in {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>

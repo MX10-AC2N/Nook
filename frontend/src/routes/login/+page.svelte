@@ -3,6 +3,7 @@
   import { authStore } from '$lib/authStore.svelte.js';
   import { login } from '$lib/auth.js';
   import Icon from '$lib/components/Icon.svelte';
+  import PasswordInput from '$lib/components/PasswordInput.svelte';
   import { unlockCrypto, cryptoStore } from '$lib/cryptoStore.svelte.ts';
 
   let username = $state('');
@@ -75,8 +76,7 @@
 <div class="login-page">
   <div class="login-card">
     <div class="logo">
-      <Icon name="logo" size={80} />
-      <h1>Nook</h1>
+      <Icon name="logo" size={100} />
     </div>
 
     <p class="subtitle">Bienvenue dans votre espace familial sécurisé</p>
@@ -110,9 +110,8 @@
           <Icon name="lock" size={20} />
           Mot de passe
         </label>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           bind:value={password}
           placeholder="Votre mot de passe"
           autocomplete="current-password"

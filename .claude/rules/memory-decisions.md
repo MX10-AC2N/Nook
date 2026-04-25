@@ -81,3 +81,37 @@
 **Décision** : Aucun workflow déclenché automatiquement (pas de `on: push`).  
 **Pourquoi** : Projet familial homeserver — pas besoin de CI automatique. Les déclenchements manuels permettent de choisir quand compiler/tester. Économise les GitHub Actions minutes.  
 **Exception possible** : Ajouter un check lint automatique sur PR si l'équipe grandit.
+
+
+## 🌐 SFU (Selective Forwarding Unit) — LOT 6
+
+### Décision: rustrtc comme SFU (pas coturn ou mediasoup)
+- **Pourquoi:** rustrtc est une crate Rust pure, compatible avec notre stack Axum
+- **Alternative rejetée:** mediasoup (Node.js, incompatible), coturn (seulement TURN, pas SFU)
+- **Version:** rustrtc 0.3.40
+
+### Décision: Signalisation via WebSocket existant (pas REST)
+- **Pourquoi:** Le canal WS `/ws` existe déjà pour le signaling P2P
+- **Avantage:** Pas besoin d'ouvrir de nouveaux endpoints HTTP
+- **Types WS ajoutés:** sfu_join, sfu_answer, sfu_candidate, sfu_leave, sfu_renegotiate_offer, sfu_peers, sfu_error
+
+### Décision: Auto-SFU pour 3+ participants
+- **Seuil:** `participantIds.length >= 3` → bascule automatique en SFU
+- **Raison:** Le mesh P2P fonctionne bien jusqu'à 2 participants, au-delà le SFU est plus efficace
+- **Toggle manuel:** L'utilisateur peut basculer entre SFU et P2P via le bouton dans call-controls
+
+### Décision: MediaRelay avec capacité 500
+- **Pourquoi:** Assez grand pour éviter les pertes de samples RTCP
+- **Pattern:** MediaRelay::with_capacity(track, 500) pour chaque track entrante
+
+### Décision: PLI periodique toutes les 3s
+- **Pourquoi:** Forcer les keyframes régulières pour les nouveaux participants
+- **Implémentation:** tokio::time::interval(3s) → track.request_key_frame().await
+
+### Décision: added_sources HashSet pour éviter les doublons
+- **Clé:** "{user_id}:{peer_id}:{kind:?}" format de string
+- **Pourquoi:** Eviter d'ajouter la même track plusieurs fois au même peer (génère des duplicates SDP rejects)
+
+### Décision: Negotiation différée via negotiation_pending AtomicBool
+- **Pourquoi:** Si signaling_state n'est pas Stable, on marque pending et on réessaie plus tard
+- **Pattern:** peer.negotiation_pending.store(true) → drain_pending_offer() plus tard

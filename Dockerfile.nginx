@@ -1,0 +1,5 @@
+FROM nginx:alpine
+RUN apk add --no-cache openssl
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD wget -qO- http://localhost/health || exit 1

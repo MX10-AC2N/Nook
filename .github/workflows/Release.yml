@@ -1,4 +1,4 @@
-name: 🏷️ Release – Bump Version & Tag
+name: 7 ==> Release
 
 # Déclenché manuellement : tu choisis le type de bump
 on:

@@ -93,34 +93,20 @@ fn validate_magic_bytes(data: &[u8], content_type: &str) -> Result<(), &'static 
     let ct_base = content_type.split(';').next().unwrap_or(content_type).trim();
 
     match ct_base {
-        "image/jpeg" => {
-            if !magic.starts_with(&[0xFF, 0xD8, 0xFF]) {
-                return Err("Fichier invalide : magic bytes JPEG attendus");
-            }
+        "image/jpeg" if !magic.starts_with(&[0xFF, 0xD8, 0xFF]) => {
+            return Err("Fichier invalide : magic bytes JPEG attendus");
         }
-        "image/png" => {
-            if !magic.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-                return Err("Fichier invalide : magic bytes PNG attendus");
-            }
+        "image/png" if !magic.starts_with(&[0x89, 0x50, 0x4E, 0x47]) => {
+            return Err("Fichier invalide : magic bytes PNG attendus");
         }
-        "image/gif" => {
-            if !magic.starts_with(b"GIF8") {
-                return Err("Fichier invalide : magic bytes GIF attendus");
-            }
+        "image/gif" if !magic.starts_with(b"GIF8") => {
+            return Err("Fichier invalide : magic bytes GIF attendus");
         }
-        "image/webp" => {
-            // RIFF....WEBP
-            let is_webp = magic.len() >= 12
-                && magic.starts_with(b"RIFF")
-                && &magic[8..12] == b"WEBP";
-            if !is_webp {
-                return Err("Fichier invalide : magic bytes WebP attendus");
-            }
+        "image/webp" if !(magic.len() >= 12 && magic.starts_with(b"RIFF") && magic.len() >= 12 && &magic[8..12] == b"WEBP") => {
+            return Err("Fichier invalide : magic bytes WebP attendus");
         }
-        "application/pdf" => {
-            if !magic.starts_with(b"%PDF") {
-                return Err("Fichier invalide : magic bytes PDF attendus");
-            }
+        "application/pdf" if !magic.starts_with(b"%PDF") => {
+            return Err("Fichier invalide : magic bytes PDF attendus");
         }
         "image/svg+xml" => {
             // SVG = XML → commence par <?xml ou <svg (après éventuel BOM)
@@ -213,6 +199,8 @@ pub async fn upload_handler(
     state.file_manager.register_file(&file_id, storage_path).await;
 
     let is_image = data.content_type.starts_with("image/");
+    let is_audio = data.content_type.starts_with("audio/");
+    let is_video = data.content_type.starts_with("video/");
     (StatusCode::OK, AxumJson(json!({
         "status":       "uploaded",
         "file_id":      file_id,
@@ -220,6 +208,8 @@ pub async fn upload_handler(
         "file_size":    data.data.len(),
         "content_type": data.content_type,
         "is_image":     is_image,
+        "is_audio":     is_audio,
+        "is_video":     is_video,
         "uploaded_at":  now,
         "encrypted":    true,
         "url": format!("/api/download/{}", file_id)
@@ -298,6 +288,8 @@ pub async fn upload_chat_file(
     state.file_manager.register_file(&file_id, storage_path).await;
 
     let is_image = data.content_type.starts_with("image/");
+    let is_audio = data.content_type.starts_with("audio/");
+    let is_video = data.content_type.starts_with("video/");
     (StatusCode::OK, AxumJson(json!({
         "status":       "uploaded",
         "file_id":      file_id,
@@ -305,6 +297,8 @@ pub async fn upload_chat_file(
         "file_size":    data.data.len(),
         "content_type": data.content_type,
         "is_image":     is_image,
+        "is_audio":     is_audio,
+        "is_video":     is_video,
         "uploaded_at":  now,
         "encrypted":    true,
         "url": format!("/api/download/{}", file_id)
