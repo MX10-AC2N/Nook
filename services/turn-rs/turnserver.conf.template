@@ -4,7 +4,7 @@
 
 [server]
 name = "nook.turn"
-secret = "change_this_turn_secret_2026"
+secret = "${TURN_SECRET}"
 max-threads = 4
 
 [[server.interfaces]]

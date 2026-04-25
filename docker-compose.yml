@@ -25,7 +25,7 @@ services:
       - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - GIPHY_API_KEY=${GIPHY_API_KEY:-}
-      - TURN_SECRET=${TURN_SECRET:-}
+      - TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set}
       - RUST_LOG=${RUST_LOG:-info}
       - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
@@ -94,7 +94,7 @@ services:
       - "${TURN_CONFIG_DIR:-./turn-config}:/etc/turn-server"
 
     environment:
-      - TURN_SECRET=***
+      - TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set}
       - TURN_PORT=${TURN_PORT:-3478}
 
     healthcheck:

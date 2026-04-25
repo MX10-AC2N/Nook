@@ -12,7 +12,8 @@ RUN apk add --no-cache \
 RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
-    && chmod 0777 /app/data /app/data/uploads /app/logs /app/static
+    && chown -R nook:nook /app \
+    && chmod 0750 /app/data /app/data/uploads /app/logs /app/static
 
 ARG TARGETARCH=amd64
 COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
