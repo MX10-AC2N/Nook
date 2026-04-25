@@ -16,11 +16,8 @@ serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"] }
 uuid = { version = "1.0", features = ["v4"] }
 futures-util = "0.3"
-tower-service = "0.3"
 http = "1.0"
-serde_urlencoded = "0.7"
-urlencoding = "2.1"
-lazy_static = "1.4"
+urlencoding = "2.1"  # utilisé dans gifs_updater.rs
 chrono = { version = "0.4", features = ["serde"] }
 bytes = "1"
 
@@ -58,7 +55,6 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Compatibilité
-home = "0.5"
 sysinfo = "0.32"
 
 # SFU pour appels groupe 3+ participants
