@@ -85,15 +85,9 @@ jobs:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc cargo check --all-targets --target x86_64-unknown-linux-musl
 
       - name: Create .env file for Docker Compose
-        env:
-          TURN_SECRET: ${{ secrets.TURN_SECRET }}
-          ADMIN_INITIAL_PASSWORD: ${{ secrets.ADMIN_INITIAL_PASSWORD || 'AdminCI2026!' }}
-          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY || '' }}
-          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY || '' }}
-          GIPHY_API_KEY: ${{ secrets.GIPHY_API_KEY || '' }}
         run: |
           cat > .env << 'EOF'
-          # Nook CI Environment
+          # Nook CI Environment (test values)
           TZ=Europe/Paris
           PORT=6300
           PUBLIC_SITE_URL=http://localhost:6300
@@ -109,32 +103,10 @@ jobs:
           MEMORY_RESERVATION=256M
           NGINX_HTTPS_PORT=6443
           TURN_PORT=3478
+          # Test secrets (not real - for CI only)
+          TURN_SECRET=turn_test_secret_2026_nook_ci
+          ADMIN_INITIAL_PASSWORD=AdminCI2026!
           EOF
-
-          # Add secrets (override defaults if set)
-          if [ -n "$TURN_SECRET" ]; then
-            echo "TURN_SECRET=$TURN_SECRET" >> .env
-          else
-            echo "❌ TURN_SECRET is required!"
-            exit 1
-          fi
-
-          if [ -n "$ADMIN_INITIAL_PASSWORD" ]; then
-            echo "ADMIN_INITIAL_PASSWORD=$ADMIN_INITIAL_PASSWORD" >> .env
-          fi
-
-          if [ -n "$VAPID_PRIVATE_KEY" ]; then
-            echo "VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY" >> .env
-          fi
-
-          if [ -n "$VAPID_PUBLIC_KEY" ]; then
-            echo "VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY" >> .env
-          fi
-
-          if [ -n "$GIPHY_API_KEY" ]; then
-            echo "GIPHY_API_KEY=$GIPHY_API_KEY" >> .env
-          fi
-
           echo "✅ .env file created"
           cat .env
 
