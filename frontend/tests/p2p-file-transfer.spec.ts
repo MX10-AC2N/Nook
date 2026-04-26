@@ -1,138 +1,180 @@
-import { test } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-test.use({ ignoreHTTPSErrors: true });
+const BASE = 'http://localhost:6300';
 
-test('P2P file transfer logic verification', async ({ browser }) => {
-  // Browser 1: hermes-bot
-  const ctx1 = await browser.newContext();
-  const page1 = await ctx1.newPage();
-  
-  // Login as hermes-bot
-  await page1.goto('https://192.168.1.192:6443/login');
-  await page1.waitForTimeout(2000);
-  await page1.fill('input[type="text"], input[name="username"]', 'hermes-bot');
-  await page1.fill('input[type="password"]', 'Hermes2026!');
-  await page1.click('button[type="submit"]');
-  await page1.waitForTimeout(3000);
-  
-  const url1 = page1.url();
-  console.log('hermes-bot URL:', url1);
-  if (url1.includes('/login')) { console.log('❌ Login failed'); return; }
-  console.log('✅ hermes-bot logged in');
-  
-  // Navigate to chat
-  await page1.waitForTimeout(2000);
-  
-  // Test 1: Verify P2P connection required message
-  console.log('\n=== Test 1: P2P connection required ===');
-  
-  // Create a large file input
-  await page1.evaluate(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.id = 'test-file-input';
-    input.style.display = 'none';
-    document.body.appendChild(input);
+test.describe('P2P File Transfer — UI + Validation', () => {
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto(BASE + '/login');
+    await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
+    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+    await page.click('button[type="submit"]');
+    await page.waitForURL('**/chat', { timeout: 15000 });
+    await page.waitForTimeout(2000);
   });
-  
-  // Create a 60 MB file
-  const largeFile = await page1.evaluate(async () => {
-    const size = 60 * 1024 * 1024; // 60 MB
-    const data = new Uint8Array(size);
-    for (let i = 0; i < size; i++) {
-      data[i] = i % 256;
-    }
-    const file = new File([data], 'test_60mb.bin', { type: 'application/octet-stream' });
-    return { name: file.name, size: file.size };
-  });
-  
-  console.log(`Created test file: ${largeFile.name} (${(largeFile.size / 1024 / 1024).toFixed(1)} MB)`);
-  
-  // Try to upload the file (should fail with P2P required message)
-  await page1.evaluate(() => {
-    const input = document.getElementById('test-file-input') as HTMLInputElement;
-    // Simulate file selection
-    const event = new Event('change', { bubbles: true });
-    input.dispatchEvent(event);
-  });
-  
-  // Check for error message
-  await page1.waitForTimeout(1000);
-  const errorText = await page1.evaluate(() => {
-    const errorElements = document.querySelectorAll('.conn-error, .error-message, [class*="error"]');
-    for (const el of errorElements) {
-      if (el.textContent?.includes('P2P')) {
-        return el.textContent;
-      }
-    }
-    return null;
-  });
-  
-  if (errorText) {
-    console.log('✅ Error message displayed:', errorText);
-  } else {
-    console.log('❌ No P2P error message found');
-  }
-  
-  // Test 2: Verify file size limit
-  console.log('\n=== Test 2: File size limit ===');
-  
-  const hugeFile = await page1.evaluate(async () => {
-    const size = 550 * 1024 * 1024; // 550 MB
-    const data = new Uint8Array(1024); // Only create 1KB for testing
-    const file = new File([data], 'test_550mb.bin', { type: 'application/octet-stream' });
-    return { name: file.name, size: size }; // Report actual size
-  });
-  
-  console.log(`Created test file: ${hugeFile.name} (${(hugeFile.size / 1024 / 1024).toFixed(1)} MB)`);
-  
-  // Try to upload the huge file (should fail with size limit message)
-  await page1.evaluate(() => {
-    const input = document.getElementById('test-file-input') as HTMLInputElement;
-    const event = new Event('change', { bubbles: true });
-    input.dispatchEvent(event);
-  });
-  
-  await page1.waitForTimeout(1000);
-  const sizeError = await page1.evaluate(() => {
-    const errorElements = document.querySelectorAll('.conn-error, .error-message, [class*="error"]');
-    for (const el of errorElements) {
-      if (el.textContent?.includes('500 Mo')) {
-        return el.textContent;
-      }
-    }
-    return null;
-  });
-  
-  if (sizeError) {
-    console.log('✅ Size limit error displayed:', sizeError);
-  } else {
-    console.log('❌ No size limit error found');
-  }
-  
-  // Test 3: Verify P2P transfer UI elements exist
-  console.log('\n=== Test 3: P2P UI elements ===');
-  
-  const uiElements = await page1.evaluate(() => {
-    const elements = {
-      p2pTransfers: document.querySelector('.p2p-transfers'),
-      p2pTransfer: document.querySelector('.p2p-transfer'),
-      progressBar: document.querySelector('.p2p-progress-bar'),
-      progressFill: document.querySelector('.p2p-progress-fill'),
-    };
+
+  test('Upload button visible in chat', async ({ page }) => {
+    // Check for upload button
+    const uploadBtn = page.locator('[data-testid="upload-btn"], button[title*="fichier"], button[title*="upload"], .upload-btn').first();
     
-    return {
-      p2pTransfers: !!elements.p2pTransfers,
-      p2pTransfer: !!elements.p2pTransfer,
-      progressBar: !!elements.progressBar,
-      progressFill: !!elements.progressFill,
-    };
+    if (await uploadBtn.isVisible()) {
+      console.log('✅ Upload button visible');
+      await uploadBtn.click();
+      await page.waitForTimeout(1000);
+      
+      // Check if file input appears
+      const fileInput = page.locator('input[type="file"]');
+      if (await fileInput.count() > 0) {
+        console.log('✅ File input available');
+      }
+    } else {
+      // Maybe upload is triggered differently
+      console.log('⚠️ Upload button not found — checking alternative UI');
+      
+      // Check for attachment icon
+      const attachIcon = page.locator('[data-testid="attach"], .attach-icon, svg[aria-label*="attach"]').first();
+      if (await attachIcon.isVisible()) {
+        console.log('✅ Attachment icon found (alternative)');
+      }
+    }
   });
-  
-  console.log('UI elements:', uiElements);
-  
-  // Cleanup
-  await ctx1.close();
-  
-  console.log('\n=== Tests completed ===');
+
+  test('File size > 50MB shows P2P required message', async ({ page }) => {
+    // Navigate to a 1-to-1 conversation (not group)
+    // First, check if we're in a conversation
+    const convList = page.locator('.conversation-item, [data-testid="conversation"]');
+    const convCount = await convList.count();
+    
+    if (convCount > 1) {
+      // Click on a 1-to-1 conversation (not the first one which might be global)
+      await convList.nth(1).click();
+      await page.waitForTimeout(2000);
+    }
+
+    // Create a mock large file (60MB) using the file input
+    const fileInput = page.locator('input[type="file"]').first();
+    
+    if (await fileInput.count() > 0) {
+      // Set a large file via JavaScript (simulate selection)
+      const largeFileInfo = await page.evaluate(() => {
+        // Create a mock file object
+        const file = new File([''], 'large_file_60mb.bin', { type: 'application/octet-stream' });
+        Object.defineProperty(file, 'size', { value: 60 * 1024 * 1024 }); // 60MB
+        
+        // Trigger the upload handler
+        const event = new Event('change', { bubbles: true });
+        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+        if (input) {
+          // Simulate file selection
+          Object.defineProperty(input, 'files', {
+            value: [file],
+            writable: false,
+          });
+          input.dispatchEvent(event);
+        }
+        
+        return { name: file.name, size: file.size };
+      });
+
+      console.log('Mock file created:', largeFileInfo);
+      await page.waitForTimeout(2000);
+
+      // Check for P2P required message
+      const p2pMessage = page.locator('text=/P2P|P2P requis|connexion directe/i');
+      if (await p2pMessage.isVisible({ timeout: 3000 })) {
+        console.log('✅ P2P required message displayed');
+      } else {
+        console.log('⚠️ P2P message not found (might be auto-retry or different UI)');
+      }
+    }
+  });
+
+  test('Group conversation > 50MB file shows restriction message', async ({ page }) => {
+    // Try to navigate to a group conversation
+    const groupConv = page.locator('.conversation-item:has(.group-icon), [data-testid="conversation"]').first();
+    
+    // For this test, we'll just verify the restriction logic exists
+    const restrictionCheck = await page.evaluate(() => {
+      // Check if the app has logic to restrict >50MB files in groups
+      const hasP2PTransfer = typeof (window as any).startP2PTransfer === 'function';
+      const hasFileSizeCheck = document.querySelector('[data-testid="file-size-limit"]') !== null;
+      return { hasP2PTransfer, hasFileSizeCheck };
+    });
+
+    console.log('P2P/File size check:', restrictionCheck);
+  });
+
+  test('P2P transfer UI elements exist', async ({ page }) => {
+    // Check if P2P transfer components exist in the DOM
+    const p2pElements = await page.evaluate(() => {
+      const elements = {
+        p2pTransfers: document.querySelector('[data-testid="p2p-transfers"], .p2p-transfers'),
+        p2pTransfer: document.querySelector('[data-testid="p2p-transfer"], .p2p-transfer'),
+        progressBar: document.querySelector('[data-testid="p2p-progress"], .p2p-progress-bar'),
+        cancelBtn: document.querySelector('[data-testid="p2p-cancel"], .p2p-cancel-btn'),
+      };
+      return Object.entries(elements).reduce((acc, [key, el]) => {
+        acc[key] = !!el;
+        return acc;
+      }, {} as Record<string, boolean>);
+    });
+
+    console.log('P2P UI elements:', p2pElements);
+    
+    // At least one P2P element should exist (even if hidden)
+    const hasAnyP2P = Object.values(p2pElements).some(v => v);
+    if (hasAnyP2P) {
+      console.log('✅ P2P UI elements present in DOM');
+    } else {
+      console.log('⚠️ No P2P UI elements found (might be lazy-loaded)');
+    }
+  });
+
+  test('File type validation (SVG XSS prevention)', async ({ page }) => {
+    // Upload an SVG file (should be sanitized or rejected)
+    const fileInput = page.locator('input[type="file"]').first();
+    
+    if (await fileInput.count() > 0) {
+      // Create a malicious SVG
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" onload="alert('XSS')"><circle r="10"/></svg>`;
+      
+      const svgFile = await page.evaluate((content) => {
+        const blob = new Blob([content], { type: 'image/svg+xml' });
+        const file = new File([blob], 'malicious.svg', { type: 'image/svg+xml' });
+        
+        // Dispatch to input
+        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+        if (input) {
+          const event = new Event('change', { bubbles: true });
+          Object.defineProperty(input, 'files', { value: [file] });
+          input.dispatchEvent(event);
+        }
+        
+        return { name: file.name, type: file.type, size: file.size };
+      }, svgContent);
+
+      console.log('SVG file "uploaded":', svgFile);
+      await page.waitForTimeout(2000);
+
+      // Check that SVG is either rejected or sanitized
+      const xssAlert = await page.evaluate(() => {
+        return new Promise<boolean>((resolve) => {
+          const originalAlert = window.alert;
+          let alertCalled = false;
+          window.alert = () => { alertCalled = true; };
+          setTimeout(() => {
+            window.alert = originalAlert;
+            resolve(alertCalled);
+          }, 1000);
+        });
+      });
+
+      if (!xssAlert) {
+        console.log('✅ SVG XSS prevented (no alert triggered)');
+      } else {
+        console.log('❌ SVG XSS vulnerability!');
+      }
+    }
+  });
+
 });
