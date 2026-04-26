@@ -42,11 +42,11 @@ services:
           memory: "${MEMORY_RESERVATION:-256M}"
 
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 40s
 
     networks:
       - nook-network
@@ -72,11 +72,11 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost/"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
 
     networks:
       - nook-network
@@ -98,7 +98,7 @@ services:
       - TURN_PORT=${TURN_PORT:-3478}
 
     healthcheck:
-      test: ["CMD", "pgrep", "turn-server"]
+      test: ["CMD", "pgrep", "-f", "turn"]
       interval: 15s
       timeout: 5s
       retries: 3
