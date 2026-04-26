@@ -12,17 +12,17 @@ test('Test Service Worker et Push Notifications', async ({ page }) => {
   });
   
   // Login
-  await page.goto('https://192.168.1.192:6443/login');
+  await page.goto('http://localhost:6300/login');
   await page.waitForTimeout(2000);
   await page.fill('input[type="text"], input[name="username"]', 'hermes-bot');
   await page.fill('input[type="password"]', 'Hermes2026!');
   await page.click('button[type="submit"]');
   await page.waitForTimeout(3000);
-  
+
   console.log('URL après login:', page.url());
-  
+
   // Aller aux paramètres
-  await page.goto('https://192.168.1.192:6443/settings');
+  await page.goto('http://localhost:6300/settings');
   await page.waitForTimeout(3000);
   
   // Vérifier Service Worker
