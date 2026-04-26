@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://192.168.1.192:6300';
+const BASE = 'http://localhost:6300';
 
 test.describe('Chat UI — Améliorations', () => {
   
