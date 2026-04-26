@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-26 14:44 UTC**
+> Généré par `test-nook.yml` · **2026-04-26 15:28 UTC**
 
 ---
 
@@ -8,16 +8,16 @@
 
 | Indicateur | Valeur |
 |-----------|--------|
-| **Statut** | ⚠️ **AUCUN TEST** |
-| **Tests passés** | 0 |
-| **Tests échoués** | 0 |
+| **Statut** | ❌ **ÉCHEC** |
+| **Tests passés** | 74 |
+| **Tests échoués** | 8 |
 | **Tests flaky** | 0 |
-| **Tests ignorés** | 0 |
-| **Total** | 0 |
-| **Durée totale** | N/A |
+| **Tests ignorés** | 90 |
+| **Total** | 172 |
+| **Durée totale** | 14m 7.6s |
 | **Branche** | `develop` |
-| **Commit** | [`7ea4cea`](https://github.com/MX10-AC2N/Nook/commit/7ea4ceaab20416b60e6dbd6bc8c40ee5f779780d) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24958997700) |
+| **Commit** | [`1776543`](https://github.com/MX10-AC2N/Nook/commit/1776543d10e249d2e903069088854c59e51679cd) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24959590679) |
 
 ---
 
@@ -31,21 +31,615 @@
 
 ---
 
-## ⚠️ Aucun test exécuté
+## ⏱️ Top 10 Tests les plus lents (Performance Hotspots)
 
-Playwright n'a trouvé ou exécuté aucun test.
+| Rang | Test | Durée | Fichier |
+|------|------|-------|---------|
+| 1 | Input stays enabled while sending | 2m 10.2s | `?` |
+| 2 | Reaction picker opens on hover + click | 2m 10.2s | `?` |
+| 3 | Login + navigate to chat | 2m 10.1s | `?` |
+| 4 | Header is compact (< 60px) | 2m 10.1s | `?` |
+| 5 | Send emoji-only message (should be large) | 2m 10.1s | `?` |
+| 6 | Test Service Worker et Push Notifications | 2m 10.1s | `?` |
+| 7 | /call/fake-id avec auth → page charge | 30.2s | `?` |
+| 8 | /call/fake-id sans auth → redirige vers /login | 21.2s | `?` |
+| 9 | Créer partie → jouer e2→e4 → IA répond | 0.1s | `?` |
+| 10 | 8 chars → accepte | 0.0s | `?` |
 
-**Causes possibles :**
-- Serveur non accessible (http://localhost:6300)
-- Fichiers .spec.ts non trouvés dans tests/
-- Configuration Playwright incorrecte
-- Erreur de compilation TypeScript
+---
+
+## 📋 Résultats par catégorie
+
+### ❌ **chat-ui.spec.ts** — 0/5 passés · ❌ 5 failed
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ❌ | Input stays enabled while sending | 2m 10.2s  +1 | |
+| ❌ | Reaction picker opens on hover + click | 2m 10.2s  +1 | |
+| ❌ | Login + navigate to chat | 2m 10.1s  +1 | |
+| ❌ | Header is compact (< 60px) | 2m 10.1s  +1 | |
+| ❌ | Send emoji-only message (should be large) | 2m 10.1s  +1 | |
+
+### ❌ **api-sanity.spec.ts** — 74/76 passés · ❌ 2 failed
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ❌ | /call/fake-id avec auth → page charge | 30.2s  +1 | |
+| ❌ | /call/fake-id sans auth → redirige vers /login | 21.2s  +1 | |
+| ✅ | Créer partie → jouer e2→e4 → IA répond | 0.1s | |
+| ✅ | 8 chars → accepte | 0.0s | |
+| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
+| ✅ | User change pwd autre user → 403 (integration) | 0.0s | |
+| ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
+| ✅ | User normal change pwd autre user → 403 | 0.0s | |
+| ✅ | Rename conversation → 200 | 0.0s | |
+| ✅ | Upload fichier texte → 200 | 0.0s | |
+| ✅ | Upload → Download end-to-end | 0.0s | |
+| ✅ | Download inexistant → 404 | 0.0s | |
+| ✅ | Envoyer message → 200 | 0.0s | |
+| ✅ | Rename conversation → 200 (second block) | 0.0s | |
+| ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
+| ✅ | Download fichier inexistant → 404 | 0.0s | |
+| ✅ | GET /api/health → "OK" | 0.0s | |
+| ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
+| ✅ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | |
+| ✅ | GET /auth/me → 401 | 0.0s | |
+| ✅ | POST /auth/logout → 401 | 0.0s | |
+| ✅ | 1 char → 400 | 0.0s | |
+| ✅ | POST /auth/public-key → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | POST /auth/change-password → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
+| ✅ | POST /invites → 401 | 0.0s | |
+| ✅ | 5 chars → 400 | 0.0s | |
+| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
+| ✅ | GET /conversations → 401 | 0.0s | |
+| ✅ | POST /conversations → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | PATCH /conversations/default_global/rename → 401 | 0.0s | |
+| ✅ | GET /events → 401 | 0.0s | |
+| ✅ | DELETE /events/fake-id → 401 | 0.0s | |
+| ✅ | POST /polls → 401 | 0.0s | |
+| ✅ | GET /polls/fake-id → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
+| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
+| ✅ | GET /chess/list → 401 | 0.0s | |
+| ✅ | POST /chess/create → 401 | 0.0s | |
+| ✅ | GET /chess/fake-id → 401 | 0.0s | |
+| ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
+| ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | Mot de passe 5 chars → 400 | 0.0s | |
+| ✅ | Chess coup illégal → 400 | 0.0s | |
+| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
+| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
+| ✅ | POST /events → 401 | 0.0s | |
+| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | GET /chess/invitations → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/resign → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | POST /user/update → 401 | 0.0s | |
+| ✅ | GET /push/preferences → 401 | 0.0s | |
+| ✅ | GET /users/pending → 401 | 0.0s | |
+| ✅ | GET /users → 401 | 0.0s | |
+| ✅ | POST /users/approve → 401 | 0.0s | |
+| ✅ | GET /invites → 401 | 0.0s | |
+| ✅ | POST /invites/delete → 401 | 0.0s | |
+| ✅ | GET /analytics → 401 | 0.0s | |
+| ✅ | Mot de passe 7 chars → 400 | 0.0s | |
+| ✅ | Chess resign → status finished | 0.0s | |
+| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | GET /users/available → 401 | 0.0s | |
+| ✅ | Mot de passe 1 char → 400 | 0.0s | |
+| ✅ | Modifier message → 200 | 0.0s | |
+| ✅ | Supprimer message → 200/204 | 0.0s | |
+| ✅ | Lister messages → contient le message modifié | 0.0s | |
+
+### ❌ **push-test.spec.ts** — 0/1 passés · ❌ 1 failed
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ❌ | Test Service Worker et Push Notifications | 2m 10.1s  +1 | |
+
+### ✅ **admin.spec.ts** — 0/25 passés
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ⏭️ | Admin — page /admin chargée avec header | N/A | |
+| ⏭️ | Admin — 3 onglets visibles | N/A | |
+| ⏭️ | GET /auth/me avec session admin → role=admin | N/A | |
+| ⏭️ | GET /users → liste complète (admin) | N/A | |
+| ⏭️ | GET /users/pending → 200 | N/A | |
+| ⏭️ | Onglet "Membres" → users visibles dans UI | N/A | |
+| ⏭️ | Flux inscription : register → pending → approve → connecté | N/A | |
+| ⏭️ | POST /invites → génère un invite_link valide | N/A | |
+| ⏭️ | GET /invites → liste non vide | N/A | |
+| ⏭️ | POST /invites/delete → supprime une invitation | N/A | |
+| ⏭️ | GET /invite/validate?token=xxx → valide le token | N/A | |
+| ⏭️ | Admin UI — invitation générée visible dans l'interface | N/A | |
+| ⏭️ | GET /analytics → tous les champs requis | N/A | |
+| ⏭️ | Page /admin/analytics → stat-cards + 2 charts | N/A | |
+| ⏭️ | Admin — DELETE /polls/{id} → 200 | N/A | |
+| ⏭️ | GET /analytics avec user normal → 403 | N/A | |
+| ⏭️ | GET /users/pending avec user normal → 403 | N/A | |
+| ⏭️ | Page /admin → non accessible pour user normal | N/A | |
+| ⏭️ | Admin — DELETE /users/{id} → supprime un utilisateur | N/A | |
+| ⏭️ | Admin — approve + login after approve → accès complet | N/A | |
+| ⏭️ | Admin — analytics contient toutes les sections | N/A | |
+| ⏭️ | DELETE /users/{id} → supprime un utilisateur | N/A | |
+| ⏭️ | GET /analytics → contient user_count, message_count | N/A | |
+| ⏭️ | GET /analytics sans auth → 401 | N/A | |
+| ⏭️ | Register + Approve + Login → accès complet | N/A | |
+
+### ✅ **user.spec.ts** — 0/65 passés
+
+| Statut | Test | Durée | Retries |
+|--------|------|-------|---------|
+| ⏭️ | Login e2e_ci → redirigé vers /chat | N/A | |
+| ⏭️ | GET /auth/me → username=e2e_ci | N/A | |
+| ⏭️ | Login invalide → reste sur /login | N/A | |
+| ⏭️ | GET /conversations → default_global présente | N/A | |
+| ⏭️ | GET /conversations/default_global → détail de la conv | N/A | |
+| ⏭️ | GET /conversations/default_global/participants → e2e_ci présent | N/A | |
+| ⏭️ | Chat UI — sidebar et envoi message | N/A | |
+| ⏭️ | GET /conversations/default_global/messages → messages récupérés | N/A | |
+| ⏭️ | POST /conversations → créer un groupe de test | N/A | |
+| ⏭️ | GET /users/available → liste des membres disponibles | N/A | |
+| ⏭️ | Réactions — POST emoji valide 👍 → counts mis à jour | N/A | |
+| ⏭️ | Réactions — POST emoji non autorisé 🦄 → 400 | N/A | |
+| ⏭️ | Réactions — UPSERT : 👍 → ❤️ remplace sans doublon | N/A | |
+| ⏭️ | Réactions — DELETE → my_emoji null | N/A | |
+| ⏭️ | Réactions — GET → structure {message_id, counts, my_emoji} | N/A | |
+| ⏭️ | Réactions — message inexistant → 404 | N/A | |
+| ⏭️ | Réactions — cycle complet via API | N/A | |
+| ⏭️ | Upload — fichier texte → file_id, url=/api/download/, download OK | N/A | |
+| ⏭️ | Download — id inexistant → 404 | N/A | |
+| ⏭️ | GET /polls → tableau de sondages | N/A | |
+| ⏭️ | Polls — cycle complet : créer → voter → changer → double vote → fermer → vote fermé | N/A | |
+| ⏭️ | Polls UI — créer sondage via formulaire → visible dans liste | N/A | |
+| ⏭️ | GET /chess/list → 200 | N/A | |
+| ⏭️ | Chess — créer vs IA, coups légaux, coup légal e2→e4, coup illégal → 400 | N/A | |
+| ⏭️ | Chess — POST /chess/{id}/ai-move → 200 | N/A | |
+| ⏭️ | Chess — POST /chess/{id}/resign → 200 | N/A | |
+| ⏭️ | Chess — invitations : créer, inviter, lister, décliner | N/A | |
+| ⏭️ | Chess UI — plateau 64 cases + sélection case + coup via UI | N/A | |
+| ⏭️ | Calendar — GET /events → 200 | N/A | |
+| ⏭️ | Calendar — POST /events → crée et DELETE /events/{id} → supprime | N/A | |
+| ⏭️ | Calendar UI — page, grille et bouton ajouter visibles | N/A | |
+| ⏭️ | Settings UI — 3 onglets navigables | N/A | |
+| ⏭️ | Settings — changement de thème (clic → sélectionné) | N/A | |
+| ⏭️ | POST /user/update → mise à jour du nom | N/A | |
+| ⏭️ | Navigation /chat → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /calendar → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /chess → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /polls → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /settings → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /help → accessible sans erreur | N/A | |
+| ⏭️ | Navigation /events → accessible sans erreur | N/A | |
+| ⏭️ | E2EE — POST /auth/public-key → enregistre la clé | N/A | |
+| ⏭️ | E2EE — GET /auth/public-keys → objet avec clés des membres | N/A | |
+| ⏭️ | Push — GET /push/vapid-public-key → 200 | N/A | |
+| ⏭️ | Push — GET /push/preferences → prefs par défaut | N/A | |
+| ⏭️ | Push — POST /push/preferences → mise à jour | N/A | |
+| ⏭️ | Push — POST /push/subscribe → 200 | N/A | |
+| ⏭️ | Avatar — composant visible avec initiales dans le chat | N/A | |
+| ⏭️ | Settings — section avatar visible avec grille d'options | N/A | |
+| ⏭️ | Calendar — switcher vue Mois/Semaine/Jour visible | N/A | |
+| ⏭️ | Chess — sélection pièce → coups légaux visibles (dots) | N/A | |
+| ⏭️ | Logout UI → redirigé vers /login | N/A | |
+| ⏭️ | Calendar — drag-drop: PUT /events/{id} change date | N/A | |
+| ⏭️ | Chess — PGN notation via move_history | N/A | |
+| ⏭️ | Analytics — chart.js lazy loaded | N/A | |
+| ⏭️ | Flood /auth/login × 20 depuis même IP → au moins un 429 | N/A | |
+| ⏭️ | /call/default_global → page charge avec titres | N/A | |
+| ⏭️ | /call/default_global → page contient contenu call | N/A | |
+| ⏭️ | /call/[id] session → page appel chargee (sans auth first) | N/A | |
+| ⏭️ | Créer partie vs IA (facile) → game_id | N/A | |
+| ⏭️ | Chess — UI plateau 8x8 (64 cases) | N/A | |
+| ⏭️ | Chess — coup légal e2→e4 | N/A | |
+| ⏭️ | Chess — coup illégal → 400 | N/A | |
+| ⏭️ | Chess — coups légaux depuis e2 → contient e3 et e4 | N/A | |
+| ⏭️ | Chess — resign → status finished | N/A | |
+
+---
+
+## 📁 Résultats par fichier de test
+
+| Fichier | ✅ Passés | ❌ Échoués | ⚠️ Flaky | Total |
+|---------|-----------|-------------|-----------|-------|
+| ❌ `unknown` | 74 | 8 | 0 | 172 |
+
+---
+
+## ❌ Échecs détaillés
+
+> 8 test(s) en échec
+
+### Échec 1 — `/call/fake-id sans auth → redirige vers /login`
+
+**Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
+**Durée :** 21.2s
+
+**Message :**
+```
+TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================
+
+  282 |     await page.goto('http://localhost:6300/call/fake-id');
+  283 |     await page.waitForLoadState('networkidle');
+> 284 |     await page.waitForURL(/login/, { timeout: 10000 });
+      |                ^
+  285 |     expect(page.url()).toContain('login');
+  286 |   });
+  287 |
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:284:16
+```
+
+**Message :**
+```
+TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
+=========================== logs ===========================
+waiting for navigation until "load"
+============================================================
+
+  282 |     await page.goto('http://localhost:6300/call/fake-id');
+  283 |     await page.waitForLoadState('networkidle');
+> 284 |     await page.waitForURL(/login/, { timeout: 10000 });
+      |                ^
+  285 |     expect(page.url()).toContain('login');
+  286 |   });
+  287 |
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:284:16
+```
+
+### Échec 2 — `/call/fake-id avec auth → page charge`
+
+**Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
+**Durée :** 30.2s
+
+**Message :**
+```
+TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.
+Call log:
+  - waiting for locator('#username') to be visible
+
+
+  289 |     const page = await browser.newPage();
+  290 |     await page.goto('http://localhost:6300/login');
+> 291 |     await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });
+      |                ^
+  292 |     await page.fill('#username', 'e2e_ci');
+  293 |     await page.fill('#password', 'E2eTest123!');
+  294 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:291:16
+```
+
+**Message :**
+```
+TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.
+Call log:
+  - waiting for locator('#username') to be visible
+
+
+  289 |     const page = await browser.newPage();
+  290 |     await page.goto('http://localhost:6300/login');
+> 291 |     await page.waitForSelector('#username', { state: 'visible', timeout: 15000 });
+      |                ^
+  292 |     await page.fill('#username', 'e2e_ci');
+  293 |     await page.fill('#password', 'E2eTest123!');
+  294 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:291:16
+```
+
+### Échec 3 — `Login + navigate to chat`
+
+**Suite :** `chat-ui.spec.ts > Chat UI — Améliorations`
+**Durée :** 2m 10.1s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+   6 |   
+   7 |   test('Login + navigate to chat', async ({ page }) => {
+>  8 |     await page.goto(BASE + '/login');
+     |                ^
+   9 |     await page.screenshot({ path: '/tmp/nook-01-login.png' });
+  10 |     
+  11 |     // Fill login form
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:8:16
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+   6 |   
+   7 |   test('Login + navigate to chat', async ({ page }) => {
+>  8 |     await page.goto(BASE + '/login');
+     |                ^
+   9 |     await page.screenshot({ path: '/tmp/nook-01-login.png' });
+  10 |     
+  11 |     // Fill login form
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:8:16
+```
+
+### Échec 4 — `Header is compact (< 60px)`
+
+**Suite :** `chat-ui.spec.ts > Chat UI — Améliorations`
+**Durée :** 2m 10.1s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  22 |   test('Header is compact (< 60px)', async ({ page }) => {
+  23 |     // Login first
+> 24 |     await page.goto(BASE + '/login');
+     |                ^
+  25 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  26 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  27 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:24:16
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  22 |   test('Header is compact (< 60px)', async ({ page }) => {
+  23 |     // Login first
+> 24 |     await page.goto(BASE + '/login');
+     |                ^
+  25 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  26 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  27 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:24:16
+```
+
+### Échec 5 — `Send emoji-only message (should be large)`
+
+**Suite :** `chat-ui.spec.ts > Chat UI — Améliorations`
+**Durée :** 2m 10.1s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  38 |
+  39 |   test('Send emoji-only message (should be large)', async ({ page }) => {
+> 40 |     await page.goto(BASE + '/login');
+     |                ^
+  41 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  42 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  43 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:40:16
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  38 |
+  39 |   test('Send emoji-only message (should be large)', async ({ page }) => {
+> 40 |     await page.goto(BASE + '/login');
+     |                ^
+  41 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  42 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  43 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:40:16
+```
+
+### Échec 6 — `Reaction picker opens on hover + click`
+
+**Suite :** `chat-ui.spec.ts > Chat UI — Améliorations`
+**Durée :** 2m 10.2s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  60 |
+  61 |   test('Reaction picker opens on hover + click', async ({ page }) => {
+> 62 |     await page.goto(BASE + '/login');
+     |                ^
+  63 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  64 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  65 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:62:16
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+  60 |
+  61 |   test('Reaction picker opens on hover + click', async ({ page }) => {
+> 62 |     await page.goto(BASE + '/login');
+     |                ^
+  63 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  64 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  65 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:62:16
+```
+
+### Échec 7 — `Input stays enabled while sending`
+
+**Suite :** `chat-ui.spec.ts > Chat UI — Améliorations`
+**Durée :** 2m 10.2s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+   96 |
+   97 |   test('Input stays enabled while sending', async ({ page }) => {
+>  98 |     await page.goto(BASE + '/login');
+      |                ^
+   99 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  100 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  101 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:98:16
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "http://192.168.1.192:6300/login", waiting until "load"
+
+
+   96 |
+   97 |   test('Input stays enabled while sending', async ({ page }) => {
+>  98 |     await page.goto(BASE + '/login');
+      |                ^
+   99 |     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
+  100 |     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+  101 |     await page.click('button[type="submit"]');
+    at /home/runner/work/Nook/Nook/frontend/tests/chat-ui.spec.ts:98:16
+```
+
+### Échec 8 — `Test Service Worker et Push Notifications`
+
+**Suite :** `push-test.spec.ts`
+**Durée :** 2m 10.1s
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "https://192.168.1.192:6443/login", waiting until "load"
+
+
+  13 |   
+  14 |   // Login
+> 15 |   await page.goto('https://192.168.1.192:6443/login');
+     |              ^
+  16 |   await page.waitForTimeout(2000);
+  17 |   await page.fill('input[type="text"], input[name="username"]', 'hermes-bot');
+  18 |   await page.fill('input[type="password"]', 'Hermes2026!');
+    at /home/runner/work/Nook/Nook/frontend/tests/push-test.spec.ts:15:14
+```
+
+**Message :**
+```
+Test timeout of 60000ms exceeded.
+```
+
+**Message :**
+```
+Error: page.goto: net::ERR_ABORTED; maybe frame was detached?
+Call log:
+  - navigating to "https://192.168.1.192:6443/login", waiting until "load"
+
+
+  13 |   
+  14 |   // Login
+> 15 |   await page.goto('https://192.168.1.192:6443/login');
+     |              ^
+  16 |   await page.waitForTimeout(2000);
+  17 |   await page.fill('input[type="text"], input[name="username"]', 'hermes-bot');
+  18 |   await page.fill('input[type="password"]', 'Hermes2026!');
+    at /home/runner/work/Nook/Nook/frontend/tests/push-test.spec.ts:15:14
+```
 
 ---
 
 ## 🐳 Logs backend (warnings/erreurs)
 
-Aucun warning ou erreur dans les logs backend. ✅
+```
+WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+```
 
 ---
 
@@ -54,11 +648,11 @@ Aucun warning ou erreur dans les logs backend. ✅
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24958997700](https://github.com/MX10-AC2N/Nook/actions/runs/24958997700)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24959590679](https://github.com/MX10-AC2N/Nook/actions/runs/24959590679)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24958997700)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24959590679)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -84,4 +678,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-26 14:44 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-26 15:28 UTC*
