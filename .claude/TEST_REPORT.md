@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-04-26 17:57 UTC**
+> Généré par `test-nook.yml` · **2026-04-26 19:37 UTC**
 
 ---
 
@@ -9,15 +9,15 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 74 |
-| **Tests échoués** | 2 |
+| **Tests passés** | 75 |
+| **Tests échoués** | 1 |
 | **Tests flaky** | 0 |
 | **Tests ignorés** | 136 |
 | **Total** | 212 |
-| **Durée totale** | 56.5s |
+| **Durée totale** | 26.7s |
 | **Branche** | `develop` |
-| **Commit** | [`de4d5a1`](https://github.com/MX10-AC2N/Nook/commit/de4d5a18fe1633f8da6593d92986b24b0abd3ac0) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24962901484) |
+| **Commit** | [`bfd2700`](https://github.com/MX10-AC2N/Nook/commit/bfd270049b713d7fdeb38887ee9d9a0d23a52622) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/24964952531) |
 
 ---
 
@@ -35,81 +35,84 @@
 
 | Rang | Test | Durée | Fichier |
 |------|------|-------|---------|
-| 1 | /call/fake-id avec auth → page charge | 30.2s | `?` |
-| 2 | /call/fake-id sans auth → redirige vers /login | 20.2s | `?` |
+| 1 | /call/fake-id avec auth → page charge | 21.0s | `?` |
+| 2 | /call/fake-id sans auth → redirige vers /login | 0.3s | `?` |
 | 3 | Créer partie → jouer e2→e4 → IA répond | 0.1s | `?` |
-| 4 | User change pwd autre user → 403 (integration) | 0.0s | `?` |
-| 5 | Mot de passe 8 chars → accepte | 0.0s | `?` |
-| 6 | 8 chars → accepte | 0.0s | `?` |
-| 7 | User normal change pwd autre user → 403 | 0.0s | `?` |
-| 8 | Upload fichier texte → file_id, puis download OK | 0.0s | `?` |
-| 9 | Download fichier inexistant → 404 | 0.0s | `?` |
-| 10 | Rename conversation → 200 | 0.0s | `?` |
+| 4 | 8 chars → accepte | 0.0s | `?` |
+| 5 | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | `?` |
+| 6 | Mot de passe 8 chars → accepte | 0.0s | `?` |
+| 7 | Envoyer message → 200 | 0.0s | `?` |
+| 8 | User normal change pwd autre user → 403 | 0.0s | `?` |
+| 9 | User change pwd autre user → 403 (integration) | 0.0s | `?` |
+| 10 | Upload fichier texte → 200 | 0.0s | `?` |
 
 ---
 
 ## 📋 Résultats par catégorie
 
-### ❌ **api-sanity.spec.ts** — 74/76 passés · ❌ 2 failed
+### ❌ **api-sanity.spec.ts** — 75/76 passés · ❌ 1 failed
 
 | Statut | Test | Durée | Retries |
 |--------|------|-------|---------|
-| ❌ | /call/fake-id avec auth → page charge | 30.2s  +1 | |
-| ❌ | /call/fake-id sans auth → redirige vers /login | 20.2s  +1 | |
+| ❌ | /call/fake-id avec auth → page charge | 21.0s  +1 | |
+| ✅ | /call/fake-id sans auth → redirige vers /login | 0.3s | |
 | ✅ | Créer partie → jouer e2→e4 → IA répond | 0.1s | |
-| ✅ | User change pwd autre user → 403 (integration) | 0.0s | |
-| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
 | ✅ | 8 chars → accepte | 0.0s | |
-| ✅ | User normal change pwd autre user → 403 | 0.0s | |
-| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
-| ✅ | Download fichier inexistant → 404 | 0.0s | |
-| ✅ | Rename conversation → 200 | 0.0s | |
 | ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
-| ✅ | Download inexistant → 404 | 0.0s | |
+| ✅ | Mot de passe 8 chars → accepte | 0.0s | |
 | ✅ | Envoyer message → 200 | 0.0s | |
-| ✅ | Upload fichier vide → 400 | 0.0s | |
-| ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | User normal change pwd autre user → 403 | 0.0s | |
+| ✅ | User change pwd autre user → 403 (integration) | 0.0s | |
 | ✅ | Upload fichier texte → 200 | 0.0s | |
 | ✅ | Upload → Download end-to-end | 0.0s | |
+| ✅ | Download inexistant → 404 | 0.0s | |
 | ✅ | Rename conversation → 200 (second block) | 0.0s | |
+| ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
+| ✅ | Download fichier inexistant → 404 | 0.0s | |
+| ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | Rename conversation → 200 | 0.0s | |
 | ✅ | GET /api/health → "OK" | 0.0s | |
 | ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
+| ✅ | 1 char → 400 | 0.0s | |
 | ✅ | GET /auth/me → 401 | 0.0s | |
 | ✅ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | |
 | ✅ | POST /auth/logout → 401 | 0.0s | |
-| ✅ | 1 char → 400 | 0.0s | |
-| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
 | ✅ | POST /auth/change-password → 401 | 0.0s | |
-| ✅ | POST /auth/public-key → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | Chess resign → status finished | 0.0s | |
 | ✅ | 5 chars → 400 | 0.0s | |
-| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
+| ✅ | POST /auth/public-key → 401 | 0.0s | |
 | ✅ | GET /conversations → 401 | 0.0s | |
 | ✅ | POST /conversations → 401 | 0.0s | |
-| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
-| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
-| ✅ | GET /polls/fake-id → 401 | 0.0s | |
-| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
-| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
-| ✅ | GET /users → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | POST /events → 401 | 0.0s | |
 | ✅ | POST /invites → 401 | 0.0s | |
-| ✅ | Chess coup illégal → 400 | 0.0s | |
+| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
 | ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
 | ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
 | ✅ | PATCH /conversations/default_global/rename → 401 | 0.0s | |
-| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
-| ✅ | GET /events → 401 | 0.0s | |
-| ✅ | POST /events → 401 | 0.0s | |
 | ✅ | DELETE /events/fake-id → 401 | 0.0s | |
-| ✅ | GET /polls → 401 | 0.0s | |
-| ✅ | POST /polls → 401 | 0.0s | |
+| ✅ | GET /polls/fake-id → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
+| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
 | ✅ | GET /chess/list → 401 | 0.0s | |
 | ✅ | POST /chess/create → 401 | 0.0s | |
+| ✅ | GET /chess/invitations → 401 | 0.0s | |
 | ✅ | GET /chess/fake-id → 401 | 0.0s | |
 | ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
 | ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
 | ✅ | POST /chess/fake-id/resign → 401 | 0.0s | |
+| ✅ | GET /users → 401 | 0.0s | |
+| ✅ | Chess coup illégal → 400 | 0.0s | |
+| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
+| ✅ | GET /events → 401 | 0.0s | |
+| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | POST /polls → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
 | ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
 | ✅ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
@@ -124,12 +127,9 @@
 | ✅ | Mot de passe 1 char → 400 | 0.0s | |
 | ✅ | Mot de passe 5 chars → 400 | 0.0s | |
 | ✅ | Mot de passe 7 chars → 400 | 0.0s | |
-| ✅ | Chess resign → status finished | 0.0s | |
-| ✅ | GET /chess/invitations → 401 | 0.0s | |
-| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
 | ✅ | Modifier message → 200 | 0.0s | |
-| ✅ | Supprimer message → 200/204 | 0.0s | |
 | ✅ | Lister messages → contient le message modifié | 0.0s | |
+| ✅ | Supprimer message → 200/204 | 0.0s | |
 
 ### ✅ **admin-ui.spec.ts** — 0/6 passés
 
@@ -333,18 +333,18 @@
 
 | Fichier | ✅ Passés | ❌ Échoués | ⚠️ Flaky | Total |
 |---------|-----------|-------------|-----------|-------|
-| ❌ `unknown` | 74 | 2 | 0 | 212 |
+| ❌ `unknown` | 75 | 1 | 0 | 212 |
 
 ---
 
 ## ❌ Échecs détaillés
 
-> 2 test(s) en échec
+> 1 test(s) en échec
 
-### Échec 1 — `/call/fake-id sans auth → redirige vers /login`
+### Échec 1 — `/call/fake-id avec auth → page charge`
 
 **Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
-**Durée :** 20.2s
+**Durée :** 21.0s
 
 **Message :**
 ```
@@ -353,14 +353,14 @@ TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
 waiting for navigation until "load"
 ============================================================
 
-  281 |     const page = await browser.newPage();
-  282 |     await page.goto('http://localhost:6300/call/fake-id');
-> 283 |     await page.waitForURL(/login/, { timeout: 10000 });
+  292 |     await page.fill('input[name="password"], input[type="password"]', 'E2eTest123!');
+  293 |     await page.click('button[type="submit"]');
+> 294 |     await page.waitForURL(/chat|change-password/, { timeout: 10000 });
       |                ^
-  284 |     expect(page.url()).toContain('login');
-  285 |   });
-  286 |
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:283:16
+  295 |
+  296 |     await page.goto('http://localhost:6300/call/default_global');
+  297 |     await page.waitForLoadState('networkidle', { timeout: 10000 });
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:294:16
 ```
 
 **Message :**
@@ -370,53 +370,14 @@ TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
 waiting for navigation until "load"
 ============================================================
 
-  281 |     const page = await browser.newPage();
-  282 |     await page.goto('http://localhost:6300/call/fake-id');
-> 283 |     await page.waitForURL(/login/, { timeout: 10000 });
-      |                ^
-  284 |     expect(page.url()).toContain('login');
-  285 |   });
-  286 |
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:283:16
-```
-
-### Échec 2 — `/call/fake-id avec auth → page charge`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
-**Durée :** 30.2s
-
-**Message :**
-```
-TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.
-Call log:
-  - waiting for locator('input[name="username"], input[type="text"]') to be visible
-
-
-  288 |     const page = await browser.newPage();
-  289 |     await page.goto('http://localhost:6300/login');
-> 290 |     await page.waitForSelector('input[name="username"], input[type="text"]', { state: 'visible', timeout: 15000 });
-      |                ^
-  291 |     await page.fill('input[name="username"], input[type="text"]', 'e2e_ci');
   292 |     await page.fill('input[name="password"], input[type="password"]', 'E2eTest123!');
   293 |     await page.click('button[type="submit"]');
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:290:16
-```
-
-**Message :**
-```
-TimeoutError: page.waitForSelector: Timeout 15000ms exceeded.
-Call log:
-  - waiting for locator('input[name="username"], input[type="text"]') to be visible
-
-
-  288 |     const page = await browser.newPage();
-  289 |     await page.goto('http://localhost:6300/login');
-> 290 |     await page.waitForSelector('input[name="username"], input[type="text"]', { state: 'visible', timeout: 15000 });
+> 294 |     await page.waitForURL(/chat|change-password/, { timeout: 10000 });
       |                ^
-  291 |     await page.fill('input[name="username"], input[type="text"]', 'e2e_ci');
-  292 |     await page.fill('input[name="password"], input[type="password"]', 'E2eTest123!');
-  293 |     await page.click('button[type="submit"]');
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:290:16
+  295 |
+  296 |     await page.goto('http://localhost:6300/call/default_global');
+  297 |     await page.waitForLoadState('networkidle', { timeout: 10000 });
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:294:16
 ```
 
 ---
@@ -434,11 +395,11 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24962901484](https://github.com/MX10-AC2N/Nook/actions/runs/24962901484)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/24964952531](https://github.com/MX10-AC2N/Nook/actions/runs/24964952531)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24962901484)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/24964952531)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -464,4 +425,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-04-26 17:57 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-04-26 19:37 UTC*
