@@ -535,12 +535,14 @@ pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
 }
 
 #[derive(Clone)]
-pub struct P2PFileTransfer {
+#[allow(dead_code)]
+pub(crate) struct P2PFileTransfer {
     pub transfers: Arc<Mutex<HashMap<String, P2PTransferState>>>,
 }
 
 #[derive(Clone)]
-struct P2PTransferState {
+#[allow(dead_code)]
+pub(crate) struct P2PTransferState {
     file_id: String,
     file_name: String,
     total_size: usize,
@@ -551,6 +553,7 @@ struct P2PTransferState {
     conversation_id: String,
 }
 
+#[allow(dead_code)]
 impl P2PFileTransfer {
     pub fn new() -> Self {
         Self {
