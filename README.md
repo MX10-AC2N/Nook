@@ -239,6 +239,42 @@ Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires G
 
 ---
 
+## 📸 Captures d'écran
+
+Voici Nook en action sur différents appareils :
+
+### 💬 Conversation
+![Chat Nook](docs/screenshots/chat.png)
+*Interface de chat avec messages chiffrés E2EE*
+
+### 📞 Appels audio/vidéo
+![Appel Nook](docs/screenshots/call.png)
+*Appel WebRTC P2P (chiffré de bout en bout)*
+
+### 📅 Calendrier
+![Calendrier Nook](docs/screenshots/calendar.png)
+*Événements familiaux partagés*
+
+### ♟️ Parties d'échecs
+![Échecs Nook](docs/screenshots/chess.png)
+*Jouez contre l'IA ou entre membres*
+
+### 📊 Sondages
+![Sondages Nook](docs/screenshots/polls.png)
+*Créez des votes en quelques secondes*
+
+### 🔐 Paramètres
+![Paramètres Nook](docs/screenshots/settings.png)
+*Thèmes, notifications, sécurité*
+
+> **Comment ajouter vos propres captures :**
+> 1. Prenez des captures sur https://votre-serveur:6443
+> 2. Placez-les dans `docs/screenshots/` (format .png ou .jpg)
+> 3. Les noms attendus : `chat.png`, `call.png`, `calendar.png`, `chess.png`, `polls.png`, `settings.png`
+> 4. Faites un commit : `git add docs/screenshots/ && git commit -m "docs: add Nook screenshots"`
+
+--
+
 ## Architecture (pour les curieux)
 
 ```
