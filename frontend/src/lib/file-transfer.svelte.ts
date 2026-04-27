@@ -122,15 +122,17 @@ async function decryptChunk(
 
 // Récupérer la clé de groupe depuis E2EE
 async function getGroupKey(convoId: string): Promise<Uint8Array | null> {
-  // TODO: Implémenter la récupération de la clé de groupe
-  // Pour l'instant, on utilise une clé dérivée de l'ID de conversation
-  // Dans une implémentation complète, on utiliserait e2ee.getGroupKey(convoId)
-  
-  await initSodium();
-  
-  // Clé dérivée temporaire (à remplacer par la vraie clé de groupe)
-  const seed = sodium.from_string(`nook_file_transfer_${convoId}`);
-  return sodium.crypto_generichash(32, seed);
+  try {
+    // Utiliser l'instance e2ee exportée depuis ./e2ee
+    const groupKey = e2ee.groupKeys.get(convoId) || await e2ee.loadGroupKey(convoId);
+    if (!groupKey) {
+      throw new Error('Clé de groupe non disponible pour cette conversation');
+    }
+    return groupKey;
+  } catch (error) {
+    console.error('[file-transfer] Erreur récupération clé groupe:', error);
+    return null;
+  }
 }
 
 // Format taille fichier lisible
