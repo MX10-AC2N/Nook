@@ -111,6 +111,7 @@ pub async fn pending_users(
     .await
     .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
     .into_iter()
+    #[allow(clippy::type_complexity)]
     .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
         username: u.1,
