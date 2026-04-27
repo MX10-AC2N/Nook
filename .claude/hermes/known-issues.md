@@ -13,10 +13,11 @@
 - **Leçon :** Toujours vérifier la syntaxe Rust avant push
 
 ### BUG-002 : E2EE refresh bug
-- **Status :** OUVERT
+- **Status :** ✅ FIXÉ (commit 0219c73e)
 - **Symptôme :** Messages chiffrés visibles après refresh page
 - **Cause :** `cryptoStore.ready = false` après refresh, pas de déchiffrement auto
-- **Fix proposé :** Polling dans `chatStore.svelte.ts` quand ready devient true
+- **Fix :** Polling dans `chatStore.svelte.ts` (ne s'arrête plus à 1ère tentative)
+- **Code :** `_decryptAllIfReady()` appelé APRÈS chargement messages (loadMessages, loadMoreMessages)
 - **Contrainte :** Mot de passe PAS stocké (sécurité), pas d'unlockCrypto() auto
 
 ### BUG-003 : P2P file transfer (sécurité)
