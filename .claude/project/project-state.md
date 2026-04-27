@@ -29,6 +29,7 @@
 | BUG-002 : E2EE refresh bug | ✅ FIXÉ | `0219c73e` |
 | BUG-003 : P2P file transfer (sécurité) | ✅ FIXÉ | `e9b17418` |
 | BUG-003 : P2P file transfer (tests) | 🔵 EN COURS | `a35f7989` (tests créés) |
+| CI-002 : simple-peer 9.11.1 | ✅ RÉSOLU | `65386b88` (webrtc.ts refactored) |
 
 ## 🔗 Liens utiles
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
