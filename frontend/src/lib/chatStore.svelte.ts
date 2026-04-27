@@ -55,38 +55,79 @@ import { cryptoStore } from '$lib/cryptoStore.svelte';
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
 
-// ─── Déchiffrement automatique quand le cryptoStore devient prêt ──────────
+// ── Déchiffrement automatique quand le cryptoStore devient prêt ──────────
 // Quand l'utilisateur se reconnecte après un rafraîchissement, les messages
 // sont chargés chiffrés. Dès que cryptoStore.ready devient true, on déchiffre.
-let _cryptoReadyUnsub: (() => void) | null = null;
+// FIX : Ne plus s'arrêter après la première tentative (race condition).
+let _cryptoReadyInterval: ReturnType<typeof setInterval> | null = null;
+let _cryptoReadyAttempts = 0;
+const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
+
+async function _decryptAllIfReady(): Promise<void> {
+  if (!cryptoStore.ready) return;
+  
+  const msgs = get(messagesStore);
+  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
+  
+  if (encrypted.length === 0) {
+    // Plus de messages chiffrés, on continue à surveiller un peu au cas où
+    if (_cryptoReadyAttempts > 10) {
+      _stopCryptoReadyListener();
+    }
+    return;
+  }
+  
+  console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages (attempt ${_cryptoReadyAttempts})`);
+  try {
+    const { decryptMessage } = await import('$lib/cryptoStore.svelte');
+    for (const msg of encrypted) {
+      try {
+        msg.content = await decryptMessage({
+          messageId: msg.id, conversationId: msg.conversation_id,
+          ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+        });
+        msg.encrypted = false;
+      } catch (e) {
+        console.error('[Chat] Erreur déchiffrement message', msg.id, e);
+        msg.content = '🔒 Message chiffré (clé indisponible)';
+      }
+    }
+    messagesStore.set([...msgs]);
+  } catch (e) {
+    console.error('[Chat] Erreur import cryptoStore', e);
+  }
+}
+
+function _stopCryptoReadyListener(): void {
+  if (_cryptoReadyInterval) {
+    clearInterval(_cryptoReadyInterval);
+    _cryptoReadyInterval = null;
+    _cryptoReadyAttempts = 0;
+    console.log('[Chat] Listener crypto ready arrêté');
+  }
+}
 
 function _setupCryptoReadyListener(): void {
-  if (_cryptoReadyUnsub) return;
-  // Svelte 5 runes : on ne peut pas faire de $effect hors d'un composant.
-  // On utilise un polling léger (1s) pour détecter ready → true.
-  const interval = setInterval(() => {
-    if (!cryptoStore.ready) return;
-    clearInterval(interval);
-    _cryptoReadyUnsub = null;
-    // Déchiffrer tous les messages chiffrés en attente
-    const msgs = get(messagesStore);
-    const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
-    if (encrypted.length === 0) return;
-    console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages`);
-    import('$lib/cryptoStore.svelte').then(async ({ decryptMessage }) => {
-      for (const msg of encrypted) {
-        try {
-          msg.content = await decryptMessage({
-            messageId: msg.id, conversationId: msg.conversation_id,
-            ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
-          });
-          msg.encrypted = false;
-        } catch { msg.content = '🔒 Message chiffré (clé indisponible)'; }
-      }
-      messagesStore.set([...msgs]);
-    });
+  if (_cryptoReadyInterval) return;
+  
+  // Vérification immédiate
+  _decryptAllIfReady();
+  
+  // Polling léger (1s) — fix race condition : ne pas s'arrêter après 1ère tentative
+  _cryptoReadyInterval = setInterval(() => {
+    _cryptoReadyAttempts++;
+    
+    // Sécurité : arrêt après 10 min
+    if (_cryptoReadyAttempts > _CRYPTO_READY_MAX_ATTEMPTS) {
+      console.warn('[Chat] Listener crypto ready timeout (10 min)');
+      _stopCryptoReadyListener();
+      return;
+    }
+    
+    _decryptAllIfReady();
   }, 1000);
-  _cryptoReadyUnsub = () => { clearInterval(interval); _cryptoReadyUnsub = null; };
+  
+  console.log('[Chat] Listener crypto ready démarré');
 }
 
 // Démarrer le listener au chargement du module
@@ -376,6 +417,8 @@ export async function loadMessages(conversationId: string): Promise<void> {
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
     chatStore.connectionError = null;
     console.log('[Chat] messagesStore set:', get(messagesStore).length);
+    // APRÈS chargement, si crypto prêt → déchiffrer (race condition)
+    if (cryptoStore.ready) _decryptAllIfReady();
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
@@ -405,6 +448,8 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
     console.error('[Chat] loadMoreMessages:', err);
   } finally {
     chatStore.loadingMore = false;
+    // APRÈS chargement, si crypto prêt → déchiffrer
+    if (cryptoStore.ready) _decryptAllIfReady();
   }
 }
 
