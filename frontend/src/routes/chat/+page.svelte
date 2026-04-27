@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { get as storeGet } from 'svelte/store';
     import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
   import {
     chatStore,
@@ -892,6 +893,17 @@
   onMount(async () => {
     if (!authStore.isAuthenticated) { goto('/login'); return; }
     await loadConversations();
+    
+    // FIX refresh: read conversationId from URL parameter
+    const urlConvId = $page.params.conversationId;
+    if (urlConvId && urlConvId !== 'default_global') {
+      const targetConv = conversations.find(c => c.id === urlConvId);
+      if (targetConv) {
+        await selectConversation(targetConv);
+        return; // selectConversation already loads messages
+      }
+    }
+    
     await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
