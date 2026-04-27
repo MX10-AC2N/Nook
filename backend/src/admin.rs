@@ -94,7 +94,6 @@ pub async fn get_system_metrics(
 }
 
 #[allow(clippy::type_complexity)]
-#[allow(clippy::type_complexity)]
 pub async fn pending_users(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
