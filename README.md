@@ -56,7 +56,7 @@ Jouez entre membres ou contre l'IA (5 niveaux). Animations des pièces, coups sp
 "Qu'est-ce qu'on mange ce soir ?", "Qui vient dimanche ?". Créez un vote en quelques secondes.
 
 **📞 Appels audio & vidéo**
-Connexion directe entre appareils (WebRTC). Le serveur ne voit jamais le flux. Fonctionne bien en LAN.
+Connexion directe entre appareils (WebRTC). Le serveur ne voit jamais le flux.
 
 **🎨 Trois thèmes**
 Jardin Secret 🌿 · Space Hub 🚀 · Maison Chaleureuse 🏠 — avec mode sombre en option.
