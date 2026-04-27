@@ -255,7 +255,8 @@ export async function sendFile(
       }
       
       // Petit délai pour ne pas surcharger le DataChannel
-      await new Promise(resolve => setTimeout(resolve, 10));
+      // Réduit à 1ms pour les gros fichiers (était 10ms)
+      await new Promise(resolve => setTimeout(resolve, 1));
     }
     
     // Envoyer le message de fin

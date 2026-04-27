@@ -683,25 +683,32 @@
       
       // Prendre le premier participant qui n'est pas l'utilisateur actuel
       targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
-      if (!targetUserId) {
-        chatStore.connectionError = 'Aucun destinataire trouvé pour le transfert P2P.';
-        input.value = '';
-        setTimeout(() => chatStore.connectionError = null, 5000);
-        return;
-      }
-      
       try {
-        // Créer une connexion dédiée au transfert de fichiers
-        chatStore.connectionError = 'Établissement de la connexion P2P...';
-        channel = await callManager.createFileTransferConnection(targetUserId);
-        chatStore.connectionError = null;
-      } catch (error) {
-        chatStore.connectionError = `Impossible d'établir la connexion P2P: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
-        input.value = '';
-        setTimeout(() => chatStore.connectionError = null, 5000);
-        return;
-      }
-    }
+        // Connexion P2P avec timeout 10s
+        chatStore.connectionError = `🔄 Établissement de la connexion P2P vers ${targetUserId}...`;
+        
+        // Récupérer ou créer le canal
+        let channel = chatStore.fileDataChannels.get(targetUserId);
+        
+        if (!channel || channel.readyState !== 'open') {
+          // Aucun canal ouvert → créer une connexion dédiée
+          try {
+            channel = await callManager.createFileTransferConnection(targetUserId);
+            chatStore.connectionError = null;
+          } catch (error) {
+            // Mettre à jour le statut P2P vers 'error'
+            const transfer = p2pTransfers.get(progressId);
+            if (transfer) {
+              transfer.status = 'error';
+              transfer.error = error instanceof Error ? error.message : 'Erreur inconnue';
+              p2pTransfers = new Map(p2pTransfers);
+            }
+            chatStore.connectionError = `Impossible d'établir la connexion P2P: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+            input.value = '';
+            setTimeout(() => chatStore.connectionError = null, 5000);
+            return;
+          }
+        }
     
     if (!channel || !targetUserId) {
       chatStore.connectionError = 'Aucune connexion P2P disponible.';
@@ -710,19 +717,23 @@
       return;
     }
     
-    // Afficher l'UI de progression
+    // Afficher l'UI de progression (même pendant la connexion)
     const progressId = `p2p_${Date.now()}`;
     p2pTransfers.set(progressId, {
       fileName: file.name,
       fileSize: file.size,
       progress: 0,
       speed: 0,
-      status: 'encrypting'
+      status: 'connecting'  // ← NOUVEAU : état de connexion
     });
+    p2pTransfers = new Map(p2pTransfers); // Trigger reactivity
     
     try {
-      await sendFile(
-        file,
+      // Connexion P2P avec timeout 10s
+      chatStore.connectionError = `🔄 Établissement de la connexion P2P vers ${targetUserId}...`;
+      
+      // Récupérer ou créer le canal
+      let channel = chatStore.fileDataChannels.get(targetUserId);
         channel,
         activeConvId,
         // Callback de progression
@@ -1102,7 +1113,9 @@
                     <div class="p2p-progress-fill" style="width: {transfer.progress}%"></div>
                   </div>
                   <div class="p2p-transfer-stats">
-                    {#if transfer.status === 'encrypting'}
+                    {#if transfer.status === 'connecting'}
+                      <span>🔄 Connexion P2P en cours...</span>
+                    {:else if transfer.status === 'encrypting'}
                       <span>🔐 Chiffrement...</span>
                     {:else if transfer.status === 'sending'}
                       <span>📤 Envoi... {transfer.speed.toFixed(0)} KB/s</span>
