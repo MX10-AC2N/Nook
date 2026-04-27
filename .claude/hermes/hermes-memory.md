@@ -1,47 +1,111 @@
-# 🤖 Hermes Agent — Nook Workspace
+# 🤖 Hermes Memory — Nook Workspace
 
-> Agent Hermes pour le développement de Nook
-> Branche de travail : `fix/notifications-and-chess-audit` → PR #23
-> Branch principale dev : `develop`
-> Dernière session : 2026-04-02 (S46)
+> Mis à jour : 2026-04-27
+> C'est MON fichier de référence perso en tant qu'agent Hermes
 
----
+## 🔑 Informations critiques (à ne jamais oublier)
 
-## 📋 Contexte actuel
+### GitHub & Accès
+- **GITHUB_TOKEN :** Voir dans l'outil mémoire (memory tool)
+- **Repo :** `https://github.com/MX10-AC2N/Nook` (branche `develop`)
+- **Compte test :** `hermes-bot` / `Hermes2026!`
+- **URL locale :** `https://192.168.1.192:6443` (HTTPS cert auto-signé)
 
-- **Version :** 0.4.0-beta.2 (branche develop)
-- **PR #23** : tests E2E chess+WebRTC étendus + audit sécurité complet
-- **Build CI :** en attente
-- **Tests E2E :** 156 tests total (115 existants + 41 nouveaux)
-- **3 bugs sécurité ouverts** : SEC-07 (webrtc auth), SEC-09 (CSP), SEC-10 (headers HTTP)
-- **GITHUB_TOKEN** dans `~/.hermes/.env` — persisté en mémoire
+### CI & Workflows
+- **Backend.yml :** Build amd64/arm64 avec **Rust nightly** (ligne 34)
+- **Frontend.yml :** Build SvelteKit
+- **Docker.yml :** Build & push image multi-arch
+- **CI Workflow IDs :** Backend=220018362, Frontend=220018364, Docker=220018363
+- **Règle CI :** Commit d'abord, puis rebase pour lock updates
+- **Docker.yml :** Nécessite Backend.yml déclenché en premier pour les changements Rust
 
----
+## 🏗️ Projet Nook — État
 
-## 🎯 Next Steps Priorities
+- **Version :** 0.5.0 (développement)
+- **Backend :** Rust + Axum 0.8 + SQLx 0.8.6 + SQLite
+- **Frontend :** SvelteKit 5 (Runes) + TypeScript
+- **E2E Tests :** 163/163 PASS (TURN server OK)
+- **Dernier commit :** `327b08e6` (fix admin.rs map_err)
 
-1. ~~[x] PR #22 security patches~~ — MERGED
-2. ~~[x] Tests E2E chess + WebRTC~~ — commit sur PR #23
-3. ~~[x] Audit sécurité complet~~ — documenté dans TEST-AND-SECURITY-AUDIT-2026.md
-4. ~~[x] Catalogue workflows~~ — WORKFLOW-CATALOG.md créé
-5. ~~[x] Màj .claude/ (CLAUDE.md, BUGS.md, SESSIONS.md, workflows.md)~~
-6. [ ] Fix SEC-07 : auth sur routes WebRTC offer/answer (priorité haute)
-7. [ ] Fix SEC-09 : ajouter CSP dans app.html
-8. [ ] Fix SEC-10 : headers de sécurité HTTP
-9. [ ] Cleanup workflows (3 à supprimer, 2 à fusionner)
-10. [ ] Lancer CI sur PR #23
+## 📋 Préférences Utilisateur (de memory tool)
 
----
+### Communication
+- **Langue :** Français
+- **Style :** "Soit méticuleux" — minutieux dans l'analyse et les fixes
+- **Momentum :** "On continue" — garder le momentum et avancer directement
+- **Reset :** "On reprends" — repartir de zéro propre si nécessaire
 
-## 📝 Rules learned this session
+### Attentes & Règles
+- ✅ **Vérification pré-commit OBLIGATOIRE** (surtout rand crate version)
+- ✅ **Rapport des logs CI bruts** → diagnostic + push direct
+- ✅ **Action directe** (créer PRs) plutôt que d'être guidé
+- ✅ **REAL bug fixes** pas de simplification de tests ("le but n'est pas de simplifier, mais de développer")
+- ✅ **Utiliser SVG icons** pas d'emojis
+- ✅ **Syntaxe Svelte 5 :** `$derived.by`, `{#if}` pas `{if}`
+- ✅ **Plusieurs erreurs CI** → tout fixer d'un coup et vérifier chaque fix avant push
 
-- TOUJOURS verifier `Cargo.toml` versions avant de modifier du code Rust
-- rand 0.9 : `rng()` pas `thread_rng()`, `distr` pas `distributions`, importer `Rng` trait pour `sample_iter`
-- Le repo utilise `.claude/` system pour la mémoire agent — lire CLAUDE.md en premier
-- BUGS.md = bugs actifs, SESSIONS.md = historique
-- Ne jamais toucher les sélecteurs CSS sans vérifier les fichiers `*.spec.ts` (E2E)
-- 20 workflows dans `.github/workflows/` — 3 obsolètes, 2 redondants (voir WORKFLOW-CATALOG.md)
-- WebRTC : `handle_offer`/`handle_answer` sont hors `protected_routes` → pas d'auth (SEC-07)
-- Tests E2E en CI headless : pas de getUserMedia → tests WebRTC limités à structure/API
-- `.claude/TEST-AND-SECURITY-AUDIT-2026.md` = rapport complet tests + sécurité de référence
-- `.claude/WORKFLOW-CATALOG.md` = catalogue complet des 20 workflows + plan de cleanup
+### Patterns de code
+- **rand 0.9 :** `rng()` pas `thread_rng()`, `distr::` pas `distributions::`
+- **Axum 0.8 :** `{param}` pas `:param`, `Utf8Bytes` pas `String`
+- **CORS :** allowed_origins explicites, pas `Any` avec credentials
+
+## 🔴 Erreurs commises (à ne plus faire)
+
+1. **Modification versions dépendances** dans commits de fix
+   - J'avais changé `rustrtc` 0.3.40 → 0.3.39 par erreur
+   - **Règle :** Un commit de fix ne touche QUE le bug signalé
+   
+2. **Perte de contexte** entre sessions
+   - **Solution :** Ce fichier `.claude/hermes/` + restructurer tout le dossier
+   - **Action :** Lire `active-session.md` et `known-issues.md` à chaque début
+
+3. **Syntaxe `.map_err()` incorrecte**
+   - ❌ `.map_err(|_| (...))?`
+   - ✅ `.map_err(|_| { (...) })?`
+
+## 📂 Structure .claude actuelle (restructurée)
+
+```
+.claude/
+├── hermes/                    # MON espace perso
+│   ├── active-session.md      # Ce que je fais MAINTENANT
+│   ├── hermes-memory.md       # CE fichier (infos critiques)
+│   ├── known-issues.md        # Bugs, pièges, leçons
+│   └── preferences.md         # Préférences utilisateur
+├── project/                   # Référence projet
+│   └── project-state.md      # État actuel Nook
+├── reference/                 # Références rapides
+│   ├── rust-patterns.md      # Rust/Axum/SQLx patterns
+│   └── svelte-patterns.md    # Svelte 5 Runes patterns
+├── archive/                   # Archives (préserver !)
+│   ├── reports/             # Anciens rapports
+│   └── sessions/            # Sessions historiques
+├── skills/                    # Skills existants (garder)
+├── roles/                     # Rôles existants (garder)
+├── rules/                     # Règles existantes (garder)
+└── workflows/                 # Workflows existants (garder)
+```
+
+## 🧠 Ce que je dois faire à chaque session
+
+1. ✅ Lire `.claude/hermes/active-session.md` (état immédiat)
+2. ✅ Lire `.claude/hermes/known-issues.md` (ne pas répéter les erreurs)
+3. ✅ Vérifier `.claude/project/project-state.md` (version, branche)
+4. ✅ Consulter `.claude/reference/` selon besoin (Rust ou Svelte)
+5. ✅ Mettre à jour `active-session.md` après chaque action importante
+6. ✅ Respecter les préférences utilisateur listées ci-dessus
+
+## 🔗 Liens rapides
+
+- **CI Backend :** https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
+- **CI Frontend :** https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
+- **CI Docker :** https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml
+- **Repo :** https://github.com/MX10-AC2N/Nook
+- **Déploiement :** https://192.168.1.192:6443
+
+## 📝 Notes de session actuelle
+
+- Commit `327b08e6` poussé (fix admin.rs)
+- CI en attente de vérification par l'utilisateur
+- Structure `.claude` en cours de restructuration (27-04-2026)
+- Objectif : ne plus perdre le fil entre les sessions
