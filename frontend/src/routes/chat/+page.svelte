@@ -160,6 +160,40 @@
     if (e.key === 'Escape') { renamingConv = false; }
   }
 
+  // ── P2P Helper: format error messages ──────────────────────────────
+  function getP2PErrorMessage(error: any): string {
+    if (!error) return 'Erreur inconnue';
+    
+    const msg = error instanceof Error ? error.message : String(error);
+    
+    // Timeout
+    if (msg.includes('Timeout') || msg.includes('timeout')) {
+      return 'Délai d\'attente dépassé (10s). L\'utilisateur est peut-être hors ligne.';
+    }
+    
+    // WebSocket errors
+    if (msg.includes('WebSocket') || msg.includes('ws')) {
+      return 'Connexion au serveur perdue. Vérifiez votre connexion.';
+    }
+    
+    // DataChannel errors
+    if (msg.includes('DataChannel') || msg.includes('channel')) {
+      return 'Canal de données impossible à établir.';
+    }
+    
+    // ICE/STUN/TURN errors
+    if (msg.includes('ICE') || msg.includes('STUN') || msg.includes('TURN')) {
+      return 'Erreur de configuration réseau (ICE/STUN/TURN).';
+    }
+    
+    // Generic WebRTC error
+    if (msg.includes('RTCPeerConnection') || msg.includes('WebRTC')) {
+      return 'Erreur de connexion WebRTC.';
+    }
+    
+    return msg || 'Erreur inconnue';
+  }
+
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let typingUsers = $state<string[]>([]);
   let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -575,7 +609,15 @@
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
     const file = input.files[0];
-
+    
+    // Avertissement pour les fichiers très volumineux (> 500 Mo)
+    const FIVE_HUNDRED_MB = 500 * 1024 * 1024;
+    if (file.size > FIVE_HUNDRED_MB) {
+      const estimatedSeconds = Math.ceil(file.size / (200 * 1024)); // ~200 KB/s P2P
+      chatStore.connectionError = `⚠️ Fichier très volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Temps estimé: ~${estimatedSeconds}s`;
+      setTimeout(() => chatStore.connectionError = null, 5000);
+    }
+    
     // Vérifier si on a une connexion P2P active
     const hasP2PConnection = callStore.isInCall && callStore.fileDataChannels.size > 0;
     
@@ -684,26 +726,47 @@
       // Prendre le premier participant qui n'est pas l'utilisateur actuel
       targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
       try {
-        // Connexion P2P avec timeout 10s
+        // Connexion P2P avec timeout 10s + retry (2 tentatives)
         chatStore.connectionError = `🔄 Établissement de la connexion P2P vers ${targetUserId}...`;
         
         // Récupérer ou créer le canal
         let channel = chatStore.fileDataChannels.get(targetUserId);
         
         if (!channel || channel.readyState !== 'open') {
-          // Aucun canal ouvert → créer une connexion dédiée
-          try {
-            channel = await callManager.createFileTransferConnection(targetUserId);
-            chatStore.connectionError = null;
-          } catch (error) {
+          // Aucun canal ouvert → créer une connexion dédiée avec retry
+          const maxRetries = 2;
+          let lastError: any = null;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              chatStore.connectionError = `🔄 Connexion P2P (tentative ${attempt}/${maxRetries})...`;
+              channel = await callManager.createFileTransferConnection(targetUserId);
+              chatStore.connectionError = null;
+              lastError = null;
+              break; // Succès !
+            } catch (error) {
+              lastError = error;
+              console.warn(`[P2P] Tentative ${attempt}/${maxRetries} échouée:`, error);
+              
+              if (attempt < maxRetries) {
+                // Attendre 2 secondes avant retry
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+            }
+          }
+          
+          // Si toutes les tentatives ont échoué
+          if (lastError) {
             // Mettre à jour le statut P2P vers 'error'
             const transfer = p2pTransfers.get(progressId);
             if (transfer) {
               transfer.status = 'error';
-              transfer.error = error instanceof Error ? error.message : 'Erreur inconnue';
+              transfer.error = getP2PErrorMessage(lastError);
               p2pTransfers = new Map(p2pTransfers);
             }
-            chatStore.connectionError = `Impossible d'établir la connexion P2P: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+            
+            const errorMsg = getP2PErrorMessage(lastError);
+            chatStore.connectionError = `Impossible d'établir la connexion P2P: ${errorMsg}`;
             input.value = '';
             setTimeout(() => chatStore.connectionError = null, 5000);
             return;
