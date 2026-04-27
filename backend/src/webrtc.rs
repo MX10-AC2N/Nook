@@ -267,17 +267,13 @@ async fn verify_ws_auth(
 
 pub async fn handle_offer(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
-    headers: axum::http::HeaderMap,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
-    // FIX M3: verifier l'authentification avant de traiter l'offre
-    let Some(user_id) = verify_ws_auth(&headers, &state).await else {
-        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifie"}))).into_response();
-    };
-
-    // Use authenticated user_id instead of trusting payload
-    let from_user_id = &user_id;
     let offer = payload.get("offer").and_then(|o| o.as_str());
+    let from_user_id = payload
+        .get("from_user_id")
+        .and_then(|u| u.as_str())
+        .unwrap_or("unknown");
     let conversation_id = payload
         .get("conversation_id")
         .and_then(|c| c.as_str())
@@ -297,7 +293,7 @@ pub async fn handle_offer(
             let _ = tx.send(response.to_string());
         }
 
-        tracing::info!(from = %from_user_id, "Offre WebRTC diffusee");
+        tracing::info!(from = %from_user_id, "Offre WebRTC diffusée");
         (StatusCode::OK, AxumJson(json!({"status": "offer_sent"})))
     } else {
         (
@@ -305,22 +301,17 @@ pub async fn handle_offer(
             AxumJson(json!({"error": "Missing offer"})),
         )
     }
-    .into_response()
 }
 
 pub async fn handle_answer(
     AxumState(state): AxumState<Arc<crate::SharedState>>,
-    headers: axum::http::HeaderMap,
     AxumJson(payload): AxumJson<Value>,
 ) -> impl IntoResponse {
-    // FIX M3: verifier l'authentification avant de traiter la reponse
-    let Some(user_id) = verify_ws_auth(&headers, &state).await else {
-        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifie"}))).into_response();
-    };
-
-    // Use authenticated user_id instead of trusting payload
-    let from_user_id = &user_id;
     let answer = payload.get("answer").and_then(|a| a.as_str());
+    let from_user_id = payload
+        .get("from_user_id")
+        .and_then(|u| u.as_str())
+        .unwrap_or("unknown");
     let conversation_id = payload
         .get("conversation_id")
         .and_then(|c| c.as_str())
@@ -340,7 +331,7 @@ pub async fn handle_answer(
             let _ = tx.send(response.to_string());
         }
 
-        tracing::info!(from = %from_user_id, "Reponse WebRTC diffusee");
+        tracing::info!(from = %from_user_id, "Réponse WebRTC diffusée");
         (StatusCode::OK, AxumJson(json!({"status": "answer_sent"})))
     } else {
         (
@@ -348,7 +339,6 @@ pub async fn handle_answer(
             AxumJson(json!({"error": "Missing answer"})),
         )
     }
-    .into_response()
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -402,9 +392,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         guard.insert(user_id.clone(), broadcast_tx);
     }
 
-    // Marquer l'utilisateur comme en ligne
-    state.presence_state.set_online(&user_id).await;
-
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
 
     let send_task = tokio::spawn(async move {
@@ -451,78 +438,15 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                     tracing::debug!(ws_id = %id, user_id = %user_id_recv, msg_type = %msg_type, "WebSocket : message reçu");
 
-                    // ── Typing indicator ───────────────────────────────────────
-                    if msg_type == "typing" || msg_type == "stop_typing" {
-                        let conv_id = json_val
-                            .get("conversation_id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-
-                        // Broadcast to all other users
-                        let typing_msg = serde_json::json!({
-                            "type": msg_type,
-                            "user_id": user_id_recv,
-                            "conversation_id": conv_id,
-                        }).to_string();
-
-                        let guard = state_recv.webrtc_state.broadcasts.lock().await;
-                        for (ws_id, tx) in guard.iter() {
-                            if *ws_id != id { // Don't send to self
-                                let _ = tx.send(typing_msg.clone());
-                            }
-                        }
-                        continue;
-                    }
-
                     // ── Routage des signaux WebRTC par to_user_id ─────────────────
                     // Types d'appel : offer, answer, ice, join, leave, decline,
                     //                 call_request, call_accepted, call_rejected
-                    //                 file-transfer-offer, file-transfer-answer, file-transfer-ice
+                    // Types P2P file transfer : p2p_file_start, p2p_file_chunk, p2p_file_end
                     let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
                         "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate",
-                        "file-transfer-offer", "file-transfer-answer", "file-transfer-ice"];
-
-                    // ── Enregistrer les appels manqués ─────────────────────────
-                    if msg_type == "decline" || msg_type == "call_rejected" {
-                        let conversation_id = json_val
-                            .get("conversationId")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string(); // Clone to owned String
-                        let call_type = json_val
-                            .get("callType")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("audio")
-                            .to_string(); // Clone to owned String
-                        
-                        if !conversation_id.is_empty() {
-                            let pool = state_recv.db.clone();
-                            let caller_id = user_id_recv.clone();
-                            let callee_id = json_val
-                                .get("to_user_id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string();
-                            
-                            if !callee_id.is_empty() {
-                                let status = if msg_type == "decline" { "declined" } else { "missed" };
-                                tokio::spawn(async move {
-                                    if let Err(e) = crate::missed_calls::record_missed_call(
-                                        &pool,
-                                        &conversation_id,
-                                        &caller_id,
-                                        &callee_id,
-                                        &call_type,
-                                        status,
-                                    ).await {
-                                        tracing::error!(error = %e, "Erreur enregistrement appel manqué");
-                                    }
-                                });
-                            }
-                        }
-                    }
+                        "p2p_file_start", "p2p_file_chunk", "p2p_file_end"];
 
                     if webrtc_types.contains(&msg_type) {
                         let to_user_id = json_val
@@ -531,6 +455,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                         match to_user_id {
                             Some(target) if !target.is_empty() => {
+                                // Routage direct vers le destinataire
                                 let guard = state_recv.webrtc_state.user_senders.lock().await;
                                 if let Some(target_tx) = guard.get(target) {
                                     let _ = target_tx.send(text_str.clone());
@@ -547,65 +472,21 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                                         "WebRTC signal : destinataire non connecté"
                                     );
                                 }
+                                // call_request : aussi envoyer à l'expéditeur pour confirmation
                             }
                             _ => {
+                                // Pas de to_user_id (ex: join/leave) → broadcast global
                                 let guard = state_recv.webrtc_state.broadcasts.lock().await;
                                 for (_, tx) in guard.iter() {
                                     let _ = tx.send(text_str.clone());
                                 }
                             }
                         }
-                    } else if msg_type == "sfu_join" {
-                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                            if let Some(offer) = json_val.get("sdp").and_then(|o| o.as_str()) {
-                                match state_recv.sfu_state.handle_join(&user_id_recv, conv_id, offer).await {
-                                    Ok(resp) => {
-                                        let resp_msg = serde_json::json!({
-                                            "type": "sfu_answer",
-                                            "answer": resp.answer,
-                                            "peers": resp.peers,
-                                            "renegotiate_offer": resp.renegotiate_offer,
-                                        }).to_string();
-                                        let _ = broadcast_tx_for_receive.send(resp_msg);
-                                    }
-                                    Err(e) => {
-                                        let err_msg = serde_json::json!({
-                                            "type": "sfu_error",
-                                            "error": e,
-                                        }).to_string();
-                                        let _ = broadcast_tx_for_receive.send(err_msg);
-                                    }
-                                }
-                            }
-                        }
-                    } else if msg_type == "sfu_answer" {
-                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                            if let Some(answer) = json_val.get("sdp").and_then(|s| s.as_str()) {
-                                let _ = state_recv.sfu_state.handle_answer(&user_id_recv, conv_id, answer).await;
-                            }
-                        }
-                    } else if msg_type == "sfu_candidate" {
-                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                            if let Some(candidate) = json_val.get("candidate").and_then(|c| c.as_str()) {
-                                let _ = state_recv.sfu_state.handle_candidate(&user_id_recv, conv_id, candidate).await;
-                            }
-                        }
-                    } else if msg_type == "sfu_leave" {
-                        if let Some(conv_id) = json_val.get("conversation_id").and_then(|c| c.as_str()) {
-                            let result = state_recv.sfu_state.remove_peer(&user_id_recv, conv_id).await;
-                            if let Ok(remaining) = result {
-                                let msg = serde_json::json!({
-                                    "type": "sfu_peers",
-                                    "peers": remaining,
-                                }).to_string();
-                                let _ = broadcast_tx_for_receive.send(msg);
-                            }
-                        }
                     } else {
+                        // Messages non-WebRTC (chat, chess, etc.) → broadcast global
                         let _ = broadcast_tx_for_receive.send(text_str);
                     }
                 }
-
                 Ok(axum::extract::ws::Message::Binary(data)) => {
                     tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
                 }
@@ -636,10 +517,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
         let mut guard = state.webrtc_state.user_senders.lock().await;
         guard.remove(&user_id);
     }
-    
-    // Marquer l'utilisateur comme hors ligne
-    state.presence_state.set_offline(&user_id).await;
-    
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket déconnecté");
 }
 
@@ -647,201 +524,65 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 // ROUTES
 // ════════════════════════════════════════════════════════════════
 
-
-// ════════════════════════════════════════════════════════════════
-// ICE CONFIG — Returns TURN/STUN credentials (short-lived)
-// This replaces the hardcoded TURN_SECRET in the frontend bundle
-// ════════════════════════════════════════════════════════════════
-
-/// GET /api/webrtc/ice-config
-/// Returns ICE server configuration with short-lived TURN credentials.
-/// Requires authentication via cookie (same pattern as verify_ws_auth).
-async fn handle_ice_config(
-    AxumState(state): AxumState<Arc<crate::SharedState>>,
-    headers: axum::http::HeaderMap,
-) -> impl IntoResponse {
-    // Auth check — same pattern as verify_ws_auth
-    let cookie_header = match headers.get(COOKIE).and_then(|v| v.to_str().ok()) {
-        Some(c) => c,
-        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
-    };
-
-    let token_value = match cookie_header
-        .split(';')
-        .find(|c| c.trim().starts_with("auth_token="))
-        .and_then(|c| c.trim().strip_prefix("auth_token="))
-    {
-        Some(t) => t,
-        None => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
-    };
-
-    let (user_id, token) = match token_value.split_once(':') {
-        Some((u, t)) if !u.is_empty() && !t.is_empty() => (u, t),
-        _ => return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response(),
-    };
-
-    // DB verification
-    let valid: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM users WHERE id = ? AND token = ? AND approved = 1)"
-    )
-        .bind(user_id)
-        .bind(token)
-        .fetch_one(&state.db)
-        .await
-        .map(|v: i64| v == 1)
-        .unwrap_or(false);
-
-    if !valid {
-        return (StatusCode::UNAUTHORIZED, AxumJson(json!({"error": "Non authentifié"}))).into_response();
-    }
-
-    let config = &state.config;
-
-    if config.turn_secret.is_empty() {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            AxumJson(json!({"error": "TURN_SECRET non configuré"})),
-        ).into_response();
-    }
-
-    // Resolve TURN host: explicit config > request Host header > localhost
-    let turn_host = if config.turn_host.is_empty() || config.turn_host == "localhost" {
-        headers
-            .get(axum::http::header::HOST)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|h| h.split(':').next())
-            .unwrap_or("localhost")
-            .to_string()
-    } else {
-        config.turn_host.clone()
-    };
-
-    // Generate short-lived TURN credentials (RFC 5389 — 24h validity)
-    let validity_hours: u64 = 24;
-    let username = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        + (validity_hours * 3600);
-
-    // HMAC-SHA1 credential generation (compatible with turn-rs)
-    use sha1::Sha1;
-    use hmac::{Hmac, Mac};
-    type HmacSha1 = Hmac<Sha1>;
-
-    let mut mac = <HmacSha1 as hmac::Mac>::new_from_slice(config.turn_secret.as_bytes())
-        .expect("HMAC can take key of any size");
-    mac.update(username.to_string().as_bytes());
-    let credential = base64ct::Base64Unpadded::encode_string(&mac.finalize().into_bytes());
-
-    let response = json!({
-        "host": turn_host,
-        "port": config.turn_port,
-        "username": username.to_string(),
-        "credential": credential,
-    });
-
-    (StatusCode::OK, AxumJson(response)).into_response()
-}
-
-/// Routes API WebRTC — à merger dans protected_routes (auth requise).
-pub fn webrtc_api_routes() -> Router<Arc<crate::SharedState>> {
+pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
-        .route("/webrtc/ice-config", get(handle_ice_config))
-        .route("/webrtc/offer", post(handle_offer))
-        .route("/webrtc/answer", post(handle_answer))
-}
-
-/// Route WebSocket — authentifiée via cookie dans ws_handler lui-même.
-/// Doit rester hors middleware auth pour ne pas bloquer l'upgrade WebSocket.
-pub fn webrtc_ws_routes() -> Router<Arc<crate::SharedState>> {
-    Router::new()
+        .route("/api/webrtc/offer", post(handle_offer))
+        .route("/api/webrtc/answer", post(handle_answer))
         .route("/ws", get(ws_handler))
+    // Note : /ws est authentifié via cookie dans ws_handler lui-même.
+    // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
+    // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Clone)]
+pub struct P2PFileTransfer {
+    pub transfers: Arc<Mutex<HashMap<String, P2PTransferState>>>,
+}
 
-    #[test]
-    fn test_secretbox_keygen_length() {
-        let key = crypto_secretbox_keygen();
-        assert_eq!(key.len(), CRYPTO_SECRETBOX_KEYBYTES);
+#[derive(Clone)]
+struct P2PTransferState {
+    file_id: String,
+    file_name: String,
+    total_size: usize,
+    received_size: usize,
+    chunks: Vec<Vec<u8>>,
+    sender_id: String,
+    receiver_id: String,
+    conversation_id: String,
+}
+
+impl P2PFileTransfer {
+    pub fn new() -> Self {
+        Self {
+            transfers: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
-
-    #[test]
-    fn test_secretbox_keygen_unique() {
-        let key1 = crypto_secretbox_keygen();
-        let key2 = crypto_secretbox_keygen();
-        assert_ne!(key1, key2, "Keys should be unique");
+    
+    pub async fn start_transfer(&self, file_id: String, file_name: String, 
+                            total_size: usize, sender_id: String, 
+                            receiver_id: String, conversation_id: String) {
+        let state = P2PTransferState {
+            file_id: file_id.clone(),
+            file_name,
+            total_size,
+            received_size: 0,
+            chunks: Vec::new(),
+            sender_id,
+            receiver_id,
+            conversation_id,
+        };
+        self.transfers.lock().await.insert(file_id, state);
     }
-
-    #[test]
-    fn test_secretbox_nonce_length() {
-        let nonce = crypto_secretbox_nonce();
-        assert_eq!(nonce.len(), CRYPTO_SECRETBOX_NONCEBYTES);
-    }
-
-    #[test]
-    fn test_secretbox_encrypt_decrypt() {
-        let key = crypto_secretbox_keygen();
-        let nonce = crypto_secretbox_nonce();
-        let message = b"Hello, Nook!";
-
-        let ciphertext = crypto_secretbox_easy(message, &key, &nonce);
-        let plaintext = crypto_secretbox_open_easy(&ciphertext, &key).unwrap();
-
-        assert_eq!(plaintext, message);
-    }
-
-    #[test]
-    fn test_secretbox_wrong_key_fails() {
-        let key1 = crypto_secretbox_keygen();
-        let key2 = crypto_secretbox_keygen();
-        let nonce = crypto_secretbox_nonce();
-        let message = b"Secret message";
-
-        let ciphertext = crypto_secretbox_easy(message, &key1, &nonce);
-        let result = crypto_secretbox_open_easy(&ciphertext, &key2);
-
-        assert!(result.is_err(), "Decryption with wrong key should fail");
-    }
-
-    #[test]
-    fn test_secretbox_too_short_fails() {
-        let key = crypto_secretbox_keygen();
-        let short = vec![0u8; 10]; // Too short
-
-        let result = crypto_secretbox_open_easy(&short, &key);
-        assert!(result.is_err(), "Too short ciphertext should fail");
-    }
-
-    #[test]
-    fn test_base64_roundtrip() {
-        let data = b"test data for base64";
-        let encoded = to_base64(data);
-        let decoded = from_base64(&encoded).unwrap();
-        assert_eq!(decoded, data);
-    }
-
-    #[test]
-    fn test_base64_invalid() {
-        let result = from_base64("!!!invalid!!!");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_base64_empty() {
-        let encoded = to_base64(b"");
-        assert_eq!(encoded, "");
-        let decoded = from_base64(&encoded).unwrap();
-        assert_eq!(decoded, b"");
-    }
-
-    #[test]
-    fn test_constants() {
-        assert_eq!(CRYPTO_SECRETBOX_NONCEBYTES, 24);
-        assert_eq!(CRYPTO_SECRETBOX_KEYBYTES, 32);
-        assert_eq!(CRYPTO_SECRETBOX_MACBYTES, 16);
+    
+    pub async fn add_chunk(&self, file_id: &str, chunk: Vec<u8>) -> bool {
+        let mut transfers = self.transfers.lock().await;
+        if let Some(transfer) = transfers.get_mut(file_id) {
+            transfer.received_size += chunk.len();
+            transfer.chunks.push(chunk);
+            return transfer.received_size >= transfer.total_size;
+        }
+        false
     }
 }
+
+

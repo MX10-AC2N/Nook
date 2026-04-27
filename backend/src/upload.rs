@@ -328,8 +328,9 @@ impl UploadFormData {
         if data.is_empty() {
             return Err("Fichier vide".to_string());
         }
+        // Si >50 Mo : signaler que le transfert doit se faire en P2P
         if data.len() > 50 * 1024 * 1024 {
-            return Err("Fichier trop volumineux (>50Mo)".to_string());
+            return Err("P2P_REQUIRED".to_string());
         }
         // SEC-04 : validation magic bytes
         validate_magic_bytes(&data, &self.content_type)
