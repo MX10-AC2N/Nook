@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 96b56f1 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24987297979)
+> **unknown** | commit 0219c73 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24992815192)
 
 ## Récapitulatif statuts
 
