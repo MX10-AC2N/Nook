@@ -130,4 +130,5 @@ async rotateGroupKey(convoId: string, remainingMembers: Record<string, string>) 
 }
 // Utilisation dans ton store chat :
 const e2ee = new E2EE();
+export { e2ee };
 // Dans +layout.svelte ou après login : await e2ee.init(currentUser.id);
