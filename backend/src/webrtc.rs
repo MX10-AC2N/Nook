@@ -441,10 +441,12 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     // ── Routage des signaux WebRTC par to_user_id ─────────────────
                     // Types d'appel : offer, answer, ice, join, leave, decline,
                     //                 call_request, call_accepted, call_rejected
+                    // Types P2P file transfer : p2p_file_start, p2p_file_chunk, p2p_file_end
                     let webrtc_types = ["offer", "answer", "ice", "ice_candidate",
                         "join", "leave", "decline",
                         "call_request", "call_accepted", "call_rejected",
-                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate"];
+                        "webrtc_offer", "webrtc_answer", "webrtc_ice_candidate",
+                        "p2p_file_start", "p2p_file_chunk", "p2p_file_end"];
 
                     if webrtc_types.contains(&msg_type) {
                         let to_user_id = json_val
@@ -531,3 +533,56 @@ pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
     // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié
     // envoie le cookie automatiquement) — à migrer dans protected_routes si besoin.
 }
+
+#[derive(Clone)]
+pub struct P2PFileTransfer {
+    pub transfers: Arc<Mutex<HashMap<String, P2PTransferState>>>,
+}
+
+#[derive(Clone)]
+struct P2PTransferState {
+    file_id: String,
+    file_name: String,
+    total_size: usize,
+    received_size: usize,
+    chunks: Vec<Vec<u8>>,
+    sender_id: String,
+    receiver_id: String,
+    conversation_id: String,
+}
+
+impl P2PFileTransfer {
+    pub fn new() -> Self {
+        Self {
+            transfers: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+    
+    pub async fn start_transfer(&self, file_id: String, file_name: String, 
+                            total_size: usize, sender_id: String, 
+                            receiver_id: String, conversation_id: String) {
+        let state = P2PTransferState {
+            file_id: file_id.clone(),
+            file_name,
+            total_size,
+            received_size: 0,
+            chunks: Vec::new(),
+            sender_id,
+            receiver_id,
+            conversation_id,
+        };
+        self.transfers.lock().await.insert(file_id, state);
+    }
+    
+    pub async fn add_chunk(&self, file_id: &str, chunk: Vec<u8>) -> bool {
+        let mut transfers = self.transfers.lock().await;
+        if let Some(transfer) = transfers.get_mut(file_id) {
+            transfer.received_size += chunk.len();
+            transfer.chunks.push(chunk);
+            return transfer.received_size >= transfer.total_size;
+        }
+        false
+    }
+}
+
+
