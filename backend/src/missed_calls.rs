@@ -132,6 +132,7 @@ async fn get_conversation_missed_calls(
 
 /// Enregistrer un appel manqué
 #[allow(dead_code)]
+#[allow(dead_code)]
 pub async fn record_missed_call(
     pool: &sqlx::SqlitePool,
     conversation_id: &str,
