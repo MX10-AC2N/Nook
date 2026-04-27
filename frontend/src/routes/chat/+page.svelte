@@ -193,6 +193,13 @@
     
     return msg || 'Erreur inconnue';
   }
+  // ── P2P Helper: calculate remaining seconds ───────────────
+  function getRemainingSeconds(transfer: any): number {
+    if (!transfer || transfer.speed <= 0) return 0;
+    const remainingBytes = transfer.fileSize * (100 - transfer.progress) / 100;
+    return Math.max(1, Math.round(remainingBytes / (transfer.speed * 1024)));
+  }
+
 
   // ── P2P Helper: play notification sound ──────────────────────
   function playNotificationSound(type: 'success' | 'error' = 'success') {
@@ -1185,7 +1192,7 @@
                       <span>📤 Envoi... {transfer.speed.toFixed(0)} KB/s</span>
                       {#if transfer.speed > 0}
                         <span class="time-remaining">
-                          {Math.max(1, Math.round((transfer.fileSize * (100 - transfer.progress) / 100 / (transfer.speed * 1024)))}s restantes
+                          {getRemainingSeconds(transfer)}s restantes
                         </span>
                       {/if}
                     {:else if transfer.status === 'completed'}
