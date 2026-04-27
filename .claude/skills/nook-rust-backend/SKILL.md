@@ -120,6 +120,20 @@ pub struct MyResponse { ... }
 "DELETE FROM conversations WHERE id NOT IN (SELECT conversation_id FROM conversation_participants) AND id != 'default_global'"
 ```
 
+### .map_err() — syntaxe pour retour tuple (fix admin.rs)
+```rust
+// ❌ Erreur : mismatched closing delimiter (admin.rs lignes 115, 152)
+.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"})))?
+
+// ✅ Syntaxe correcte avec bloc closure
+.map_err(|_| {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({"message": "Erreur DB"})),
+    )
+})?
+```
+
 ## Checklist ajout endpoint
 
 1. Handler dans le fichier `.rs` approprié
