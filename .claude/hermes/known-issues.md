@@ -59,9 +59,10 @@
 - **À vérifier :** Compatibilité `rustrtc` avec nightly
 
 ### CI-002 : simple-peer 9.11.1 non maintenu
-- **Statut :** Dépendance frontend WebRTC obsolète
+- **Statut :** ✅ RÉSOLU (PR #28 mergé, commit 65386b88)
 - **Risque :** Sécurité, bugs non corrigés
-- **Action :** PR #28 `refactor/remove-simple-peer` (déjà mergé ?)
+- **Action :** ✅ `webrtc.ts` réécrit avec API WebRTC native (RTCPeerConnection)
+- **Commit :** 65386b88 - simple-peer complètement supprimé
 
 ## 📝 Ce que je dois vérifier avant chaque commit
 
