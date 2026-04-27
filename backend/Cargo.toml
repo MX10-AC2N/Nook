@@ -58,4 +58,4 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 sysinfo = "0.32"
 
 # SFU pour appels groupe 3+ participants
-rustrtc = "0.3.40"
+rustrtc = "0.3.39"
