@@ -641,28 +641,14 @@
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
     const file = input.files[0];
-    
-    // Avertissement pour les fichiers très volumineux (> 500 Mo)
-    const FIVE_HUNDRED_MB = 500 * 1024 * 1024;
-    if (file.size > FIVE_HUNDRED_MB) {
-      const estimatedSeconds = Math.ceil(file.size / (200 * 1024)); // ~200 KB/s P2P
-      chatStore.connectionError = `⚠️ Fichier très volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Temps estimé: ~${estimatedSeconds}s`;
-      setTimeout(() => chatStore.connectionError = null, 5000);
-    }
-    
     // Vérifier si on a une connexion P2P active
     const hasP2PConnection = callStore.isInCall && callStore.fileDataChannels.size > 0;
     
     // Vérifier si la conversation est un groupe (P2P interdit en groupe)
     const isGroup = activeConv?.is_group === true;
-    
     // Logique de routage
-    if (file.size > MAX_BYTES_P2P) {
-      chatStore.connectionError = `Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} Mo). Limite : 500 Mo.`;
-      input.value = '';
-      setTimeout(() => chatStore.connectionError = null, 5000);
-      return;
-    }
+
+    // Logique de routage
     
     // Vérifier si on peut faire un transfert P2P
     const canDoP2P = !isGroup && (hasP2PConnection || file.size > MAX_BYTES_SERVER);
@@ -1237,6 +1223,11 @@
                       <span>🔐 Chiffrement...</span>
                     {:else if transfer.status === 'sending'}
                       <span>📤 Envoi... {transfer.speed.toFixed(0)} KB/s</span>
+                      {#if transfer.speed > 0}
+                        <span class="time-remaining">
+                          {Math.max(1, Math.round((transfer.fileSize * (100 - transfer.progress) / 100 / (transfer.speed * 1024)))}s restantes
+                        </span>
+                      {/if}
                     {:else if transfer.status === 'completed'}
                       <span>✅ Terminé</span>
                     {:else if transfer.status === 'error'}
@@ -1906,6 +1897,13 @@
     font-size: .9rem;
     padding: 0 4px;
     margin-left: 8px;
+  }
+  
+  .time-remaining {
+    font-size: .7rem;
+    color: var(--text-secondary, #64748b);
+    margin-left: 4px;
+    font-style: italic;
   }
   
   .p2p-transfer-stats span:first-child {
