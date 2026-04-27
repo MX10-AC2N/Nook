@@ -831,6 +831,10 @@
       
       // Récupérer ou créer le canal
       let channel = chatStore.fileDataChannels.get(targetUserId);
+      
+      // Appel sendFile avec les 6 paramètres requis
+      sendFile(
+        file,
         channel,
         activeConvId,
         // Callback de progression
