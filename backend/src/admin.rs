@@ -143,36 +143,29 @@ pub async fn all_users(
     }
 
     #[allow(clippy::type_complexity)]
-    #[allow(clippy::type_complexity)]
-
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users ORDER BY created_at DESC",
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed 
+         FROM users ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"message": "Erreur DB"})),
-        )
-    })?
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"})))?
     .into_iter()
-    .map(
-        |u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
-            id: u.0,
-            username: u.1,
-            name: u.2,
-            created_at: u.3,
-            role: u.4,
-            approved: u.5,
-            avatar_style: u.6,
-            avatar_seed: u.7,
-        },
-    )
+    .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
+        id: u.0,
+        username: u.1,
+        name: u.2,
+        created_at: u.3,
+        role: u.4,
+        approved: u.5,
+        avatar_style: u.6,
+        avatar_seed: u.7,
+    })
     .collect();
 
     Ok(Json(UsersResponse { users }))
 }
+
 
 pub async fn approve_user(
     State(state): State<Arc<SharedState>>,
