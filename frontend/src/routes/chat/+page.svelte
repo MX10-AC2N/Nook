@@ -1188,6 +1188,9 @@
                       <span>❌ {transfer.error}</span>
                     {/if}
                     <span>{transfer.progress.toFixed(0)}%</span>
+                    {#if transfer.status !== 'completed' && transfer.status !== 'error'}
+                      <button class="p2p-cancel-btn" onclick={() => cancelTransfer(id)} title="Annuler">✕</button>
+                    {/if}
                   </div>
                 </div>
               </div>
@@ -1838,6 +1841,16 @@
     justify-content: space-between;
     font-size: .78rem;
     color: var(--text-secondary, #64748b);
+  }
+
+  .p2p-cancel-btn {
+    background: none;
+    border: none;
+    color: #dc2626;
+    cursor: pointer;
+    font-size: .9rem;
+    padding: 0 4px;
+    margin-left: 8px;
   }
   
   .p2p-transfer-stats span:first-child {
