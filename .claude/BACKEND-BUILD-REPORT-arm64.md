@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit 7966cd3 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24981533239)
+> **unknown** | commit 3d903d5 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/24982360741)
 
 ## Récapitulatif statuts
 
@@ -33,13 +33,13 @@
 ## ❌ Erreurs cargo check
 
 ```
-error[E0308]: mismatched types
+(aucune erreur)
 ```
 
 ## ❌ Erreurs cargo build
 
 ```
-error[E0308]: mismatched types
+(aucune erreur)
 ```
 
 ## 🔧 Clippy warnings
