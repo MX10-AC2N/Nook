@@ -179,9 +179,10 @@
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
 
-
+  // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
-  let emojiPickerPos = $state<{top: number; left: number; right: number}>({top: 0, left: 0, right: 0});
+  let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
+  let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
@@ -1258,11 +1259,12 @@
                   <!-- Bouton + pour picker étendu -->
                   <button
                     class="emoji-more-btn"
-                    onclick={(e) => { e.stopPropagation(); /* toggle zone étendue */ const el = e.currentTarget.nextElementSibling as HTMLElement; if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none'; }}
+                    onclick={(e) => { e.stopPropagation(); extendedEmojiMsgId = extendedEmojiMsgId === msg.id ? null : msg.id; }}
                     aria-label="Plus d'emojis"
                   >＋</button>
-                  <!-- Zone étendue (cachée par défaut) -->
-                  <div class="emoji-extended" style="display:none">
+                  <!-- Zone étendue (réactive) -->
+                  {#if extendedEmojiMsgId === msg.id}
+                  <div class="emoji-extended">
                     {#each ALL_EMOJIS as emoji}
                       <button
                         class="emoji-quick-btn" data-testid="emoji-quick-btn"
@@ -1272,6 +1274,7 @@
                       >{emoji}</button>
                     {/each}
                   </div>
+                  {/if}
                 </div>
               {/if}
             {/if}
