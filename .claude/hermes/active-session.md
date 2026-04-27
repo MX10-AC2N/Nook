@@ -6,7 +6,7 @@
 **Vérifications post-redéploiement + poursuite développement**
 
 ## 📋 État actuel
-- **Dernier commit :** `7a1e47b5` (docs: project-state update)
+- **Dernier commit :** `72d41e8e` (test: E2EE refresh + encrypted messages)
 - **CI Backend :** ✅ PASSE (commit `327b08e6`)
 - **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
 - **Status :** En attente de vérifications utilisateur
@@ -32,13 +32,20 @@
 ### 4. Documentation mise à jour
 - `known-issues.md` : BUG-002 FIXED, BUG-003 sécurité FIXED
 - `project-state.md` : État complet session 52 (commit `7a1e47b5`)
-- `active-session.md` : Mis à jour (commit `c255a970`)
+- `known-issues.md` : CI-002 simple-peer RÉSOLU (commit `de7b077c`)
+- `project-state.md` : webrtc.ts refactored (commit `a3da2d76`)
 
 ### 5. Refactoring webrtc.ts - Suppression simple-peer (commit `65386b88`)
 - **Problème :** PR #28 mergée mais `webrtc.ts` utilisait encore `simple-peer`
 - **Fix :** Réécriture complète avec API WebRTC native (`RTCPeerConnection`)
 - **Ajouts :** Gestion ICE candidates, DataChannel, MediaStream via `ontrack`
-- **Statut :** CI-002 (simple-peer) marqué RÉSOLU (commit `de7b077c`)
+- **Statut :** CI-002 (simple-peer) marqué RÉSOLU
+
+### 6. Tests E2EE refresh créés (commit `72d41e8e`)
+- `frontend/tests/e2e-refresh.spec.ts`
+- Test 1: E2EE refresh - messages decrypt after cryptoStore.ready
+- Test 2: Send and receive encrypted message
+- Adresses BUG-002 verification en conditions réelles
 
 ## 🔍 Ce qu'il reste à faire
 
@@ -47,21 +54,7 @@
 | 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire |
 | 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
 | 🟢 **3** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
-
-## 📝 Prochaines étapes
-1. Attendre feedback utilisateur sur le redéploiement
-2. Tester P2P file transfer >50 Mo sur https://192.168.1.192:6443
-3. Vérifier que E2EE refresh fonctionne (cryptoStore.ready=false → decrypt auto)
-4. Si tout est OK → Créer tests E2E supplémentaires
-
-## 🔍 Ce qu'il reste à faire
-
-| Priorité | Tâche | Status |
-|----------|-------|--------|
-| 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire |
-| 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
-| 🟡 **3** | **simple-peer 9.11.1** - dépendance obsolète (PR #28 ?) | ❓ À vérifier |
-| 🟢 **4** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
+| 🟢 **4** | **simple-peer** - marqué RÉSOLU (65386b88) | ✅ FAIT |
 
 ## 📝 Prochaines étapes
 1. Attendre feedback utilisateur sur le redéploiement
@@ -72,13 +65,14 @@
 ## 🔗 Liens rapides
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
 - CI Frontend : https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/7a1e47b5
+- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/72d41e8e
 - Repo : https://github.com/MX10-AC2N/Nook (branche develop)
 - Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
 
 ## 🧠 Ce que je dois retenir
 - **E2EE refresh :** Fix complet (polling robuste + appel APRÈS messages)
 - **P2P security :** Utilise `e2ee.loadGroupKey()` maintenant
-- **Testing :** 0 test P2P avant cette session → maintenant `p2p-file-transfer.spec.ts`
+- **Testing :** Tests P2P + E2EE créés cette session
+- **simple-peer :** ✅ RÉSOLU - webrtc.ts réécrit avec API native
 - **Structure :** `.claude/hermes/` lu au démarrage (hook + mémoire)
 - **CI :** Backend PASSE, Frontend 163/163 PASS
