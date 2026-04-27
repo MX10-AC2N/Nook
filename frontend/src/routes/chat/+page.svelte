@@ -194,6 +194,38 @@
     return msg || 'Erreur inconnue';
   }
 
+  // ── P2P Helper: play notification sound ──────────────────────
+  function playNotificationSound(type: 'success' | 'error' = 'success') {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      if (type === 'success') {
+        // Success: short ascending beep
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.1);
+      } else {
+        // Error: short descending beep
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        oscillator.frequency.setValueAtTime(400, audioCtx.currentTime + 0.1);
+      }
+      
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.2);
+      
+      setTimeout(() => audioCtx.close(), 300);
+    } catch (e) {
+      console.warn('[P2P] Sound notification failed:', e);
+    }
+  }
+
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let typingUsers = $state<string[]>([]);
   let typingTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -832,6 +864,8 @@
             transfer.status = 'completed';
             transfer.progress = 100;
             p2pTransfers = new Map(p2pTransfers);
+            // Jouer un son de succès
+            playNotificationSound('success');
           }
           
           // Envoyer un message dans le chat
@@ -853,6 +887,8 @@
             transfer.status = 'error';
             transfer.error = error;
             p2pTransfers = new Map(p2pTransfers);
+            // Jouer un son d'erreur
+            playNotificationSound('error');
           }
           
           chatStore.connectionError = `Échec du transfert P2P: ${error}`;
@@ -863,6 +899,9 @@
       console.error('[P2P Transfer]', err);
       p2pTransfers.delete(progressId);
       p2pTransfers = new Map(p2pTransfers);
+      
+      // Jouer un son d'erreur
+      playNotificationSound('error');
       
       chatStore.connectionError = err instanceof Error ? err.message : "Échec du transfert P2P";
       setTimeout(() => chatStore.connectionError = null, 5000);
