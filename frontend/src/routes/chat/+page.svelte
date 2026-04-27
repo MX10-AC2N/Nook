@@ -712,20 +712,36 @@
       }
     }
     
-    // Si aucun canal disponible, essayer de créer une connexion dédiée
-    if (!channel || !targetUserId) {
-      // Trouver l'utilisateur cible (premier participant de la conversation)
-      const participants = chatStore.participants.get(activeConvId);
-      if (!participants || participants.length === 0) {
-        chatStore.connectionError = 'Aucun participant trouvé dans la conversation.';
-        input.value = '';
-        setTimeout(() => chatStore.connectionError = null, 5000);
-        return;
-      }
-      
-      // Prendre le premier participant qui n'est pas l'utilisateur actuel
-      targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
-      try {
+      // Si aucun canal disponible, essayer de créer une connexion dédiée
+      if (!channel || !targetUserId) {
+        // Trouver l'utilisateur cible (premier participant de la conversation)
+        const participants = chatStore.participants.get(activeConvId);
+        if (!participants || participants.length === 0) {
+          chatStore.connectionError = 'Aucun participant trouvé dans la conversation.';
+          input.value = '';
+          setTimeout(() => chatStore.connectionError = null, 5000);
+          return;
+        }
+        
+        // Prendre le premier participant qui n'est pas l'utilisateur actuel
+        targetUserId = participants.find(p => p.id !== authStore.user?.id)?.id;
+        
+        // Vérification présence (DataChannel existant = utilisateur joignable)
+        const existingChannel = callStore.fileDataChannels.get(targetUserId || '');
+        if (existingChannel) {
+          if (existingChannel.readyState === 'open') {
+            chatStore.connectionError = `✓ Utilisateur joignable (canal ouvert)`;
+            setTimeout(() => chatStore.connectionError = null, 3000);
+          } else {
+            chatStore.connectionError = `⚠️ Canal existant mais état: ${existingChannel.readyState}`;
+            setTimeout(() => chatStore.connectionError = null, 3000);
+          }
+        } else {
+          chatStore.connectionError = `⚠️ Aucun canal ouvert, l'utilisateur ${targetUserId} est peut-être hors ligne`;
+          setTimeout(() => chatStore.connectionError = null, 4000);
+        }
+        
+        try {
         // Connexion P2P avec timeout 10s + retry (2 tentatives)
         chatStore.connectionError = `🔄 Établissement de la connexion P2P vers ${targetUserId}...`;
         
