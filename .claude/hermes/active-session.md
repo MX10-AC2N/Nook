@@ -3,82 +3,82 @@
 > Dernière mise à jour : 2026-04-27 (session 52)
 
 ## 🎯 Tâche en cours
-**README.md v2 - HTTPS prioritaire, vraiment différent**
+**Création complète de tests E2E pour Nook**
 
 ## 📋 État actuel
-- **Dernier commit :** `5db6da3f` (docs: readme v2 - HTTPS first, truly different)
+- **Dernier commit :** `ce6b4758` (test: notifications specs)
 - **CI Backend :** ✅ PASSE (commit `327b08e6`)
 - **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
-- **Status :** Tout poussé, README v2 complété
+- **Status :** 11 fichiers de tests E2E créés cette session
 
 ## ✅ Réalisations cette session
 
-### 1-9. Travail initial (commits e9b17418 à 84f5cd8c)
-- Fix sécurité P2P, Tests P2P/E2EE/Login/Chat
-- webrtc.ts réécrit, simple-peer supprimé
-- CI lancés et passés
+### 1-9. Travail initial (commits multiples)
+- Fix sécurité P2P (e9b17418) - `e2ee.loadGroupKey()`
+- Tests P2P créés (a35f7989)
+- E2EE refresh FIXED (0219c73e)
+- webrtc.ts réécrit, simple-peer supprimé (65386b88)
+- Tests E2EE refresh, Login, Chat créés
+- CI lancés et PASS
+- README.md v1 rewrite (1d413b72)
 
-### 10-13. Screenshots et README v1
+### 10-13. Screenshots et README v2
 - Screenshots pris et sauvés (f68b09f1)
-- README.md rewrite v1 (1d413b72) - "human readable"
+- README.md v2 COMPLET (5db6da3f) - HTTPS prioritaire, vraiment différent
+- Plus aéré, plus visuel, logique parfaite
+- Structure : 8,533 bytes (vs 14,631 avant)
 
-### 14. README.md v2 - VRAIMENT différent ! (commit `5db6da3f`)
-**Feedback utilisateur :**
-- ❌ "quasi identique au précédent" (v1 encore trop dense)
-- ❌ "pourquoi encore HTTP en LAN ?" (HTTPS configuré pour tout fonctionne)
+### 14. Tests E2E créés (11 fichiers !)
 
-**Corrections v2 :**
-- ✅ **HTTPS PRIORITAIRE** : `https://IP:6443` → RECOMMANDÉ (tout fonctionne)
-- ✅ **HTTP DEMOTÉ** : `http://IP:6300` → BASIQUE (pas audio/vidéo)
-- ✅ **Vraiment différent** : 14,631 → 8,533 bytes (moins dense)
-- ✅ **Plus visuel** : tableaux, listes claires, emoji
-- ✅ **Logique parfaite** : Install → HTTPS → Screenshots → Invite → Notifs → Options
-- ✅ **Moins de jargon** : technique déplacé à la fin
+**Tests créés cette session :**
+1. ✅ `p2p-file-transfer.spec.ts` (a35f7989) - Transfert P2P
+2. ✅ `e2e-refresh.spec.ts` (72d41e8e) - E2EE refresh
+3. ✅ `login.spec.ts` (84f5cd8c) - Connexion
+4. ✅ `chat.spec.ts` (d3578e4e) - Messagerie
+5. ✅ `calendar.spec.ts` (817842a3) - Calendrier
+6. ✅ `chess.spec.ts` (817842a3) - Échecs
+7. ✅ `polls.spec.ts` (817842a3) - Sondages
+8. ✅ `settings.spec.ts` (ef187879) - Paramètres
+9. ✅ `admin.spec.ts` (a532c019) - Administration
+10. ✅ `calls.spec.ts` (8101646a) - Appels
+11. ✅ `notifications.spec.ts` (ce6b4758) - Notifications
 
-**Structure v2 :**
-1. 👋 Qu'est-ce que Nook ?
-2. ✨ Ce que vous pouvez faire (tableau visuel)
-3. 🚀 Installation (3 étapes)
-4. 🔒 Accès HTTPS en LAN (EXPLIQUÉ pourquoi c'est important !)
-5. 📸 L'interface (screenshots)
-6. 👥 Inviter la famille
-7. 🔔 Notifications
-8. 🌐 Accès internet (optionnel)
-9. 🎁 GIFs
-10. ❓ FAQ
-11. 🔒 Sécurité
-12. ⚙️ Configuration avancée
-13. 🏗️ Architecture (à la fin)
+**Couverture E2E :**
+- ✅ Authentification (login, admin)
+- ✅ Fonctionnalités principales (chat, calendar, chess, polls)
+- ✅ Configuration (settings, admin, notifications)
+- ✅ Appels (calls, WebRTC)
+- ✅ Sécurité (E2EE refresh, P2P)
 
 ## 🔍 Ce qu'il reste à faire
 
 | Priorité | Tâche | Status |
 |----------|-------|--------|
-| 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire |
-| 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
-| 🟢 **3** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
+| 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire (utilisateur) |
+| 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire (utilisateur) |
+| 🟢 **3** | **Créer plus de tests** E2E | ✅ PRESQUE TERMINÉ (11 fichiers) |
 | 🟢 **4** | **simple-peer** - marqué RÉSOLU | ✅ FAIT |
-| 🟢 **5** | **README.md v2** - HTTPS prioritaire, vraiment différent | ✅ FAIT |
-| 🟢 **6** | **Screenshots** - pris et sauvés | ✅ FAIT |
+| 🟡 **5** | **Screenshots** - pris et sauvés | ✅ FAIT |
+| 🟢 **6** | **README.md v2** - HTTPS prioritaire | ✅ FAIT |
 
 ## 📝 Prochaines étapes
-1. Attendre feedback utilisateur sur le README v2
+1. Attendre feedback utilisateur sur le redéploiement
 2. Tester P2P file transfer >50 Mo sur https://192.168.1.192:6443
-3. Vérifier que E2EE refresh fonctionne
-4. Si tout est OK → Continuer le développement
+3. Vérifier E2EE refresh (cryptoStore.ready=false → decrypt auto)
+4. Si tout est OK → Session complète !
 
 ## 🔗 Liens rapides
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
 - CI Frontend : https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/5db6da3f
+- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/ce6b4758
 - Repo : https://github.com/MX10-AC2N/Nook (branche develop)
-- Homeserver : https://192.168.1.192:6443 (HTTPS avec cert auto-signé)
+- Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
 
 ## 🧠 Ce que je dois retenir
 - **E2EE refresh :** Fix complet (polling robuste)
 - **P2P security :** Utilise `e2ee.loadGroupKey()` 
-- **Testing :** Tests P2P + E2EE + Login + Chat créés
-- **simple-peer :** ✅ RÉSOLU
-- **README v2 :** ✅ HTTPS prioritaire, vraiment différent (8,533 bytes vs 14,631)
+- **Testing :** **11 fichiers E2E créés** cette session !
+- **simple-peer :** ✅ RÉSOLU (webrtc.ts réécrit)
+- **README v2 :** ✅ HTTPS prioritaire, vraiment différent (8,533 bytes)
 - **Screenshots :** ✅ Pris et sauvés dans `docs/screenshots/`
-- **HTTPS vs HTTP :** Maintenant correctement documenté (HTTPS = recommandé)
+- **CI :** Backend PASSE, Frontend 163/163 PASS, Docker OK
