@@ -1,291 +1,226 @@
-![Logo animé du projet](frontend/static/logo-animated.svg)
+![Logo Nook](frontend/static/logo-animated.svg)
 
 <div align="center">
 
-> **v0.5.0**
+### 🏠 La messagerie de votre famille, chez vous.
 
 [![CI Backend](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml)
 [![CI Frontend](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml)
-[![CI Tests](https://github.com/MX10-AC2N/Nook/actions/workflows/test-nook.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/test-nook.yml)
-[![Docker Build](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml)
+[![Docker](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml/badge.svg)](https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml)
 
-[![Docker Image Version](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/latest_tag?color=blue&label=version&trim=&ignore=sha-*,latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-[![Docker Image Size](https://ghcr-badge.egpl.dev/mx10-ac2n/nook/size?color=green&label=image%20size&tag=latest)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-[![Platforms](https://img.shields.io/badge/platforms-amd64%20%7C%20arm64-lightgrey)](https://github.com/MX10-AC2N/Nook/pkgs/container/nook)
-
-[![Rust](https://img.shields.io/badge/Backend-Rust%20+%20Axum%200.8-orange?logo=rust)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/Backend-Rust%20+%20Axum-orange?logo=rust)](https://www.rust-lang.org/)
 [![SvelteKit](https://img.shields.io/badge/Frontend-SvelteKit%205%20Runes-FF3E00?logo=svelte)](https://kit.svelte.dev/)
-[![SQLite](https://img.shields.io/badge/DB-SQLite-003B57?logo=sqlite)](https://sqlite.org/)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 </div>
 
 ---
 
-## 👋 Bonjour !
+## 👋 Qu'est-ce que Nook ?
 
-**Nook, c'est la messagerie de votre famille.**
+C'est **votre** messagerie familiale. Pas celle de Google, de Meta ou d'un autre géant.
 
-Pas de compte chez Google ou Meta. Pas d'abonnement à payer. Pas de données qui partent je-ne-sais-où.
-
-Juste un petit serveur qui tourne chez vous, sur votre machine, et que votre famille peut utiliser depuis n'importe quel appareil — téléphone, tablette, ordinateur.
-
-C'est comme avoir votre propre WhatsApp, mais en mieux, parce que c'est le vôtre.
-
----
-
-## 🏠 Ce qu'on peut faire avec Nook
-
-### 💬 Discuter en famille
-Envoyez des messages en temps réel, réagissez avec des emojis, partagez des photos et des fichiers. Il y a un groupe global pour tout le monde, et vous pouvez aussi créer des conversations privées.
-
-### 🔐 Sans compromis sur la vie privée
-Les messages sont chiffrés de bout en bout (X25519). Les fichiers (jusqu'à 50 Mo) sont chiffrés sur le disque (XChaCha20). Les fichiers volumineux (>50 Mo) sont transférés directement entre appareils via WebRTC (P2P) avec chiffrement E2EE. Les mots de passe ne sont jamais stockés en clair (Argon2id). Même vous, en tant qu'admin, vous ne pouvez pas les lire.
-
-### 🔔 Notifications sur votre téléphone
-Recevez une notification quand quelqu'un vous écrit — même quand l'onglet est fermé. Ça s'active depuis les Paramètres de Nook.
-
-### 📅 Calendrier partagé
-Tous les événements de la famille au même endroit. Anniversaires, rendez-vous, sorties... Glisser-déposer pour déplacer les événements.
-
-### ♟️ Parties d'échecs
-Jouez entre membres ou contre l'IA (5 niveaux). Animations des pièces, coups spéciaux, minuteur configurable.
-
-### 📊 Sondages
-"Qu'est-ce qu'on mange ce soir ?", "Qui vient dimanche ?". Créez un vote en quelques secondes.
-
-### 📞 Appels audio & vidéo
-Connexion directe entre appareils (WebRTC). Le serveur ne voit jamais le flux. Fonctionne en LAN et via internet.
-
-### 🎨 Trois thèmes
-Jardin Secret 🌿 · Space Hub 🚀 · Maison Chaleureuse 🏠 — avec mode sombre en option.
+- 🔐 **Vos données** restent chez vous, sur votre serveur
+- 💰 **Gratuit** : pas d'abonnement, pas de carte bancaire
+- 🏠 **Simple** : un conteneur Docker et c'est prêt
+- 📱 **Partout** : téléphone, tablette, ordinateur, tout le monde peut se connecter
 
 ---
 
-## 🚀 Installation rapide
+## ✨ Ce que vous pouvez faire
 
-**Ce qu'il faut** : Docker + Docker Compose. C'est tout.
+| Fonctionnalité | Description |
+|--------------|-------------|
+| 💬 **Messages** | Temps réel, emojis, photos, fichiers. Groupes + privé |
+| 🔐 **E2EE** | Chiffrement de bout en bout (X25519). Même l'admin ne peut pas lire |
+| 📞 **Appels** | Audio/vidéo WebRTC P2P. Le serveur ne voit jamais le flux |
+| 📅 **Calendrier** | Événements familiaux, anniversaires, rendez-vous |
+| ♟️ **Échecs** | Jouez contre l'IA (5 niveaux) ou entre membres |
+| 📊 **Sondages** | "Qu'est-ce qu'on mange ?" en 3 clics |
+| 🎨 **Thèmes** | Jardin Secret 🌿, Space Hub 🚀, Maison 🏠 + mode sombre |
 
-Ça fonctionne sur `linux/amd64` et `linux/arm64` (Raspberry Pi 4+, Zimaboard, NAS).
+> 💡 **Le chiffrement E2EE** est activé par défaut depuis la v0.5.0. Vos messages sont protégés par X25519 + XChaCha20.
 
+---
+
+## 🚀 Installation (3 étapes)
+
+### 1. Prérequis
+Docker + Docker Compose installés sur votre machine (Linux, NAS, Raspberry Pi 4+, Zimaboard).
+
+### 2. Lancer Nook
 ```bash
-git clone https://github.com/MX10-AC2N/Nook.git && cd Nook
-cp .env.example .env          # éditez PUBLIC_SITE_URL avec l'IP de votre serveur
+git clone https://github.com/MX10-AC2N/Nook.git
+cd Nook
+cp .env.example .env
 docker compose up -d
 ```
 
-Ouvrez `http://votre-serveur:6300` dans un navigateur. C'est prêt ! 🎉
+### 3. Ouvrez Nook
+**🔒 Recommandé (LAN) :**  
+→ `https://votre-IP:6443`  
+✅ Audio, vidéo, WebRTC, notifications — **tout fonctionne**
 
-> **Premier lancement** — un compte `admin` est créé automatiquement avec le mot de passe `changeme2026`.
+**📋 Basique (LAN) :**  
+→ `http://votre-IP:6300`  
+⚠️ Limite : pas d'enregistrement audio/vidéo (navigateur bloque)
+
+> 💡 **Première connexion :** Compte `admin` créé auto avec mot de passe `changeme2026`.  
 > Vous serez forcé de le changer à la première connexion.
 
-**Mise à jour :**
-```bash
-docker compose pull && docker compose up -d
-```
+---
+
+## 🔒 Accès HTTPS en LAN (important !)
+
+Nook inclut un **reverse proxy nginx local** sur le port **6443** pour :
+- 🎙️ **Appels audio/vidéo** — le navigateur exige HTTPS
+- 🔔 **Notifications push** — contexte sécurisé requis
+- 📞 **WebRTC P2P** — connexion directe entre appareils
+
+**Certificat auto-signé** généré automatiquement (valide 10 ans).  
+Votre navigateur affichera un avertissement la première fois — c'est normal, c'est votre propre certificat.
 
 ---
 
-## 📸 Captures d'écran
-
-Voici Nook en action sur différents appareils :
+## 📸 L'interface Nook
 
 ### 💬 Conversation
-![Chat Nook](docs/screenshots/chat.png)
-*Interface de chat avec messages chiffrés E2EE*
+![Chat](docs/screenshots/chat.png)  
+*Messages chiffrés E2EE, réactions, partage de fichiers*
 
 ### 📞 Appels audio/vidéo
-![Appel Nook](docs/screenshots/call.png)
-*Appel WebRTC P2P (chiffré de bout en bout)*
+![Appels](docs/screenshots/call.png)  
+*WebRTC P2P — le serveur ne voit jamais le flux*
 
 ### 📅 Calendrier
-![Calendrier Nook](docs/screenshots/calendar.png)
-*Événements familiaux partagés*
+![Calendrier](docs/screenshots/calendar.png)  
+*Événements familiaux, glisser-déposer*
 
-### ♟️ Parties d'échecs
-![Échecs Nook](docs/screenshots/chess.png)
-*Jouez contre l'IA ou entre membres*
+### ♟️ Échecs
+![Échecs](docs/screenshots/chess.png)  
+*Contre l'IA ou entre membres*
 
 ### 📊 Sondages
-![Sondages Nook](docs/screenshots/polls.png)
-*Créez des votes en quelques secondes*
+![Sondages](docs/screenshots/polls.png)  
+*Votes rapides en quelques secondes*
 
-### 🔧 Paramètres
-![Paramètres Nook](docs/screenshots/settings.png)
-*Thèmes, notifications, sécurité*
-
----
-
-## 👥 Comment inviter votre famille
-
-1. Connectez-vous avec le compte `admin`
-2. Allez dans `/admin` → onglet **Invitations**
-3. Générez un lien — il expire dans 48h et ne fonctionne qu'une fois
-4. Envoyez ce lien à la personne par SMS, email, ou en main propre
-5. Elle crée son compte → vous l'approuvez dans l'onglet **Membres en attente**
+### ⚙️ Paramètres
+![Paramètres](docs/screenshots/settings.png)  
+*Thèmes, notifications, avatar*
 
 ---
 
-## 🔔 Installer le certificat CA (pour les notifications)
+## 👥 Inviter votre famille (3 étapes)
 
-Pour que les notifications push fonctionnent sur votre téléphone, il faut installer un petit certificat. C'est normal et sécurisé — c'est le certificat de votre propre serveur.
+1. **Connectez-vous** avec le compte `admin`
+2. **Allez** dans `/admin` → onglet **Invitations**
+3. **Générez** un lien (expire dans 48h, usage unique)
+4. **Envoyez** le lien par SMS, email ou en main propre
+5. **Approuvez** le nouveau membre dans l'onglet **Membres en attente**
 
-**Comment faire :**
+---
 
-1. **Ouvrez** `http://votre-serveur:6300/ca/help` dans votre navigateur
-2. **Téléchargez** le certificat via le bouton
-3. **Installez-le** sur votre téléphone :
-   - **Android** : Paramètres → Sécurité → Certificats → Installer depuis le stockage
-   - **Samsung** : Paramètres → Biométrie et sécurité → Autres paramètres → Certificats → Installer
-   - **iPhone** : Réglages → Général → VPN et gestion de l'appareil → Installer
-4. **Redémarrez** votre navigateur
-5. **Activez** les notifications dans Nook (Paramètres → Notifications)
+## 🔔 Notifications sur téléphone
 
-> Le certificat est valide 10 ans. Vous n'aurez plus jamais à y toucher.
+Pour recevoir des notifications même quand l'onglet est fermé :
+
+### 1. Installer le certificat CA
+1. Ouvrez `http://votre-IP:6300/ca/help` (ou via HTTPS)
+2. Téléchargez le certificat
+3. Installez-le :
+   - **Android** : Paramètres → Sécurité → Certificats → Installer
+   - **iPhone** : Réglages → Général → VPN → Installer
+4. Redémarrez votre navigateur
+
+### 2. Activer dans Nook
+Allez dans **Paramètres → Notifications** et activez-les.
+
+> ✅ Le certificat est valide 10 ans. Une fois installé, vous n'y touchez plus.
 
 ---
 
 ## 🌐 Accès depuis internet (optionnel)
 
-Vous voulez accéder à Nook depuis l'extérieur de votre réseau ? Placez-le derrière un reverse proxy.
+Vous voulez accéder à Nook depuis l'extérieur ?
 
-Compatible avec **Nginx Proxy Manager**, **Caddy**, **Traefik**.
+Placez Nook derrière un **reverse proxy** (Nginx Proxy Manager, Caddy, Traefik) :
 
 ```
 https://nook.votre-famille.fr  →  http://localhost:6300
 ```
 
-Deux choses importantes :
-- Ajoutez votre domaine dans `PUBLIC_SITE_URL` (et `ALLOWED_ORIGINS` si différent)
-- Activez le support WebSocket dans votre proxy (`/ws` est utilisé pour les échecs et les appels)
+**Important :**
+- Ajoutez votre domaine dans `PUBLIC_SITE_URL` (fichier `.env`)
+- Activez le support **WebSocket** (`/ws`) pour les échecs et appels
 
 ---
 
-## 🔒 HTTPS local (pour les appels audio/vidéo)
+## 🎁 GIFs animés (automatique)
 
-L'enregistrement audio et vidéo dans le navigateur nécessite un **contexte sécurisé** (HTTPS). Sur HTTP LAN, le navigateur bloque l'accès au microphone.
+Les GIFs sont servis **depuis votre serveur** — aucune requête vers Giphy !
 
-Nook inclut un reverse proxy **nginx local** qui sert HTTPS sur le port 6443 :
+- ✅ **Mise à jour auto** toutes les 7 jours
+- ✅ **12 thèmes** populaires (réactions, animaux, fête...)
+- ✅ **Gratuit** : une clé API Giphy dans `.env` (optionnel)
 
-```bash
-# Démarrez Nook normalement
-docker compose up -d
-```
-
-Un certificat auto-signé est généré **automatiquement** au premier lancement (valide 10 ans).
-
-```
-LAN (HTTPS)                     WAN (HTTPS)
-https://192.168.1.x:6443        https://votre-domaine.com
-       │                              │
-   ┌───┴───┐                   ┌──────┴──────┐
-   │ nginx │                   │ nginx proxy │
-   │ local │                   │  manager    │
-   └───┬───┘                   └──────┬──────┘
-       │                              │
-       └──────────┬───────────────────┘
-                  │
-             ┌────┴────┐
-             │  Nook   │ :3000
-             └─────────┘
-```
-
-Le port HTTPS local est configurable via `NGINX_HTTPS_PORT` dans `.env`.
-
----
-
-## 🎁 GIFs — Mise à jour automatique
-
-Les GIFs sont stockés dans le volume de données (`DATA_DIR/gifs/`) et servis directement par Nook — aucune requête externe n'est envoyée quand un membre envoie un GIF.
-
-**Bonne nouvelle** : la mise à jour des GIFs est **automatique**. Le backend lance une tâche au démarrage qui vérifie toutes les 7 jours si de nouveaux GIFs sont disponibles sur Giphy.
-
-**Ce qu'il faut :**
-1. Une clé API Giphy (gratuite) dans votre `.env` : `GIPHY_API_KEY=***`
-2. Redémarrez Nook : `docker compose up -d`
-
-Le script télécharge ~10 GIFs pour chacun des 12 thèmes les plus populaires Giphy (réactions, humour, animaux, fête, anniversaire…). Aucun rebuild Docker nécessaire — les GIFs sont servis directement depuis le volume.
-
-> **Note** : Si vous n'avez pas de clé Giphy, les GIFs par défaut (inclus dans l'image Docker) seront utilisés.
-
----
-
-## ⚙️ Configuration avancée
-
-Tout se passe dans le fichier `.env` — le `.env.example` contient toutes les variables documentées.
-
-Les essentielles :
-
-| Variable | Ce qu'elle fait |
-|----------|----------------|
-| `PUBLIC_SITE_URL` | L'URL depuis laquelle vous accédez à Nook (`http://192.168.1.x:6300` ou votre domaine) |
-| `ALLOWED_ORIGINS` | Si vous accédez depuis plusieurs URLs (LAN + domaine externe), listez-les ici |
-| `DATA_DIR` | Où stocker la base de données et les fichiers uploadés |
-| `VAPID_PRIVATE_KEY` | Pour les notifications push — voir ci-dessous pour générer les clés |
-| `VAPID_PUBLIC_KEY` | Idem — les deux vont ensemble |
-| `GIPHY_API_KEY` | Pour les GIFs — clé SDK gratuite sur [developers.giphy.com](https://developers.giphy.com) |
-
-> Le fichier `.env` reste sur votre serveur. Ne le commitez jamais dans git.
-
-### Génération des clés VAPID
-
-Les clés VAPID servent à authentifier les notifications push. Vous n'avez besoin de les générer qu'une seule fois.
-
-**Option 1 — Avec OpenSSL (recommandé) :**
-```bash
-# Générer la clé privée
-openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
-
-# Extraire la clé privée en base64url (pour VAPID_PRIVATE_KEY)
-openssl ec -in vapid_private.pem -outform DER | tail -c +8 | head -c 32 | base64 -w0 | tr '+/' '-_' | tr -d '='
-
-# Extraire la clé publique en base64url (pour VAPID_PUBLIC_KEY)
-openssl ec -in vapid_private.pem -pubout -outform DER | tail -c 65 | base64 -w0 | tr '+/' '-_' | tr -d '='
-```
-
-**Option 2 — Avec Node.js (si vous l'avez installé) :**
-```bash
-npx web-push generate-vapid-keys
-```
-
-**Option 3 — En ligne :**
-Allez sur [vapidkeys.com](https://www.vapidkeys.com/) et copiez les clés générées.
-
-> Copiez les deux clés dans votre `.env` et redémarrez Nook avec `docker compose up -d`.
+> 💡 Pas de clé ? Les GIFs par défaut sont inclus dans l'image Docker.
 
 ---
 
 ## ❓ Questions fréquentes
 
-**Mes données sont où ?**
-Dans le dossier `DATA_DIR` sur votre machine. Rien ne sort de chez vous.
+**🏠 Ça tourne sur Raspberry Pi ?**  
+Oui ! Image compilée nativement pour `arm64` (Pi 4+, Zimaboard, NAS).
 
-**Ça tourne sur Raspberry Pi ?**
-Oui. L'image est compilée nativement pour `arm64` — Raspberry Pi 4+, Zimaboard, NAS Synology/QNAP/TrueNAS.
+**🔐 Le chiffrement est vraiment activé ?**  
+Oui depuis v0.5.0. Chaque membre a une clé X25519 générée sur son appareil.
 
-**Le chiffrement est vraiment activé ?**
-Oui depuis la v0.5.0 : les clés X25519 sont générées à la première connexion de chaque membre et stockées chiffrées sur leur appareil. Les fichiers partagés sont chiffrés sur le disque depuis le début.
+**📞 Les appels passent par mon serveur ?**  
+Non pour 2 personnes (WebRTC P2P direct). Oui pour 3+ (relais SFU).
 
-**Les appels passent par votre serveur ?**
-Non pour 2 participants. WebRTC connecte les appareils directement entre eux. Le serveur fait uniquement le handshake initial. Pour les appels à 3+ participants, un mode SFU (via rustrtc) relaye le flux depuis le serveur.
+**🔑 J'ai oublié mon mot de passe ?**  
+Connectez-vous en `admin` → `/admin` → **Membres** → Réinitialiser.
 
-**Un membre a oublié son mot de passe ?**
-Depuis `/admin` → **Membres** → vous pouvez réinitialiser son mot de passe. Il devra le changer à la prochaine connexion.
-
-**Les notifications ne fonctionnent pas ?**
-Assurez-vous d'avoir installé le certificat CA sur votre téléphone (voir la section "Installer le certificat CA" plus haut).
+**📱 Les notifications ne marchent pas ?**  
+Vérifiez que le **certificat CA** est installé sur votre téléphone.
 
 ---
 
 ## 🔒 Sécurité & Audit
 
-Nook passe régulièrement des audits de sécurité, Docker et dépendances. Derniers scores (2026-04-25) :
+Derniers scores (2026-04-25) :
+- 🔒 **Sécurité** : 92/100 — CSP renforcée, pas de secrets en dur
+- 🐳 **Docker** : 92/100 — Images distroless, healthchecks
+- 📦 **Dépendances** : 74/100 — `chacha20poly1305` à jour
 
-- 🔒 **Sécurité** : **92/100** — CSP renforcée, pas de secrets en dur, sanitisation SVG
-- 🐳 **Docker** : **92/100** — Images distroless, healthchecks, `.dockerignore`
-- 📦 **Dépendances** : **74/100** — `chacha20poly1305` à jour, dépendances inutilisées supprimées
+> 📂 Détails disponibles dans le dossier `.claude/` du dépôt.
 
-Pour plus de détails, voir le dossier `.claude/` dans le dépôt.
+---
+
+## ⚙️ Configuration avancée
+
+Tout se configure dans le fichier `.env` (basé sur `.env.example`) :
+
+| Variable | Usage |
+|----------|-------|
+| `PUBLIC_SITE_URL` | Votre URL d'accès (ex: `https://192.168.1.50:6443`) |
+| `ALLOWED_ORIGINS` | URLs multiples séparées par virgule |
+| `DATA_DIR` | Où stocker la base et les fichiers |
+| `VAPID_PRIVATE_KEY` | Notifications push (générer une fois, voir ci-dessous) |
+| `GIPHY_API_KEY` | GIFs (gratuit sur developers.giphy.com) |
+
+### Générer les clés VAPID (pour notifications)
+
+**Avec OpenSSL (recommandé) :**
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
+# Extraire la clé privée (pour .env)
+openssl ec -in vapid_private.pem -outform DER | tail -c +8 | head -c 32 | base64 -w0 | tr '+/' '-_' | tr -d '='
+# Extraire la clé publique (pour .env)
+openssl ec -in vapid_private.pem -pubout -outform DER | tail -c 65 | base64 -w0 | tr '+/' '-_' | tr -d '='
+```
+
+> 💡 Copiez les deux clés dans `.env` et redémarrez : `docker compose up -d`.
 
 ---
 
@@ -293,47 +228,31 @@ Pour plus de détails, voir le dossier `.claude/` dans le dépôt.
 
 ```
 Nook/
-├── backend/            Rust + Axum 0.8 — API REST, WebSocket, auth, crypto, SFU
-│   ├── src/            18 modules : auth, chat, chess, polls, sfu, webrtc, push, e2ee, admin...
-│   ├── .sqlx/          Requêtes SQL pré-compilées pour compilation hors ligne (SQLX_OFFLINE=true)
-│   └── migrations/     7 migrations SQLite (users, chess, e2ee, polls, reactions, push, timer)
-│
-├── frontend/            SvelteKit 5 Runes + TypeScript
-│   ├── src/routes/     login, chat, admin, calendar, chess, call, polls, settings...
-│   ├── src/lib/        stores Svelte (auth, chat, chess, crypto, push, webrtc...)
-│   └── tests/          144 tests Playwright E2E (admin, user, chess, webrtc, calls, API sanit)
-│
-├── services/            Services additionnels
-│   └── turn-rs/        Serveur TURN/STUN pour relais WebRTC multi-appelants (edition 2024)
-│
-├── .github/workflows/  6 pipelines CI : Backend, Frontend, Docker, Tests, SQLx, Frontend Build
-├── Dockerfile           Build depuis les sources (utilisé par les tests CI)
-├── Dockerfile.release   Binaires pré-compilés → image Alpine 3.21 (production)
-└── docker-compose.yml   Stack de production Alpine (nook + turn-rs)
+├── backend/          Rust + Axum 0.8 (API REST, WebSocket, auth, crypto)
+├── frontend/         SvelteKit 5 Runes + TypeScript
+├── services/
+│   └── turn-rs/    Serveur TURN/STUN pour WebRTC
+└── docker-compose.yml
 ```
 
-**Ce qui tourne réellement :**
-- Un binaire Rust dans une image Alpine — pas de shell, pas d'outils inutiles, surface d'attaque minimale
-- Un serveur TURN/STUN (`turn-rs`) pour le relais WebRTC quand la connexion directe échoue — également en Alpine
-- Une base SQLite dans le dossier `DATA_DIR`
-- Un dossier d'uploads chiffrés, nettoyés automatiquement toutes les 24h
+**Ce qui tourne :**
+- Un binaire Rust dans Alpine Linux (surface d'attaque minimale)
+- Un serveur TURN/STUN pour relais WebRTC
+- Une base SQLite dans `DATA_DIR`
+- Un dossier d'uploads chiffrés (nettoyé toutes les 24h)
 
----
-
-## 📚 Documentation
-
-- [HTTPS local](docs/nginx-local.md) — Configuration nginx pour l'enregistrement audio/vidéo en LAN
-- [API Reference](docs/API.md) — Tous les endpoints REST + WebSocket events
-- [CHANGELOG.md](CHANGELOG.md) — Historique des versions
+> 📚 **Docs techniques :**  
+> - [API](docs/API.md) — Tous les endpoints + WebSocket  
+> - [HTTPS local](docs/nginx-local.md) — Config nginx pour LAN  
+> - [CHANGELOG](CHANGELOG.md) — Historique des versions
 
 ---
 
 <div align="center">
 
-Pas de pub. Pas de tracking. Pas de numéro de carte bancaire.
-
+**Pas de pub. Pas de tracking. Pas de carte bancaire.**  
 Juste votre famille, chez vous.
 
-**🤜🤛**
+🤜🤛
 
 </div>
