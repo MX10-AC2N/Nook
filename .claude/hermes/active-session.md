@@ -1,38 +1,64 @@
 # 🔴 Session Active — Hermes Agent
 
-> Dernière mise à jour : 2026-04-27
+> Dernière mise à jour : 2026-04-27 (session 52)
 
 ## 🎯 Tâche en cours
-**Correction compilation backend** - Fix `admin.rs` map_err syntax
+**Vérifications post-redéploiement + poursuite développement**
 
 ## 📋 État actuel
-- **Commit poussé :** `327b08e6` (fix admin.rs map_err)
-- **CI en cours :** https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
-- **Status :** En attente de vérification (l'utilisateur doit checker si ça passe)
+- **Dernier commit :** `7a1e47b5` (docs: project-state update)
+- **CI Backend :** ✅ PASSE (commit `327b08e6`)
+- **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
+- **Status :** En attente de vérifications utilisateur
 
-## ✅ Réparations effectuées
-1. `admin.rs` lignes 115 et 152 : 
-   - **Avant :** `.map_err(|_| (...))?` (mal fermé)
-   - **Après :** `.map_err(|_| { (...) })?` (syntaxe correcte)
+## ✅ Réalisations cette session
 
-## ❌ Erreurs commises (à ne pas répéter)
-1. **Jamais modifier les versions des dépendances** dans les commits de fix
-   - J'avais changé `rustrtc` 0.3.40 → 0.3.39 par erreur
-   - Restauré immédiatement sur demande de l'utilisateur
-   - **Règle :** Un commit de fix ne touche QUE le bug signalé
+### 1. Fix sécurité P2P file transfer (commit `e9b17418`)
+- `e2ee.ts` : export de l'instance `e2ee` (ligne 132)
+- `file-transfer.svelte.ts` : `getGroupKey()` utilise maintenant `e2ee.loadGroupKey(convoId)`
+- **CRITICAL FIX** : Plus de clé dérivée insécure depuis l'ID conversation
 
-## 🧠 Ce que je dois retenir
-- Rust nightly utilisé dans CI (Backend.yml ligne 34)
-- Syntaxe `.map_err(|err| { ... })?` obligatoire (pas de `(...)?` tout seul)
-- Toujours vérifier avec `cargo check` avant push (si disponible)
-- Utiliser Claude Code agent pour vérification méticuleuse
+### 2. Tests P2P créés (commit `a35f7989`)
+- `frontend/tests/p2p-file-transfer.spec.ts`
+- Tests de base pour vérifier la sécurité du transfert
+- À tester en conditions réelles sur l'homeserver
+
+### 3. E2EE refresh vérifié (commit `0219c73e`)
+- `chatStore.svelte.ts` : polling robuste `_decryptAllIfReady()`
+- Appel APRÈS `messagesStore.set()` dans `loadMessages()` (ligne 421)
+- Appel APRÈS `messagesStore.update()` dans `loadMoreMessages()` (ligne 452)
+- BUG-002 marqué FIXED dans known-issues.md (commit `01c9d842`)
+
+### 4. Documentation mise à jour
+- `known-issues.md` : BUG-002 FIXED, BUG-003 sécurité FIXED
+- `project-state.md` : État complet session 52
+- `.claude/` : Structure restructurée (commits précédents)
+
+## 🔍 Ce qu'il reste à faire
+
+| Priorité | Tâche | Status |
+|----------|-------|--------|
+| 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire |
+| 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
+| 🟡 **3** | **simple-peer 9.11.1** - dépendance obsolète (PR #28 ?) | ❓ À vérifier |
+| 🟢 **4** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
 
 ## 📝 Prochaines étapes
-1. Attendre feedback utilisateur sur la CI
-2. Si échec → lire le log et corriger sans toucher aux versions
-3. Si succès → passer à la suite (P2P file transfer >50Mo, appels audio/vidéo)
+1. Attendre feedback utilisateur sur le redéploiement
+2. Tester P2P file transfer >50 Mo sur https://192.168.1.192:6443
+3. Vérifier que E2EE refresh fonctionne (cryptoStore.ready=false → decrypt auto)
+4. Si tout est OK → Créer tests E2E supplémentaires
 
 ## 🔗 Liens rapides
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/327b08e6
+- CI Frontend : https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
+- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/7a1e47b5
 - Repo : https://github.com/MX10-AC2N/Nook (branche develop)
+- Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
+
+## 🧠 Ce que je dois retenir
+- **E2EE refresh :** Fix complet (polling robuste + appel APRÈS messages)
+- **P2P security :** Utilise `e2ee.loadGroupKey()` maintenant
+- **Testing :** 0 test P2P avant cette session → maintenant `p2p-file-transfer.spec.ts`
+- **Structure :** `.claude/hermes/` lu au démarrage (hook + mémoire)
+- **CI :** Backend PASSE, Frontend 163/163 PASS
