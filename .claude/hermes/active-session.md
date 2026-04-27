@@ -3,10 +3,10 @@
 > Dernière mise à jour : 2026-04-27 (session 52)
 
 ## 🎯 Tâche en cours
-**Vérifications post-redéploiement + poursuite développement**
+**Vérifications post-redéploiement + poursuite développement + README rewrite**
 
 ## 📋 État actuel
-- **Dernier commit :** `d8fab915` (docs: readme screenshots section)
+- **Dernier commit :** `1d413b72` (docs: readme complete rewrite)
 - **CI Backend :** ✅ PASSE (commit `327b08e6`)
 - **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
 - **Status :** Tous les changements sont poussés
@@ -39,13 +39,12 @@
 - **Problème :** PR #28 mergée mais `webrtc.ts` utilisait encore `simple-peer`
 - **Fix :** Réécriture complète avec API WebRTC native (`RTCPeerConnection`)
 - **Ajouts :** Gestion ICE candidates, DataChannel, MediaStream via `ontrack`
-- **Statut :** CI-002 (simple-peer) marqué RÉSOLU (commit `de7b077c`)
+- **Statut :** CI-002 (simple-peer) marqué RÉSOLU
 
 ### 6. Tests E2EE refresh créés (commit `72d41e8e`)
 - `frontend/tests/e2e-refresh.spec.ts`
 - Test 1: E2EE refresh - messages decrypt after cryptoStore.ready
 - Test 2: Send and receive encrypted message
-- Adresses BUG-002 verification en conditions réelles
 
 ### 7. Tests Login créés (commit `84f5cd8c`)
 - `frontend/tests/login.spec.ts`
@@ -60,16 +59,42 @@
 - Test 3: Chat UI elements present
 
 ### 9. CI workflows lancés (via GitHub API)
-- ✅ Backend CI déclenché (status 204)
-- ✅ Frontend CI déclenché (status 204)
-- ✅ Docker CI déclenché (status 204)
-- Ordre : Backend → Frontend → Docker
+- ✅ Backend CI déclenché (status 204) → `success`
+- ✅ Frontend CI déclenché (status 204) → `success`
+- ✅ Turn-Server CI déclenché → `success`
+- ✅ Docker CI déclenché (status 204) → `success`
 
 ### 10. README.md mis à jour (commit `d8fab915`)
-- ✅ Section "📸 Captures d'écran" ajoutée
-- ✅ Placeholders pour chat, call, calendar, chess, polls, settings
-- ✅ Instructions pour ajouter les vraies captures
-- **Note :** Screenshots non pris (browser échoue), section avec placeholders
+- ✅ Section "📸 Captures d'écran" ajoutée (placeholders)
+
+### 11. Browser navigate réparé
+- ✅ Nettoyage sockets (`/tmp/agent-browser-*`)
+- ✅ Accès Nook fonctionnel (`http://192.168.1.192:6300`)
+
+### 12. Screenshots pris et sauvés (commit `f68b09f1`)
+- ✅ `chat.png` : Interface de chat avec conversations
+- ✅ `call.png` : Page Appel (avertissement HTTPS)
+- ✅ `calendar.png` : Calendrier avril 2026
+- ✅ `chess.png` : Parties d'échecs (multiples parties)
+- ✅ `polls.png` : Sondages (1 sondage actif)
+- ✅ `settings.png` : Paramètres (avatars)
+
+### 13. README.md réécrit complètement (commit `1d413b72`)
+**Analyse du README ancien :**
+- ❌ Structure incohérente (saute partout)
+- ❌ Mélange des publics (utilisateurs lambda + devs)
+- ❌ Ordre illogique (invitations APRÈS internet/HTTPS)
+- ❌ Trop technique trop tôt (Architecture au milieu)
+- ❌ Répétitions et mélange config/notifications
+
+**Nouveau README (feedback utilisateur) :**
+- ✅ **Logique et cohérent** : Install → Premier lancement → Inviter → Notifications → Utiliser → Options avancées
+- ✅ **Human readable** : Langage clair, instructions pas à pas
+- ✅ **Pleinement cohérent** : Tout est à sa place, ordre chronologique d'utilisation
+- ✅ **Utilisateur lambda** : Sait quoi faire et dans le bon ordre
+- ✅ **Architecture** : Déplacée à la fin "pour les curieux"
+- ✅ **Screenshots** : Bien placés après "Utiliser Nook"
+- ✅ **Supprimé** : Instructions contributeurs (README utilisateur, pas dév)
 
 ## 🔍 Ce qu'il reste à faire
 
@@ -79,20 +104,19 @@
 | 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
 | 🟢 **3** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
 | 🟢 **4** | **simple-peer** - marqué RÉSOLU (65386b88) | ✅ FAIT |
-| 🟡 **5** | **Prendre screenshots** de Nook (browser échoue) | ❌ Impossible |
-| 🟢 **6** | **Ajouter vraies captures** dans README | ⏳ Attente utilisateur |
+| 🟡 **5** | **Prendre screenshots** de Nook | ✅ FAIT |
+| 🟢 **6** | **README.md** - réécrit et poussé | ✅ FAIT |
 
 ## 📝 Prochaines étapes
 1. Attendre feedback utilisateur sur le redéploiement
 2. Tester P2P file transfer >50 Mo sur https://192.168.1.192:6443
 3. Vérifier que E2EE refresh fonctionne (cryptoStore.ready=false → decrypt auto)
 4. Si tout est OK → Créer tests E2E supplémentaires
-5. Utilisateur : ajouter vraies captures dans `docs/screenshots/` et `README.md`
 
 ## 🔗 Liens rapides
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
 - CI Frontend : https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/d8fab915
+- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/1d413b72
 - Repo : https://github.com/MX10-AC2N/Nook (branche develop)
 - Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
 
@@ -103,4 +127,5 @@
 - **simple-peer :** ✅ RÉSOLU - webrtc.ts réécrit avec API native
 - **Structure :** `.claude/hermes/` lu au démarrage (hook + mémoire)
 - **CI :** Backend PASSE, Frontend 163/163 PASS, Docker OK
-- **README :** Section screenshots ajoutée (placeholders), screenshots à prendre par utilisateur
+- **README :** ✅ Réécrit complètement - human readable, logique, cohérent
+- **Screenshots :** ✅ Pris et sauvés dans `docs/screenshots/`
