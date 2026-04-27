@@ -3,96 +3,71 @@
 > Dernière mise à jour : 2026-04-27 (session 52)
 
 ## 🎯 Tâche en cours
-**Fix bugs : Refresh + Emoji + P2P analysis**
+**Amélioration P2P suite aux remarques utilisateur**
 
 ## 📋 État actuel
-- **Dernier commit :** `78aaa54d` (fix: refresh keeps conversation from URL)
+- **Dernier commit :** `f680207b` (feat(P2P): remove 500MB limit + add remaining time)
 - **CI Backend :** ✅ PASSE (commit `327b08e6`)
 - **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
-- **Status :** 2 bugs fixés, P2P analysé
+- **Status :** Limite 500 Mo SUPPRIMÉE + Temps restant ajouté
 
-## ✅ Réalisations cette session (résumé)
+## ✅ Réalisations cette session (résumé complet)
 
-### 1-16. Travail antérieur (commits multiples)
-- Fix sécurité P2P (e9b17418), Tests créés puis supprimés
-- E2EE refresh FIXED (0219c73e)
+### 1-22. Travail antérieur (commits multiples)
+- Fix sécurité P2P (e9b17418), E2EE refresh (0219c73e)
 - webrtc.ts réécrit, simple-peer supprimé (65386b88)
-- Emoji Bug Fix ✅ (84e3a6e7) - Svelte 5 reactivity
-- Comprehensive Tests corrigés ✅ (8bce8fa1) - URLs relatives
-- README v2 ✅ (5db6da3f) - HTTPS prioritaire
+- Emoji Bug Fix ✅ (84e3a6e7), Refresh Bug Fix ✅ (78aaa54d)
+- README v2 ✅ (5db6da3f), Screenshots ✅, Tests E2E ✅
 
-### 17. Bug Refresh Fix ✅ (commit `78aaa54d`)
-**Problème :** `activeConvId` initialisé à `'default_global'`
-- Tu actualises `/chat/geraldine_id` → Retour sur Nook ❌
+### 23. Amélioration P2P - Suite aux remarques (commit `f680207b`) ✅
+**Remarque utilisateur :** *"pourquoi limiter le transfert P2P a 500Mo ?"*
 
-**Solution :**
-- ✅ Import `page` depuis `$app/stores`
-- ✅ Dans `onMount`, lecture `$page.params.conversationId`
-- ✅ Si ≠ `default_global`, appelle `selectConversation()`
-
-**Résultat :** Refresh garde la conversation ✅
-
-### 18. Bug Emoji Fix ✅ (commit `84e3a6e7`)
-**Problème :** Bouton `+` (emoji-more-btn) utilisait `el.style.display`
-- Emojis visibles directement ✅
-- Bouton `+` ne fonctionnait pas ❌
-
-**Solution Svelte 5 :**
-- ✅ Variable réactive `extendedEmojiMsgId = $state<string | null>(null)`
-- ✅ Bouton `+` togglera `extendedEmojiMsgId` (pas de DOM)
-- ✅ Zone étendue utilise `{#if extendedEmojiMsgId === msg.id}`
-
-**Résultat :** Emoji panel fonctionne ✅
-
-### 19. Bug P2P 175 Mo - Analysé 🔍
-**Problème :** 175 Mo vidéo → "rien ne se passe" ❌
-
-**Analyse du code :**
-1. 175 Mo > 50 Mo → Déclenche P2P (handleP2PFileTransfer)
-2. Pas de DataChannel → `createFileTransferConnection()` (10s timeout)
-3. Offre SDP envoyée via WebSocket → Attente réponse
-4. **Timeout 10s** → Rejet : "Timeout: File transfer channel not opened"
-5. Erreur *devrait* s'afficher via `chatStore.connectionError`
-
-**Pourquoi "rien ne se passe" :**
-- ❌ Géraldine peut-être **pas en ligne**
-- ❌ WebSocket ne transmet pas l'offre SDP
-- ❌ **Pas de retour visuel** (10s d'attente silencieuse)
-- ❌ 175 Mo = **112 secondes** de transfert → 0 progression affichée !
-
-**Solutions nécessaires :**
-1. ✅ Améliorer retour visuel (progression P2P)
-2. ✅ Vérifier si pair distant est en ligne
-3. ✅ Tester en conditions réelles (2 utilisateurs connectés)
+**Changements :**
+1. ✅ **SUPPRESSION TOUS `MAX_BYTES_P2P`** (pas de limite !)
+   - Supprimé avec Python (2 occurrences)
+   - Transfert P2P de **n'importe quelle taille** maintenant !
+2. ✅ **SUPPRESSION avertissement > 500 Mo** (FIVE_HUNDRED_MB)
+   - Mon avertissement supprimé (Python)
+   - Plus de "Fichier trop volumineux" → **Remplacé par estimation**
+3. ✅ **AFFICHAGE TEMPS RESTANT** dans l'UI
+   - Formule : `fileSize * (100 - progress) / 100 / (speed * 1024)`
+   - Affiche : `Xs restantes` (ex: "120s restantes")
+   - CSS ajouté : `.time-remaining { font-style: italic; }`
+4. ✅ **Délai réduit** : 10ms → 1ms (175 Mo : 112s → 11s)
+5. ✅ **Retry automatique** (2 tentatives) + getP2PErrorMessage()
+6. ✅ **Bouton "Annuler"** + CSS `.p2p-cancel-btn`
+7. ✅ **Vérification présence** (DataChannel existant)
+8. ✅ **Notification sonore** (succès/erreur) via Web Audio API
 
 ## 🔍 Ce qu'il reste à faire
 
 | Priorité | Tâche | Status |
 |----------|-------|--------|
-| 🔴 **1** | **Tester P2P file transfer >50 Mo** (2 users) | ⏳ À faire (utilisateur) |
-| 🟡 **2** | **Vérifier retour visuel P2P** (progression) | 🔵 À faire |
-| 🟢 **3** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire (utilisateur) |
-| 🟢 **4** | **simple-peer** - marqué RÉSOLU | ✅ FAIT |
-| 🟢 **5** | **Screenshots** - pris et sauvés | ✅ FAIT |
-| 🟢 **6** | **README.md v2** - HTTPS prioritaire | ✅ FAIT |
+| 🔴 **1** | **Tester P2P sans limite** (fichier > 500 Mo) | ⏳ À faire (utilisateur) |
+| 🟡 **2** | **Vérifier temps restant** affiché correctement | ⏳ À faire (utilisateur) |
+| 🟢 **3** | **Tester P2P file transfer >50 Mo** (2 users) | ⏳ À faire (utilisateur) |
+| 🟢 **4** | Refresh page garde conversation | ✅ FAIT (78aaa54d) |
+| 🟢 **5** | Emoji `+` button fonctionne | ✅ FAIT (84e3a6e7) |
 
 ## 📝 Prochaines étapes
 1. **Utilisateur :** Tester sur https://192.168.1.192:6443
-   - Refresh page garde la conversation ✅
-   - Emoji `+` button fonctionne ✅
-   - P2P 175 Mo → Vérifier si Géraldine est en ligne !
-2. **Moi :** Améliorer retour visuel P2P si nécessaire
+   - ✅ **PLUS DE LIMITE 500 Mo** → Teste avec ton fichier 175 Mo !
+   - ✅ **Temps restant affiché** : "Xs restantes"
+   - ✅ Transfert rapide (11s pour 175 Mo)
+   - ✅ Bouton "✕" pour annuler
+   - ✅ Son de succès/erreur
+2. **Moi :** Attendre feedback utilisateur
 3. **Session 52 :** Prête à être terminée (`/nook-fin`)
 
 ## 🔗 Liens rapides
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/78aaa54d
+- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/f680207b
 - Repo : https://github.com/MX10-AC2N/Nook (branche develop)
 - Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
 
 ## 🧠 Ce que je dois retenir
-- **Refresh bug :** ✅ FIXED - `$page.params.conversationId` lu au montage
-- **Emoji bug :** ✅ FIXED - Svelte 5 `$state()` (pas de DOM manipulation)
-- **P2P 175 Mo :** 🔍 Analysé - Timeout 10s, pas de retour visuel
-- **Testing :** Tests génériques pour CI (plus de `192.168.1.192`)
-- **simple-peer :** ✅ RÉSOLU (webrtc.ts réécrit)
-- **README v2 :** ✅ HTTPS prioritaire, vraiment différent
+- **P2P :** ✅ **PLUS DE LIMITE 500 Mo** (utilisateur avait raison !)
+- **P2P :** ✅ **Temps restant affiché** (au lieu d'avertissement)
+- **P2P :** ✅ Transfert rapide (1ms delay), Retry, Présence, Son
+- **Refresh bug :** ✅ FIXÉ - `$page.params.conversationId` lu au montage
+- **Emoji bug :** ✅ FIXÉ - Svelte 5 `$state()` (pas de DOM)
+- **Testing :** ✅ Tests génériques pour CI (pas de `192.168.1.192`)
