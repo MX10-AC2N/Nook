@@ -93,6 +93,7 @@ pub async fn get_system_metrics(
     })).into_response()
 }
 
+#[allow(clippy::type_complexity)]
 pub async fn pending_users(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
@@ -105,13 +106,13 @@ pub async fn pending_users(
     }
 
     let users: Vec<SimpleUser> = sqlx::query_as(
-        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users WHERE approved = 0 ORDER BY created_at DESC"
+        "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed 
+         FROM users WHERE approved = 0 ORDER BY created_at DESC"
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"}))))?
+    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"})))?
     .into_iter()
-    #[allow(clippy::type_complexity)]
     .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
         username: u.1,
@@ -127,6 +128,7 @@ pub async fn pending_users(
     Ok(Json(UsersResponse { users }))
 }
 
+
 pub async fn all_users(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
@@ -137,6 +139,9 @@ pub async fn all_users(
             Json(json!({"success": false, "message": "Accès admin requis"})),
         ));
     }
+
+    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
 
     let users: Vec<SimpleUser> = sqlx::query_as(
         "SELECT id, username, name, created_at, role, approved, avatar_style, avatar_seed FROM users ORDER BY created_at DESC",
