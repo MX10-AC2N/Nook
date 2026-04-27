@@ -112,7 +112,12 @@ pub async fn pending_users(
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"})))?
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"message": "Erreur DB"})),
+        )
+    })?
     .into_iter()
     .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
@@ -149,7 +154,12 @@ pub async fn all_users(
     )
     .fetch_all(&state.db)
     .await
-    .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message": "Erreur DB"})))?
+    .map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"message": "Erreur DB"})),
+        )
+    })?
     .into_iter()
     .map(|u: (String, String, Option<String>, i64, String, bool, Option<String>, Option<String>)| SimpleUser {
         id: u.0,
