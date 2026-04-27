@@ -19,11 +19,12 @@
 - **Fix proposé :** Polling dans `chatStore.svelte.ts` quand ready devient true
 - **Contrainte :** Mot de passe PAS stocké (sécurité), pas d'unlockCrypto() auto
 
-### BUG-003 : P2P file transfer limité
-- **Status :** CODE PRÉSENT mais à tester
+### BUG-003 : P2P file transfer (sécurité)
+- **Status :** ✅ CODE FIXÉ (commit e9b17418)
 - **Symptôme :** Transfert >50 Mo uniquement 1-to-1 (pas de groupes)
-- **Code :** `file-transfer.svelte.ts` présent, `upload.rs` a `P2P_REQUIRED`
-- **À faire :** Tester sur conversation 1-to-1 réelle
+- **Code :** `file-transfer.svelte.ts` + `e2ee.ts` (export e2ee instance)
+- **Fix sécurité :** Utilise maintenant `e2ee.loadGroupKey(convoId)` au lieu d'une clé dérivée
+- **À faire :** Tester sur conversation 1-to-1 réelle, créer tests E2E
 
 ## 🟡 Pièges récurrents (attention !)
 
