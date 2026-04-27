@@ -31,8 +31,28 @@
 
 ### 4. Documentation mise à jour
 - `known-issues.md` : BUG-002 FIXED, BUG-003 sécurité FIXED
-- `project-state.md` : État complet session 52
-- `.claude/` : Structure restructurée (commits précédents)
+- `project-state.md` : État complet session 52 (commit `7a1e47b5`)
+- `active-session.md` : Mis à jour (commit `c255a970`)
+
+### 5. Refactoring webrtc.ts - Suppression simple-peer (commit `65386b88`)
+- **Problème :** PR #28 mergée mais `webrtc.ts` utilisait encore `simple-peer`
+- **Fix :** Réécriture complète avec API WebRTC native (`RTCPeerConnection`)
+- **Ajouts :** Gestion ICE candidates, DataChannel, MediaStream via `ontrack`
+- **Statut :** CI-002 (simple-peer) marqué RÉSOLU (commit `de7b077c`)
+
+## 🔍 Ce qu'il reste à faire
+
+| Priorité | Tâche | Status |
+|----------|-------|--------|
+| 🔴 **1** | **Tester P2P file transfer >50 Mo** sur homeserver | ⏳ À faire |
+| 🟡 **2** | **Vérifier E2EE refresh** en conditions réelles | ⏳ À faire |
+| 🟢 **3** | **Créer plus de tests** E2E pour critiques | 🔵 En cours |
+
+## 📝 Prochaines étapes
+1. Attendre feedback utilisateur sur le redéploiement
+2. Tester P2P file transfer >50 Mo sur https://192.168.1.192:6443
+3. Vérifier que E2EE refresh fonctionne (cryptoStore.ready=false → decrypt auto)
+4. Si tout est OK → Créer tests E2E supplémentaires
 
 ## 🔍 Ce qu'il reste à faire
 
