@@ -78,11 +78,18 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
     console.log('[cryptoStore] loadKeysFromIndexedDB result:', kp ? 'KEYS_FOUND' : 'NO_KEYS_FOUND', 'for userId:', userId);
 
     if (!kp) {
-      // Debug: check if keys exist without decryption
-      const hasKeys = await hasStoredKeys(userId);
-      console.log('[cryptoStore] hasStoredKeys check:', hasKeys, 'for userId:', userId);
+      // Check if keys actually exist in IndexedDB (without decryption)
+      const keysExist = await hasStoredKeys(userId);
+      console.log('[cryptoStore] hasStoredKeys check:', keysExist, 'for userId:', userId);
+
+      if (keysExist) {
+        // Keys exist but failed to load (wrong password, corrupted data)
+        cryptoStore.error = 'Clés E2EE existent mais impossibles à déchiffrer — vérifiez votre mot de passe ou régénérez les clés.';
+        console.error('[cryptoStore] Keys exist but load failed for userId:', userId);
+        return false;
+      }
       
-      // ── Premier setup E2EE pour cet utilisateur ──────────────────────────
+      // ── Premier setup E2EE pour cet utilisateur (aucune clé trouvée) ─────
       console.info('[cryptoStore] Aucune clé en IndexedDB → génération initiale E2EE');
 
       // 1. Générer la paire de clés Curve25519
