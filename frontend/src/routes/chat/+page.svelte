@@ -349,13 +349,11 @@
   async function toggleReaction(msgId: string, emoji: string) {
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
-    console.log('[toggleReaction]', { msgId, emoji, isMyEmoji, cur });
 
     try {
       const convId = activeConvId;
       let res: Response;
       if (isMyEmoji) {
-        console.log('[toggleReaction] Deleting reaction', emoji);
         res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
           method: 'DELETE', credentials: 'include',
         });
@@ -379,7 +377,6 @@
     } catch (e) {
       console.error('[Reaction]', e);
     }
-    emojiPickerMsgId = null;
   }
 
   function countReactions(msgId: string): { emoji: string; count: number; names: string }[] {
