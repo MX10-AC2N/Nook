@@ -31,6 +31,7 @@ import {
   registerPublicKeyOnServer,
   loadKeysFromIndexedDB,
   hasStoredKeys,
+  clearStoredKeys,
   encryptForRecipients,
   decryptSessionKey,
   decryptContent,
@@ -151,6 +152,53 @@ export function lockCrypto(): void {
   cryptoStore.ready  = false;
   cryptoStore.userId = null;
   cryptoStore.error  = null;
+  // Note: on ne supprime PAS d'IndexedDB (les clés doivent persister entre sessions)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// resetCrypto — force la régénération d'une nouvelle paire de clés.
+//   À utiliser quand les clés sont corrompues ou ne correspondent plus.
+//   ATTENTION : rend les vieux messages illisibles !
+// ─────────────────────────────────────────────────────────────────────────────
+export async function resetCrypto(userId: string, password: string): Promise<boolean> {
+  cryptoStore.error  = null;
+  cryptoStore.ready  = false;
+  cryptoStore.userId = null;
+  _keyPair           = null;
+
+  try {
+    // 1. Supprimer les anciennes clés d'IndexedDB
+    await clearStoredKeys(userId);
+    console.info('[cryptoStore] Anciennes clés supprimées d\'IndexedDB');
+
+    // 2. Générer une nouvelle paire de clés
+    const newKeyPair = await generateKeyPair();
+
+    // 3. Chiffrer la clé privée avec le mot de passe
+    const encryptedPrivKey = await encryptPrivateKey(newKeyPair.privateKey, password);
+
+    // 4. Stocker dans IndexedDB
+    await storeKeysInIndexedDB(userId, newKeyPair.publicKey, encryptedPrivKey);
+
+    // 5. Activer le store
+    _keyPair           = newKeyPair;
+    cryptoStore.userId = userId;
+    cryptoStore.ready  = true;
+
+    // 6. Enregistrer la nouvelle clé publique sur le serveur
+    registerPublicKeyOnServer(newKeyPair.publicKey)
+      .then(() => console.info('[cryptoStore] Nouvelle clé publique enregistrée sur le serveur ✓'))
+      .catch((e) => console.warn('[cryptoStore] Échec enregistrement clé publique :', e?.message));
+
+    console.info('[cryptoStore] Nouvelle clé E2EE générée et activée ✓');
+    return true;
+
+  } catch (e: any) {
+    const msg = e?.message ?? String(e);
+    cryptoStore.error = 'Échec de la régénération des clés : ' + msg;
+    console.error('[cryptoStore] resetCrypto:', e);
+    return false;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
