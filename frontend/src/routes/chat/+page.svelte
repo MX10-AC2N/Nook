@@ -58,8 +58,16 @@
   // État principal — messages from store (single source of truth)
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
-  // Persist active conversation in localStorage to survive refresh
+  // Persist active conversation in localStorage + URL param to survive refresh
   const getStoredConvId = () => {
+    if (typeof window !== 'undefined') {
+      // 1. Check URL param first (most reliable for refresh)
+      const params = new URLSearchParams(window.location.search);
+      const urlConvId = params.get('conv');
+      if (urlConvId) {
+        return urlConvId;
+      }
+    }
     if (typeof localStorage !== 'undefined') {
       return localStorage.getItem('nook_activeConvId') || 'default_global';
     }
@@ -70,6 +78,19 @@
   $effect(() => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('nook_activeConvId', activeConvId);
+    }
+  });
+
+  // Update URL param whenever activeConvId changes (for refresh persistence)
+  $effect(() => {
+    if (typeof window !== 'undefined' && activeConvId) {
+      const params = new URLSearchParams(window.location.search);
+      const current = params.get('conv');
+      if (current !== activeConvId) {
+        params.set('conv', activeConvId);
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', newUrl);
+      }
     }
   });
 
