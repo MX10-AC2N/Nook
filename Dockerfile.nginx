@@ -1,5 +1,10 @@
-FROM nginx:alpine
+FROM nginx:alpine3.21
+
+RUN addgroup -g 1000 nginx-user && adduser -D -u 1000 -G nginx-user nginx-user
+
 RUN apk add --no-cache openssl
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost/health || exit 1
+
+USER nginx-user:nginx-user

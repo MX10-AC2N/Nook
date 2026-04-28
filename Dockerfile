@@ -51,7 +51,7 @@ RUN apk add --no-cache \
     libsodium \
     ca-certificates
 
-RUN addgroup -S nook && adduser -S nook -G nook
+RUN addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs \
     && chown -R nook:nook /app
