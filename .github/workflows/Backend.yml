@@ -2,12 +2,6 @@ name: 1 ==> Backend Build
 
 on:
   workflow_dispatch:
-  push:
-    branches: [develop]
-    paths:
-      - 'backend/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
 
 jobs:
   backend:
