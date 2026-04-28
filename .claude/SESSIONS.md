@@ -56,3 +56,36 @@ Le build échouait avec des erreurs de syntaxe JavaScript et des expressions tro
 - Backend: Non touché cette session
 - Docker: Non touché cette session
 - Git: Clean (tout commit et push sur origin/develop)
+
+
+---
+
+## Session 52 — 2026-04-27 (Corrections UI + DevOps)
+
+### Contexte
+Corrections bugs révélés par audit : emojis étendus, refresh chat, Docker.yml
+
+### Progrès
+- ✅ `.reaction-pill` font-size: 1.1rem (2 définitions corrigées)
+- ✅ `key={emoji}` ajouté aux `{#each}` blocks (Svelte 5)
+- ✅ Persistence `activeConvId` via localStorage (survie au refresh)
+- ✅ `toggleReaction` : spread operator + logs débogage
+- ✅ Docker.yml : `branch_name` input, suppression `workflow_run:`
+- ✅ Backend.yml : retour à `workflow_dispatch:` seul (économie crédits)
+
+### Décisions
+- CI manuel uniquement (économie crédits GitHub)
+- localStorage pour survivre au refresh (pas de changement d'architecture)
+
+### Bugs Corrigés
+| Bug | Fichier | Fix |
+|-----|---------|-----|
+| Pills réactions trop petites | `chat/+page.svelte` | `font-size: 1.1rem` |
+| Refresh renvoie au groupe Nook | `chat/+page.svelte` | Persistence localStorage |
+| Docker.yml ne trouve pas artifacts | `Docker.yml` | Input `branch_name`, `inputs.branch_name` |
+| Emojis étendus ne réagissent pas | `chat/+page.svelte` | Spread operator + logs (à tester) |
+
+### État Final
+- Branche: `develop`
+- CI: Backend ✅, Frontend ✅, Docker ⏳ (à tester après rebuild)
+- Git: **CLEAN** (tout committé et poussé)
