@@ -74,8 +74,13 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
 
   try {
     let kp = await loadKeysFromIndexedDB(userId, password);
+    console.log('[cryptoStore] loadKeysFromIndexedDB result:', kp ? 'KEYS_FOUND' : 'NO_KEYS_FOUND', 'for userId:', userId);
 
     if (!kp) {
+      // Debug: check if keys exist without decryption
+      const hasKeys = await hasStoredKeys(userId);
+      console.log('[cryptoStore] hasStoredKeys check:', hasKeys, 'for userId:', userId);
+      
       // ── Premier setup E2EE pour cet utilisateur ──────────────────────────
       console.info('[cryptoStore] Aucune clé en IndexedDB → génération initiale E2EE');
 
