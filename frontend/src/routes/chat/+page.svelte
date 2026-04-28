@@ -336,24 +336,32 @@
   async function toggleReaction(msgId: string, emoji: string) {
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
+    console.log('[toggleReaction]', { msgId, emoji, isMyEmoji, cur });
 
     try {
       const convId = activeConvId;
       let res: Response;
       if (isMyEmoji) {
+        console.log('[toggleReaction] Deleting reaction', emoji);
         res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
           method: 'DELETE', credentials: 'include',
         });
       } else {
+        console.log('[toggleReaction] Adding reaction', emoji);
         res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ emoji }),
         });
       }
+      console.log('[toggleReaction] Response:', res.status, res.ok);
       if (res.ok) {
         const data = await res.json();
-        reactions[msgId] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+        console.log('[toggleReaction] Data:', data);
+        const updated = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+        // Use spread to trigger Svelte 5 reactivity reliably
+        reactions = { ...reactions, [msgId]: updated };
+        console.log('[toggleReaction] Updated reactions:', reactions[msgId]);
       }
     } catch (e) {
       console.error('[Reaction]', e);
@@ -2590,8 +2598,8 @@
   }
 
   .reaction-pill {
-    font-size: .7rem;
-    padding: .15rem .4rem;
+    font-size: 1.1rem;
+    padding: .25rem .6rem;
   }
 
   /* ── Audio/Video call buttons ── */
