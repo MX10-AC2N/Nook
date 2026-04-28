@@ -2,13 +2,12 @@ name: 6 ==> Docker Build & Push
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows:
-      - "1 ==> Backend Build"
-      - "2 ==> Frontend Build"
-      - "3 ==> Turn-Server Build"
-    types:
-      - completed
+    inputs:
+      branch_name:
+        description: 'Branche où les artifacts ont été générés (ex: develop)'
+        required: true
+        default: 'develop'
+        type: string
 
 jobs:
   docker-build:
@@ -32,7 +31,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ github.ref_name }}
+          branch: ${{ inputs.branch_name }}
           name: nook-backend-x86_64-unknown-linux-musl
           path: docker-context/backend
 
@@ -41,7 +40,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ github.ref_name }}
+          branch: ${{ inputs.branch_name }}
           name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
@@ -51,7 +50,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ github.ref_name }}
+          branch: ${{ inputs.branch_name }}
           name: nook-turn-server-amd64
           path: docker-context/turn
 
@@ -60,7 +59,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ github.ref_name }}
+          branch: ${{ inputs.branch_name }}
           name: nook-turn-server-arm64
           path: docker-context/turn
 
@@ -70,7 +69,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Frontend.yml
-          branch: ${{ github.ref_name }}
+          branch: ${{ inputs.branch_name }}
           name: nook-frontend
           path: docker-context/frontend
 
