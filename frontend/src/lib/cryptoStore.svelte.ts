@@ -30,6 +30,7 @@ import {
   storeKeysInIndexedDB,
   registerPublicKeyOnServer,
   loadKeysFromIndexedDB,
+  hasStoredKeys,
   encryptForRecipients,
   decryptSessionKey,
   decryptContent,
