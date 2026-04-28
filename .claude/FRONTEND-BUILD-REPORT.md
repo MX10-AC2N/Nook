@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 139b787 |
+| **Commit** | 6ede8ef |
 | **Node.js** | unknown |
-| **Vite time** | 5.80ms |
+| **Vite time** | 5.97ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 115 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25034887459 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25035584056 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 205 modules transformed.
 [32m✓[39m 239 modules transformed.
-[32m✓ built in 5.80s[39m
+[32m✓ built in 5.97s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 14ms[39m
-[32m✓ built in 9.57s[39m
+[32m✓ built in 15ms[39m
+[32m✓ built in 9.86s[39m
 
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
