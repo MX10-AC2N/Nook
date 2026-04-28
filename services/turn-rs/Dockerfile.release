@@ -11,8 +11,9 @@ RUN apk add --no-cache \
 # User non-root with UID/GID 1000 (matches host casaos user)
 RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
 
-# Create config directories
-RUN mkdir -p /etc/turn-server /opt/turn-server
+# Create config directories with proper ownership
+RUN mkdir -p /etc/turn-server /opt/turn-server \
+    && chown -R nook:nook /etc/turn-server /opt/turn-server
 
 # Copy default configuration template to /opt (NOT mounted)
 COPY turnserver.conf.template /opt/turn-server/turnserver.conf.template
@@ -31,6 +32,8 @@ EXPOSE 3478/tcp 3478/udp
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD pgrep turn-server || exit 1
+
+USER nook:nook
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/usr/local/bin/turn-server"]

@@ -36,6 +36,8 @@ FROM alpine:3.21 AS runtime
 
 RUN apk add --no-cache ca-certificates
 
+RUN addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
+
 # Copy the compiled binary from builder stage
 COPY --from=builder /usr/local/bin/turn-server /usr/local/bin/turn-server
 
@@ -43,5 +45,7 @@ EXPOSE 3478/udp 3478/tcp
 
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
     CMD pgrep turn-server || exit 1
+
+USER nook:nook
 
 CMD ["/usr/local/bin/turn-server", "--config=/etc/turn-server/config.toml"]

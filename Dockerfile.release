@@ -33,4 +33,6 @@ ENV LOG_DIR=/app/logs
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost:3000/api/health || exit 1
 
+USER nook:nook
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
