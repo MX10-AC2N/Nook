@@ -1352,9 +1352,9 @@
                   aria-label="Choisir une réaction"
                   style="top:{emojiPickerPos.top}px; left:{emojiPickerPos.left}px; transform:translateY(-100%);"
                 >
-                  {#each QUICK_EMOJIS as emoji}
+                  {#each QUICK_EMOJIS as emoji (emoji)}
                     <button
-                      class="emoji-quick-btn" data-testid="emoji-quick-btn"
+                      class="emoji-quick-btn"
                       class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                       onclick={() => toggleReaction(msg.id, emoji)}
                       aria-label={emoji}
@@ -1369,9 +1369,9 @@
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
                   <div class="emoji-extended">
-                    {#each ALL_EMOJIS as emoji}
+                    {#each ALL_EMOJIS as emoji (emoji)}
                       <button
-                        class="emoji-quick-btn" data-testid="emoji-quick-btn"
+                        class="emoji-quick-btn"
                         class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
                         onclick={() => toggleReaction(msg.id, emoji)}
                         aria-label={emoji}
@@ -2055,12 +2055,13 @@
     margin-top: .3rem;
   }
   .reaction-pill {
-    display: inline-flex; align-items: center; gap: .2rem;
-    padding: .15rem .45rem; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .25rem .6rem; border-radius: 999px;
     border: 1.5px solid var(--border, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
-    font-size: .8rem; cursor: pointer; transition: all .12s;
+    font-size: 1.1rem; cursor: pointer; transition: all .15s;
     color: var(--text-primary, #1e293b);
+    line-height: 1.2;
   }
   .reaction-pill:hover { border-color: var(--accent, #4ade80); background: var(--bg-tertiary, #f0fdf4); }
   .reaction-pill.my-reaction {
