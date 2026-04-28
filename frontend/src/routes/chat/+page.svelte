@@ -350,6 +350,7 @@
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
 
+    alert(`toggleReaction CALLED! msgId=${msgId}, emoji=${emoji}`);
     console.log('[toggleReaction] Called with:', { msgId, emoji, isMyEmoji, cur });
 
     try {
