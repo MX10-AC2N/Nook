@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 834e8bb |
+| **Commit** | 139b787 |
 | **Node.js** | unknown |
-| **Vite time** | 5.08ms |
+| **Vite time** | 5.80ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 115 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25013505789 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25034887459 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 205 modules transformed.
 [32m✓[39m 239 modules transformed.
-[32m✓ built in 5.08s[39m
+[32m✓ built in 5.80s[39m
 [32m✓[39m 1 modules transformed.
 [32m✓ built in 14ms[39m
-[32m✓ built in 8.02s[39m
+[32m✓ built in 9.57s[39m
 
 [2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                 [39m[1m[2m  0.09 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mremote-entry.js                                   [39m[1m[2m  0.12 kB[22m[1m[22m
@@ -69,7 +69,7 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/help/_page.svelte.js                [39m[1m[2m 12.02 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/chessStore.svelte.js                       [39m[1m[2m 16.58 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/file-transfer.svelte.js                    [39m[1m[2m 18.88 kB[22m[1m[22m
-[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 24.27 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/chat/_page.svelte.js                [39m[1m[2m 24.21 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 34.29 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m303.16 kB[22m[1m[22m
 ```
