@@ -58,7 +58,20 @@
   // État principal — messages from store (single source of truth)
   // ─────────────────────────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
-  let activeConvId    = $state('default_global');
+  // Persist active conversation in localStorage to survive refresh
+  const getStoredConvId = () => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('nook_activeConvId') || 'default_global';
+    }
+    return 'default_global';
+  };
+  let activeConvId    = $state(getStoredConvId());
+  // Save to localStorage whenever it changes
+  $effect(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('nook_activeConvId', activeConvId);
+    }
+  });
 
   // Read messages directly from the writable store
   let localMessages = $state<ChatMessage[]>([]);
@@ -992,6 +1005,12 @@
         await selectConversation(targetConv);
         return; // selectConversation already loads messages
       }
+    }
+    
+    // FIX refresh: if no URL param, try localStorage or keep current activeConvId
+    const storedConvId = typeof localStorage !== 'undefined' ? localStorage.getItem('nook_activeConvId') : null;
+    if (storedConvId && conversations.some(c => c.id === storedConvId)) {
+      activeConvId = storedConvId;
     }
     
     await loadMessages(activeConvId);
