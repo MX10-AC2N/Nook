@@ -350,6 +350,8 @@
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
 
+    console.log('[toggleReaction] Called with:', { msgId, emoji, isMyEmoji, cur });
+
     try {
       const convId = activeConvId;
       let res: Response;
@@ -1380,7 +1382,7 @@
                     <button
                       class="emoji-quick-btn"
                       class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                      onclick={() => toggleReaction(msg.id, emoji)}
+                      onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
@@ -1397,7 +1399,7 @@
                       <button
                         class="emoji-quick-btn"
                         class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                        onclick={() => toggleReaction(msg.id, emoji)}
+                        onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
                         aria-label={emoji}
                       >{emoji}</button>
                     {/each}
