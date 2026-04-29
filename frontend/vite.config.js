@@ -1,10 +1,14 @@
 // vite.config.js
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+import compression from 'vite-plugin-compression';
 
 export default defineConfig({
   plugins: [
     sveltekit(),
+    // Compression Brotli + Gzip pour les assets statiques
+    compression({ algorithm: 'gzip', ext: '.gz', threshold: 10240 }),
+    compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 10240 }),
   ],
 
   assetsInclude: [

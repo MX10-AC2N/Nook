@@ -1,23 +1,26 @@
 [package]
 name = "nook-backend"
-version = "0.5.0"
+version = "0.5.0-beta.1"
 edition = "2021"
 
 [dependencies]
-dotenvy = "0.15"
+dotenv = "0.15"
 hostname = "0.4"
 axum = { version = "0.8", features = ["ws", "multipart", "tokio"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1"
-tower-http = { version = "0.6.8", features = ["fs", "cors", "compression-br", "set-header"] }
+tower-http = { version = "0.6.8", features = ["fs", "cors", "compression-br", "compression-gzip"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"] }
 uuid = { version = "1.0", features = ["v4"] }
 futures-util = "0.3"
+tower-service = "0.3"
 http = "1.0"
-urlencoding = "2.1"  # utilisé dans gifs_updater.rs
+serde_urlencoded = "0.7"
+urlencoding = "2.1"
+lazy_static = "1.4"
 chrono = { version = "0.4", features = ["serde"] }
 bytes = "1"
 
@@ -32,9 +35,7 @@ rand_core = { version = "0.6", features = ["std", "getrandom"] }
 
 # Auth & crypto
 argon2 = "0.5"
-chacha20poly1305 = { version = "^0.10" }
-hmac = "0.12"
-sha1 = "0.10"
+chacha20poly1305 = { version = "0.10.1" }
 base64ct = { version = "1.6", features = ["alloc"] }
 
 # Cryptographie VAPID (notifications push) — ring via rustls transitif
@@ -55,7 +56,4 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Compatibilité
-sysinfo = "0.32"
-
-# SFU pour appels groupe 3+ participants
-rustrtc = "0.3.39"
+home = "0.5"
