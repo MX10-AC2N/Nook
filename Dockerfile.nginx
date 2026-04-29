@@ -4,7 +4,17 @@ RUN addgroup -g 1000 nginx-user && adduser -D -u 1000 -G nginx-user nginx-user
 
 RUN apk add --no-cache openssl
 
+# Créer les dossiers nécessaires avec les bonnes permissions
+RUN mkdir -p /usr/share/nginx/html/ca && \
+    chown -R nginx-user:nginx-user /usr/share/nginx/html/ca && \
+    chmod 755 /usr/share/nginx/html/ca
+
+# S'assurer que le dossier ssl existe et a les bonnes permissions
+RUN mkdir -p /etc/nginx/ssl && \
+    chown -R nginx-user:nginx-user /etc/nginx/ssl
+
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
     CMD wget -qO- http://localhost/health || exit 1
 
-USER nginx-user:nginx-user
+# On ne force PAS d'utilisateur — le script entrypoint a besoin d'être root
+# nginx(1) sait gérer le passage de root à nginx automatiquement
