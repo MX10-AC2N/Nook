@@ -60,6 +60,7 @@ export default defineConfig({
     // libsodium retiré de include — le dynamic import gère sa propre résolution.
     // L'inclure ici forçait un pré-bundle statique incompatible avec import().
     exclude: ['libsodium-wrappers'],
+    include: ['idb-keyval'],
   },
 
   server: {
