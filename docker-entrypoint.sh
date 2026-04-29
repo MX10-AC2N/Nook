@@ -14,4 +14,4 @@ chown -R nook:nook "$DATA_DIR/uploads" 2>/dev/null || true
 
 echo "[entrypoint] Permissions fixees, demarrage de nook..."
 
-exec su-exec nook /app/nook-backend
+exec /app/nook-backend
