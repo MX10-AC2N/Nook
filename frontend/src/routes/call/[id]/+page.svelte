@@ -161,7 +161,7 @@
 <div class="call-page" class:dark={getCurrentTheme()?.isDark}>
   {#if loading}
     <div class="call-center">
-      <div class="spinner" />
+      <div class="spinner"></div>
       <p class="call-center-text">Chargement…</p>
     </div>
 
@@ -184,7 +184,7 @@
         </div>
         <div class="call-header-badges">
           {#if callStore.callQuality}
-            <span class="quality-dot" class:good={callStore.callQuality === 'good'} class:fair={callStore.callQuality === 'fair'} class:poor={callStore.callQuality === 'poor'} />
+            <span class="quality-dot" class:good={callStore.callQuality === 'good'} class:fair={callStore.callQuality === 'fair'} class:poor={callStore.callQuality === 'poor'}></span>
           {/if}
           <span class="call-type-badge">
             {#if isVideo}
@@ -199,7 +199,7 @@
       <div class="participants-grid" class:video-mode={isVideo}>
         {#if callStore.isScreenSharing}
           <div class="participant-card screen-share">
-            <video bind:this={callStore.screenShareLocalVideoElement} autoplay muted playsinline class="video-stream" />
+            <video bind:this={callStore.screenShareLocalVideoElement} autoplay muted playsinline class="video-stream"></video>
             <div class="participant-overlay">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <span>Partage d'écran</span>
@@ -209,7 +209,7 @@
 
         <div class="participant-card local" class:without-video={!isVideo || callStore.isVideoOff}>
           {#if isVideo && !callStore.isVideoOff}
-            <video bind:this={callStore.localVideoElement} autoplay muted playsinline class="video-stream" />
+            <video bind:this={callStore.localVideoElement} autoplay muted playsinline class="video-stream"></video>
           {/if}
           <div class="participant-overlay">
             <span class="participant-name">Vous</span>
@@ -224,7 +224,7 @@
           {@const participant = participants.value.find((p: any) => p.id === userId)}
           <div class="participant-card remote" class:without-video={!isVideo}>
             {#if isVideo}
-              <video srcObject={stream} autoplay playsinline class="video-stream" />
+              <video srcObject={stream} autoplay playsinline class="video-stream"></video>
             {/if}
             <div class="participant-overlay">
               <span class="participant-name">{participant?.name ?? participant?.username ?? 'Participant'}</span>
@@ -234,7 +234,7 @@
 
         {#if callStore.remoteStreams.size === 0}
           <div class="waiting">
-            <div class="pulse-ring" />
+            <div class="pulse-ring"></div>
             <p>En attente des participants…</p>
           </div>
         {/if}
@@ -274,7 +274,7 @@
   {:else if callStore.isCalling}
     <!-- ═══ CONNECTING ═══ -->
     <div class="call-center connecting">
-      <div class="pulse-ring large" />
+      <div class="pulse-ring large"></div>
       <div class="connecting-icon">
         {#if isVideo}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>

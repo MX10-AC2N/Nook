@@ -1126,7 +1126,7 @@
 <div class="chat-page">
 
   <!-- ─── SIDEBAR ─── -->
-  <aside class="conversations-sidebar" class:open={sidebarOpen}>
+  <aside class="conversations-sidebar" class:open={sidebarOpen} role="navigation" aria-label="Conversations">
     <div class="sidebar-header">
       <h2>Conversations</h2>
       <button class="btn-new-conv" onclick={openNewConv} title="Nouvelle conversation">＋</button>
@@ -1196,7 +1196,7 @@
   <main class="chat-area">
 
     <header class="chat-header">
-      <button class="btn-menu-mobile" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu">
+      <button class="btn-menu-mobile" onclick={() => sidebarOpen = !sidebarOpen} aria-label="Menu" aria-expanded={sidebarOpen}>
         ☰
       </button>
       {#if renamingConv}

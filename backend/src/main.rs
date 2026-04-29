@@ -363,10 +363,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(rate_limit).unwrap()))
     );
 
-    let limiter_clone = ip_limiter.clone();
-    let public_routes = Router::new()
+    // 🔐 Auth rate limiter: stricter limits for auth endpoints (5 attempts/min per IP)
+    let auth_limiter: Arc<IpRateLimiter> = Arc::new(
+        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(5).unwrap()))
+    );
+
+    let auth_limiter_clone = auth_limiter.clone();
+    let auth_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route_layer(middleware::from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req: Request<Body>, next: Next| {
+            let lim = auth_limiter_clone.clone();
+            async move {
+                match lim.check_key(&addr.ip()) {
+                    Ok(_) => next.run(req).await,
+                    Err(_) => {
+                        tracing::warn!(
+                            ip = %addr.ip(),
+                            path = %req.uri().path(),
+                            "Auth rate limit exceeded (429) — too many login attempts"
+                        );
+                        axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
+                    }
+                }
+            }
+        }));
+
+    let limiter_clone = ip_limiter.clone();
+    let public_routes = Router::new()
         .route("/join", post(invites::join))
         .route("/invite/validate", get(invites::validate_invite))
         .route("/invite/accept", axum::routing::post(invites::accept_invite))
@@ -394,12 +418,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
 
     tracing::info!("Routes publiques configurées (rate limit: {}/min par IP):", rate_limit);
-    tracing::info!("  • POST   /auth/register");
-    tracing::info!("  • POST   /auth/login");
+    tracing::info!("  • POST   /auth/register (auth rate limit: 5/min)");
+    tracing::info!("  • POST   /auth/login (auth rate limit: 5/min)");
     tracing::info!("  • POST   /join");
     tracing::info!("  • GET    /invite/validate");
+    tracing::info!("  • POST   /invite/accept");
     tracing::info!("  • GET    /health");
-
     // ============================================================
     // 👑 Routes ADMIN uniquement (auth + rôle admin requis)
     // ============================================================
@@ -464,6 +488,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("✓ Routes protégées + admin configurées");
 
     let api_router = Router::new()
+        .merge(auth_routes)
         .merge(public_routes)
         .merge(protected_routes)
         .fallback(|| async {
@@ -546,7 +571,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
             headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
             headers.insert("Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none';".parse().unwrap());
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
+            headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
             response
         }))
         // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
