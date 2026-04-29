@@ -1031,8 +1031,22 @@
     const storedConvId = typeof localStorage !== 'undefined' ? localStorage.getItem('nook_activeConvId') : null;
     if (storedConvId && conversations.some(c => c.id === storedConvId)) {
       activeConvId = storedConvId;
+      // Restore activeConv & activeConvName for UI banner
+      const restoredConv = conversations.find(c => c.id === storedConvId);
+      if (restoredConv) {
+        activeConv = restoredConv;
+        if (restoredConv.id === 'default_global') {
+          activeConvName = '🌿 Nook';
+        } else if (restoredConv.is_group) {
+          activeConvName = restoredConv.name ?? 'Groupe sans nom';
+        } else {
+          const parts = participantsCache[restoredConv.id] ?? [];
+          const other = parts.find(p => p.id !== authStore.user?.id);
+          activeConvName = other ? (other.name ?? other.username) : (restoredConv.name ?? 'Message direct');
+        }
+      }
     }
-    
+
     await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
     setActiveConv(activeConvId);
