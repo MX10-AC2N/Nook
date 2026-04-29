@@ -333,8 +333,34 @@
     sendEmoji(`<img src="${url}" alt="gif" class="chat-gif" loading="lazy" />`, activeConvId);
     chatStore.showEmojiPicker = false;
   }
-  // tous les emojis disponibles (picker étendu)
-  const ALL_EMOJIS = ['👍','👎','❤️','🔥','😂','😮','😢','😡','🎉','🙏','✅','❌','🤔','😍','🥺','😎'];
+  // tous les emojis disponibles (picker étendu - 80+ emojis courants)
+  const ALL_EMOJIS = [
+    // Visages souriants
+    '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃',
+    '😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙',
+    '🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫',
+    '🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬',
+    '🙁','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢',
+    // Cœurs & amour
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','❣️',
+    '💕','💞','💓','💗','💖','💘','💝','💟',
+    // Mains & gestes
+    '👍','👎','👌','🤌','🤞','🤟','🤘','🤙','👈','👉',
+    '👆','🖕','👇','☝️','👋','🤚','🖐','🖖','✋','🤛',
+    '🤜','🤝','🙏','✌️','🤞','🤟','🤘','🤙','💪','🦾',
+    // Animaux
+    '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯',
+    '🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐒','🐔',
+    // Nourriture
+    '🍎','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🫐','🍈',
+    '🍒','🍑','🥭','🍍','🥥','🥝','🍅','🥑','🍆','🥦',
+    // Activités & objets
+    '⚽','🏀','🏈','⚾','🥎','🎾','🎳','🏏','🏹','🎣',
+    '🤿','🎯','🪀','🪁','🔮','🎨','🎭','🎪','🎫','🎬',
+    // Symboles & drapeaux (quelques-uns)
+    '🎉','🎊','🎋','🎍','🎎','🎏','🎐','🎑','🎆','🎇',
+    '🏁','🚩','🏴','🏳️','🏳️🌈','🏴☠️','🇫🇷','🇨🇦','🇫🇷','🇺🇸',
+  ];
 
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
   /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
