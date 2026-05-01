@@ -1,73 +1,45 @@
-# 🔴 Session Active — Hermes Agent
+## Session 53 — 2026-05-01 (Récupération Contexte & Fixes)
 
-> Dernière mise à jour : 2026-04-27 (session 52)
+## Contexte
+- **Récupération complète du contexte Hermes** : fichiers de config, 25 sessions CLI, 28 skills globaux + 28 Nook, MCPs.
+- **Repo** : `/opt/data/home/.hermes/Nook` | Branche `develop` | 3 commits en attente (fixes nginx HTTPS)
+- **GitHub Token** : Fine-grained PAT avec permissions ADMIN/PUSH, mais push 403 (probablement SSO non autorisé)
+- **HTTPS 6443** : Certificats générés manuellement (nook.key/nook.crt), redémarrage nginx nécessaire depuis l'hôte
+- **E2EE** : BUG-002 corrigé mais pas déployé (polling chatStore.svelte.ts)
 
-## 🎯 Tâche en cours
-**Amélioration P2P suite aux remarques utilisateur**
+## Actions Réalisées
+- ✅ Lecture complète `.claude/hermes/*` (memory, known-issues, preferences)
+- ✅ Audit site HTTP (http://192.168.1.192:6300) : accessible, erreurs E2EE déchiffrement
+- ✅ Génération manuelle des certificats SSL (nook.key/nook.crt) avec permissions 644
+- ✅ Rebase des 3 commits locaux pour corriger l'auteur (MX10-AC2N@users.noreply.github.com)
+- ✅ Configuration Git avec helper `gh auth git-credential`
+- ❌ Push vers origin/develop échoue (403) — nécessite push depuis l'hôte ou autorisation SSO du token
 
-## 📋 État actuel
-- **Dernier commit :** `f680207b` (feat(P2P): remove 500MB limit + add remaining time)
-- **CI Backend :** ✅ PASSE (commit `327b08e6`)
-- **Homeserver :** ✅ Redéployé (https://192.168.1.192:6443)
-- **Status :** Limite 500 Mo SUPPRIMÉE + Temps restant ajouté
+## Prochaines Étapes
+- [ ] **Push commits** : Depuis l'hôte, exécuter `cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook && git push origin develop`
+- [ ] **Corriger BUG-002** : `chatStore.svelte.ts` → polling `_decryptAllIfReady()` après refresh
+- [ ] **Lancer workflows** : `gh workflow run Backend.yml && gh workflow run Frontend.yml && gh workflow run Docker.yml`
+- [ ] **Redéployer Nook** : `cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook && docker compose up -d nginx-local`
+- [ ] **Mettre à jour l'audit** : GLOBAL-AUDIT-2026-05-01.md avec état actuel
 
-## ✅ Réalisations cette session (résumé complet)
+## Workflows Disponibles (à lancer dans l'ordre)
+1. `test-nook.yml` (E2E tests)
+2. `backend.yml` (Build Rust amd64/arm64)
+3. `frontend.yml` (Build SvelteKit)
+4. `turn.yml` (TURN server)
+5. `docker.yml` (Build & push image multi-arch)
 
-### 1-22. Travail antérieur (commits multiples)
-- Fix sécurité P2P (e9b17418), E2EE refresh (0219c73e)
-- webrtc.ts réécrit, simple-peer supprimé (65386b88)
-- Emoji Bug Fix ✅ (84e3a6e7), Refresh Bug Fix ✅ (78aaa54d)
-- README v2 ✅ (5db6da3f), Screenshots ✅, Tests E2E ✅
+## Commandes Hôte (à exécuter par l'utilisateur)
+```bash
+# Push commits
+cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook
+git push origin develop
 
-### 23. Amélioration P2P - Suite aux remarques (commit `f680207b`) ✅
-**Remarque utilisateur :** *"pourquoi limiter le transfert P2P a 500Mo ?"*
+# Redémarrer nginx HTTPS
+docker compose up -d nginx-local --force-recreate
 
-**Changements :**
-1. ✅ **SUPPRESSION TOUS `MAX_BYTES_P2P`** (pas de limite !)
-   - Supprimé avec Python (2 occurrences)
-   - Transfert P2P de **n'importe quelle taille** maintenant !
-2. ✅ **SUPPRESSION avertissement > 500 Mo** (FIVE_HUNDRED_MB)
-   - Mon avertissement supprimé (Python)
-   - Plus de "Fichier trop volumineux" → **Remplacé par estimation**
-3. ✅ **AFFICHAGE TEMPS RESTANT** dans l'UI
-   - Formule : `fileSize * (100 - progress) / 100 / (speed * 1024)`
-   - Affiche : `Xs restantes` (ex: "120s restantes")
-   - CSS ajouté : `.time-remaining { font-style: italic; }`
-4. ✅ **Délai réduit** : 10ms → 1ms (175 Mo : 112s → 11s)
-5. ✅ **Retry automatique** (2 tentatives) + getP2PErrorMessage()
-6. ✅ **Bouton "Annuler"** + CSS `.p2p-cancel-btn`
-7. ✅ **Vérification présence** (DataChannel existant)
-8. ✅ **Notification sonore** (succès/erreur) via Web Audio API
-
-## 🔍 Ce qu'il reste à faire
-
-| Priorité | Tâche | Status |
-|----------|-------|--------|
-| 🔴 **1** | **Tester P2P sans limite** (fichier > 500 Mo) | ⏳ À faire (utilisateur) |
-| 🟡 **2** | **Vérifier temps restant** affiché correctement | ⏳ À faire (utilisateur) |
-| 🟢 **3** | **Tester P2P file transfer >50 Mo** (2 users) | ⏳ À faire (utilisateur) |
-| 🟢 **4** | Refresh page garde conversation | ✅ FAIT (78aaa54d) |
-| 🟢 **5** | Emoji `+` button fonctionne | ✅ FAIT (84e3a6e7) |
-
-## 📝 Prochaines étapes
-1. **Utilisateur :** Tester sur https://192.168.1.192:6443
-   - ✅ **PLUS DE LIMITE 500 Mo** → Teste avec ton fichier 175 Mo !
-   - ✅ **Temps restant affiché** : "Xs restantes"
-   - ✅ Transfert rapide (11s pour 175 Mo)
-   - ✅ Bouton "✕" pour annuler
-   - ✅ Son de succès/erreur
-2. **Moi :** Attendre feedback utilisateur
-3. **Session 52 :** Prête à être terminée (`/nook-fin`)
-
-## 🔗 Liens rapides
-- Dernier commit : https://github.com/MX10-AC2N/Nook/commit/f680207b
-- Repo : https://github.com/MX10-AC2N/Nook (branche develop)
-- Homeserver : https://192.168.1.192:6443 (HTTPS cert auto-signé)
-
-## 🧠 Ce que je dois retenir
-- **P2P :** ✅ **PLUS DE LIMITE 500 Mo** (utilisateur avait raison !)
-- **P2P :** ✅ **Temps restant affiché** (au lieu d'avertissement)
-- **P2P :** ✅ Transfert rapide (1ms delay), Retry, Présence, Son
-- **Refresh bug :** ✅ FIXÉ - `$page.params.conversationId` lu au montage
-- **Emoji bug :** ✅ FIXÉ - Svelte 5 `$state()` (pas de DOM)
-- **Testing :** ✅ Tests génériques pour CI (pas de `192.168.1.192`)
+# Lancer workflows
+gh workflow run Backend.yml
+gh workflow run Frontend.yml
+gh workflow run Docker.yml
+```
