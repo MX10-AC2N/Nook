@@ -48,6 +48,39 @@ Le build échouait avec des erreurs de syntaxe JavaScript et des expressions tro
 
 ### Risques
 1. **Corruption de code par patches multiples** : Toujours relire le fichier après 2+ patches → Mitigation : réécriture systématique après 3 patches
+
+## Session 53 — 2026-05-01 (Audit + Fix HTTPS + GitHub Push Issue)
+
+### Contexte
+Objectif: Récupérer tout le contexte CLI, corriger l'erreur HTTPS nginx, auditer le projet Nook, mettre à jour le dossier .claude, et pousser les commits sur develop.
+
+### Progrès Réalisés
+- ✅ Récupération du contexte: config.yaml, .env, auth.json, state.db, dossier .claude/
+- ✅ Correction de l'entrypoint nginx: changement de `nginx:nginx` à `nginx-user:nginx-user` pour les certificats SSL
+- ✅ Ajout des permissions de dossier (chmod 755) pour `nginx-user` dans l'entrypoint
+- ✅ Mise à jour de BUGS.md avec les nouveaux bugs (BUG-04, BUG-05, BUG-06)
+- ✅ Commit des changements: `d49d9e13 fix(nginx): correct nginx-user permissions for SSL certs + update BUGS.md`
+
+### Problème Rencontré
+- ❌ Push vers origin/develop échoue avec 403: Le token GitHub est masqué comme `***` dans `.env`, et n'est pas présent dans l'environnement. Impossible de pousser sans le token réel.
+
+### Décisions Clés
+- **Correction nginx**: L'utilisateur dans le conteneur est `nginx-user` (UID 1000), pas `nginx`, d'où l'erreur de permission sur `nook.key`
+- **Mise à jour BUGS.md**: Ajout des bugs signalés par l'utilisateur (navigation privée, 401, messages chiffrés)
+
+### Fichiers Modifiés
+- `nginx-entrypoint.sh`: Correction de l'utilisateur et ajout de chmod 755 sur le dossier SSL
+- `.claude/project/BUGS.md`: Ajout de BUG-04, BUG-05, BUG-06
+
+### Prochaines Étapes
+- [ ] Obtenir le vrai token GitHub pour pousser les commits
+- [ ] Redéployer Nook avec le fix nginx pour activer HTTPS
+- [ ] Investiguer le bug de navigation des chats privés (BUG-05)
+- [ ] Déployer le fix BUG-002 (messages chiffrés)
+
+### Risques
+1. **Token GitHub indisponible**: Le token est masqué, bloque le push vers le repo
+2. **HTTPS toujours en panne**: Le fix est fait mais pas encore déployé
 2. **Authentification GitHub dans le terminal** : L'expansion des variables ne persiste pas entre commandes → Mitigation : Utiliser Python avec environnement complet
 
 ### État Final
