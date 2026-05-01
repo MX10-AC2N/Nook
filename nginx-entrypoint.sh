@@ -56,8 +56,9 @@ if [ $NEED_CERT -eq 1 ]; then
   echo "Certificat serveur créé pour $IP"
 fi
 
-# S'assurer que nginx peut lire les fichiers (on est root, on chown)
-chown nginx:nginx "$CERT_DIR/nook.crt" "$CERT_DIR/nook.key" 2>/dev/null
+# S'assurer que nginx peut lire les fichiers (on est root, on chmod + chown)
+chmod 644 "$CERT_DIR/nook.crt" "$CERT_DIR/nook.key" 2>/dev/null
+chown nginx-user:nginx-user "$CERT_DIR/nook.crt" "$CERT_DIR/nook.key" 2>/dev/null
 
 echo "Démarrage nginx..."
 # nginx -g "daemon off;"  # Nginx gère le passage root→nginx tout seul
