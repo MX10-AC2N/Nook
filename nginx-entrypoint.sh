@@ -57,6 +57,7 @@ if [ $NEED_CERT -eq 1 ]; then
 fi
 
 # S'assurer que nginx peut lire les fichiers (on est root, on chown)
+chmod 644 "$CERT_DIR/nook.crt" "$CERT_DIR/nook.key" 2>/dev/null
 chown nginx:nginx "$CERT_DIR/nook.crt" "$CERT_DIR/nook.key" 2>/dev/null
 
 echo "Démarrage nginx..."
