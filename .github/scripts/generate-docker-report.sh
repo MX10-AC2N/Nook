@@ -28,8 +28,8 @@ ARM64_STATUS="✅"
 BUILD_LOGS="(non capturé)"
 [ -f /tmp/docker-build.txt ] && BUILD_LOGS=$(tail -30 /tmp/docker-build.txt 2>/dev/null) || true
 
-REPORT=".claude/DOCKER-BUILD-REPORT.md"
-mkdir -p .claude 2>/dev/null || true
+REPORT=".hermes/DOCKER-BUILD-REPORT.md"
+mkdir -p .hermes 2>/dev/null || true
 
 cat > "$REPORT" << ENDOFMD
 # Docker Build Report — Nook

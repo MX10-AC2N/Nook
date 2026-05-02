@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 scripts/generate-test-report.py
-Génère .claude/TEST_REPORT.md à partir :
+Génère .hermes/TEST_REPORT.md à partir :
   - du JSON Playwright  (généré par --reporter=json)
   - des logs Docker     (fichier)
   - des variables CI    (env : RUN_DATE, RUN_URL, COMMIT_SHA, BRANCH, REPO, PLAYWRIGHT_EXIT)
@@ -10,7 +10,7 @@ Usage :
   python3 scripts/generate-test-report.py \
       --json   /tmp/playwright-results.json \
       --docker /tmp/docker.log \
-      --output .claude/TEST_REPORT.md
+      --output .hermes/TEST_REPORT.md
 """
 
 import argparse
@@ -554,7 +554,7 @@ def main():
                         help="Chemin vers results.json Playwright")
     parser.add_argument("--docker", default="/tmp/docker.log",
                         help="Chemin vers le fichier de logs Docker")
-    parser.add_argument("--output", default=".claude/TEST_REPORT.md",
+    parser.add_argument("--output", default=".hermes/TEST_REPORT.md",
                         help="Chemin du rapport MD à écrire")
     parser.add_argument("--errors", default=None,
                         help="Fichier de logs d'erreur Playwright")

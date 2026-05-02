@@ -102,8 +102,8 @@ if [ -f Cargo.toml ]; then
   DEP_COUNT=$(grep -cE "^[a-z]" Cargo.toml 2>/dev/null) || true
 fi
 
-REPORT=".claude/BACKEND-BUILD-REPORT-${ARCH}.md"
-mkdir -p .claude 2>/dev/null || true
+REPORT=".hermes/BACKEND-BUILD-REPORT-${ARCH}.md"
+mkdir -p .hermes 2>/dev/null || true
 
 cat > "$REPORT" << ENDOFMD
 # 🏗️ Backend Build Report — ${ARCH} — Nook
