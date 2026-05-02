@@ -46,8 +46,7 @@
 - **Message::Text :** `Utf8Bytes` pas `String`
 - **Host :** `axum::extract::Host` supprimé → extraire du HeaderMap
 
-### PITFALL-004 : CORS + credentials
-- **Erreur :** `allow_origin(Any)` + `allow_credentials(true)` → PANIC
+### PITFALL-004 : CORS + credentials\n- **Erreur :** `allow_origin(Any)` + `allow_credentials(true)` → PANIC\n\n## 🟠 Nouveaux Bugs (2026-05-02)\n\n### BUG-07 : Emoji réaction étendue non fonctionnelle\n- **Status :** ❌ OUVERT\n- **Symptôme :** Clic sur le bouton + à côté des réactions existantes ne fait rien, emojis étendus masqués\n- **Cause possible :** CSS `.emoji-extended` masqué, ou variable `extendedEmojiMsgId` non mise à jour\n- **Reproduction :** Ouvrir un chat, survoler un message, cliquer sur 😊 puis le bouton ＋\n- **Fichiers touchés :** `frontend/src/routes/chat/+page.svelte` (lignes 1451-1467)\n\n### BUG-08 : Chat refresh perd le dernier message\n- **Status :** ❌ OUVERT\n- **Symptôme :** Après postage d'un nouveau message, recharger la page (F5) → le message disparaît\n- **Cause possible :** Message non persisté sur le serveur, ou `loadMessages` ne récupère pas les derniers messages\n- **Reproduction :** Envoyer un message, actualiser la page, vérifier si le message est présent\n- **Fichiers touchés :** `frontend/src/lib/chatStore.svelte.ts` (loadMessages, sendMessage), `backend/src/db.rs` (get_conversation_messages)
 - **Correct :** Lister origines explicitement depuis config
 
 ## 🔵 Problèmes de build CI
