@@ -96,7 +96,6 @@
 
   // Read messages directly from the writable store
   let localMessages = $state<ChatMessage[]>([]);
-  let reversedMessages = $derived(localMessages.slice().reverse());
   // Sync store → local state for reactivity
   $effect(() => {
     const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
@@ -1327,7 +1326,7 @@
       {:else}
       {/if}
 
-      {#each reversedMessages as msg (msg.id)}
+      {#each localMessages.toReversed() as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
