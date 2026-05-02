@@ -1451,7 +1451,24 @@
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
-                  <!-- Bouton + pour picker étendu -->n                  <buttonn                    class="emoji-more-btn"n                    onclick={(e) => { n                      e.stopPropagation(); n                      // Basculer la zone étendue pour ce messagen                      if (extendedEmojiMsgId === msg.id) {n                        extendedEmojiMsgId = null;n                      } else {n                        extendedEmojiMsgId = msg.id;n                      }n                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);n                    }}n                    aria-label="Plus d'emojis"n                  >＋</button>
+                  {/each}
+
+                  <!-- Bouton + pour picker étendu -->
+                  <button
+                    class="emoji-more-btn"
+                    onclick={(e) => { 
+                      e.stopPropagation(); 
+                      // Basculer la zone étendue pour ce message
+                      if (extendedEmojiMsgId === msg.id) {
+                        extendedEmojiMsgId = null;
+                      } else {
+                        extendedEmojiMsgId = msg.id;
+                      }
+                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);
+                    }}
+                    aria-label="Plus d'emojis"
+                  >＋</button>
+
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
                   {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
@@ -1466,7 +1483,7 @@
                     {/each}
                   </div>
                   {/if}
-                </div>
+
               {/if}
             {/if}
           </div>
