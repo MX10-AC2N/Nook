@@ -1339,7 +1339,6 @@
             ↓ Messages plus anciens
           </button>
         {/if}
-      {/if}
     </div>
 
     {#if typingUsers.length > 0}
