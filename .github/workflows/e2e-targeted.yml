@@ -2,7 +2,7 @@ name: 🧪 E2E — Test ciblé (debug rapide)
 
 # Lance un groupe ou un test Playwright en sélectionnant dans la liste déroulante.
 # Évite de relancer toute la suite (~10 min) pour debugger une seule zone.
-# Génère et commit .claude/E2E-TARGETED-REPORT.md après chaque run.
+# Génère et commit .hermes/E2E-TARGETED-REPORT.md après chaque run.
 # Agent concerné : 🧪 E2E
 
 on:
@@ -229,7 +229,7 @@ jobs:
           path: frontend/test-results/
           retention-days: 5
 
-      - name: "Générer .claude/E2E-TARGETED-REPORT.md"
+      - name: "Générer .hermes/E2E-TARGETED-REPORT.md"
         if: always()
         env:
           PASSED:        ${{ steps.playwright.outputs.passed }}
@@ -251,18 +251,18 @@ jobs:
           grep -A 5 "Error:" /tmp/e2e-targeted-output.txt 2>/dev/null \
             | sed "s/\x1b\[[0-9;]*m//g" | head -60  > /tmp/error_section.txt || true
 
-          mkdir -p .claude
+          mkdir -p .hermes
 
           RUN_DATE="$RUN_DATE" \
           python3 .github/scripts/gen_e2e_report.py
           echo "Rapport genere"
 
-      - name: "Commit .claude/E2E-TARGETED-REPORT.md"
+      - name: "Commit .hermes/E2E-TARGETED-REPORT.md"
         if: always()
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/E2E-TARGETED-REPORT.md
+          git add .hermes/E2E-TARGETED-REPORT.md
           if git diff --staged --quiet; then
             echo "Aucune modification — pas de commit"
           else
@@ -288,7 +288,7 @@ jobs:
           echo "| **Passés** | ${{ steps.playwright.outputs.passed }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Échoués** | ${{ steps.playwright.outputs.failed }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Flaky** | ${{ steps.playwright.outputs.flaky }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Rapport** | \`.claude/E2E-TARGETED-REPORT.md\` commité |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Rapport** | \`.hermes/E2E-TARGETED-REPORT.md\` commité |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Output" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
