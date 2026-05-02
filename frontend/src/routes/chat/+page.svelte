@@ -659,7 +659,7 @@
     // Mention autocomplete: detect @ in the message
     const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
     const beforeCursor = newMessage.slice(0, cursor);
-    const atMatch = beforeCursor.match(/@(\w*)$/);
+    const atMatch = beforeCursor.match(/@(w*)$/);
     if (atMatch) {
       mentionStart = cursor - atMatch[0].length;
       mentionQuery = atMatch[1];
@@ -710,7 +710,7 @@
 
   function handleSelectEmoji(emoji: string) {
     // Toujours ajouter l'emoji au champ de saisie
-    // L'utilisateur peut empiler plusieurs emojis puis envoyer
+    // L\'utilisateur peut empiler plusieurs emojis puis envoyer
     newMessage = newMessage + emoji;
     // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
@@ -820,7 +820,7 @@
     }
     
     if (!targetUserId) {
-      chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
+        chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
@@ -1418,7 +1418,7 @@
                     e.stopPropagation(); 
                     if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
                     else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const rect = e.currentTarget.getBoundingClientRect();
                       emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
                       emojiPickerMsgId = msg.id; 
                     }
@@ -1451,7 +1451,24 @@
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
-                  <!-- Bouton + pour picker étendu -->\n                  <button\n                    class="emoji-more-btn"\n                    onclick={(e) => { \n                      e.stopPropagation(); \n                      // Basculer la zone étendue pour ce message\n                      if (extendedEmojiMsgId === msg.id) {\n                        extendedEmojiMsgId = null;\n                      } else {\n                        extendedEmojiMsgId = msg.id;\n                      }\n                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);\n                    }}\n                    aria-label="Plus d'emojis"\n                  >＋</button>
+                  {/each}
+
+                  <!-- Bouton + pour picker étendu -->
+                  <button
+                    class="emoji-more-btn"
+                    onclick={(e) => { 
+                      e.stopPropagation(); 
+                      // Basculer la zone étendue pour ce message
+                      if (extendedEmojiMsgId === msg.id) {
+                        extendedEmojiMsgId = null;
+                      } else {
+                        extendedEmojiMsgId = msg.id;
+                      }
+                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);
+                    }}
+                    aria-label="Plus d'emojis"
+                  >＋</button>
+
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
                   {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
@@ -1466,7 +1483,7 @@
                     {/each}
                   </div>
                   {/if}
-                </div>
+
               {/if}
             {/if}
           </div>
@@ -1487,7 +1504,7 @@
         <span class="typing-dots">
           <span></span><span></span><span></span>
         </span>
-        {typingUsers.length === 1 ? 'Quelqu\'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+        {typingUsers.length === 1 ? 'Quelqu'un' : `${typingUsers.length} personnes`} est en train d'écrire…
       </div>
     {/if}
 

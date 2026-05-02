@@ -1,45 +1,34 @@
-## Session 53 — 2026-05-01 (Récupération Contexte & Fixes)
+## Session 54 — 2026-05-02 (Context Recovery & Nook Development)
 
 ## Contexte
-- **Récupération complète du contexte Hermes** : fichiers de config, 25 sessions CLI, 28 skills globaux + 28 Nook, MCPs.
-- **Repo** : `/opt/data/home/.hermes/Nook` | Branche `develop` | 3 commits en attente (fixes nginx HTTPS)
-- **GitHub Token** : Fine-grained PAT avec permissions ADMIN/PUSH, mais push 403 (probablement SSO non autorisé)
-- **HTTPS 6443** : Certificats générés manuellement (nook.key/nook.crt), redémarrage nginx nécessaire depuis l'hôte
-- **E2EE** : BUG-002 corrigé mais pas déployé (polling chatStore.svelte.ts)
+- **Récupération complète du contexte Hermes** : config, 28 sessions CLI, 28 skills globaux + 28 Nook, MCPs, .claude directory
+- **Repo** : `/opt/data/home/.hermes/Nook` | Branche `develop` | Clean working tree
+- **GitHub Token** : Nouveau fine-grained PAT (mis à jour 2026-05-02), permissions push valides
+- **HTTPS 6443** : Fonctionnel (nginx redéployé), certificats auto-signés, CA téléchargeable
+- **HTTP 6300** : Fonctionnel, accès E2EE, WebRTC, chat
 
 ## Actions Réalisées
-- ✅ Lecture complète `.hermes/hermes/*` (memory, known-issues, preferences)
-- ✅ Audit site HTTP (http://192.168.1.192:6300) : accessible, erreurs E2EE déchiffrement
-- ✅ Génération manuelle des certificats SSL (nook.key/nook.crt) avec permissions 644
-- ✅ Rebase des 3 commits locaux pour corriger l'auteur (MX10-AC2N@users.noreply.github.com)
-- ✅ Configuration Git avec helper `gh auth git-credential`
-- ❌ Push vers origin/develop échoue (403) — nécessite push depuis l'hôte ou autorisation SSO du token
+- ✅ Lecture complète `.claude/` (CLAUDE.md, BUGS.md, known-issues.md, roles/, rules/)
+- ✅ Chargement des skills : hermes-context-recovery, nook-github-workflows, github-auth
+- ✅ Vérification nginx : `user` directive corrigé (supprimé de conf.d/default.conf, maintenu dans nginx.conf)
+- ✅ Configuration Git avec nouveau token fine-grained
+- ✅ Fix BUG-08 (refresh perd dernier message) : commit 13af4b3c déployé
+- ✅ Fix BUG-07 (emoji étendus) : workflow validé, bouton ＋ fonctionnel
+
+## Bugs en cours
+- 🟡 **BUG-07 (Emoji étendus)** : Bouton ＋ fonctionnel, mais clic sur emoji étendu ne met pas de réaction ? À vérifier
+- 🟡 **BUG-08 (Refresh message)** : Commit 13af4b3c déployé, mais utilisateur signale perte dernier message après refresh → à tester via browser
 
 ## Prochaines Étapes
-- [ ] **Push commits** : Depuis l'hôte, exécuter `cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook && git push origin develop`
-- [ ] **Corriger BUG-002** : `chatStore.svelte.ts` → polling `_decryptAllIfReady()` après refresh
-- [ ] **Lancer workflows** : `gh workflow run Backend.yml && gh workflow run Frontend.yml && gh workflow run Docker.yml`
-- [ ] **Redéployer Nook** : `cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook && docker compose up -d nginx-local`
-- [ ] **Mettre à jour l'audit** : GLOBAL-AUDIT-2026-05-01.md avec état actuel
+- [x] Push commits vers origin/develop
+- [ ] **Lancer workflows** : Frontend.yml → Backend.yml → Turn.yml (simultanément)
+- [ ] **Attendre succès** des 3 workflows précédents
+- [ ] **Lancer Docker.yml** (uniquement après succès des 3 précédents)
+- [ ] **Tester Nook déployé** : http://192.168.1.192:6300 + https://192.168.1.192:6443
+- [ ] **Mettre à jour BUGS.md** : Statut BUG-07 et BUG-08 après tests
 
-## Workflows Disponibles (à lancer dans l'ordre)
-1. `test-nook.yml` (E2E tests)
-2. `backend.yml` (Build Rust amd64/arm64)
-3. `frontend.yml` (Build SvelteKit)
-4. `turn.yml` (TURN server)
-5. `docker.yml` (Build & push image multi-arch)
-
-## Commandes Hôte (à exécuter par l'utilisateur)
-```bash
-# Push commits
-cd /media/ac2n-cloud/Docker_Hermes/hermes-agent/home/.hermes/Nook
-git push origin develop
-
-# Redémarrer nginx HTTPS
-docker compose up -d nginx-local --force-recreate
-
-# Lancer workflows
-gh workflow run Backend.yml
-gh workflow run Frontend.yml
-gh workflow run Docker.yml
-```
+## Workflows Disponibles (Ordre critique)
+1. **Frontend.yml** (ID: 220018364) → Premier
+2. **Backend.yml** (ID: 220018362) → Simultané avec Frontend
+3. **Turn.yml** (ID: 257238341) → Simultané avec Frontend/Backend
+4. **Docker.yml** (ID: 220018363) → Uniquement après succès des 3 précédents
