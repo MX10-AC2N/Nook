@@ -1,18 +1,18 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit 0e9b64b | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25246015737)
+> **unknown** | commit 6d0cf7d | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25246549733)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ✅ OK |
-| **cargo check** | ✅ exit=0 |
-| **cargo clippy** | ✅ exit=0 |
+| **cargo build** | ❌ FAIL |
+| **cargo check** | ❌ exit=101 |
+| **cargo clippy** | ❌ exit=101 |
 
 | Métrique | Valeur |
 |----------|--------|
-| **Bin Size** | 8.5M |
+| **Bin Size** | N/A |
 | **Compile Time** | N/A |
 | **Warnings (check)** | N/A |
 | **Errors (check)** | N/A |
@@ -33,13 +33,15 @@
 ## ❌ Erreurs cargo check
 
 ```
-(aucune erreur)
+error[E0277]: `?` couldn't convert the error to `http::StatusCode`
+error[E0308]: `if` and `else` have incompatible types
 ```
 
 ## ❌ Erreurs cargo build
 
 ```
-(aucune erreur)
+error[E0277]: `?` couldn't convert the error to `http::StatusCode`
+error[E0308]: `if` and `else` have incompatible types
 ```
 
 ## 🔧 Clippy warnings
@@ -71,7 +73,7 @@
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 16s
+
 ```
 
 ---
