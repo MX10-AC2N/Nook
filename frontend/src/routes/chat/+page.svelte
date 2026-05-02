@@ -644,6 +644,10 @@
     
     try {
       await sendMessage(content, activeConvId);
+      // Recharger les messages pour confirmer la persistance
+      await loadMessages(activeConvId);
+      // Scroller vers le haut pour voir le nouveau message
+      if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
       console.error('[Chat] send error:', e);
     } finally {
@@ -1447,17 +1451,7 @@
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
-                  <!-- Bouton + pour picker étendu -->
-                  <button
-                    class="emoji-more-btn"
-                    onclick={(e) => { 
-                      e.stopPropagation(); 
-                      console.log('[Emoji+] Clicked, current extendedEmojiMsgId:', extendedEmojiMsgId, 'msg.id:', msg.id);
-                      extendedEmojiMsgId = extendedEmojiMsgId === msg.id ? null : msg.id; 
-                      console.log('[Emoji+] New extendedEmojiMsgId:', extendedEmojiMsgId);
-                    }}
-                    aria-label="Plus d'emojis"
-                  >＋</button>
+                  <!-- Bouton + pour picker étendu -->\n                  <button\n                    class="emoji-more-btn"\n                    onclick={(e) => { \n                      e.stopPropagation(); \n                      // Basculer la zone étendue pour ce message\n                      if (extendedEmojiMsgId === msg.id) {\n                        extendedEmojiMsgId = null;\n                      } else {\n                        extendedEmojiMsgId = msg.id;\n                      }\n                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);\n                    }}\n                    aria-label="Plus d'emojis"\n                  >＋</button>
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
                   {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
