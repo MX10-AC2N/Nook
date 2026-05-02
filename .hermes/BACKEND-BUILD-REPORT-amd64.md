@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit 4406420 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25247499838)
+> **unknown** | commit c6ffae8 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25257919833)
 
 ## Récapitulatif statuts
 
@@ -13,7 +13,7 @@
 | Métrique | Valeur |
 |----------|--------|
 | **Bin Size** | 11M |
-| **Compile Time** | 59.77s |
+| **Compile Time** | N/A |
 | **Warnings (check)** | N/A |
 | **Errors (check)** | N/A |
 | **New Warnings** | N/A |
@@ -71,7 +71,7 @@
 ```
 
 
-[1m[92m    Finished[0m `release` profile [optimized] target(s) in 59.77s
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 01s
 ```
 
 ---
