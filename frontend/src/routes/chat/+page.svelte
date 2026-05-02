@@ -1418,11 +1418,11 @@
                     e.stopPropagation(); 
                     if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
                     else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const rect = e.currentTarget.getBoundingClientRect();
                       emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
                       emojiPickerMsgId = msg.id; 
                     }
-                  }
+                  }}
                   title="Réagir"
                   aria-label="Ajouter une réaction"
                 >😊</button>
