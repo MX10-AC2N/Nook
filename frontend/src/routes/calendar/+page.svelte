@@ -246,7 +246,13 @@
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
             {#each dayEvts.slice(0,2) as evt}
-              <span class="evt-pill" draggable="true" ondragstart={(e) => handleDragStart(e, evt)} onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
+              <span class="evt-pill" draggable="true" 
+                    ondragstart={(e) => handleDragStart(e, evt)} 
+                    onclick={(e) => { e.stopPropagation(); openDetail(evt); }}
+                    role="button"
+                    tabindex="0"
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}
+                    title={evt.title}>{evt.title}</span>
             {/each}
             {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
           </div>
@@ -267,7 +273,9 @@
         {#each getWeekDays() as day}
           <div class="week-col">
             {#each getEventsForDate(day) as evt}
-              <div class="week-event" onclick={() => openDetail(evt)}>
+              <div class="week-event" onclick={() => openDetail(evt)} 
+                    role="button" tabindex="0" 
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}>
                 {evt.time ? evt.time + ' ' : ''}{evt.title}
               </div>
             {/each}
@@ -279,7 +287,9 @@
     <div class="day-view">
       <h3>{currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
       {#each getEventsForDate(currentDate) as evt}
-        <div class="day-event" onclick={() => openDetail(evt)}>
+        <div class="day-event" onclick={() => openDetail(evt)}
+              role="button" tabindex="0"
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}>
           <span class="day-event-time">{evt.time || '—'}</span>
           <div>
             <span class="day-event-title">{evt.title}</span>
