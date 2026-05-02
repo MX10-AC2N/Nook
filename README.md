@@ -193,7 +193,7 @@ Derniers scores (2026-04-25) :
 - 🐳 **Docker** : 92/100 — Images distroless, healthchecks
 - 📦 **Dépendances** : 74/100 — `chacha20poly1305` à jour
 
-> 📂 Détails disponibles dans le dossier `.claude/` du dépôt.
+> 📂 Détails disponibles dans le dossier `.hermes/` du dépôt.
 
 ---
 
