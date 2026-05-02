@@ -1,6 +1,6 @@
 # 🏗️ Backend Build Report — arm64 — Nook
 
-> **unknown** | commit f8466da | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25247005588)
+> **unknown** | commit cc841d9 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25247094336)
 
 ## Récapitulatif statuts
 
@@ -33,15 +33,13 @@
 ## ❌ Erreurs cargo check
 
 ```
-error[E0277]: `?` couldn't convert the error to `http::StatusCode`
-error[E0308]: `if` and `else` have incompatible types
+(aucune erreur)
 ```
 
 ## ❌ Erreurs cargo build
 
 ```
-error[E0277]: `?` couldn't convert the error to `http::StatusCode`
-error[E0308]: `if` and `else` have incompatible types
+(aucune erreur)
 ```
 
 ## 🔧 Clippy warnings
