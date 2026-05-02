@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ✅ OK |
 | **Branche** | develop |
-| **Commit** | 30b167c |
+| **Commit** | 6f86a12 |
 | **Node.js** | unknown |
-| **Vite time** | 6.01ms |
+| **Vite time** | 6.21ms |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | 14 |
 | **Warnings** | 2 |
 | **Errors** | 0 |
 | **Chunks** | 149 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25230224223 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25245428794 |
 
 ---
 
@@ -37,10 +37,10 @@
 ```
 [32m✓[39m 205 modules transformed.
 [32m✓[39m 239 modules transformed.
-[32m✓ built in 6.01s[39m
+[32m✓ built in 6.21s[39m
 [32m✓[39m 1 modules transformed.
-[32m✓ built in 24ms[39m
-[32m✓ built in 11.96s[39m
+[32m✓ built in 19ms[39m
+[32m✓ built in 12.27s[39m
 
 [2m.svelte-kit/output/server/[22m[36mentries/pages/admin/analytics/_page.svelte.js     [39m[1m[2m  1.19 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mentries/pages/polls/_page.svelte.js               [39m[1m[2m  1.20 kB[22m[1m[22m
@@ -62,15 +62,15 @@
 [2m.svelte-kit/output/server/[22m[36mentries/pages/call/_id_/_page.svelte.js           [39m[1m[2m 34.29 kB[22m[1m[22m
 [2m.svelte-kit/output/server/[22m[36mchunks/svelte.js                                  [39m[1m[2m300.19 kB[22m[1m[22m
 ✨ [vite-plugin-compression]:algorithm=gzip - compressed file successfully: 
-server/_app/immutable/assets/_page.j1JGpa_U.css.gz     15.87kb / gzip: 3.51kb
-server/_app/immutable/assets/_layout.CTigR1ee.css.gz   30.12kb / gzip: 6.18kb
 server/_app/immutable/assets/_page.BF8ugHv3.css.gz     12.82kb / gzip: 2.50kb
-server/_app/immutable/assets/_page.B3pUe11w.css.gz     30.68kb / gzip: 5.39kb
+server/_app/immutable/assets/_page.j1JGpa_U.css.gz     15.87kb / gzip: 3.51kb
 server/chunks/chessStore.svelte.js.gz                  16.19kb / gzip: 3.61kb
+server/_app/immutable/assets/_page.B3pUe11w.css.gz     30.68kb / gzip: 5.39kb
+server/chunks/file-transfer.svelte.js.gz               18.44kb / gzip: 4.36kb
 server/entries/pages/help/_page.svelte.js.gz           11.73kb / gzip: 4.31kb
+server/_app/immutable/assets/_layout.CTigR1ee.css.gz   30.12kb / gzip: 6.18kb
 server/entries/pages/chat/_page.svelte.js.gz           26.60kb / gzip: 6.25kb
 server/entries/pages/call/_id_/_page.svelte.js.gz      33.48kb / gzip: 7.33kb
-server/chunks/file-transfer.svelte.js.gz               18.44kb / gzip: 4.36kb
 server/chunks/svelte.js.gz                             293.15kb / gzip: 69.44kb
 ```
 
