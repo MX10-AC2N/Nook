@@ -43,8 +43,8 @@ fi
 CHUNKS="(non disponible)"
 [ -f /tmp/frontend-build.txt ] && CHUNKS=$(grep -E "kB|gzip" /tmp/frontend-build.txt 2>/dev/null | tail -30) || true
 
-REPORT=".claude/FRONTEND-BUILD-REPORT.md"
-mkdir -p .claude 2>/dev/null || true
+REPORT=".hermes/FRONTEND-BUILD-REPORT.md"
+mkdir -p .hermes 2>/dev/null || true
 
 cat > "$REPORT" << ENDOFMD
 # Frontend Build Report — Nook
