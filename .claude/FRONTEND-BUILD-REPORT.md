@@ -6,7 +6,7 @@
 |-------|--------|
 | **Build** | ❌ FAIL |
 | **Branche** | develop |
-| **Commit** | e5c9df6 |
+| **Commit** | bf1c826 |
 | **Node.js** | unknown |
 | **Vite time** | N/Ams |
 | **Duration** | N/A |
@@ -15,7 +15,7 @@
 | **Warnings** | 1 |
 | **Errors** | 0 |
 | **Chunks** | 0 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25247904463 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25247954004 |
 
 ---
 
@@ -34,7 +34,7 @@
 ## Bundle
 
 ```
-[32m✓[39m 81 modules transformed.
+[32m✓[39m 82 modules transformed.
 
 
 ```
