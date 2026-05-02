@@ -702,11 +702,6 @@ pub async fn get_conversation_messages(
             StatusCode::INTERNAL_SERVER_ERROR
         })?
     };
-    }
-    .map_err(|e| {
-        eprintln!("[get_conversation_messages] Erreur DB: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
 
     Ok(Json(messages))
 }
