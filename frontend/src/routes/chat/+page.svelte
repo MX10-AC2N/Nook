@@ -1455,7 +1455,6 @@
               </div>
               {/if}
           {/each}
->>>>>>> aab87b52 (FIX: BUG-08 - Ajout fonction toggleExtendedEmoji + bouton + pour réactions étendues)
 
         {#if chatStore.loadingMore}
           <div class="load-more-indicator">⏳ Chargement…</div>
