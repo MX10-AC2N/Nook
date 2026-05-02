@@ -332,10 +332,10 @@
 </div>
 
 <!-- MODAL AJOUT -->
-{#if showAddModal}
-  <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
+  {#if showAddModal}
+    <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
+      <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
+        <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
       <div class="modal-body">
         <label class="field">Titre *<input type="text" bind:value={newEvent.title} placeholder="Titre" maxlength="100" /></label>
         <label class="field">Date *<input type="date" bind:value={newEvent.date} /></label>
@@ -353,8 +353,8 @@
 
 <!-- MODAL DÉTAIL/ÉDITION -->
 {#if detailEvent}
-  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr">
         <h3>{editMode ? '✏️ Modifier' : '📌 '+detailEvent.title}</h3>
         <button class="modal-close" onclick={closeDetail}>✕</button>
@@ -389,8 +389,8 @@
 
 <!-- MODAL JOUR MULTI-ÉVÉNEMENTS -->
 {#if selectedDay && !detailEvent && eventsForDay(selectedDay).length > 1}
-  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr"><h3>📅 {selectedDay} {monthNames[currentDate.getMonth()]}</h3><button class="modal-close" onclick={() => selectedDay=null}>✕</button></div>
       <div class="modal-body">
         <ul class="day-evts-list">
