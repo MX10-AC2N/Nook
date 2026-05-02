@@ -668,6 +668,10 @@ pub async fn get_conversation_messages(
         .bind(limit)
         .fetch_all(&state.db)
         .await
+        .map_err(|e| { 
+            eprintln!("[get_conversation_messages] Erreur DB: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
     } else {
         sqlx::query_as::<_, MessageWithSender>(
             "SELECT
@@ -692,8 +696,12 @@ pub async fn get_conversation_messages(
             // Reverse to get ASC order (oldest first) for frontend compatibility
             msgs.reverse();
             msgs
-        })?;
-    // If we get here, the query returned Ok, so we need to handle the before case too
+        })
+        .map_err(|e| { 
+            eprintln!("[get_conversation_messages] Erreur DB: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    };
     }
     .map_err(|e| {
         eprintln!("[get_conversation_messages] Erreur DB: {}", e);
