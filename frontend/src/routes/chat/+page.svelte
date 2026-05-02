@@ -96,6 +96,7 @@
 
   // Read messages directly from the writable store
   let localMessages = $state<ChatMessage[]>([]);
+  let reversedMessages = $derived(localMessages.slice().reverse());
   // Sync store → local state for reactivity
   $effect(() => {
     const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
@@ -1314,129 +1315,22 @@
     </header>
 
       <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
-      {#if localMessages.length === 0 && !loadingConvs}
-        <div class="empty-state">
-          <span class="empty-icon">💬</span>
-          <p>Aucun message — soyez le premier à écrire !</p>
-        </div>
-      {:else if localMessages.length === 0 && loadingConvs}
-        <div class="empty-state">
-          <span class="loading-dots">···</span>
-        </div>
-      {:else}
+      {#if localMessages.length === 0}
+        {#if loadingConvs}
+          <div class="empty-state">
+            <span class="loading-dots">···</span>
+          </div>
+        {:else}
+          <div class="empty-state">
+            <span class="empty-icon">💬</span>
+            <p>Aucun message — soyez le premier à écrire !</p>
+          </div>
+        {/if}
       {/if}
 
-      {#each [...localMessages].reverse() as msg (msg.id)}
-          <div
-            class="message"
-            class:mine={isMyMessage(msg.sender_id)}
-            data-msg-id={msg.id}
-            onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
-            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id && emojiPickerMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
-          >
-              {#if isMyMessage(msg.sender_id)}
-                <div class="message-header mine-header">
-                  <span class="message-sender">Moi</span>
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
-                </div>
-              {:else}
-                <div class="message-header">
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
-                  <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
-                </div>
-              {/if}
-
-            {#if editingMsgId === msg.id}
-              <div class="edit-zone">
-                <textarea
-                  class="edit-input"
-                  bind:value={editingContent}
-                  onkeydown={handleEditKeydown}
-                  rows="2"
-                ></textarea>
-                <div class="edit-actions">
-                  <button class="edit-ok" onclick={submitEdit}>✓ Sauvegarder</button>
-                  <button class="edit-cancel" onclick={cancelEdit}>✕ Annuler</button>
-                </div>
-              </div>
-            {:else}
-              <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
-              <!-- Messages vocaux : <audio>/<video> natif si le contenu commence par ces tags -->
-              {#if msg.content && msg.content.trimStart().startsWith('<audio')}
-                <div class="voice-message">
-                  🎤 <audio
-                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
-                    controls
-                    preload="none"
-                    class="voice-audio"
-                  ></audio>
-                </div>
-              {:else if msg.content && msg.content.trimStart().startsWith('<video')}
-                <div class="voice-message">
-                  🎥 <video
-                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
-                    controls
-                    preload="none"
-                    class="voice-video"
-                  ></video>
-                </div>
-              {:else}
-                {#if isEmojiOnly(msg.content)}
-                  <div class="message-content emoji-only">{msg.content}</div>
-                {:else}
-                  <div class="message-content">{@html sanitizeHtml(highlightMentions(msg.content))}</div>
-                {/if}
-              {/if}
-            {/if}
-
-            <!-- ─── Réactions affichées ─── -->
-            {#if countReactions(msg.id).length > 0}
-              <div class="reactions-row">
-                {#each countReactions(msg.id) as r}
-                  <button
-                    class="reaction-pill" data-testid="reaction-pill"
-                    class:my-reaction={reactions[msg.id]?.myEmoji === r.emoji}
-                    onclick={() => toggleReaction(msg.id, r.emoji)}
-                    title={r.names}
-                    aria-label="{r.emoji} {r.count}"
-                  >{r.emoji} {r.count}</button>
-                {/each}
-              </div>
-            {/if}
-
-            <div class="message-meta">
-              <span class="message-time">{formatTimestamp(msg.created_at)}</span>
-              {#if msg.edited_at}
-                <span class="edited-label">(modifié)</span>
-              {/if}
-            </div>
-
-            {#if hoveredMsgId === msg.id && editingMsgId !== msg.id}
-              <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
-                <!-- Bouton réaction rapide — toujours visible au hover -->
-                <button
-                  class="msg-action-btn reaction-trigger" data-testid="reaction-trigger"
-                  onclick={(e) => { 
-                    e.stopPropagation(); 
-                    if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
-                    else {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
-                      emojiPickerMsgId = msg.id; 
-                    }
-                  }}
-                  title="Réagir"
-                  aria-label="Ajouter une réaction"
-                >😊</button>
-                {#if isMyMessage(msg.sender_id)}
-                  <button class="msg-action-btn" onclick={() => startEdit(msg)} title="Modifier">✏️</button>
-                {/if}
-                {#if isMyMessage(msg.sender_id) || authStore.isAdmin}
-                  <button class="msg-action-btn danger" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
-                {/if}
-              </div>
-              {/if}
-          {/each}
+      {#each reversedMessages as msg (msg.id)}
+          <div class="message">{msg.content}</div>
+      {/each}
 
         {#if chatStore.loadingMore}
           <div class="load-more-indicator">⏳ Chargement…</div>
