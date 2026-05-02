@@ -1326,7 +1326,7 @@
       {:else}
       {/if}
 
-      {#each localMessages.toReversed() as msg (msg.id)}
+      {#each [...localMessages].reverse() as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
@@ -1487,6 +1487,7 @@
                   {/if}
 
               </div>
+              {/if}
           {/each}
 
         {#if chatStore.loadingMore}
