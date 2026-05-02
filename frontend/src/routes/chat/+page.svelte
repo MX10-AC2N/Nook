@@ -202,7 +202,7 @@
     
     // Timeout
     if (msg.includes('Timeout') || msg.includes('timeout')) {
-      return 'Délai d\'attente dépassé (10s). L\'utilisateur est peut-être hors ligne.';
+      return "Délai d'attente dépassé (10s). L'utilisateur est peut-être hors ligne.";
     }
     
     // WebSocket errors
@@ -710,7 +710,7 @@
 
   function handleSelectEmoji(emoji: string) {
     // Toujours ajouter l'emoji au champ de saisie
-    // L\'utilisateur peut empiler plusieurs emojis puis envoyer
+    // L'utilisateur peut empiler plusieurs emojis puis envoyer
     newMessage = newMessage + emoji;
     // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
@@ -820,7 +820,7 @@
     }
     
     if (!targetUserId) {
-        chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
+        chatStore.connectionError = "Impossible de déterminer l'utilisateur cible.";
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
@@ -1324,7 +1324,9 @@
           <span class="loading-dots">···</span>
         </div>
       {:else}
-        {#each [...localMessages].reverse() as msg (msg.id)}
+      {/if}
+
+      {#each [...localMessages].reverse() as msg (msg.id)}
           <div
             class="message"
             class:mine={isMyMessage(msg.sender_id)}
@@ -1433,6 +1435,7 @@
                   <button class="msg-action-btn danger" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
                 {/if}
               </div>
+              {/if}
 
               <!-- Emoji picker rapide (6 fixes + picker étendu) -->
               {#if emojiPickerMsgId === msg.id}
@@ -1451,9 +1454,7 @@
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
-                  {/each}
-
-                  <!-- Bouton + pour picker étendu -->
+                <!-- Bouton + pour picker étendu -->
                   <button
                     class="emoji-more-btn"
                     onclick={(e) => { 
@@ -1484,10 +1485,8 @@
                   </div>
                   {/if}
 
-              {/if}
-            {/if}
-          </div>
-        {/each}
+              </div>
+          {/each}
 
         {#if chatStore.loadingMore}
           <div class="load-more-indicator">⏳ Chargement…</div>
