@@ -1456,7 +1456,6 @@
                   {/each}
 
                   <!-- Bouton + pour picker étendu -->
->>>>>>> 09be8da4 (FIX: Suppression d'un {/each} en trop dans chat/+page.svelte (BUG-09))
                   <button
                     class="emoji-more-btn"
                     onclick={(e) => { 
