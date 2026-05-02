@@ -681,13 +681,19 @@ pub async fn get_conversation_messages(
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
-             ORDER BY m.created_at ASC
+             ORDER BY m.created_at DESC
              LIMIT ?",
         )
         .bind(&id)
         .bind(limit)
         .fetch_all(&state.db)
         .await
+        .map(|mut msgs| {
+            // Reverse to get ASC order (oldest first) for frontend compatibility
+            msgs.reverse();
+            msgs
+        })?;
+    // If we get here, the query returned Ok, so we need to handle the before case too
     }
     .map_err(|e| {
         eprintln!("[get_conversation_messages] Erreur DB: {}", e);

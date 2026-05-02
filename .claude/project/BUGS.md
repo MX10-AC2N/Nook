@@ -54,6 +54,26 @@
 **Impact** : Pas de cache offline, requêtes authentifiées échouent
 **Statut** : 🔴 Actif (HTTPS fixé dans entrypoint, à redéployer)
 
+### BUG-07 : Réaction emoji étendue défaillante
+
+**Fichier** : `frontend/src/routes/chat/+page.svelte` — composant de réaction emoji
+**Symptôme** :
+- Clic sur le bouton "+" (emoji étendus) ne fait rien
+- Les emojis étendus ne s'affichent plus du tout
+- Seuls les 6 emojis principaux fonctionnent pour les réactions
+**Impact** : Expérience utilisateur limitée pour les réactions
+**Statut** : 🔴 Actif (à investiguer)
+
+### BUG-08 : Message perdu après rafraîchissement chat
+
+**Fichier** : `frontend/src/lib/stores/chatStore.svelte.ts` — gestion de l'état du chat
+**Symptôme** :
+- Poster un nouveau message dans un chat (ex: avec Géraldine)
+- Rafraîchir la page
+- Le dernier message posté avant le refresh n'est plus visible
+**Impact** : Perte de messages récents après navigation/refresh
+**Statut** : 🔴 Actif (à investiguer)
+
 ---
 
 ## ✅ BUGS RÉSOLUS (session 47 — déploiement Docker)
