@@ -1485,7 +1485,6 @@
                     {/each}
                   </div>
                   {/if}
-            {/if}
 
               </div>
           {/each}
