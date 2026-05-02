@@ -404,7 +404,7 @@ const PAGE_SIZE = 50;
 export async function loadMessages(conversationId: string): Promise<void> {
   try {
     const res = await fetch(
-      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}`,
+      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}&order=desc`,
       { credentials: 'include' }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
