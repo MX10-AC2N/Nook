@@ -710,7 +710,7 @@
 
   function handleSelectEmoji(emoji: string) {
     // Toujours ajouter l'emoji au champ de saisie
-    // L'utilisateur peut empiler plusieurs emojis puis envoyer
+    // L\'utilisateur peut empiler plusieurs emojis puis envoyer
     newMessage = newMessage + emoji;
     // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
@@ -1422,7 +1422,7 @@
                       emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
                       emojiPickerMsgId = msg.id; 
                     }
-                  }}
+                  }
                   title="Réagir"
                   aria-label="Ajouter une réaction"
                 >😊</button>
