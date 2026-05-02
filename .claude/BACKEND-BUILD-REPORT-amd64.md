@@ -1,18 +1,18 @@
 # 🏗️ Backend Build Report — amd64 — Nook
 
-> **unknown** | commit cc841d9 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25247094336)
+> **unknown** | commit 1d8b4b3 | [run](https://github.com/MX10-AC2N/Nook/actions/runs/25247176623)
 
 ## Récapitulatif statuts
 
 | Check | Résultat |
 |-------|----------|
-| **cargo build** | ❌ FAIL |
-| **cargo check** | ❌ exit=101 |
-| **cargo clippy** | ❌ exit=101 |
+| **cargo build** | ✅ OK |
+| **cargo check** | ✅ exit=0 |
+| **cargo clippy** | ✅ exit=0 |
 
 | Métrique | Valeur |
 |----------|--------|
-| **Bin Size** | N/A |
+| **Bin Size** | 11M |
 | **Compile Time** | N/A |
 | **Warnings (check)** | N/A |
 | **Errors (check)** | N/A |
@@ -71,7 +71,7 @@
 ```
 
 
-
+[1m[92m    Finished[0m `release` profile [optimized] target(s) in 1m 07s
 ```
 
 ---
