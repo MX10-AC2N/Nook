@@ -1436,58 +1436,6 @@
                 {/if}
               </div>
               {/if}
-
-              <!-- Emoji picker rapide (6 fixes + picker étendu) -->
-              {#if emojiPickerMsgId === msg.id}
-                <div
-                  class="emoji-picker" data-testid="emoji-picker"
-                  class:picker-mine={isMyMessage(msg.sender_id)}
-                  role="dialog"
-                  aria-label="Choisir une réaction"
-                  style="top:{emojiPickerPos.top}px; left:{emojiPickerPos.left}px; transform:translateY(-100%);"
-                >
-                  {#each QUICK_EMOJIS as emoji (emoji)}
-                    <button
-                      class="emoji-quick-btn"
-                      class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                      onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                      aria-label={emoji}
-                    >{emoji}</button>
-                  {/each}
-
-                  <!-- Bouton + pour picker étendu -->
-                  <button
-                    class="emoji-more-btn"
-                    onclick={(e) => { 
-                      e.stopPropagation(); 
-                      // Basculer la zone étendue pour ce message
-                      if (extendedEmojiMsgId === msg.id) {
-                        extendedEmojiMsgId = null;
-                      } else {
-                        extendedEmojiMsgId = msg.id;
-                      }
-                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);
-                    }}
-                    aria-label="Plus d'emojis"
-                  >＋</button>
-
-                  <!-- Zone étendue (réactive) -->
-                  {#if extendedEmojiMsgId === msg.id}
-                  {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
-                  <div class="emoji-extended">
-                    {#each ALL_EMOJIS as emoji (emoji)}
-                      <button
-                        class="emoji-quick-btn"
-                        class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                        onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                        aria-label={emoji}
-                      >{emoji}</button>
-                    {/each}
-                  </div>
-                  {/if}
-
-              </div>
-              {/if}
           {/each}
 
         {#if chatStore.loadingMore}
@@ -1505,7 +1453,7 @@
         <span class="typing-dots">
           <span></span><span></span><span></span>
         </span>
-        {typingUsers.length === 1 ? 'Quelqu'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+        {typingUsers.length === 1 ? 'Quelqu\'un' : typingUsers.length + ' personnes'} est en train d'écrire…
       </div>
     {/if}
 
