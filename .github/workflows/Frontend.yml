@@ -71,7 +71,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/FRONTEND-BUILD-REPORT.md
+          git add .hermes/FRONTEND-BUILD-REPORT.md
           if git diff --staged --quiet; then
             echo "Aucune modification — pas de commit"
           else

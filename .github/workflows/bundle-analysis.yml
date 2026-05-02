@@ -90,7 +90,7 @@ jobs:
           DATE=$(date -u +"%Y-%m-%d %H:%M UTC")
           COMMIT=$(git rev-parse --short HEAD)
 
-          cat > .claude/BUNDLE-ANALYSIS-REPORT.md << REPORT
+          cat > .hermes/BUNDLE-ANALYSIS-REPORT.md << REPORT
           # 📦 Bundle Analysis — Nook Frontend
 
           > Généré le : **$DATE** | Commit : \`$COMMIT\`
@@ -129,13 +129,13 @@ jobs:
           cd $GITHUB_WORKSPACE
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/BUNDLE-ANALYSIS-REPORT.md
+          git add .hermes/BUNDLE-ANALYSIS-REPORT.md
           if git diff --staged --quiet; then
             echo "ℹ️ Aucun changement"
           else
             git commit -m "docs(bundle): rapport analyse bundle frontend [skip ci]"
             git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité dans .claude/"
+            echo "✅ Rapport commité dans .hermes/"
           fi
 
       # ── 5. Résumé GitHub ─────────────────────────────────────────

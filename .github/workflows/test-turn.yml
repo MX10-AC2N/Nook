@@ -278,7 +278,7 @@ jobs:
           RUN_DATE="$(date -u '+%Y-%m-%d %H:%M UTC')"
           ARCH="${{ matrix.arch }}"
 
-          cat > .claude/TURN-REPORT.md << REPORT
+          cat > .hermes/TURN-REPORT.md << REPORT
           # 🧪 Turn-Server Test Report — $ARCH
 
           > Généré par \`test-turn.yml\` · **$RUN_DATE**
@@ -339,7 +339,7 @@ jobs:
           *Rapport généré par \`.github/workflows/test-turn.yml\`*
           REPORT
 
-          cat .claude/TURN-REPORT.md
+          cat .hermes/TURN-REPORT.md
 
       - name: Commit report
         if: always()
@@ -347,18 +347,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # Save report before cleanup
-          cp .claude/TURN-REPORT.md /tmp/TURN-REPORT.md 2>/dev/null || true
+          cp .hermes/TURN-REPORT.md /tmp/TURN-REPORT.md 2>/dev/null || true
           git checkout -- frontend/ backend/ 2>/dev/null || true
-          git clean -fd --exclude=.claude/ 2>/dev/null || true
-          cp /tmp/TURN-REPORT.md .claude/TURN-REPORT.md 2>/dev/null || true
-          git add .claude/TURN-REPORT.md
+          git clean -fd --exclude=.hermes/ 2>/dev/null || true
+          cp /tmp/TURN-REPORT.md .hermes/TURN-REPORT.md 2>/dev/null || true
+          git add .hermes/TURN-REPORT.md
           if git diff --staged --quiet; then
             echo "Aucun changement"
           else
             git fetch origin ${{ github.ref_name }}
             git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
-            cp /tmp/TURN-REPORT.md .claude/TURN-REPORT.md 2>/dev/null || true
-            git add .claude/TURN-REPORT.md
+            cp /tmp/TURN-REPORT.md .hermes/TURN-REPORT.md 2>/dev/null || true
+            git add .hermes/TURN-REPORT.md
             git commit -m "ci: TURN-REPORT.md (${{ matrix.arch }}) [run ${{ github.run_id }}]"
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "Rapport commité"
