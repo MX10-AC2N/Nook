@@ -659,7 +659,7 @@
     // Mention autocomplete: detect @ in the message
     const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
     const beforeCursor = newMessage.slice(0, cursor);
-    const atMatch = beforeCursor.match(/@(\w*)$/);
+    const atMatch = beforeCursor.match(/@(w*)$/);
     if (atMatch) {
       mentionStart = cursor - atMatch[0].length;
       mentionQuery = atMatch[1];
@@ -820,7 +820,7 @@
     }
     
     if (!targetUserId) {
-      chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
+        chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
@@ -1451,7 +1451,7 @@
                       aria-label={emoji}
                     >{emoji}</button>
                   {/each}
-                  <!-- Bouton + pour picker étendu -->\n                  <button\n                    class="emoji-more-btn"\n                    onclick={(e) => { \n                      e.stopPropagation(); \n                      // Basculer la zone étendue pour ce message\n                      if (extendedEmojiMsgId === msg.id) {\n                        extendedEmojiMsgId = null;\n                      } else {\n                        extendedEmojiMsgId = msg.id;\n                      }\n                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);\n                    }}\n                    aria-label="Plus d'emojis"\n                  >＋</button>
+                  <!-- Bouton + pour picker étendu -->n                  <buttonn                    class="emoji-more-btn"n                    onclick={(e) => { n                      e.stopPropagation(); n                      // Basculer la zone étendue pour ce messagen                      if (extendedEmojiMsgId === msg.id) {n                        extendedEmojiMsgId = null;n                      } else {n                        extendedEmojiMsgId = msg.id;n                      }n                      console.log('[Emoji+] Nouvel état extendedEmojiMsgId:', extendedEmojiMsgId);n                    }}n                    aria-label="Plus d'emojis"n                  >＋</button>
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
                   {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
@@ -1487,7 +1487,7 @@
         <span class="typing-dots">
           <span></span><span></span><span></span>
         </span>
-        {typingUsers.length === 1 ? 'Quelqu\'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+        {typingUsers.length === 1 ? 'Quelqu'un' : `${typingUsers.length} personnes`} est en train d'écrire…
       </div>
     {/if}
 
