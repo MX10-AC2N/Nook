@@ -489,6 +489,8 @@ export async function sendMessage(content: string, conversationId: string): Prom
       if (idx !== -1) { msgs[idx] = msgData; return [...msgs]; }
       return [...msgs, msgData];
     });
+    // Recharger après 500ms pour assurer la persistance backend
+    setTimeout(() => loadMessages(conversationId), 500);
     return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
