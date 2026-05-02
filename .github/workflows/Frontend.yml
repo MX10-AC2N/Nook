@@ -26,6 +26,10 @@ jobs:
         working-directory: ./frontend
         run: npm ci --no-audit --no-fund --legacy-peer-deps
 
+      - name: Generate SvelteKit config (ensure .svelte-kit/tsconfig.json exists)
+        working-directory: ./frontend
+        run: npx svelte-kit sync
+
       - name: Build
         id: build
         working-directory: ./frontend
