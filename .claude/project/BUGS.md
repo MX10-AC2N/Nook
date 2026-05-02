@@ -62,7 +62,7 @@
 - Les emojis étendus ne s'affichent plus du tout
 - Seuls les 6 emojis principaux fonctionnent pour les réactions
 **Impact** : Expérience utilisateur limitée pour les réactions
-**Statut** : 🔴 Actif (à investiguer)
+**Statut** : 🟡 En cours de correction (Hermes Bot)
 
 ### BUG-08 : Message perdu après rafraîchissement chat
 
@@ -72,7 +72,7 @@
 - Rafraîchir la page
 - Le dernier message posté avant le refresh n'est plus visible
 **Impact** : Perte de messages récents après navigation/refresh
-**Statut** : 🔴 Actif (à investiguer)
+**Statut** : 🟡 En cours de correction (Hermes Bot)
 
 ---
 
