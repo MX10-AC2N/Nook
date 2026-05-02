@@ -1450,11 +1450,17 @@
                   <!-- Bouton + pour picker étendu -->
                   <button
                     class="emoji-more-btn"
-                    onclick={(e) => { e.stopPropagation(); extendedEmojiMsgId = extendedEmojiMsgId === msg.id ? null : msg.id; }}
+                    onclick={(e) => { 
+                      e.stopPropagation(); 
+                      console.log('[Emoji+] Clicked, current extendedEmojiMsgId:', extendedEmojiMsgId, 'msg.id:', msg.id);
+                      extendedEmojiMsgId = extendedEmojiMsgId === msg.id ? null : msg.id; 
+                      console.log('[Emoji+] New extendedEmojiMsgId:', extendedEmojiMsgId);
+                    }}
                     aria-label="Plus d'emojis"
                   >＋</button>
                   <!-- Zone étendue (réactive) -->
                   {#if extendedEmojiMsgId === msg.id}
+                  {@const debug = console.log('[Emoji+] Showing extended zone for msg', msg.id, 'extendedEmojiMsgId', extendedEmojiMsgId)}
                   <div class="emoji-extended">
                     {#each ALL_EMOJIS as emoji (emoji)}
                       <button
