@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Génère .claude/E2E-TARGETED-REPORT.md
+Génère .hermes/E2E-TARGETED-REPORT.md
 Appelé par e2e-targeted.yml — toutes les variables passées via env.
 """
 
@@ -97,8 +97,8 @@ Généré automatiquement par `e2e-targeted.yml`
 *Rapport généré par `.github/workflows/e2e-targeted.yml`*
 """
 
-out = ".claude/E2E-TARGETED-REPORT.md"
-os.makedirs(".claude", exist_ok=True)
+out = ".hermes/E2E-TARGETED-REPORT.md"
+os.makedirs(".hermes", exist_ok=True)
 with open(out, "w", encoding="utf-8") as f:
     f.write(report)
 

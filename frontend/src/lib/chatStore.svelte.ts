@@ -404,7 +404,7 @@ const PAGE_SIZE = 50;
 export async function loadMessages(conversationId: string): Promise<void> {
   try {
     const res = await fetch(
-      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}`,
+      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}&order=desc`,
       { credentials: 'include' }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -428,7 +428,8 @@ export async function loadMessages(conversationId: string): Promise<void> {
 /** Charge les messages plus anciens (pagination vers le haut) */
 export async function loadMoreMessages(conversationId: string): Promise<void> {
   if (chatStore.loadingMore || !chatStore.hasMore) return;
-  const oldest = get(messagesStore).at(-1);
+  const msgs = get(messagesStore);
+  const oldest = msgs[0]; // Premier message (le plus ancien) pour charger les précédents
   if (!oldest) return;
   chatStore.loadingMore = true;
   try {
@@ -488,6 +489,8 @@ export async function sendMessage(content: string, conversationId: string): Prom
       if (idx !== -1) { msgs[idx] = msgData; return [...msgs]; }
       return [...msgs, msgData];
     });
+    // Recharger après 500ms pour assurer la persistance backend
+    setTimeout(() => loadMessages(conversationId), 500);
     return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";

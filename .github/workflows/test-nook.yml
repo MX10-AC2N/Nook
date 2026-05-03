@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 # Note: les jobs sont SÉQUENTIELS (aucun needs parallèle)
-# pour éviter les conflits git sur .claude/TEST_REPORT.md
+# pour éviter les conflits git sur .hermes/TEST_REPORT.md
 
 jobs:
   # - Build Frontend (Artefact pour les jobs suivants)
@@ -309,15 +309,15 @@ jobs:
           python3 .github/scripts/generate-test-report.py \
             --json /tmp/playwright-results.json \
             --docker /tmp/docker.log \
-            --output .claude/TEST_REPORT.md \
+            --output .hermes/TEST_REPORT.md \
             2>/dev/null || \
           python3 .github/scripts/generate-test-report.py \
             --json /tmp/playwright-results.json \
             --docker /tmp/docker.log \
-            --output .claude/TEST_REPORT.md
+            --output .hermes/TEST_REPORT.md
 
           echo "✅ Rapport généré"
-          cat .claude/TEST_REPORT.md
+          cat .hermes/TEST_REPORT.md
 
       - name: Commit TEST_REPORT.md
         if: always()
@@ -326,16 +326,16 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # Save report BEFORE any git operations that might reset it
-          cp .claude/TEST_REPORT.md /tmp/TEST_REPORT.md 2>/dev/null || true
+          cp .hermes/TEST_REPORT.md /tmp/TEST_REPORT.md 2>/dev/null || true
 
-          # Reset tracked files (node_modules changes, etc.) but NOT .claude/
+          # Reset tracked files (node_modules changes, etc.) but NOT .hermes/
           git checkout -- frontend/ backend/ 2>/dev/null || true
-          git clean -fd --exclude=.claude/ 2>/dev/null || true
+          git clean -fd --exclude=.hermes/ 2>/dev/null || true
 
           # Restore report after cleanup
-          cp /tmp/TEST_REPORT.md .claude/TEST_REPORT.md 2>/dev/null || true
+          cp /tmp/TEST_REPORT.md .hermes/TEST_REPORT.md 2>/dev/null || true
 
-          git add .claude/TEST_REPORT.md
+          git add .hermes/TEST_REPORT.md
 
           if git diff --staged --quiet; then
             echo "Aucun changement"
@@ -343,8 +343,8 @@ jobs:
             git fetch origin ${{ github.ref_name }}
             git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
             # Restore again after rebase
-            cp /tmp/TEST_REPORT.md .claude/TEST_REPORT.md 2>/dev/null || true
-            git add .claude/TEST_REPORT.md
+            cp /tmp/TEST_REPORT.md .hermes/TEST_REPORT.md 2>/dev/null || true
+            git add .hermes/TEST_REPORT.md
             git commit -m "ci: TEST_REPORT.md [run ${{ github.run_id }}]"
             git push --force-with-lease origin HEAD:${{ github.ref_name }}
             echo "✅ Rapport commité"

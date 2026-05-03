@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Génère l'instruction personnalisée Android Claude.ai
-→ Analyse complète du repo + .claude/roles/ + critical-pitfalls.md
+→ Analyse complète du repo + .hermes/roles/ + critical-pitfalls.md
 """
 
 import sys
@@ -9,7 +9,7 @@ import pathlib
 
 
 def get_agents_list() -> str:
-    roles_dir = pathlib.Path(".claude/roles")
+    roles_dir = pathlib.Path(".hermes/roles")
     if not roles_dir.exists():
         return "Aucun agent détecté"
 
@@ -39,8 +39,8 @@ def get_repo_stats() -> str:
 
 
 def get_critical_pitfalls() -> str:
-    """Lit dynamiquement .claude/rules/critical-pitfalls.md"""
-    pitfalls_file = pathlib.Path(".claude/rules/critical-pitfalls.md")
+    """Lit dynamiquement .hermes/rules/critical-pitfalls.md"""
+    pitfalls_file = pathlib.Path(".hermes/rules/critical-pitfalls.md")
     if not pitfalls_file.exists():
         return "Aucun piège critique défini pour le moment."
 
@@ -71,9 +71,9 @@ Raw  : https://raw.githubusercontent.com/MX10-AC2N/Nook/main/
 Codebase : {stats}
 
 RÈGLE N°1 — AVANT CHAQUE ACTION
-1. Fetch .claude/BUGS.md ({active_bugs} bugs actifs)
-2. Fetch .claude/rules/memory-sessions.md
-3. Fetch .claude/rules/critical-pitfalls.md
+1. Fetch .hermes/BUGS.md ({active_bugs} bugs actifs)
+2. Fetch .hermes/rules/memory-sessions.md
+3. Fetch .hermes/rules/critical-pitfalls.md
 4. Fetch le(s) fichier(s) source concerné(s)
 
 AGENTS DISPONIBLES ({len(get_agents_list().split(" | "))} agents) :
@@ -86,7 +86,7 @@ RÈGLES ABSOLUES :
 • Signaler les effets de bord inter-agents
 • Clôture : mettre à jour BUGS.md + memory-sessions.md
 
-PIÈGES CRITIQUES (issus de .claude/rules/critical-pitfalls.md) :
+PIÈGES CRITIQUES (issus de .hermes/rules/critical-pitfalls.md) :
 {pitfalls}
 
 Style attendu : pense étape par étape, sois concis mais complet, propose la solution la plus simple ET maintenable."""
@@ -110,7 +110,7 @@ def generate_markdown(instruction: str, char_count: int, date: str, version: str
 ---
 
 ## Mise à jour
-Fichier auto-généré après analyse complète du repo + `.claude/`.
+Fichier auto-généré après analyse complète du repo + `.hermes/`.
 Se met à jour dès qu’un rôle, une règle ou un piège critique change.
 """
 
@@ -131,7 +131,7 @@ def main():
         instruction, char_count, date, version, session, active_bugs
     )
 
-    output_path = ".claude/ANDROID-INSTRUCTION.md"
+    output_path = ".hermes/ANDROID-INSTRUCTION.md"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
 
