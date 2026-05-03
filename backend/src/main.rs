@@ -55,6 +55,7 @@ mod search;
 mod presence;
 mod webrtc;
 mod sfu;
+mod events;
 mod ca;
 
 use crate::config::Config;
@@ -477,6 +478,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(e2ee::e2ee_routes())
         .merge(reactions::reactions_routes())
         .merge(webrtc::webrtc_routes())
+        .merge(events::events_routes())
         .merge(missed_calls::missed_calls_routes())
         .merge(search::search_routes())
         .merge(presence::presence_routes())
@@ -556,7 +558,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ServeDir::new(&config.gifs_dir)
                 .fallback(ServeDir::new(format!("{}/gifs", config.static_dir)))
         )
-        .merge(webrtc::webrtc_routes())
         .route("/ca", get(ca::get_ca_cert))
         .route("/ca/help", get(ca::ca_help))
         .fallback_service(static_service)
