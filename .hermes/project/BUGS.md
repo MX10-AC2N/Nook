@@ -30,6 +30,50 @@
 **Fix (session 47)** : `onMount()` entouré de try/catch/finally pour garantir que `pageLoading = false` même si `loadGame` lance une exception inattendue.
 **Statut** : ✅ Fixé (commit 026706216881) — à tester après build frontend
 
+### BUG-04 : Messages chiffrés 🔒 (clé indisponible)
+
+**Fichier** : `frontend/src/lib/stores/cryptoStore.ts` — gestion des clés E2EE
+**Symptôme** : Les messages sont marqués comme chiffrés mais la clé n'est pas disponible, rendant le message illisible.
+**Impact** : Perte de messages privés, expérience utilisateur dégradée.
+**Fix** : BUG-002 non déployé (à porter sur develop)
+**Statut** : 🔴 Actif (fix commit en attente de déploiement)
+
+### BUG-05 : Navigation chats privés défaillante
+
+**Fichier** : `frontend/src/routes/chat/+page.svelte` — navigation entre groupes/privés
+**Symptôme** : Cliquer sur un chat privé reste sur le groupe actuel, la navigation ne se fait pas.
+**Impact** : Impossible d'accéder aux chats privés.
+**Statut** : 🔴 Actif (à investiguer)
+
+### BUG-06 : 401 Unauthorized sur ressources + Service Workers non supportés
+
+**Fichier** : `frontend/src/service-worker.ts` + backend auth middleware
+**Symptôme** : 
+- Requêtes vers ressources statiques renvoient 401 Unauthorized
+- Service Workers ne sont pas supportés car le site est servi en HTTP (Service Workers requièrent HTTPS)
+**Impact** : Pas de cache offline, requêtes authentifiées échouent
+**Statut** : 🔴 Actif (HTTPS fixé dans entrypoint, à redéployer)
+
+### BUG-07 : Réaction emoji étendue défaillante
+
+**Fichier** : `frontend/src/routes/chat/+page.svelte` — composant de réaction emoji
+**Symptôme** :
+- Clic sur le bouton "+" (emoji étendus) ne fait rien
+- Les emojis étendus ne s'affichent plus du tout
+- Seuls les 6 emojis principaux fonctionnent pour les réactions
+**Impact** : Expérience utilisateur limitée pour les réactions
+**Statut** : 🟡 En cours de correction (Hermes Bot)
+
+### BUG-08 : Message perdu après rafraîchissement chat
+
+**Fichier** : `frontend/src/lib/stores/chatStore.svelte.ts` — gestion de l'état du chat
+**Symptôme** :
+- Poster un nouveau message dans un chat (ex: avec Géraldine)
+- Rafraîchir la page
+- Le dernier message posté avant le refresh n'est plus visible
+**Impact** : Perte de messages récents après navigation/refresh
+**Statut** : 🟡 En cours de correction (Hermes Bot)
+
 ---
 
 ## ✅ BUGS RÉSOLUS (session 47 — déploiement Docker)

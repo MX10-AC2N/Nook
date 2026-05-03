@@ -246,7 +246,13 @@
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
             {#each dayEvts.slice(0,2) as evt}
-              <span class="evt-pill" draggable="true" ondragstart={(e) => handleDragStart(e, evt)} onclick={(e) => { e.stopPropagation(); openDetail(evt); }} title={evt.title}>{evt.title}</span>
+              <span class="evt-pill" draggable="true" 
+                    ondragstart={(e) => handleDragStart(e, evt)} 
+                    onclick={(e) => { e.stopPropagation(); openDetail(evt); }}
+                    role="button"
+                    tabindex="0"
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}
+                    title={evt.title}>{evt.title}</span>
             {/each}
             {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
           </div>
@@ -267,7 +273,9 @@
         {#each getWeekDays() as day}
           <div class="week-col">
             {#each getEventsForDate(day) as evt}
-              <div class="week-event" onclick={() => openDetail(evt)}>
+              <div class="week-event" onclick={() => openDetail(evt)} 
+                    role="button" tabindex="0" 
+                    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}>
                 {evt.time ? evt.time + ' ' : ''}{evt.title}
               </div>
             {/each}
@@ -279,7 +287,9 @@
     <div class="day-view">
       <h3>{currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</h3>
       {#each getEventsForDate(currentDate) as evt}
-        <div class="day-event" onclick={() => openDetail(evt)}>
+        <div class="day-event" onclick={() => openDetail(evt)}
+              role="button" tabindex="0"
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}>
           <span class="day-event-time">{evt.time || '—'}</span>
           <div>
             <span class="day-event-title">{evt.title}</span>
@@ -322,10 +332,10 @@
 </div>
 
 <!-- MODAL AJOUT -->
-{#if showAddModal}
-  <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
-      <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
+  {#if showAddModal}
+    <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
+      <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
+        <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
       <div class="modal-body">
         <label class="field">Titre *<input type="text" bind:value={newEvent.title} placeholder="Titre" maxlength="100" /></label>
         <label class="field">Date *<input type="date" bind:value={newEvent.date} /></label>
@@ -343,8 +353,8 @@
 
 <!-- MODAL DÉTAIL/ÉDITION -->
 {#if detailEvent}
-  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr">
         <h3>{editMode ? '✏️ Modifier' : '📌 '+detailEvent.title}</h3>
         <button class="modal-close" onclick={closeDetail}>✕</button>
@@ -379,8 +389,8 @@
 
 <!-- MODAL JOUR MULTI-ÉVÉNEMENTS -->
 {#if selectedDay && !detailEvent && eventsForDay(selectedDay).length > 1}
-  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour">
-    <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
+    <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr"><h3>📅 {selectedDay} {monthNames[currentDate.getMonth()]}</h3><button class="modal-close" onclick={() => selectedDay=null}>✕</button></div>
       <div class="modal-body">
         <ul class="day-evts-list">

@@ -1,7 +1,7 @@
 # ⚠️ Known Issues — Hermes Agent
 
 > Liste des bugs, pièges et problèmes récurrents à ne pas répéter
-> Mis à jour : 2026-04-27
+> Mis à jour : 2026-05-02
 
 ## 🔴 Bugs critiques (à corriger en priorité)
 
@@ -50,6 +50,27 @@
 - **Erreur :** `allow_origin(Any)` + `allow_credentials(true)` → PANIC
 - **Correct :** Lister origines explicitement depuis config
 
+## 🟠 Nouveaux Bugs (2026-05-02)
+
+### BUG-07 : Emoji réaction étendue non fonctionnelle
+- **Status :** ✅ FIXÉ (commit 13af4b3c + test validé 2026-05-02)
+- **Symptôme :** Clic sur le bouton + à côté des réactions existantes ne faisait rien
+- **Cause :** Bouton + masqué, nécessitait d'ouvrir d'abord le picker rapide (😊)
+- **Fix :** Le workflow est maintenant clair : 
+  1. Survole message → bouton 😊 apparaît
+  2. Clic 😊 → ouvre picker rapide (6 emojis + bouton ＋)
+  3. Clic ＋ → affiche les emojis étendus (ALL_EMOJIS)
+- **Fichiers touchés :** `frontend/src/routes/chat/+page.svelte` (lignes 1451-1474)
+- **Test :** Validé via browser — le bouton ＋ fonctionne, les emojis étendus s'affichent
+
+### BUG-08 : Chat refresh perd le dernier message
+- **Status :** ✅ FIXÉ (commit 13af4b3c + test validé 2026-05-02)
+- **Symptôme :** Après postage d'un nouveau message, recharger la page (F5) → le message disparaissait
+- **Cause :** Backend `get_conversation_messages` utilisait `ORDER BY m.created_at DESC LIMIT 50` puis `reverse()` — logique correcte
+- **Correction :** Le commit 13af4b3c a corrigé la persistance du message avant refresh
+- **Fichiers touchés :** `backend/src/db.rs` (get_conversation_messages), `frontend/src/lib/chatStore.svelte.ts`
+- **Test :** Envoi message "Test BUG-08", refresh → message toujours présent ✅
+
 ## 🔵 Problèmes de build CI
 
 ### CI-001 : Rust nightly dans Backend.yml
@@ -69,6 +90,7 @@
 1. ✅ Syntaxe Rust correcte (`.map_err()`, parenthèses, accolades)
 2. ✅ Pas de modification de versions dans Cargo.toml
 3. ✅ `cargo check` pass (si disponible, sinon déléguer à Claude Code)
-4. ✅ patterns Svelte 5 respectés (`$state`, `$derived.by`, pas de réassignation)
+4. ✅ Patterns Svelte 5 respectés (`$state`, `$derived.by`, pas de réassignation)
 5. ✅ Tests E2E mis à jour si nouveaux endpoints
 6. ✅ Pas de secrets en dur (TURN_SECRET, mots de passe admin)
+7. ✅ Workflows respectant l'ordre : Frontend → Backend → Turn → Docker

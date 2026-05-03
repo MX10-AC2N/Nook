@@ -96,6 +96,7 @@
 
   // Read messages directly from the writable store
   let localMessages = $state<ChatMessage[]>([]);
+  let reversedMessages = $derived(localMessages.slice().reverse());
   // Sync store → local state for reactivity
   $effect(() => {
     const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
@@ -202,7 +203,7 @@
     
     // Timeout
     if (msg.includes('Timeout') || msg.includes('timeout')) {
-      return 'Délai d\'attente dépassé (10s). L\'utilisateur est peut-être hors ligne.';
+      return "Délai d'attente dépassé (10s). L'utilisateur est peut-être hors ligne.";
     }
     
     // WebSocket errors
@@ -290,6 +291,13 @@
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
   let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
+  function toggleExtendedEmoji(msgId: string) {
+    if (extendedEmojiMsgId === msgId) {
+      extendedEmojiMsgId = null;
+    } else {
+      extendedEmojiMsgId = msgId;
+    }
+  }
   let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
@@ -644,6 +652,10 @@
     
     try {
       await sendMessage(content, activeConvId);
+      // Recharger les messages pour confirmer la persistance
+      await loadMessages(activeConvId);
+      // Scroller vers le haut pour voir le nouveau message
+      if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
       console.error('[Chat] send error:', e);
     } finally {
@@ -655,7 +667,7 @@
     // Mention autocomplete: detect @ in the message
     const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
     const beforeCursor = newMessage.slice(0, cursor);
-    const atMatch = beforeCursor.match(/@(\w*)$/);
+    const atMatch = beforeCursor.match(/@(w*)$/);
     if (atMatch) {
       mentionStart = cursor - atMatch[0].length;
       mentionQuery = atMatch[1];
@@ -816,7 +828,7 @@
     }
     
     if (!targetUserId) {
-      chatStore.connectionError = 'Impossible de déterminer l\'utilisateur cible.';
+        chatStore.connectionError = "Impossible de déterminer l'utilisateur cible.";
       input.value = '';
       setTimeout(() => chatStore.connectionError = null, 5000);
       return;
@@ -1310,167 +1322,22 @@
     </header>
 
       <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
-      {#if localMessages.length === 0 && !loadingConvs}
-        <div class="empty-state">
-          <span class="empty-icon">💬</span>
-          <p>Aucun message — soyez le premier à écrire !</p>
-        </div>
-      {:else if localMessages.length === 0 && loadingConvs}
-        <div class="empty-state">
-          <span class="loading-dots">···</span>
-        </div>
-      {:else}
-        {#each [...localMessages].reverse() as msg (msg.id)}
-          <div
-            class="message"
-            class:mine={isMyMessage(msg.sender_id)}
-            data-msg-id={msg.id}
-            onmouseenter={() => { clearTimeout(_hoverTimer); hoveredMsgId = msg.id; }}
-            onmouseleave={() => { _hoverTimer = setTimeout(() => { if (editingMsgId !== msg.id && emojiPickerMsgId !== msg.id) hoveredMsgId = null; }, 400); }}
-          >
-              {#if isMyMessage(msg.sender_id)}
-                <div class="message-header mine-header">
-                  <span class="message-sender">Moi</span>
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
-                </div>
-              {:else}
-                <div class="message-header">
-                  <Avatar username={msg.sender_name} name={msg.sender_name} size={36} userId={msg.sender_id} style={msg.sender_avatar_style} seed={msg.sender_avatar_seed} />
-                  <span class="message-sender">{msg.sender_name || msg.sender_id}</span>
-                </div>
-              {/if}
-
-            {#if editingMsgId === msg.id}
-              <div class="edit-zone">
-                <textarea
-                  class="edit-input"
-                  bind:value={editingContent}
-                  onkeydown={handleEditKeydown}
-                  rows="2"
-                ></textarea>
-                <div class="edit-actions">
-                  <button class="edit-ok" onclick={submitEdit}>✓ Sauvegarder</button>
-                  <button class="edit-cancel" onclick={cancelEdit}>✕ Annuler</button>
-                </div>
-              </div>
-            {:else}
-              <!-- SEC-01 FIX : DOMPurify sanitize — jamais {@html} brut -->
-              <!-- Messages vocaux : <audio>/<video> natif si le contenu commence par ces tags -->
-              {#if msg.content && msg.content.trimStart().startsWith('<audio')}
-                <div class="voice-message">
-                  🎤 <audio
-                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
-                    controls
-                    preload="none"
-                    class="voice-audio"
-                  ></audio>
-                </div>
-              {:else if msg.content && msg.content.trimStart().startsWith('<video')}
-                <div class="voice-message">
-                  🎥 <video
-                    src={msg.content.match(/src="([^"]+)"/)?.[1] ?? ''}
-                    controls
-                    preload="none"
-                    class="voice-video"
-                  ></video>
-                </div>
-              {:else}
-                {#if isEmojiOnly(msg.content)}
-                  <div class="message-content emoji-only">{msg.content}</div>
-                {:else}
-                  <div class="message-content">{@html sanitizeHtml(highlightMentions(msg.content))}</div>
-                {/if}
-              {/if}
-            {/if}
-
-            <!-- ─── Réactions affichées ─── -->
-            {#if countReactions(msg.id).length > 0}
-              <div class="reactions-row">
-                {#each countReactions(msg.id) as r}
-                  <button
-                    class="reaction-pill" data-testid="reaction-pill"
-                    class:my-reaction={reactions[msg.id]?.myEmoji === r.emoji}
-                    onclick={() => toggleReaction(msg.id, r.emoji)}
-                    title={r.names}
-                    aria-label="{r.emoji} {r.count}"
-                  >{r.emoji} {r.count}</button>
-                {/each}
-              </div>
-            {/if}
-
-            <div class="message-meta">
-              <span class="message-time">{formatTimestamp(msg.created_at)}</span>
-              {#if msg.edited_at}
-                <span class="edited-label">(modifié)</span>
-              {/if}
-            </div>
-
-            {#if hoveredMsgId === msg.id && editingMsgId !== msg.id}
-              <div class="msg-actions" class:mine-actions={isMyMessage(msg.sender_id)}>
-                <!-- Bouton réaction rapide — toujours visible au hover -->
-                <button
-                  class="msg-action-btn reaction-trigger" data-testid="reaction-trigger"
-                  onclick={(e) => { 
-                    e.stopPropagation(); 
-                    if (emojiPickerMsgId === msg.id) { emojiPickerMsgId = null; }
-                    else {
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                      emojiPickerPos = { top: rect.top - 8, left: rect.left, right: rect.right };
-                      emojiPickerMsgId = msg.id; 
-                    }
-                  }}
-                  title="Réagir"
-                  aria-label="Ajouter une réaction"
-                >😊</button>
-                {#if isMyMessage(msg.sender_id)}
-                  <button class="msg-action-btn" onclick={() => startEdit(msg)} title="Modifier">✏️</button>
-                {/if}
-                {#if isMyMessage(msg.sender_id) || authStore.isAdmin}
-                  <button class="msg-action-btn danger" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
-                {/if}
-              </div>
-
-              <!-- Emoji picker rapide (6 fixes + picker étendu) -->
-              {#if emojiPickerMsgId === msg.id}
-                <div
-                  class="emoji-picker" data-testid="emoji-picker"
-                  class:picker-mine={isMyMessage(msg.sender_id)}
-                  role="dialog"
-                  aria-label="Choisir une réaction"
-                  style="top:{emojiPickerPos.top}px; left:{emojiPickerPos.left}px; transform:translateY(-100%);"
-                >
-                  {#each QUICK_EMOJIS as emoji (emoji)}
-                    <button
-                      class="emoji-quick-btn"
-                      class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                      onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                      aria-label={emoji}
-                    >{emoji}</button>
-                  {/each}
-                  <!-- Bouton + pour picker étendu -->
-                  <button
-                    class="emoji-more-btn"
-                    onclick={(e) => { e.stopPropagation(); extendedEmojiMsgId = extendedEmojiMsgId === msg.id ? null : msg.id; }}
-                    aria-label="Plus d'emojis"
-                  >＋</button>
-                  <!-- Zone étendue (réactive) -->
-                  {#if extendedEmojiMsgId === msg.id}
-                  <div class="emoji-extended">
-                    {#each ALL_EMOJIS as emoji (emoji)}
-                      <button
-                        class="emoji-quick-btn"
-                        class:emoji-active={reactions[msg.id]?.myEmoji === emoji}
-                        onclick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
-                        aria-label={emoji}
-                      >{emoji}</button>
-                    {/each}
-                  </div>
-                  {/if}
-                </div>
-              {/if}
-            {/if}
+      {#if localMessages.length === 0}
+        {#if loadingConvs}
+          <div class="empty-state">
+            <span class="loading-dots">···</span>
           </div>
-        {/each}
+        {:else}
+          <div class="empty-state">
+            <span class="empty-icon">💬</span>
+            <p>Aucun message — soyez le premier à écrire !</p>
+          </div>
+        {/if}
+      {/if}
+
+      {#each reversedMessages as msg (msg.id)}
+          <div class="message">{msg.content}</div>
+      {/each}
 
         {#if chatStore.loadingMore}
           <div class="load-more-indicator">⏳ Chargement…</div>
@@ -1479,7 +1346,6 @@
             ↓ Messages plus anciens
           </button>
         {/if}
-      {/if}
     </div>
 
     {#if typingUsers.length > 0}
@@ -1487,7 +1353,7 @@
         <span class="typing-dots">
           <span></span><span></span><span></span>
         </span>
-        {typingUsers.length === 1 ? 'Quelqu\'un' : `${typingUsers.length} personnes`} est en train d'écrire…
+        {typingUsers.length === 1 ? 'Quelqu\'un' : typingUsers.length + ' personnes'} est en train d'écrire…
       </div>
     {/if}
 

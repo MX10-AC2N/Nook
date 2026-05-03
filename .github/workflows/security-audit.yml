@@ -142,7 +142,7 @@ jobs:
       # ── 6. Générer le rapport ──
       - name: Mettre à jour le rapport audit
         run: |
-          cat > .claude/SECURITY-AUDIT-LATEST.md << 'EOF'
+          cat > .hermes/SECURITY-AUDIT-LATEST.md << 'EOF'
           # 🔎 Security Audit — Rapport automatique
 
           > Généré par `security-audit.yml` le $(date -u +"%Y-%m-%d %H:%M UTC")
@@ -156,6 +156,6 @@ jobs:
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .claude/SECURITY-AUDIT-LATEST.md
+          git add .hermes/SECURITY-AUDIT-LATEST.md
           git commit -m "ci: security audit report" || echo "No changes to commit"
           git push || echo "Push failed (may be expected on schedule trigger)"

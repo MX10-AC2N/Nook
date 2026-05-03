@@ -668,6 +668,10 @@ pub async fn get_conversation_messages(
         .bind(limit)
         .fetch_all(&state.db)
         .await
+        .map_err(|e| { 
+            eprintln!("[get_conversation_messages] Erreur DB: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
     } else {
         sqlx::query_as::<_, MessageWithSender>(
             "SELECT
@@ -681,18 +685,23 @@ pub async fn get_conversation_messages(
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
-             ORDER BY m.created_at ASC
+             ORDER BY m.created_at DESC
              LIMIT ?",
         )
         .bind(&id)
         .bind(limit)
         .fetch_all(&state.db)
         .await
-    }
-    .map_err(|e| {
-        eprintln!("[get_conversation_messages] Erreur DB: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+        .map(|mut msgs| {
+            // Reverse to get ASC order (oldest first) for frontend compatibility
+            msgs.reverse();
+            msgs
+        })
+        .map_err(|e| { 
+            eprintln!("[get_conversation_messages] Erreur DB: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    };
 
     Ok(Json(messages))
 }

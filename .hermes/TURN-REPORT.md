@@ -1,7 +1,7 @@
 # 🧪 Turn-Server Test Report — amd64
 
-> Généré par `test-turn.yml` · **2026-04-28 21:43 UTC**
-> Architecture: **amd64** | Run: [25079076455](https://github.com/MX10-AC2N/Nook/actions/runs/25079076455)
+> Généré par `test-turn.yml` · **2026-05-02 09:09 UTC**
+> Architecture: **amd64** | Run: [25248503868](https://github.com/MX10-AC2N/Nook/actions/runs/25248503868)
 
 ---
 
@@ -24,7 +24,7 @@
 ```
 Image: nook-turn:test
 Status: running
-Started: 2026-04-28T21:43:53.075494049Z
+Started: 2026-05-02T09:09:50.076305497Z
 Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
 ```
 
@@ -56,10 +56,10 @@ external = "0.0.0.0:3478"
 ## 🌐 Network
 
 ```
-udp   UNCONN 0      0              0.0.0.0:3478      0.0.0.0:*          
-udp   UNCONN 0      0                 [::]:3478         [::]:*          
-tcp   LISTEN 0      4096           0.0.0.0:3478      0.0.0.0:*          
-tcp   LISTEN 0      4096              [::]:3478         [::]:*          
+udp   UNCONN 0      0             0.0.0.0:3478      0.0.0.0:*          
+udp   UNCONN 0      0                [::]:3478         [::]:*          
+tcp   LISTEN 0      4096          0.0.0.0:3478      0.0.0.0:*          
+tcp   LISTEN 0      4096             [::]:3478         [::]:*          
 ```
 
 ## 🖥️ System Info
