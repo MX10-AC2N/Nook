@@ -1,0 +1,28 @@
+{
+  "session_date": "2026-05-03",
+  "session_time": "22:30",
+  "active_tasks": [
+    {
+      "id": "fix-pgn-export",
+      "title": "Fix export_pgn() dans chess.rs (P0)",
+      "status": "in_progress",
+      "file": "backend/src/chess.rs",
+      "issue": "Utilise chess_moves au lieu de move_history JSON"
+    },
+    {
+      "id": "fix-service-worker",
+      "title": "Fix service-worker.ts (P0 - PWA)",
+      "status": "pending"
+    },
+    {
+      "id": "add-cargo-test-ci",
+      "title": "Ajouter cargo test dans CI (P1)",
+      "status": "pending"
+    }
+  ],
+  "nook_audit_score": 68,
+  "blocking_issues": [
+    "hermes-web-ui ne démarre pas (entrypoint-webui fail)",
+    "wasm-pack manquant pour frontend build"
+  ]
+}
