@@ -1,0 +1,36 @@
+#!/bin/bash
+# Save Hermes Agent state to .hermes/workspace
+# Usage: save-state "message describing what was done"
+
+HERMES_HOME="/opt/data/home/.hermes/Nook/.hermes"
+STATE_DIR="$HERMES_HOME/workspace/state"
+MEMORY_DIR="$HERMES_HOME/workspace/memory"
+
+# Créer un timestamp
+TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+
+# Message de sauvegarde
+MSG="${1:-Mise à jour automatique}"
+
+# Sauvegarder l'état actuel
+cat > "$STATE_DIR/last-save.json" << EOF
+{
+  "timestamp": "$TIMESTAMP",
+  "message": "$MSG",
+  "git_branch": "$(cd /opt/data/home/.hermes/Nook && git branch --show-current)",
+  "git_status": "$(cd /opt/data/home/.hermes/Nook && git status --short | wc -l) fichiers modifiés",
+  "audit_score": "68/100"
+}
+EOF
+
+echo "✅ État sauvegardé: $MSG"
+echo "   Timestamp: $TIMESTAMP"
+echo "   Fichier: $STATE_DIR/last-save.json"
+
+# Créer un point de restauration dans l'historique Git
+cd /opt/data/home/.hermes/Nook
+git add .hermes/workspace/state/
+git commit -m "hermes: save state - $MSG" --quiet 2>/dev/null || echo "   (pas de commit - rien à sauver ou pas de changements)"
+
+echo ""
+echo "💡 Pour restaurer: cat $STATE_DIR/last-save.json"

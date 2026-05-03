@@ -1,0 +1,64 @@
+#!/bin/bash
+# Quick status check for Nook project
+# Usage: nook-status (should be symlinked to .hermes/tools/bin/)
+
+NOOK_HOME="/opt/data/home/.hermes/Nook"
+HERMES_HOME="$NOOK_HOME/.hermes"
+export PATH="$HERMES_HOME/tools/bin:$HOME/.cargo/bin:$PATH"
+
+echo "======================================"
+echo "  NOOK PROJECT STATUS"
+echo "======================================"
+echo ""
+
+# Git status
+echo "📁 Git Status:"
+cd "$NOOK_HOME" && git status --short | head -10
+echo ""
+
+# Check backend
+echo "🦀 Backend (Rust):"
+if [ -f "$NOOK_HOME/backend/target/debug/nook-backend" ]; then
+    echo "   ✅ Binary exists"
+else
+    echo "   ❌ Binary not built"
+fi
+echo ""
+
+# Check frontend
+echo "🎨 Frontend (Svelte):"
+if [ -d "$NOOK_HOME/frontend/node_modules" ]; then
+    echo "   ✅ node_modules exists"
+else
+    echo "   ❌ node_modules missing"
+fi
+echo ""
+
+# Check tools
+echo "🛠️  Tools:"
+which wasm-pack >/dev/null 2>&1 && echo "   ✅ wasm-pack: $(wasm-pack --version 2>/dev/null || echo 'installed')" || echo "   ❌ wasm-pack missing"
+which cargo >/dev/null 2>&1 && echo "   ✅ cargo: $(cargo --version)" || echo "   ❌ cargo missing"
+which node >/dev/null 2>&1 && echo "   ✅ node: $(node --version)" || echo "   ❌ node missing"
+echo ""
+
+# Check Docker
+echo "🐳 Docker:"
+if docker info >/dev/null 2>&1; then
+    echo "   ✅ Docker running"
+else
+    echo "   ❌ Docker not running"
+fi
+echo ""
+
+# Audit score from latest report
+echo "📊 Latest Audit:"
+if [ -f "$HERMES_HOME/reports/GLOBAL-AUDIT-2026-05-03.md" ]; then
+    grep "**Score Global**" "$HERMES_HOME/reports/GLOBAL-AUDIT-2026-05-03.md" | head -1
+else
+    echo "   ⚠️  No audit report found"
+fi
+echo ""
+
+echo "======================================"
+echo "Hermes workspace: $HERMES_HOME"
+echo "======================================"
