@@ -376,6 +376,15 @@
     '🧑‍🎄','🧑‍🎅','🎅','🤶','🦌','🎄','🎁','🔔','⛄','❄️',
   ];
 
+  // Emojis étendus (ZWJ, familles, professions, drapeaux modernes)
+  const EXTENDED_EMOJIS = [
+    '🧑‍🚀','🧑‍🎓','🧑‍🎤','🧑‍🏫','🧑‍⚕️','🧑‍⚖️','🧑‍🌾','🧑‍🍳','🧑‍🔧','🧑‍🏭',
+    '👨‍👩‍👦','👨‍👩‍👧','👨‍👩‍👧‍👦','👩‍👩‍👦','👩‍👩‍👧','👩‍👩‍👧‍👦','👨‍👨‍👦','👨‍👨‍👧','👨‍👨‍👧‍👦',
+    '👩‍👦','👩‍👧','👨‍👦','👨‍👧',
+    '🏳️‍⚧️','🏳️‍🌈','🇬🇧','🇪🇺','🇪🇸','🇮🇹','🇬🇷','🇵🇹','🇷🇺','🇯🇵',
+    '🧑‍🎄','🧑‍🎅','🎅','🤶','🦌','🎄','🎁','🔔','⛄','❄️',
+  ];
+
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
   /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
   function isEmojiOnly(content: string): boolean {
@@ -1381,7 +1390,7 @@
           {#if emojiPickerMsgId === msg.id}
             <div class="msg-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
               <div class="ep-cats">
-                {#each ['😊', '👋', '❤️', '🎉', '🐶', '🍕', '⚽', '🌍'] as cat}
+                {#each ['😊', '👋', '❤️', '🎉', '🐶', '🍕', '⚽', '🌍', '🧑‍🚀'] as cat}
                   <button class="ep-cat-btn" class:active={emojiCat === cat} onclick={() => emojiCat = cat}>{cat}</button>
                 {/each}
               </div>
@@ -1413,6 +1422,10 @@
                 {:else if emojiCat === '⚽'}
                   {#each ['⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🥊','⛷️','🏂','🏋️','🤸'] as em}
                     <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '🧑‍🚀'}
+                  {#each EXTENDED_EMOJIS as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }>{em}</button>
                   {/each}
                 {:else}
                   {#each ['🌍','🌲','🌳','🌴','🌵','🌿','☘️','🍀','🍁','🍂','🌸','🌹','🌺','🌻','🌼','💐'] as em}
