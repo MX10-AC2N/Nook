@@ -1386,7 +1386,7 @@
               class="msg-emoji-picker" 
               style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
               data-emojis-per-row="8"
-              on:emoji-click={(e) => {
+              one moji-click={(e) => {
                 const emoji = e.detail.unicode;
                 toggleReaction(msg.id, emoji);
                 emojiPickerMsgId = null;
