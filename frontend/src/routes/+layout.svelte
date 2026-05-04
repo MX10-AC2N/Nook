@@ -124,6 +124,7 @@
   onMount(async () => {
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
+  });
 
 </script>
 
