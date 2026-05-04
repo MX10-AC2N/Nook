@@ -4,12 +4,9 @@ import { defineConfig } from 'vite';
 import compression from 'vite-plugin-compression';
 
 export default defineConfig({
-  plugins: [
-    sveltekit(),
-    // Compression Brotli + Gzip pour les assets statiques
-    compression({ algorithm: 'gzip', ext: '.gz', threshold: 10240 }),
-    compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 10240 }),
-  ],
+  // Compression désactivée (test build CI)
+    // compression({ algorithm: 'gzip', ext: '.gz', threshold: 10240 }),
+    // compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 10240 }),
 
   // Filter Svelte a11y warnings that break the build
   onwarn(warning, warn) {
