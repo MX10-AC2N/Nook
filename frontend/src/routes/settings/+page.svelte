@@ -209,14 +209,14 @@
     <div class="settings-section">
       <!-- Avatar -->
       <div class="avatar-section">
-        <label>Avatar</label>
+        <h3>Avatar</h3>
         <p class="help-text">Choisissez un style puis sélectionnez votre avatar parmi les propositions.</p>
         <div class="avatar-preview">
           <Avatar username={authStore.user?.username ?? ''} name={userName} size={80} userId={authStore.user?.id} style={selectedAvatarStyle} seed={selectedAvatarSeed} />
         </div>
 
         <!-- Style selector -->
-        <label>Sélectionner un style</label>
+        <h3>Sélectionner un style</h3>
         <div class="avatar-style-grid">
           {#each avatarStyles as opt}
             <button
@@ -238,7 +238,7 @@
         </div>
 
         <!-- Seed grid (avatars within chosen style) -->
-        <label>Choisissez votre avatar</label>
+        <h3>Choisissez votre avatar</h3>
         <div class="avatar-seed-grid">
           {#each avatarGridSeeds as s}
             <button
