@@ -1,5 +1,4 @@
 <script lang="ts">
-import '../app.css';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
@@ -18,6 +17,7 @@ import '../app.css';
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
+  let showMenu        = $state(false);
 
   // Badge non-lu : somme de tous les compteurs de conversations
   const totalUnread = $derived(
@@ -125,7 +125,7 @@ import '../app.css';
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
-if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.register('/service-worker.js', {
           scope: '/',
@@ -207,6 +207,7 @@ if ('serviceWorker' in navigator) {
 
 <svelte:head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/app.css">
 </svelte:head>
 
 {#if loading}
