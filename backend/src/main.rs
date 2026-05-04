@@ -107,7 +107,7 @@ async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
-// ── Fix events table: ensure start_time column exists ──────────────────
+// ── Fix events table: ensure start_time/end_time columns exist ───────
 async fn fix_events_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     // Check if events table exists
     let table_exists: (bool,) = sqlx::query_as(
@@ -120,77 +120,27 @@ async fn fix_events_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         return Ok(()); // Table doesn't exist yet, migration 16 will create it
     }
 
-    // Check if start_time column exists
-    let col_exists: (bool,) = sqlx::query_as(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='start_time')"
-    )
-    .fetch_one(pool)
-    .await?;
+    // Add missing columns if needed
+    let missing_columns = [
+        ("start_time", "INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))"),
+        ("end_time", "INTEGER NOT NULL DEFAULT (strftime('%s', 'now') + 3600)"),
+    ];
 
-    if col_exists.0 {
-        return Ok(()); // Column already exists, nothing to do
+    for (col_name, col_def) in &missing_columns {
+        let col_exists: (bool,) = sqlx::query_as(
+            &format!("SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='{}')", col_name)
+        )
+        .fetch_one(pool)
+        .await?;
+
+        if !col_exists.0 {
+            tracing::warn!("Adding column '{}' to events table", col_name);
+            let alter_sql = format!("ALTER TABLE events ADD COLUMN {} {}", col_name, col_def);
+            sqlx::query(&alter_sql).execute(pool).await?;
+        }
     }
 
-    tracing::warn!("Fixing events table schema - adding start_time column");
-
-    // Recreate table with correct schema
-    sqlx::query(
-        "CREATE TABLE events_new (
-            id TEXT PRIMARY KEY,
-            creator_id TEXT NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            start_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-            end_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now') + 3600),
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
-        )"
-    )
-    .execute(pool)
-    .await?;
-
-    // Copy data from old table - need to check old schema first
-    // The old table might not have start_time/end_time columns
-    let old_has_start_time: (bool,) = sqlx::query_as(
-        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='start_time')"
-    )
-    .fetch_one(pool)
-    .await?;
-
-    if old_has_start_time.0 {
-        // Old table has the new schema, copy everything
-        sqlx::query(
-            "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
-             SELECT id, creator_id, title, description, start_time, end_time, created_at, updated_at
-             FROM events"
-        )
-        .execute(pool)
-        .await?;
-    } else {
-        // Old table has old schema (without start_time/end_time), use defaults
-        sqlx::query(
-            "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
-             SELECT id, creator_id, title, description, 
-                    COALESCE(created_at, strftime('%s', 'now')) as start_time,
-                    COALESCE(created_at + 3600, strftime('%s', 'now') + 3600) as end_time,
-                    created_at, updated_at
-             FROM events"
-        )
-        .execute(pool)
-        .await?;
-    }
-
-    // Drop old table and rename new one
-    sqlx::query("DROP TABLE events").execute(pool).await?;
-    sqlx::query("ALTER TABLE events_new RENAME TO events").execute(pool).await?;
-
-    // Create indexes
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time)").execute(pool).await?;
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_end_time ON events(end_time)").execute(pool).await?;
-    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_creator_id ON events(creator_id)").execute(pool).await?;
-
-    tracing::info!("✓ Events table schema fixed");
+    tracing::info!("✓ Events table schema verified");
     Ok(())
 }
 

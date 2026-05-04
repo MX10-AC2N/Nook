@@ -1,7 +1,19 @@
--- Migration 016: Create events table
--- This migration is a no-op because fix_events_schema() in Rust
--- already handled the schema migration before this runs.
--- We keep this migration to record that we intended to create the events table.
+-- Migration 016: Create events table with correct schema
+-- This migration creates the events table if it doesn't exist,
+-- or adds missing columns if the table already exists with an old schema.
+
+-- Create table if it doesn't exist
+CREATE TABLE IF NOT EXISTS events (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    end_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now') + 3600),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+);
 
 -- Ensure indexes exist (idempotent)
 CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time);
