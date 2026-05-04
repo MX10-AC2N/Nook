@@ -1,7 +1,7 @@
-import { build, files, timestamp } from '$service-worker';
+import { build, files, version } from '$service-worker';
 import { expose, wrap } from 'workbox-window';
 
-const CACHE_NAME = `nook-cache-${timestamp}`;
+const CACHE_NAME = `nook-cache-${version}`;
 const ASSETS = [...build, ...files];
 
 // Install: Cache all assets
