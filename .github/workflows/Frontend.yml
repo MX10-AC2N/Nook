@@ -30,12 +30,16 @@ jobs:
         working-directory: ./frontend
         run: npx svelte-kit sync
 
-      - name: Build
+      - name: Clean install
+        working-directory: ./frontend
+        run: rm -rf node_modules/.vite .svelte-kit
+
+      - name: Build (clean CI)
         id: build
         working-directory: ./frontend
         run: |
           set +e
-          npm run build 2>&1 | tee /tmp/frontend-build.txt
+          npm run build:ci 2>&1 | tee /tmp/frontend-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
