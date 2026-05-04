@@ -103,13 +103,6 @@
       return () => ro.disconnect();
     }
   });
-</script>
-
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</svelte:head>
-
-
 
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
   // Appelé immédiatement dans onMount pour appliquer le thème AVANT tout rendu.
@@ -132,10 +125,14 @@
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Service Worker Registration (pour les notifications push)
-    // ─────────────────────────────────────────────────────────────────────
-    if ('serviceWorker' in navigator) {
+</script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</svelte:head>
+
+
+
       try {
         const registration = await navigator.serviceWorker.register('/service-worker.js', {
           scope: '/',
