@@ -1,136 +1,211 @@
-# 🎨 Mémoire Svelte - Apprentissages Frontend
+# 🎨 Mémoire SVELTE - Apprentissages & Patterns
 
-> Dernière mise à jour: 2026-05-03
-> Consulté lors de tout dev frontend
+> **DERNIÈRE MISE À JOUR** : 2026-05-04
+> Patterns Svelte 5 Runes + SvelteKit pour Nook
 
-## 📦 Versions & Outils
+## 📦 Stack Frontend
 
-- **SvelteKit** : 5.x (Runes mode)
-- **Svelte** : 5.x
-- **TypeScript** : Strict mode
-- **MCP Svelte** : `https://mcp.svelte.dev/mcp` (obligatoire depuis S38)
+### Versions
+- **Svelte** : 5 (Runes mode OBLIGATOIRE)
+- **SvelteKit** : Latest
+- **TypeScript** : Oui
+- **Build** : SvelteKit avec adapter (voir svelte.config.js)
 
-## 🧠 Svelte 5 Runes - Patterns
+## 🎯 Svelte 5 Runes - Patterns Critiques
 
-### Variables réactives
+### Variables Réactives
 ```svelte
 <script>
-  // ✅ Svelte 5 Runes
+  // ✅ State de base
   let count = $state(0);
-  let doubled = $derived(count * 2);
-  let tripled = $derived.by(() => count * 3); // Pour expressions complexes
   
-  function increment() {
-    count++;
-  }
+  // ✅ State avec objet
+  let user = $state({ name: 'John', age: 25 });
+  
+  // ✅ Derived (calculée)
+  let doubled = $derived(count * 2);
+  
+  // ✅ Derived avec fonction (pour logique complexe)
+  let formatted = $derived.by(() => {
+    return `${user.name} (${user.age})`;
+  });
+  
+  // ✅ Effect (side effects)
+  $effect(() => {
+    console.log(`Count changed: ${count}`);
+  });
 </script>
 ```
 
-### Props
+### Props (Propriétés du composant)
 ```svelte
 <script>
-  // ✅ Svelte 5
+  // ✅ Svelte 5 - destructuring avec $props()
   let { name, age = 25 } = $props();
 </script>
 ```
 
-### Effects
+### Template Syntax
 ```svelte
-<script>
-  $effect(() => {
-    console.log('count changed:', count);
-  });
-  
-  // Cleanup
-  $effect(() => {
-    const timer = setInterval(...);
-    return () => clearInterval(timer);
-  });
-</script>
-```
-
-## ⚠️ RÈGLES CRITIQUES
-
-### 1. Pas d'expressions complexes dans templates
-```svelte
-<!-- ❌ ÉVITER -->
-{#if myArray.filter(x => x.active).length > 0}
-  ...
-
-<!-- ✅ PRÉFÉRER -->
-{@const activeCount = myArray.filter(x => x.active).length}
-{#if activeCount > 0}
-  ...
-```
-
-### 2. Syntaxe templates
-```svelte
-<!-- ✅ Svelte 5 -->
-{#if condition}
-{:else if otherCondition}
+<!-- ✅ Condition (Svelte 5) -->
+{#if count > 0}
+  <p>Count is positive</p>
+{:else if count < 0}
+  <p>Count is negative</p>
 {:else}
+  <p>Count is zero</p>
 {/if}
 
-<!-- ❌ PLUS VALIDE -->
-{if condition}
+<!-- ✅ Boucle -->
+{#each items as item, index (item.id)}
+  <div>{index}: {item.name}</div>
+{/each}
+
+<!-- ❌ Ne PAS mettre d'expressions complexes dans le template -->
+<!-- ✅ Utiliser une fonction helper -->
 ```
 
-### 3. Stores (Svelte 5 way)
+## 🚫 Règles Strictes Svelte 5
+
+### Pas d'expressions complexes dans le template
+```svelte
+<!-- ❌ INCORRECT -->
+<div class:active={item.status === 'active' && user.isAdmin && theme === 'dark'}>
+  ...
+</div>
+
+<!-- ✅ CORRECT - utiliser une fonction helper -->
+<script>
+  function isActive(item, user, theme) {
+    return item.status === 'active' && user.isAdmin && theme === 'dark';
+  }
+</script>
+<div class:active={isActive(item, user, theme)}>
+  ...
+</div>
+```
+
+### Pas d'accolades simples pour les conditions
+```svelte
+<!-- ❌ INCORRECT (Svelte 4) -->
+{if count > 0}
+  ...
+{/if}
+
+<!-- ✅ CORRECT (Svelte 5) -->
+{#if count > 0}
+  ...
+{/if}
+```
+
+## 🎨 Patterns SvelteKit
+
+### Load Functions
+```typescript
+// ✅ +page.ts ou +page.server.ts
+export const load: PageLoad = async ({ fetch }) => {
+  const res = await fetch('/api/users');
+  const users = await res.json();
+  return { users };
+};
+```
+
+### Form Actions
+```typescript
+// ✅ +page.server.ts
+export const actions: Actions = {
+  default: async ({ request }) => {
+    const formData = await request.formData();
+    const name = formData.get('name');
+    // ...
+    return { success: true };
+  }
+};
+```
+
+### API Routes
+```typescript
+// ✅ +server.ts
+export const GET: RequestHandler = async ({ url }) => {
+  const id = url.searchParams.get('id');
+  return json({ id });
+};
+```
+
+## 🖼️ Assets & Icons
+
+### SVG Icons (OBLIGATOIRE - pas d'emojis)
+```svelte
+<!-- ✅ Utiliser des composants SVG ou import -->
+<script>
+  import SettingsIcon from '$lib/assets/icons/settings.svg?component';
+</script>
+<SettingsIcon />
+```
+
+### Images
+```svelte
+<!-- ✅ Import statique -->
+<script>
+  import logo from '$lib/assets/logo.png';
+</script>
+<img src={logo} alt="Logo" />
+
+<!-- ✅ Import dynamique via Vite -->
+<img src="/images/photo.jpg" alt="Photo" />
+```
+
+## 🎭 Thèmes (Dark/Light)
+
+### Gestion des thèmes
 ```svelte
 <script>
-  import { get } from 'svelte/store';
-  import { userStore } from '$lib/stores';
+  let theme = $state('light');
   
-  // Pour lire une valeur
-  let user = get(userStore);
-  
-  // Pour s'abonner
-  $: user = $userStore; // Déprécié en Svelte 5 ?
-  // Ou utiliser $derived avec une fonction
+  function toggleTheme() {
+    theme = theme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+  }
 </script>
+
+<div class="theme-{theme}">
+  ...
+</div>
 ```
 
-## 🔧 Workflow MCP Svelte (OBLIGATOIRE)
+## 📱 PWA & Responsive
 
-Avant tout code Svelte :
-```bash
-# 1. Lister les sections disponibles
-mcp_svelte_mcp_list_sections
+### Manifest & Service Worker
+- Fichier `static/manifest.json` présent
+- PWA broken (P0 à fixer) - voir known-issues.md
 
-# 2. Récupérer la doc pertinente
-mcp_svelte_mcp_get_documentation --section "runes"
-mcp_svelte_mcp_get_documentation --section "state"
+### Responsive Design
+```css
+/* ✅ Utiliser rem et em */
+.container {
+  max-width: 1200rem;
+  padding: 1rem;
+}
 
-# 3. Coder
-
-# 4. Valider avec autofixer
-mcp_svelte_mcp_svelte_autofixer --code "<votre code>" --desired_svelte_version 5
+/* ✅ Media queries */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+}
 ```
 
-## 🎨 UI/UX - Règles Nook
+## 🧪 Tests
 
-- ✅ Utiliser **SVG icons** (pas d'emojis)
-- ✅ Thème sombre/clair supporté
-- ✅ Responsive (mobile first)
-- ✅ Accessibilité (a11y) respectée
+### Structure de tests
+- ❌ Pas de tests frontend actuellement (P1)
+- 106 E2E tests skippés (P1)
+- Voir `nook-frontend-audit.md` pour détails
 
-## 📝 Learnings Sessions
+## 📝 Notes de Session
 
-### Session 50-53
-- ✅ Migration Svelte 5 Runes complétée
-- ✅ Syntaxe `$derived.by(() => ...)` pour expressions complexes
-- ✅ MCP Svelte intégré au workflow
-
-### Erreurs fréquentes
-1. **Expressions dans templates** → créer fonctions helper
-2. **`{if}` au lieu de `{#if}`** → vérifier syntaxe
-3. **Oublier MCP Svelte** → toujours consulter doc avant code
-
-## 🔗 Ressources
-
-- [Svelte 5 Docs](https://svelte.dev/docs/svelte)
-- [SvelteKit Docs](https://kit.svelte.dev/docs)
-- [MCP Svelte Server](https://mcp.svelte.dev/)
+- Migration vers Svelte 5 Runes réussie
+- Plusieurs corrections de syntaxe effectuées
+- MCP Svelte disponible pour documentation/autofixer
+- Build frontend échoue parfois (voir tools-state.md)
 
 ---
-*Ajouter nouveaux apprentissages au fur et à mesure*
+*Mettre à jour après chaque session de dev frontend*

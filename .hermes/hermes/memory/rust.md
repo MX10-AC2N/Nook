@@ -1,109 +1,141 @@
-# 🦀 Mémoire Rust - Apprentissages Backend
+# 🦀 Mémoire RUST - Apprentissages & Patterns
 
-> Dernière mise à jour: 2026-05-03
-> Consulté lors de tout dev backend
+> **DERNIÈRE MISE À JOUR** : 2026-05-04
+> Patterns Rust/Axum/SQLx pour Nook
 
 ## 📦 Crates & Versions
 
-### Core
-- **Rust edition** : 2024 (nightly requis pour Nook)
-- **Axum** : 0.8
-- **SQLx** : 0.8.6
-- **Tokio** : 1.x
-- **rand** : 0.9+ (⚠️ **IMPORTANT**)
-  - ✅ `use rand::rng();` puis `rng()`
-  - ❌ NE PLUS UTILISER `thread_rng()`
-  - ✅ `use rand::distr::*` (pas `distributions::`)
-  - ✅ `rand::distr::Alphanumeric` (pas `rand::distributions::Alphanumeric`)
-
-### WebRTC & Crypto
-- **rustrtc** : 0.3.40 (⚠️ ne pas rétrograder en 0.3.39)
-- **argon2** : pour hash passwords
-- **chacha20poly1305** : pour E2EE
+### Backend Actuel (Cargo.toml)
+- **Rust Edition** : 2024 (edition = "2024")
+- **Axum** : 0.8 (⚠️ Breaking changes vs 0.7)
+- **SQLx** : 0.8.6 (avec runtime tokio, features: sqlite, macros, migrate)
+- **Tokio** : 1.44.1 (full features)
+- **rand** : 0.9 (⚠️ Breaking changes vs 0.8)
+- **rustrtc** : 0.3.40 (WebRTC)
+- **argon2** : 0.5.3 (Password hashing)
+- **jsonwebtoken** : 9.3.1 (JWT)
+- **voca_rs** : 0.9.1 (Validation)
 
 ## 🔧 Patterns Axum 0.8
 
-### Routes (⚠️ Changement majeur vs 0.7)
+### Routing
 ```rust
-// ❌ Axum 0.7
-.get("/api/messages/:id", handler)
+// ❌ Ancien (Axum 0.7)
+router.route("/users/:id", get(handler));
 
-// ✅ Axum 0.8
-.get("/api/messages/{id}", handler)
+// ✅ Nouveau (Axum 0.8)
+router.route("/users/{id}", get(handler));
 ```
 
-### Extracteurs
+### Handlers
 ```rust
-// ✅ Axum 0.8 - Utf8Bytes pas String
-async fn handler(Path(id): Path<i64>, body: Utf8Bytes) -> impl IntoResponse
+// ✅ Axum 0.8 - Utf8Bytes pour le body
+async fn handler(body: Utf8Bytes) -> Response<Utf8Bytes> { ... }
+
+// ✅ Extracteurs
+async fn handler(
+    Path(id): Path<i64>,
+    State(state): State<AppState>,
+    Json(payload): Json<MyStruct>,
+) -> Json<Response> { ... }
 ```
 
-### Gestion d'erreurs
+## 🗄️ Patterns SQLx 0.8
+
+### Requêtes avec transaction
 ```rust
-// ❌ INCORRECT
-.map_err(|_| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Error"))?
+// ✅ Pattern avec transaction
+let mut tx = state.db.begin().await?;
 
-// ✅ CORRECT
-.map_err(|_| { 
-    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Error") 
-})?
-```
-
-## 🗄️ SQLx Patterns
-
-### Migrations
-```bash
-# Préparer migrations pour CI
-cargo sqlx prepare --workspace -- --all-targets
-```
-
-### Query patterns
-```rust
-// Requête simple
-let result = sqlx::query_as::<_, Message>("SELECT * FROM messages WHERE id = ?")
-    .bind(id)
-    .fetch_one(&pool)
-    .await?;
-
-// Transaction
-let mut tx = pool.begin().await?;
-sqlx::query("INSERT INTO ...")
-    .bind(...)
+sqlx::query("INSERT INTO users (name) VALUES (?)")
+    .bind(&name)
     .execute(&mut *tx)
     .await?;
+
 tx.commit().await?;
 ```
 
-## 🧪 Tests & Clippy
-
-### Exécuter tests
+### Préparation (sqlx prepare)
 ```bash
-cd backend
-cargo test
+# Générer query.sql pour les macros SQL
+cargo sqlx prepare --workspace -- --features sqlite
 ```
 
-### Clippy (toujours avant commit)
+⚠️ **Problème connu** : `cargo sqlx prepare` échoue en CI (voir known-issues.md)
+
+## 🎲 Patterns rand 0.9
+
+### Génération aléatoire
+```rust
+// ❌ Ancien (rand 0.8)
+use rand::thread_rng;
+let mut rng = thread_rng();
+
+// ✅ Nouveau (rand 0.9)
+use rand::rng;
+let mut rng = rng();
+
+// ✅ Distributions
+use rand::distr::{Alphanumeric, Uniform};
+let chars: String = (0..length)
+    .map(|_| rng.sample(Alphanumeric))
+    .collect();
+```
+
+## 🚨 Erreurs fréquentes
+
+### map_err avec closures
+```rust
+// ❌ Incorrect - parenthèses mal placées
+.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+// ✅ Correct - accolades pour le bloc
+.map_err(|e| { 
+    (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()) 
+})?;
+```
+
+### lifetime dans les structs
+```rust
+// ⚠️ Problème avec 'static dans les handlers axum
+// Solution: utiliser Clone ou Arc pour partager les données
+#[derive(Clone)]
+struct AppState {
+    db: sqlx::SqlitePool,
+}
+```
+
+## 🔨 Commandes Utiles
+
+### Build & Test
 ```bash
+# Build release
+cargo build --release
+
+# Test avec output
+cargo test -- --nocapture
+
+# Clippy strict
 cargo clippy -- -D warnings
+
+# Format
+cargo fmt --all
 ```
 
-## 📝 Learnings Sessions
+### SQLx
+```bash
+# Préparer les requêtes (générer query.sql)
+cargo sqlx prepare --workspace -- --features sqlite
 
-### Session 50-53
-- ✅ `admin.rs` : fix map_err avec accolades `{}`
-- ✅ rand 0.9 migration réussie
-- ✅ CI Backend Build : Rust nightly requis (Backend.yml ligne 34)
+# Vérifier les migrations
+sqlx migrate info --source backend/migrations
+```
 
-### Erreurs rencontrées
-1. **rand::distributions déprécié** → utiliser `rand::distr`
-2. **thread_rng() déprécié** → utiliser `rng()`
-3. **Axum 0.8 syntaxe** → `{param}` pas `:param`
+## 📝 Notes de Session
 
-## 🔗 Ressources
-
-- [Axum 0.8 Docs](https://docs.rs/axum/0.8.0/axum/)
-- [SQLx 0.8 Docs](https://docs.rs/sqlx/0.8.6/sqlx/)
-- [Rust Book](https://doc.rust-lang.org/book/)
+- Rust nightly 1.97.0 installé pour CI
+- cargo sqlx prepare échoue en CI (à investiguer)
+- Axum 0.8 nécessite des ajouts dans Cargo.toml pour Utf8Bytes
 
 ---
-*Ajouter nouveaux apprentissages au fur et à mesure*
+*Mettre à jour après chaque session de dev backend*
