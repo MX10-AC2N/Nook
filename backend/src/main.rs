@@ -150,17 +150,36 @@ async fn fix_events_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .execute(pool)
     .await?;
 
-    // Copy data from old table (without start_time)
-    sqlx::query(
-        "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
-         SELECT id, creator_id, title, description, 
-                COALESCE(created_at, strftime('%s', 'now')) as start_time,
-                COALESCE(created_at + 3600, strftime('%s', 'now') + 3600) as end_time,
-                created_at, updated_at
-         FROM events"
+    // Copy data from old table - need to check old schema first
+    // The old table might not have start_time/end_time columns
+    let old_has_start_time: (bool,) = sqlx::query_as(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='start_time')"
     )
-    .execute(pool)
+    .fetch_one(pool)
     .await?;
+
+    if old_has_start_time.0 {
+        // Old table has the new schema, copy everything
+        sqlx::query(
+            "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
+             SELECT id, creator_id, title, description, start_time, end_time, created_at, updated_at
+             FROM events"
+        )
+        .execute(pool)
+        .await?;
+    } else {
+        // Old table has old schema (without start_time/end_time), use defaults
+        sqlx::query(
+            "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
+             SELECT id, creator_id, title, description, 
+                    COALESCE(created_at, strftime('%s', 'now')) as start_time,
+                    COALESCE(created_at + 3600, strftime('%s', 'now') + 3600) as end_time,
+                    created_at, updated_at
+             FROM events"
+        )
+        .execute(pool)
+        .await?;
+    }
 
     // Drop old table and rename new one
     sqlx::query("DROP TABLE events").execute(pool).await?;
