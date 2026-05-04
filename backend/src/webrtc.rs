@@ -520,14 +520,64 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket déconnecté");
 }
 
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // ROUTES
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+
+use hmac::{Hmac, Mac};
+use sha1::Sha1;
+type HmacSha1 = Hmac<Sha1>;
+
+/// Génère la configuration ICE (TURN servers) pour WebRTC
+/// Endpoint: GET /api/webrtc/ice-config
+pub async fn get_ice_config(
+    AxumState(state): AxumState<Arc<crate::SharedState>>,
+) -> impl IntoResponse {
+    let config = &state.config;
+    let turn_host = &config.turn_host;
+    let turn_port = config.turn_port;
+    let turn_secret = &config.turn_secret;
+
+    // Générer les credentials TURN (REST API)
+    // username = timestamp d'expiration (maintenant + 24h)
+    let expiration = chrono::Utc::now().timestamp() + 24 * 3600;
+    let username = expiration.to_string();
+
+    // password = HMAC-SHA1(secret, username)
+    let mut mac = <HmacSha1 as Mac>::new_from_slice(turn_secret.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(username.as_bytes());
+    let result = mac.finalize();
+    let password = base64ct::Base64Unpadded::encode_string(result.into_bytes().as_slice());
+
+    let ice_servers = json!({
+        "iceServers": [
+            {
+                "urls": format!("turn:{}:{}", turn_host, turn_port),
+                "username": username,
+                "credential": password,
+                "credentialType": "hash"
+            },
+            {
+                "urls": format!("turns:{}:{}", turn_host, turn_port),
+                "username": username,
+                "credential": password,
+                "credentialType": "hash"
+            },
+            {
+                "urls": format!("stun:{}:{}", turn_host, turn_port)
+            }
+        ]
+    });
+
+    (StatusCode::OK, AxumJson(ice_servers))
+}
 
 pub fn webrtc_routes() -> Router<Arc<crate::SharedState>> {
     Router::new()
         .route("/api/webrtc/offer", post(handle_offer))
         .route("/api/webrtc/answer", post(handle_answer))
+        .route("/api/webrtc/ice-config", get(get_ice_config))
         .route("/ws", get(ws_handler))
     // Note : /ws est authentifié via cookie dans ws_handler lui-même.
     // Les routes /api/webrtc/* sont dans un contexte public (le client authentifié

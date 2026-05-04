@@ -1122,24 +1122,49 @@ pub async fn export_pgn(
     Extension(CurrentUser(_user)): Extension<CurrentUser>,
     Path(game_id): Path<String>,
 ) -> impl IntoResponse {
-    // Récupérer les coups de la partie
-    let moves = sqlx::query_as::<_, (String,)>(
-        "SELECT san FROM chess_moves WHERE game_id = ? ORDER BY move_number"
+    // Récupérer la partie et l'historique des coups depuis chess_games
+    let result = sqlx::query_as::<_, (String, String, String, String, String, i64, i64)>(
+        "SELECT id, white_player, black_player, status, move_history, created_at, updated_at 
+         FROM chess_games WHERE id = ?"
     )
     .bind(&game_id)
-    .fetch_all(&state.db)
+    .fetch_optional(&state.db)
     .await;
 
-    match moves {
-        Ok(rows) => {
+    match result {
+        Ok(Some((id, white, black, status, move_history_json, created_at, _updated_at))) => {
+            // Parser l'historique JSON des coups
+            let move_history: Vec<serde_json::Value> = 
+                serde_json::from_str(&move_history_json).unwrap_or_default();
+
+            // Générer le PGN
             let mut pgn = String::new();
 
-            // Header PGN
-            pgn.push_str("[Result *]\r\n\r\n");
+            // Headers PGN (Seven Tag Roster)
+            let date = chrono::DateTime::<chrono::Utc>::from_utc(
+                chrono::NaiveDateTime::from_timestamp_opt(created_at, 0).unwrap_or_default(),
+                chrono::Utc
+            );
+            let date_str = date.format("%Y.%m.%d").to_string();
 
-            // Corps: numéroter les coups
-            for (i, row) in rows.iter().enumerate() {
-                let san = &row.0;
+            pgn.push_str("[Event \"Casual game\"]\n");
+            pgn.push_str(&format!("[Site \"https://nook.app/chess/{}\"]\n", id));
+            pgn.push_str(&format!("[Date \"{}\"]\n", date_str));
+            pgn.push_str("[Round \"?\"]\n");
+            pgn.push_str(&format!("[White \"{}\"]\n", white));
+            pgn.push_str(&format!("[Black \"{}\"]\n", black));
+            
+            let result_str = match status.as_str() {
+                "white_won" => "1-0",
+                "black_won" => "0-1",
+                "draw" => "1/2-1/2",
+                _ => "*",
+            };
+            pgn.push_str(&format!("[Result \"{}\"]\n\n", result_str));
+
+            // Corps: numéroter les coups en format SAN
+            for (i, mov) in move_history.iter().enumerate() {
+                let san = mov.get("san").and_then(|s| s.as_str()).unwrap_or("");
                 if i % 2 == 0 {
                     // Coup blanc
                     pgn.push_str(&format!("{}. {} ", (i / 2) + 1, san));
@@ -1148,12 +1173,16 @@ pub async fn export_pgn(
                     pgn.push_str(&format!("{} ", san));
                 }
             }
-            pgn.push_str("*\r\n");
+            pgn.push_str("\n");
 
-            (StatusCode::OK, pgn).into_response()
+            (StatusCode::OK, [(axum::http::header::CONTENT_TYPE, "text/plain")], pgn).into_response()
+        }
+        Ok(None) => {
+            (StatusCode::NOT_FOUND, format!("Partie {} non trouvée", game_id)).into_response()
         }
         Err(e) => {
-            (StatusCode::NOT_FOUND, format!("Partie non trouvée: {}", e)).into_response()
+            eprintln!("Erreur export PGN: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Erreur lors de l'export PGN").into_response()
         }
     }
 }
