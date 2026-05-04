@@ -1394,6 +1394,8 @@
             ></emoji-picker>
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
           {/if}
+
+          {#if msg.reactions && msg.reactions.length > 0}
             <div class="message-reactions">
               {#each countReactions(msg.id) as reaction}
                 <button
