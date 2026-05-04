@@ -13,7 +13,10 @@ const ICONS = {
 // Vibration subtile et chaleureuse (comme un petit cœur qui bat)
 const VIBRATION_PATTERN = [100, 50, 100, 50, 200];
 
-self.addEventListener('push', (event: PushEvent) => {
+// Type assertion helpers
+const swSelf = self as unknown as ServiceWorkerGlobalScope;
+
+swSelf.addEventListener('push', (event: PushEvent) => {
   let data = {
     title: 'Nook',
     body: 'Nouveau message dans la famille ❤️',
@@ -29,20 +32,16 @@ self.addEventListener('push', (event: PushEvent) => {
     } catch (e) {
       console.error('Erreur parsing push data:', e);
     }
-  }
+  };
 
   // Utilise les icônes dark si le payload indique le mode sombre
   const useDark = !!data.prefersDark;
 
-  const options: NotificationOptions = {
+  const options = {
     body: data.body || 'Vous avez un nouveau message',
     icon: useDark ? ICONS.dark : ICONS.default,
     badge: useDark ? ICONS.badgeDark : ICONS.badge,
-    image: data.image ?? undefined,
     tag: data.tag ?? 'nook-notification',
-    renotify: true,
-    vibrate: VIBRATION_PATTERN,
-    timestamp: Date.now(),
     data: { url: '/chat' },
     actions: [
       {
@@ -59,11 +58,11 @@ self.addEventListener('push', (event: PushEvent) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Nook', options)
+    swSelf.registration.showNotification(data.title || 'Nook', options)
   );
 });
 
-self.addEventListener('notificationclick', (event: NotificationEvent) => {
+swSelf.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
 
   const urlToOpen = (event.notification.data?.url as string | undefined) ?? '/chat';
@@ -71,12 +70,12 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.waitUntil(
     (async () => {
       // Cherche une fenêtre Nook déjà ouverte
-      const windowClients = await clients.matchAll({
+      const windowClients = await swSelf.clients.matchAll({
         type: 'window',
         includeUncontrolled: true
       });
 
-      let targetClient = windowClients.find(client =>
+      let targetClient: WindowClient | undefined = windowClients.find(client =>
         client.url.includes(urlToOpen) && 'focus' in client
       );
 
@@ -90,13 +89,14 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
         }
       } else {
         // Ouvre une nouvelle fenêtre
-        targetClient = await clients.openWindow(urlToOpen);
+        const newClient = await swSelf.clients.openWindow(urlToOpen);
+        targetClient = newClient ?? undefined;
 
         // Optionnel : attendre que la page charge pour focus l'input
-        if (event.action === 'reply' && targetClient) {
+        if (event.action === 'reply' && newClient) {
           // Petit délai pour laisser la page charger
           setTimeout(() => {
-            targetClient?.postMessage({ action: 'focus-reply-input' });
+            newClient?.postMessage({ action: 'focus-reply-input' });
           }, 1000);
         }
       }
@@ -104,12 +104,12 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
   );
 });
 
-self.addEventListener('install', (event: ExtendableEvent) => {
+swSelf.addEventListener('install', (event: ExtendableEvent) => {
   console.log('Service Worker installé');
-  self.skipWaiting();
+  swSelf.skipWaiting();
 });
 
-self.addEventListener('activate', (event: ExtendableEvent) => {
+swSelf.addEventListener('activate', (event: ExtendableEvent) => {
   console.log('Service Worker activé');
-  event.waitUntil(clients.claim());
+  event.waitUntil(swSelf.clients.claim());
 });
