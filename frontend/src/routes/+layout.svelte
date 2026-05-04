@@ -1,5 +1,5 @@
 <script lang="ts">
-  import '../app.css';
+import '../app.css';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
@@ -125,15 +125,7 @@
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
-</script>
-
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</svelte:head>
-
-
-
-      try {
+try {
         const registration = await navigator.serviceWorker.register('/service-worker.js', {
           scope: '/',
         });
@@ -210,8 +202,11 @@
       cryptoError = null;
     }
   });
-
 </script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</svelte:head>
 
 {#if loading}
   <div class="loading-screen" data-testid="loading-screen">
