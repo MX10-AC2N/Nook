@@ -1,101 +1,103 @@
-# 🔑 Mémoire Core - Informations Critiques
+# 🔑 Mémoire CORE - Informations Critiques
 
-> Dernière mise à jour: 2026-05-03
-> À lire ABSOLUMENT à chaque session
+> **DERNIÈRE MISE À JOUR** : 2026-05-04
+> Mon fichier de référence pour les infos critiques Nook
 
-## 🔐 GitHub & Accès
+## 🔐 Accès & Authentification
 
-- **Repo** : `https://github.com/MX10-AC2N/Nook`
-- **Branche** : `develop`
-- **Compte test** : `hermes-bot` / `Hermes2026!`
-- **URL locale** : `https://192.168.1.192:6443` (HTTPS cert auto-signé)
-- **Raw base** : `https://raw.githubusercontent.com/MX10-AC2N/Nook/develop/`
+### GitHub
+- **Repo** : `https://github.com/MX10-AC2N/Nook` (branche `develop`)
+- **Token** : Stocké dans l'outil mémoire (memory tool)
+- **Push** : Utiliser Python subprocess avec token dans URL
+- **Compte bot** : `hermes-bot` / `Hermes2026!`
 
-## 🔧 Outils Essentiels
+### Serveurs & URLs
+- **Local (Zimaboard)** : `https://192.168.1.192:6443` (HTTPS cert auto-signé)
+- **Docker Registry** : `ghcr.io/mx10-ac2n/nook`
+- **Port Dév** : 5173 (SvelteKit)
+- **Port Prod** : 6300
 
-### Disponibles
-- ✅ `git` (configuré: Hermes Bot <hermes-bot@nook.app>)
-- ✅ `node` / `npm`
-- ✅ `jq`
-- ✅ `curl`
-- ✅ `make`
-- ✅ `gcc` / `g++`
-- ✅ `pkg-config`
-- ✅ `rustc` (1.85.0 nightly requis pour Nook)
-- ✅ `cargo` (1.85.0)
-- ✅ `gh` (2.46.0) - nécessite auth manuelle via token
+## 🏗️ Projet Nook - État
 
-### À installer (si manquants)
-- Voir `../tools-state.md` pour l'état complet
-
-## 📦 Versions Projet Nook
-
+### Version & Stack
 - **Version** : 0.5.0 (développement)
 - **Backend** : Rust + Axum 0.8 + SQLx 0.8.6 + SQLite
 - **Frontend** : SvelteKit 5 (Runes) + TypeScript
-- **Dernier audit** : 75.4/100 (Session 53, 2026-04-28)
+- **E2E Tests** : 163/163 PASS (TURN server OK)
 
-## 🚀 CI/CD Workflows
+### Dernier Commit
+- **Hash** : `327b08e6` 
+- **Message** : fix admin.rs map_err
+- **Date** : 2026-05-03
 
-| Workflow | ID | Fichier | Déclenchement |
-|----------|-----|---------|----------------|
-| Backend | 220018362 | `.github/workflows/Backend.yml` | Manulement (push) |
-| Frontend | 220018364 | `.github/workflows/Frontend.yml` | Manulement (push) |
-| Turn | 257238341 | `.github/workflows/Turn.yml` | Manulement (push) |
-| Docker | 220018363 | `.github/workflows/Docker.yml` | Après F/E/T success |
+## 🚀 CI/CD & Workflows
 
-**Règle CI** : Backend + Frontend + Turn simultanément → attendre tous succès → Docker
+### GitHub Actions
+- **Backend.yml** : Build amd64/arm64 avec Rust nightly (ligne 34)
+- **Frontend.yml** : Build SvelteKit
+- **Docker.yml** : Build & push image multi-arch
+- **CI Workflow IDs** : Backend=220018362, Frontend=220018364, Docker=220018363
 
-**Commande déclenchement** :
-```bash
-gh workflow run <ID> --ref develop
-```
+### Règles CI
+- ✅ Commit d'abord, puis rebase pour lock updates
+- ✅ Docker.yml nécessite Backend.yml déclenché en premier pour les changements Rust
+- ✅ Toujours vérifier les logs CI bruts avant de faire un push
 
-## 📋 Commandes Git Critiques
+## 📋 Préférences Utilisateur (de memory tool)
 
-```bash
-# Naviguer vers le repo
-cd /opt/data/home/.hermes/Nook
+### Communication
+- **Langue** : Français
+- **Style** : "Soit méticuleux" — minutieux dans l'analyse et les fixes
+- **Momentum** : "On continue" — garder le momentum et avancer directement
+- **Reset** : "On reprends" — repartir de zéro propre si nécessaire
 
-# Vérifier état
-git status
-git log --oneline -5
+### Attentes & Règles
+- ✅ **Vérification pré-commit OBLIGATOIRE** (surtout rand crate version)
+- ✅ **Rapport des logs CI bruts** → diagnostic + push direct
+- ✅ **Action directe** (créer PRs) plutôt que d'être guidé
+- ✅ **REAL bug fixes** pas de simplification de tests
+- ✅ **Utiliser SVG icons** pas d'emojis
+- ✅ **Syntaxe Svelte 5** : `$derived.by`, `{#if}` pas `{if}`
+- ✅ **Plusieurs erreurs CI** → tout fixer d'un coup
 
-# Commit et push (avec token dans remote)
-git add .
-git commit -m "feat/fix: description"
-git push origin develop
-```
+## 🔴 Erreurs à ne plus faire
 
-## 🔴 ERREURS CRITIQUES À NE PLUS FAIRE
+1. **Modification versions dépendances** dans commits de fix
+   - J'avais changé `rustrtc` 0.3.40 → 0.3.39 par erreur
+   - **Règle** : Un commit de fix ne touche QUE le bug signalé
 
-1. **Modifier les versions dépendances dans commits de fix**
-   - ✅ Fix unique = bug signalé uniquement
-   - ❌ Pas de changement `rustrtc` ou autres versions
-
-2. **Perdre le contexte entre sessions**
-   - ✅ Lire `active-session.md` au début
-   - ✅ Consulter `known-issues.md`
-   - ✅ Vérifier `memory/core.md` (ce fichier)
-
-3. **Syntaxe `.map_err()` incorrecte**
+2. **Syntaxe `.map_err()` incorrecte**
    - ❌ `.map_err(|_| (...))?`
    - ✅ `.map_err(|_| { (...) })?`
 
-4. **Oublier vérification pré-commit**
-   - ✅ Toujours vérifier `rand` crate version (0.9+)
-   - ✅ `rng()` pas `thread_rng()`, `distr::` pas `distributions::`
+3. **Perte de contexte entre sessions**
+   - **Solution** : Lire `active-session.md` et `known-issues.md` à chaque début
 
-## 📂 Structure Rapide
+## 📂 Structure .hermes
 
 ```
 .hermes/
-├── hermes/          # MON espace (lu en premier)
-├── skills/          # Skills (automatisé)
-├── roles/           # Rôles agents
-├── rules/           # Règles projet
-└── tools/           # Scripts et références
+├── hermes/              # MON espace perso (ce répertoire parent)
+│   ├── memory/          # Mémoire organisée (ce dossier)
+│   │   ├── core.md      # CE fichier
+│   │   ├── rust.md      # Apprentissages Rust
+│   │   ├── svelte.md    # Apprentissages Svelte
+│   │   ├── devops.md    # CI/CD, Docker
+│   │   ├── security.md  # E2EE, auth, WebRTC
+│   │   └── sessions/    # Logs de session
+│   ├── active-session.md
+│   ├── known-issues.md
+│   ├── preferences.md
+│   └── tools-state.md
 ```
 
+## 🔗 Liens Rapides
+
+- **CI Backend** : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
+- **CI Frontend** : https://github.com/MX10-AC2N/Nook/actions/workflows/Frontend.yml
+- **CI Docker** : https://github.com/MX10-AC2N/Nook/actions/workflows/Docker.yml
+- **Repo** : https://github.com/MX10-AC2N/Nook
+- **Déploiement** : https://192.168.1.192:6443
+
 ---
-*Éditer ce fichier avec toute info critique nouvelle*
+*Fichier CORE - À mettre à jour dès qu'une info critique change*

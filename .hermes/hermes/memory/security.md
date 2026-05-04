@@ -1,125 +1,162 @@
-# 🔐 Mémoire Security - E2EE, Auth & WebRTC
+# 🔐 Mémoire SECURITY - E2EE, Auth, WebRTC
 
-> Dernière mise à jour: 2026-05-03
-> Consulté lors de tout dev sécurité, auth, E2EE, WebRTC
+> **DERNIÈRE MISE À JOUR** : 2026-05-04
+> E2EE, Auth, WebRTC, Sécurité Nook
 
-## 🔑 Chiffrement & E2EE
+## 🔑 Authentification & JWT
+
+### JsonWebToken (JWT)
+- **Crate** : `jsonwebtoken` 9.3.1
+- **Algorithme** : HS256 (par défaut)
+- **Secret** : Configuré via variable d'environnement `JWT_SECRET`
+
+### Structure Token
+```rust
+// Claims JWT typiques
+struct Claims {
+    sub: String,      // User ID
+    exp: usize,       // Expiration
+    iat: usize,       // Issued at
+    // ... autres champs
+}
+```
+
+### Vérification
+- Middleware Axum pour vérifier le token
+- Refresh token mechanism (à vérifier si implémenté)
+
+## 🔐 Chiffrement E2EE (End-to-End Encryption)
 
 ### Argon2 (Password Hashing)
-```rust
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
+- **Crate** : `argon2` 0.5.3
+- **Params** : 
+  - Memory: 64MB (vérifié dans le code)
+  - Iterations: 3
+  - Parallelism: 4
 
-// Hash password
-let salt = rand::random::<[u8; 16]>();
-let argon2 = Argon2::default();
-let hash = argon2.hash_password(&password.as_bytes(), &salt).unwrap();
+### Stockage Mots de Passe
+```rust
+// Hash
+let hash = argon2.hash_password(password.as_bytes(), &salt)?;
 
 // Verify
-let parsed_hash = PasswordHash::new(&stored_hash).unwrap();
-argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok()
+argon2.verify_password(password.as_bytes(), &parsed_hash)?;
 ```
 
-### XChaCha20-Poly1305 (E2EE Messages)
-```rust
-use chacha20poly1305::{XChaCha20Poly1305, Key, Nonce};
-use chacha20poly1305::aead::{Aead, NewAead};
+⚠️ **P0 - Vérifier** : Les paramètres Argon2 sont-ils correctement configurés ?
 
-// Encrypt
-let key = XChaCha20Poly1305::new(&Key::from_slice(&key_bytes));
-let nonce = XChaCha20Poly1305::generate_nonce(&mut rand::thread_rng());
-let ciphertext = key.encrypt(&nonce, plaintext.as_bytes()).unwrap();
+## 🌐 WebRTC & TURN
 
-// Decrypt
-let plaintext = key.decrypt(&nonce, ciphertext.as_ref()).unwrap();
+### TURN Server (turn-rs)
+- **Image** : `ghcr.io/mx10-ac2n/turn-server:dev`
+- **Ports** : 3478 UDP/TCP
+- **Config** : `/etc/turn-server/config.toml`
+- **Secret** : `${TURN_SECRET}` (variable d'environnement)
+
+### Problème P0 - WebRTC ICE Config Manquante
+- ❌ **Symptôme** : Les appels vidéo/audio ne se connectent pas
+- ❌ **Cause probable** : Le fichier de config TURN n'est pas généré correctement
+- ✅ **Solution** : Vérifier `turn-config/` directory et template
+
+### Configuration TURN Attendue
+```toml
+[server]
+name = "nook.turn"
+secret = "TURN_SECRET_VALUE"
+max-threads = 4
+
+[[server.interfaces]]
+transport = "udp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
+
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
 ```
 
-## 🍪 Auth & Sessions
+## 🛡️ OWASP Top 10 - Status
 
-### Cookies (Axum 0.8)
+### Vulnérabilités Checkées
+- ✅ **A01-Broken Access Control** : Vérifié dans `SECURITY-REPORT-2026-05-03.md`
+- ✅ **A02-Cryptographic Failures** : Argon2 + JWT ok
+- ⚠️ **A03-Injection** : SQLx protège contre SQL injection
+- ⚠️ **A04-Insecure Design** : Rate limiting manquant (P1)
+- ⚠️ **A05-Security Misconfiguration** : CORS à vérifier
+- ⚠️ **A06-Vulnerable Components** : `cargo audit` à ajouter en CI
+- ⚠️ **A07-Identification & Auth Failures** : MFA manquant
+- ⚠️ **A08-Software & Data Integrity** : CI/CD sécurisé
+- ⚠️ **A09-Security Logging** : Logs insuffisants
+- ⚠️ **A10-Server-Side Request Forgery** : À vérifier
+
+## 🚫 CORS Configuration
+
+### Axum CORS (À vérifier)
 ```rust
-use axum_extra::extract::cookie::{Cookie, CookieJar};
-
-// Set cookie
-let jar = CookieJar::new()
-    .add(Cookie::new("session", session_id));
-
-// Get cookie
-let session = jar.get("session").map(|c| c.value());
-```
-
-### JWT (si utilisé)
-- Clé secrète dans GitHub Secrets
-- Expiration courte (15 min)
-- Refresh token sécurisé
-
-## 📡 WebRTC & TURN
-
-### Configuration TURN Server
-```rust
-// rustrtc config
-let config = RtcConfig {
-    turn_server: "turn:nook.app:3478".to_string(),
-    turn_username: "user".to_string(),
-    turn_password: "pass".to_string(),
-    // ...
-};
-```
-
-### Sécurité WebRTC
-- ✅ Toujours utiliser TURN (pas de P2P direct sans fallback)
-- ✅ Clés E2EE pour médias
-- ✅ Vérification origines (CORS strict)
-
-## 🚫 CORS - Règles Strictes
-
-```rust
-// ❌ JAMAIS
-CorsLayer::new()
-    .allow_origin(Any)
-
-// ✅ TOUJOURS
-CorsLayer::new()
+// ✅ Bon pattern - origins explicites
+let cors = CorsLayer::new()
     .allow_origin([
         "https://192.168.1.192:6443".parse().unwrap(),
-        "https://nook.app".parse().unwrap(),
-    ].into_iter())
-    .allow_credentials(true)
+        "http://localhost:5173".parse().unwrap(),
+    ])
+    .allow_methods(Any)
+    .allow_headers(Any);
+
+// ❌ Mauvais pattern - Any avec credentials
+// .allow_origin(Any) // DANGEREUX avec credentials
 ```
 
-## 🔴 SECRETS - Règles Strictes
+⚠️ **Règle** : Pas `Any` avec credentials activés !
 
-### GitHub Secrets (NE PAS commiter)
-- ❌ `TURN_SECRET=abc123` dans code
-- ❌ `.env` avec vrais secrets (ajouter à `.gitignore`)
-- ✅ Utiliser GitHub Secrets + `.env.example`
+## 🔒 HTTPS & Certificats
 
-### Permissions Fichiers
-```bash
-# ❌ JAMAIS
-chmod 0777 /path/to/file
+### Certificat Actuel
+- **Type** : Auto-signé
+- **URL** : `https://192.168.1.192:6443`
+- **Problème** : Navigateur affiche warning (normal pour auto-signé)
 
-# ✅ TOUJOURS
-chmod 0640 /path/to/sensitive-file
-```
+### Recommandation
+- [ ] Utiliser Let's Encrypt pour un vrai certificat
+- [ ] Ou configurer un CA interne
 
-## 📝 Learnings Sessions
+## 📝 Audit Trail
 
-### Session 50
-- ✅ 0 secret en dur (TURN_SECRET, admin password)
-- ✅ chmod 0777 corrigé
-- ✅ `.env.example` créé
+### Rapports de Sécurité
+- `SECURITY-REPORT.md` (ancien - 2026-04-28)
+- `SECURITY-REPORT-2026-05-03.md` (récent - 68/100)
 
-### Erreurs fréquentes
-1. **CORS Any avec credentials** → fail sécurité
-2. **Secrets loggés** → fuite info
-3. **Permissions trop ouvertes** → vulnérabilité
+### Score Actuel
+- **Global** : 68/100 (Audit 2026-05-03)
+- **Backend** : À vérifier (events.rs a 34 erreurs compil)
+- **Frontend** : PWA broken + HTTPS ok
 
-## 🔗 Ressources
+## 🔴 Troubles de Sécurité à Fixer (P0/P1)
 
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Argon2 Crate](https://docs.rs/argon2/latest/argon2/)
-- [ChaCha20Poly1305 Crate](https://docs.rs/chacha20poly1305/latest/)
-- [WebRTC Security](https://webrtc-security.github.io/)
+### P0 - Critique
+1. **events.rs 34 erreurs compilation** → Fixer immédiatement
+2. **WebRTC ICE config manquante** → Générer config TURN
+3. **PGN export cassé** → Vérifier endpoint + frontend
+
+### P1 - Important
+1. **Pas de tests frontend** → Ajouter Jest/Vitest
+2. **Pas cargo test en CI** → Ajouter step test
+3. **106 E2E skippés** → Investiguer et activer
+4. **ADR vides** → Documenter les décisions d'architecture
+5. **<5% doc** → Améliorer documentation
+
+### P2 - Mineur
+1. **Bundle 939kB trop lourd** → Code splitting
+2. **wasm-pack manquant** → Installer ou contourner
+3. **SQLx prepare fail** → Fixer en CI
+4. **Pas GitHub Releases** → Automatiser
+
+## 📝 Notes de Session
+
+- Security audit 68/100 (2026-05-03)
+- 34 erreurs compilation events.rs (P0)
+- TURN server config à vérifier (ICE config)
+- CORS à audit correctement
 
 ---
-*Ajouter nouveaux apprentissages au fur et à mesure*
+*Mettre à jour après chaque audit ou fix sécurité*
