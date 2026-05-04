@@ -90,12 +90,6 @@
       loading = false;
     }
   });
-</script>
-
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</svelte:head>
-
 
   // ─── Hauteur header dynamique (CSS var --header-h) ──────────────────────
   // Permet aux pages full-height (chat) de calculer leur hauteur exactement
@@ -109,6 +103,13 @@
       return () => ro.disconnect();
     }
   });
+</script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</svelte:head>
+
+
 
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
   // Appelé immédiatement dans onMount pour appliquer le thème AVANT tout rendu.
