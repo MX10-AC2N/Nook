@@ -4,10 +4,10 @@ CREATE TABLE IF NOT EXISTS events (
     creator_id TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    start_time TEXT NOT NULL, -- ISO 8601 datetime
-    end_time TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
+    start_time INTEGER NOT NULL, -- Unix timestamp (seconds since epoch)
+    end_time INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
     FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
 );
 

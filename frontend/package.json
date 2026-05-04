@@ -13,10 +13,12 @@
     "format": "prettier --write .",
     "clean": "rm -rf .svelte-kit build node_modules/.vite",
     "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
+    "vitest": "^3.0.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.49.4",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
@@ -29,6 +31,7 @@
     "postcss": "^8.5.6",
     "prettier": "^3.7.4",
     "prettier-plugin-svelte": "^3.4.1",
+    "rollup-plugin-visualizer": "^7.0.1",
     "svelte": "^5.46.3",
     "svelte-check": "^4.3.5",
     "tailwindcss": "^4.1.18",
