@@ -1347,7 +1347,7 @@
       {/if}
     </header>
 
-      <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }}>
+      <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
       {#if localMessages.length === 0}
         {#if loadingConvs}
           <div class="empty-state">
@@ -1362,7 +1362,7 @@
       {/if}
 
       {#each reversedMessages as msg (msg.id)}
-        <div class="message-wrapper"
+        <div class="message-wrapper" role="presentation"
              onmouseenter={() => { hoveredMsgId = msg.id; }}
              onmouseleave={() => { if (emojiPickerMsgId !== msg.id && extendedEmojiMsgId !== msg.id) hoveredMsgId = null; }}
              class:is-emoji-only={isEmojiOnly(msg.content)}
@@ -1587,6 +1587,7 @@
   <div
     class="modal-overlay"
     role="dialog"
+    tabindex="0"
     aria-modal="true"
     aria-label="Nouvelle conversation"
     onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}
