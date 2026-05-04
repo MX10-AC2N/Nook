@@ -101,12 +101,13 @@
   // Permet aux pages full-height (chat) de calculer leur hauteur exactement
   let headerEl = $state<HTMLElement | undefined>(undefined);
   $effect(() => {
-    if (!headerEl) return;
-    const ro = new ResizeObserver(() => {
-      document.documentElement.style.setProperty('--header-h', headerEl!.offsetHeight + 'px');
-    });
-    ro.observe(headerEl);
-    return () => ro.disconnect();
+    if (headerEl) {
+      const ro = new ResizeObserver(() => {
+        document.documentElement.style.setProperty('--header-h', headerEl.offsetHeight + 'px');
+      });
+      ro.observe(headerEl);
+      return () => ro.disconnect();
+    }
   });
 
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
