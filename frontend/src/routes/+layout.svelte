@@ -125,7 +125,8 @@ import '../app.css';
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
-try {
+if ('serviceWorker' in navigator) {
+      try {
         const registration = await navigator.serviceWorker.register('/service-worker.js', {
           scope: '/',
         });
