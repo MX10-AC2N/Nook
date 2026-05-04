@@ -55,9 +55,26 @@
     role: string;
   }
 
-  // ─────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────
+  // Svelte Action for emoji-picker events
+  // ────────────────────────────────────────────
+  function emojiPickerAction(element: HTMLElement, msgId: string) {
+    function handler(e: Event) {
+      const emoji = (e as CustomEvent).detail.unicode;
+      toggleReaction(msgId, emoji);
+      emojiPickerMsgId = null;
+    }
+    element.addEventListener('emoji-click', handler as EventListener);
+    return {
+      destroy() {
+        element.removeEventListener('emoji-click', handler as EventListener);
+      }
+    };
+  }
+
+  // ────────────────────────────────────────────
   // État principal — messages from store (single source of truth)
-  // ─────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────
   let conversations   = $state<Conv[]>([]);
   // Persist active conversation in localStorage + URL param to survive refresh
   const getStoredConvId = () => {
@@ -1383,14 +1400,10 @@
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if emojiPickerMsgId === msg.id}
             <emoji-picker 
+              use:emojiPickerAction={msg.id}
               class="msg-emoji-picker" 
               style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
               data-emojis-per-row="8"
-              one moji-click={(e) => {
-                const emoji = e.detail.unicode;
-                toggleReaction(msg.id, emoji);
-                emojiPickerMsgId = null;
-              }}
             ></emoji-picker>
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
           {/if}
