@@ -4,9 +4,12 @@ import { defineConfig } from 'vite';
 import compression from 'vite-plugin-compression';
 
 export default defineConfig({
-  // Compression désactivée (test build CI)
+  plugins: [
+    sveltekit(),
+    // Compression désactivée (test build CI)
     // compression({ algorithm: 'gzip', ext: '.gz', threshold: 10240 }),
     // compression({ algorithm: 'brotliCompress', ext: '.br', threshold: 10240 }),
+  ],
 
   // Filter Svelte a11y warnings that break the build
   onwarn(warning, warn) {
