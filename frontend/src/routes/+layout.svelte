@@ -292,7 +292,7 @@
       </div>
 
       <ul class="nav-list">
-        {#each navItems as item}
+        {#each navItems as item (item.path)}
           {#if item.requiresAuth && !authStore.isAuthenticated}
             <!-- Skip -->
           {:else if item.requiresAdmin && !authStore.isAdmin}
