@@ -1336,7 +1336,105 @@
       {/if}
 
       {#each reversedMessages as msg (msg.id)}
-          <div class="message">{msg.content}</div>
+        <div class="message-wrapper"
+             onmouseenter={() => { hoveredMsgId = msg.id; }}
+             onmouseleave={() => { if (emojiPickerMsgId !== msg.id && extendedEmojiMsgId !== msg.id) hoveredMsgId = null; }}
+             class:is-emoji-only={isEmojiOnly(msg.content)}
+        >
+          <!-- Message content -->
+          <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
+            {#if isEmojiOnly(msg.content)}
+              <div class="emoji-only">{@html msg.content}</div>
+            {:else}
+              {@html msg.content}
+            {/if}
+          </div>
+
+          <!-- Message actions (visible on hover) -->
+          {#if hoveredMsgId === msg.id || emojiPickerMsgId === msg.id || extendedEmojiMsgId === msg.id}
+            <div class="message-actions">
+              <!-- Quick reactions -->
+              {#each QUICK_EMOJIS as emoji}
+                <button class="quick-react-btn" onclick={() => toggleReaction(msg.id, emoji)} title="Réagir avec {emoji}">
+                  {emoji}
+                </button>
+              {/each}
+              <!-- More reactions button -->
+              <button class="action-btn react-more" onclick={() => { emojiPickerMsgId = msg.id; extendedEmojiMsgId = null; }} title="Plus d'emojis">
+                😊+
+              </button>
+              <!-- Edit button (only for own messages) -->
+              {#if isMyMessage(msg.sender_id)}
+                <button class="action-btn" onclick={() => startEdit(msg)} title="Éditer">✏️</button>
+                <button class="action-btn" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Extended emoji picker for this message -->
+          {#if emojiPickerMsgId === msg.id}
+            <div class="msg-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
+              <div class="ep-cats">
+                {#each ['😊', '👋', '❤️', '🎉', '🐶', '🍕', '⚽', '🌍'] as cat}
+                  <button class="ep-cat-btn" class:active={emojiCat === cat} onclick={() => emojiCat = cat}>{cat}</button>
+                {/each}
+              </div>
+              <div class="ep-grid-small">
+                {#if emojiCat === '😊'}
+                  {#each ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😋','😎','🥰','😍','🤩','🥳'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '👋'}
+                  {#each ['👍','👎','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','☝️','👋','🤚','🖐️'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '❤️'}
+                  {#each ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','❣️','💕','💞','💓','💗','💖','💘'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '🎉'}
+                  {#each ['🎉','🎊','🎈','🎁','🎂','🍰','🥂','🍾','🎆','🎇','✨','🥳','🎤','🎵','🎶','🎸'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '🐶'}
+                  {#each ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '🍕'}
+                  {#each ['🍕','🍔','🌮','🌯','🥗','🍜','🍱','🍣','🍩','🍪','🍫','🍬','🍭','☕','🍵','🧃'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else if emojiCat === '⚽'}
+                  {#each ['⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🥊','⛷️','🏂','🏋️','🤸'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {:else}
+                  {#each ['🌍','🌲','🌳','🌴','🌵','🌿','☘️','🍀','🍁','🍂','🌸','🌹','🌺','🌻','🌼','💐'] as em}
+                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
+                  {/each}
+                {/if}
+              </div>
+              <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
+            </div>
+          {/if}
+
+          <!-- Display existing reactions -->
+          {#if countReactions(msg.id).length > 0}
+            <div class="message-reactions">
+              {#each countReactions(msg.id) as reaction}
+                <button
+                  class="reaction-badge"
+                  class:my-reaction={reactions[msg.id]?.myEmoji === reaction.emoji}
+                  onclick={() => toggleReaction(msg.id, reaction.emoji)}
+                  title="{reaction.names}"
+                >
+                  <span class="reaction-emoji">{reaction.emoji}</span>
+                  <span class="reaction-count">{reaction.count}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/each}
 
         {#if chatStore.loadingMore}
@@ -2603,5 +2701,212 @@
   @keyframes typingBounce {
     0%, 60%, 100% { transform: translateY(0); }
     30% { transform: translateY(-4px); }
+  }
+
+  /* ─── Message Wrapper & Reactions ─── */
+  .message-wrapper {
+    position: relative;
+    margin-bottom: .5rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .message-wrapper.is-emoji-only {
+    display: flex;
+    justify-content: center;
+    margin: .8rem 0;
+  }
+  .message-wrapper.is-emoji-only .message {
+    font-size: 2.5rem;
+    background: none;
+    padding: .5rem;
+    box-shadow: none;
+  }
+  .message {
+    padding: .5rem .75rem;
+    border-radius: .65rem;
+    max-width: 70%;
+    word-break: break-word;
+    line-height: 1.45;
+    font-size: .92rem;
+  }
+  .message.mine {
+    background: var(--accent, #4ade80);
+    color: #fff;
+    align-self: flex-end;
+    border-bottom-right-radius: .2rem;
+  }
+  .message.theirs {
+    background: var(--bg-secondary, #f1f5f9);
+    color: var(--text-primary, #1e293b);
+    align-self: flex-start;
+    border-bottom-left-radius: .2rem;
+  }
+
+  /* Message actions (visible on hover) */
+  .message-actions {
+    display: flex;
+    gap: .25rem;
+    padding: .25rem;
+    margin-top: .15rem;
+    align-self: flex-start;
+    animation: fadeIn .15s ease;
+  }
+  .message.mine + .message-actions {
+    align-self: flex-end;
+  }
+  .quick-react-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .35rem;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all .12s;
+    padding: 0;
+  }
+  .quick-react-btn:hover {
+    background: var(--bg-secondary, #f1f5f9);
+    transform: scale(1.15);
+    border-color: var(--accent, #4ade80);
+  }
+  .action-btn {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .35rem;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    font-size: .82rem;
+    transition: all .12s;
+    padding: 0;
+  }
+  .action-btn:hover {
+    background: var(--bg-secondary, #f1f5f9);
+    border-color: var(--accent, #4ade80);
+  }
+  .react-more {
+    font-size: .82rem;
+    width: auto;
+    padding: 0 .4rem;
+  }
+
+  /* Extended emoji picker for messages */
+  .msg-emoji-picker {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 50;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    padding: .5rem;
+    min-width: 220px;
+    animation: fadeIn .15s ease;
+  }
+  .ep-cats {
+    display: flex;
+    gap: .2rem;
+    margin-bottom: .4rem;
+    flex-wrap: wrap;
+  }
+  .ep-cat-btn {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+    border-radius: .3rem;
+    background: none;
+    cursor: pointer;
+    font-size: .9rem;
+    transition: all .12s;
+    padding: 0;
+  }
+  .ep-cat-btn:hover { background: var(--bg-secondary, #f1f5f9); }
+  .ep-cat-btn.active {
+    background: var(--accent, #4ade80);
+    border-color: var(--accent, #4ade80);
+  }
+  .ep-grid-small {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: .15rem;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  .ep-emoji-sm {
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    border: none;
+    border-radius: .3rem;
+    background: none;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all .12s;
+    padding: 0;
+  }
+  .ep-emoji-sm:hover {
+    background: var(--bg-secondary, #f1f5f9);
+    transform: scale(1.2);
+  }
+  .ep-close-sm {
+    position: absolute;
+    top: .25rem; right: .25rem;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: .7rem;
+    color: var(--text-secondary, #94a3b8);
+    padding: 0;
+  }
+  .ep-close-sm:hover { color: var(--text-primary, #1e293b); }
+
+  /* Message reactions display */
+  .message-reactions {
+    display: flex;
+    gap: .25rem;
+    flex-wrap: wrap;
+    margin-top: .3rem;
+    align-self: flex-start;
+  }
+  .message.mine + .message-reactions {
+    align-self: flex-end;
+  }
+  .reaction-badge {
+    display: flex;
+    align-items: center;
+    gap: .2rem;
+    padding: .15rem .4rem;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 999px;
+    background: var(--bg-primary, #fff);
+    cursor: pointer;
+    font-size: .78rem;
+    transition: all .12s;
+  }
+  .reaction-badge:hover {
+    background: var(--bg-secondary, #f1f5f9);
+    border-color: var(--accent, #4ade80);
+  }
+  .reaction-badge.my-reaction {
+    background: color-mix(in srgb, var(--accent, #4ade80) 15%, var(--bg-primary, #fff));
+    border-color: var(--accent, #4ade80);
+  }
+  .reaction-emoji {
+    font-size: .95rem;
+  }
+  .reaction-count {
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+  }
+  .my-reaction .reaction-count {
+    color: var(--accent, #4ade80);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 </style>
