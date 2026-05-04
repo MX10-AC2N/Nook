@@ -26,8 +26,6 @@ use crate::{auth::CurrentUser, SharedState};
 // Types
 // ────────────────────────────────────────────────────────────────────────────
 
-const ALLOWED_EMOJIS: &[&str] = &["👍", "❤️", "😂", "😮", "😢", "😡"];
-
 #[derive(Debug, Deserialize)]
 pub struct AddReactionRequest {
     pub emoji: String,
@@ -143,11 +141,6 @@ pub async fn add_reaction(
     Path((conv_id, msg_id)): Path<(String, String)>,
     Json(req): Json<AddReactionRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    // Valider l'emoji
-    if !ALLOWED_EMOJIS.contains(&req.emoji.as_str()) {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
     check_conv_membership(&state.db, &conv_id, &user.id).await?;
     check_msg_in_conv(&state.db, &conv_id, &msg_id).await?;
 
