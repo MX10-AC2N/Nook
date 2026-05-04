@@ -94,11 +94,85 @@ async fn init_db(url: &str) -> Result<SqlitePool, sqlx::Error> {
     let pool = SqlitePool::connect_with(opts).await?;
 
     tracing::info!("✓ Connexion SQLite établie avec succès");
+    
+    // ── Fix events table schema if needed ──────────────────────────────
+    // Migration 16 creates the table with start_time, but if the table
+    // already exists with an old schema, we need to fix it before migrations
+    fix_events_schema(&pool).await?;
+    
     tracing::info!("Application des migrations de base de données...");
     migrate!("./migrations").run(&pool).await?;
     tracing::info!("✓ Migrations appliquées avec succès");
 
     Ok(pool)
+}
+
+// ── Fix events table: ensure start_time column exists ──────────────────
+async fn fix_events_schema(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // Check if events table exists
+    let table_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='events')"
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if !table_exists.0 {
+        return Ok(()); // Table doesn't exist yet, migration 16 will create it
+    }
+
+    // Check if start_time column exists
+    let col_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='start_time')"
+    )
+    .fetch_one(pool)
+    .await?;
+
+    if col_exists.0 {
+        return Ok(()); // Column already exists, nothing to do
+    }
+
+    tracing::warn!("Fixing events table schema - adding start_time column");
+
+    // Recreate table with correct schema
+    sqlx::query(
+        "CREATE TABLE events_new (
+            id TEXT PRIMARY KEY,
+            creator_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            start_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+            end_time INTEGER NOT NULL DEFAULT (strftime('%s', 'now') + 3600),
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+        )"
+    )
+    .execute(pool)
+    .await?;
+
+    // Copy data from old table (without start_time)
+    sqlx::query(
+        "INSERT INTO events_new (id, creator_id, title, description, start_time, end_time, created_at, updated_at)
+         SELECT id, creator_id, title, description, 
+                COALESCE(created_at, strftime('%s', 'now')) as start_time,
+                COALESCE(created_at + 3600, strftime('%s', 'now') + 3600) as end_time,
+                created_at, updated_at
+         FROM events"
+    )
+    .execute(pool)
+    .await?;
+
+    // Drop old table and rename new one
+    sqlx::query("DROP TABLE events").execute(pool).await?;
+    sqlx::query("ALTER TABLE events_new RENAME TO events").execute(pool).await?;
+
+    // Create indexes
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_start_time ON events(start_time)").execute(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_end_time ON events(end_time)").execute(pool).await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_events_creator_id ON events(creator_id)").execute(pool).await?;
+
+    tracing::info!("✓ Events table schema fixed");
+    Ok(())
 }
 
 async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
