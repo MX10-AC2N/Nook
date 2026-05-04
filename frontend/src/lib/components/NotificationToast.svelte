@@ -53,6 +53,7 @@
         class="notif-history-item"
         class:unread={!n.read}
         onclick={() => handleClick(n)}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(n); }}
         role="button"
         tabindex="0"
       >
@@ -74,7 +75,9 @@
       class="toast"
       style="border-left: 4px solid {getBgColor(n.type)}"
       onclick={() => handleClick(n)}
-      role="alert"
+      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleClick(n); }}
+      role="button"
+      tabindex="0"
     >
       <span class="toast-icon">{n.icon}</span>
       <div class="toast-body">
