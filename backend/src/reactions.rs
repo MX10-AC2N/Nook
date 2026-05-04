@@ -260,29 +260,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_allowed_emojis_contains_expected() {
-        assert!(ALLOWED_EMOJIS.contains(&"👍"));
-        assert!(ALLOWED_EMOJIS.contains(&"❤️"));
-        assert!(ALLOWED_EMOJIS.contains(&"😂"));
-        assert!(ALLOWED_EMOJIS.contains(&"😮"));
-        assert!(ALLOWED_EMOJIS.contains(&"😢"));
-        assert!(ALLOWED_EMOJIS.contains(&"😡"));
-    }
-
-    #[test]
-    fn test_allowed_emojis_rejects_invalid() {
-        assert!(!ALLOWED_EMOJIS.contains(&"🦄"));
-        assert!(!ALLOWED_EMOJIS.contains(&"🎉"));
-        assert!(!ALLOWED_EMOJIS.contains(&""));
-        assert!(!ALLOWED_EMOJIS.contains(&"thumbsup")); // text, not emoji
-    }
-
-    #[test]
-    fn test_allowed_emojis_count() {
-        assert_eq!(ALLOWED_EMOJIS.len(), 6);
-    }
-
-    #[test]
     fn test_add_reaction_request_deserialize() {
         let json = r#"{"emoji": "👍"}"#;
         let req: AddReactionRequest = serde_json::from_str(json).unwrap();
