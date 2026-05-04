@@ -1424,10 +1424,8 @@
                   {#each ['⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🥊','⛷️','🏂','🏋️','🤸'] as em}
                     <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
                   {/each}
-                {:else if emojiCat === '🧑‍🚀'}
-                  {#each EXTENDED_EMOJIS as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }>{em}</button>
-                  {/each}
+                <!-- EXTENDED_EMOJIS bloc commented for debugging -->
+
                 {:else}
                   {#each ['🌍','🌲','🌳','🌴','🌵','🌿','☘️','🍀','🍁','🍂','🌸','🌹','🌺','🌻','🌼','💐'] as em}
                     <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
