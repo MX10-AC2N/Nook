@@ -25,6 +25,7 @@
     "@types/libsodium-wrappers": "^0.7.14",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.23",
+    "esbuild": "^0.27.4",
     "eslint": "^9.39.2",
     "eslint-plugin-svelte": "^3.14.0",
     "postcss": "^8.5.6",
