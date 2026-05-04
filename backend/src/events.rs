@@ -3,24 +3,28 @@ use axum::{
     extract::{Extension, Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router, routing::{get, post, patch, delete},
+    Json, Router, routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use std::sync::Arc;
+use rand::Rng;
+
+use crate::SharedState;
 
 // Structure d'un événement
+// Note: Utilise i64 (Unix timestamps) pour compatibilité sqlx, comme le reste de Nook
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Event {
     pub id: String,
     pub creator_id: String,
     pub title: String,
     pub description: Option<String>,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub start_time: i64,  // Unix timestamp (seconds since epoch)
+    pub end_time: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 // Payload de création
@@ -28,8 +32,8 @@ pub struct Event {
 pub struct CreateEventPayload {
     pub title: String,
     pub description: Option<String>,
-    pub start_time: DateTime<Utc>,
-    pub end_time: DateTime<Utc>,
+    pub start_time: i64,  // Unix timestamp
+    pub end_time: i64,
 }
 
 // Payload de mise à jour
@@ -37,15 +41,15 @@ pub struct CreateEventPayload {
 pub struct UpdateEventPayload {
     pub title: Option<String>,
     pub description: Option<Option<String>>,
-    pub start_time: Option<DateTime<Utc>>,
-    pub end_time: Option<DateTime<Utc>>,
+    pub start_time: Option<i64>,
+    pub end_time: Option<i64>,
 }
 
 // Paramètres de requête pour lister les événements
 #[derive(Debug, Deserialize)]
 pub struct ListEventsQuery {
-    pub start: Option<DateTime<Utc>>,
-    pub end: Option<DateTime<Utc>>,
+    pub start: Option<i64>,
+    pub end: Option<i64>,
 }
 
 // Réponse d'erreur standard
@@ -60,13 +64,11 @@ pub async fn create_event(
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateEventPayload>,
 ) -> impl IntoResponse {
-    let event_id = rand::thread_rng()
-        .sample_iter(&rand::distr::Alphanumeric)
+    let event_id: String = std::iter::repeat_with(|| rand::rng().sample(rand::distr::Alphanumeric) as char)
         .take(12)
-        .map(char::from)
-        .collect::<String>();
+        .collect();
 
-    let now = Utc::now();
+    let now = Utc::now().timestamp();  // i64 Unix timestamp
 
     let result = sqlx::query(
         r#"
@@ -113,16 +115,21 @@ pub async fn list_events(
 
     if let Some(start) = query.start {
         sql.push_str(" AND end_time >= ?");
-        bindings.push(start.to_string());
+        bindings.push(start);
     }
     if let Some(end) = query.end {
         sql.push_str(" AND start_time <= ?");
-        bindings.push(end.to_string());
+        bindings.push(end);
     }
     sql.push_str(" ORDER BY start_time ASC");
 
-    // Bind parameters dynamiquement (simplified for example)
-    let events = sqlx::query_as::<_, Event>(&sql)
+    // Bind parameters dynamiquement
+    let mut query_builder = sqlx::query_as::<_, Event>(&sql);
+    for binding in bindings {
+        query_builder = query_builder.bind(binding);
+    }
+
+    let events = query_builder
         .fetch_all(&*pool)
         .await;
 
@@ -206,7 +213,7 @@ pub async fn update_event(
         ).into_response();
     }
 
-    let now = Utc::now();
+    let now = Utc::now().timestamp();  // i64 Unix timestamp
     let result = sqlx::query(
         r#"
         UPDATE events
@@ -303,7 +310,7 @@ pub async fn delete_event(
 }
 
 // Router pour les événements
-pub fn events_routes() -> Router<Arc<SqlitePool>> {
+pub fn events_routes() -> Router<Arc<SharedState>> {
     Router::new()
         .route("/", post(create_event).get(list_events))
         .route("/:id", get(get_event).patch(update_event).delete(delete_event))
