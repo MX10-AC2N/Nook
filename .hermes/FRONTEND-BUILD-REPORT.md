@@ -6,16 +6,16 @@
 |-------|--------|
 | **Build** | ❌ FAIL |
 | **Branche** | develop |
-| **Commit** | 1bc46bc |
+| **Commit** | 9bf5a95 |
 | **Node.js** | unknown |
 | **Vite time** | N/Ams |
 | **Duration** | N/A |
 | **Output** | N/A |
 | **Files** | N/A |
-| **Warnings** | 0 |
+| **Warnings** | 1 |
 | **Errors** | 0 |
 | **Chunks** | 0 |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25318223435 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25319673186 |
 
 ---
 
@@ -28,13 +28,13 @@
 ## Warnings
 
 ```
-
+▲ [WARNING] Cannot find base config file "./.svelte-kit/tsconfig.json" [tsconfig.json]
 ```
 
 ## Bundle
 
 ```
-
+[32m✓[39m 87 modules transformed.
 
 
 ```
