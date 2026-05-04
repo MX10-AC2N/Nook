@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "clean": "rm -rf .svelte-kit build node_modules/.vite",
-    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build --force",
+    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "test:e2e": "playwright test",
     "test": "vitest run"
   },
