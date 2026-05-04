@@ -49,6 +49,7 @@
     "libsodium-wrappers": "^0.8.0",
     "simple-peer": "^9.11.1",
     "uuid": "^14.0.0",
+    "workbox-window": "^7.4.0",
     "yaml": "^2.8.4"
   }
 }
