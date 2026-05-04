@@ -28,6 +28,7 @@
     formatDuration,
   } from '$lib/mediaStore.svelte.js';
   import Avatar from '$lib/components/Avatar.svelte';
+  import 'emoji-picker-element';
   import MissedCalls from '$lib/components/MissedCalls.svelte';
   import MessageSearch from '$lib/components/MessageSearch.svelte';
   import { callStore } from '$lib/webrtc-calls.svelte.ts';
