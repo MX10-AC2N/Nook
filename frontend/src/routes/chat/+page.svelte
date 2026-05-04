@@ -377,14 +377,7 @@
     '🧑‍🎄','🧑‍🎅','🎅','🤶','🦌','🎄','🎁','🔔','⛄','❄️',
   ];
 
-  // Emojis étendus (ZWJ, familles, professions, drapeaux modernes)
-  const EXTENDED_EMOJIS = [
-    '🧑‍🚀','🧑‍🎓','🧑‍🎤','🧑‍🏫','🧑‍⚕️','🧑‍⚖️','🧑‍🌾','🧑‍🍳','🧑‍🔧','🧑‍🏭',
-    '👨‍👩‍👦','👨‍👩‍👧','👨‍👩‍👧‍👦','👩‍👩‍👦','👩‍👩‍👧','👩‍👩‍👧‍👦','👨‍👨‍👦','👨‍👨‍👧','👨‍👨‍👧‍👦',
-    '👩‍👦','👩‍👧','👨‍👦','👨‍👧',
-    '🏳️‍⚧️','🏳️‍🌈','🇬🇧','🇪🇺','🇪🇸','🇮🇹','🇬🇷','🇵🇹','🇷🇺','🇯🇵',
-    '🧑‍🎄','🧑‍🎅','🎅','🤶','🦌','🎄','🎁','🔔','⛄','❄️',
-  ];
+  // EXTENDED_EMOJIS removed for debugging
 
   /** Détecte si un message est un unique emoji (affichage agrandi 2.5rem) */
   /** Détecte si un message ne contient QUE des emojis (affichage agrandi) */
