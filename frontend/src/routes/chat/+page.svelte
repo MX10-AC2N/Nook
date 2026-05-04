@@ -1380,57 +1380,20 @@
             </div>
           {/if}
 
-          <!-- Extended emoji picker for this message -->
+          <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if emojiPickerMsgId === msg.id}
-            <div class="msg-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
-              <div class="ep-cats">
-                {#each ['😊', '👋', '❤️', '🎉', '🐶', '🍕', '⚽', '🌍', '🧑‍🚀'] as cat}
-                  <button class="ep-cat-btn" class:active={emojiCat === cat} onclick={() => emojiCat = cat}>{cat}</button>
-                {/each}
-              </div>
-              <div class="ep-grid-small">
-                {#if emojiCat === '😊'}
-                  {#each ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😋','😎','🥰','😍','🤩','🥳'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '👋'}
-                  {#each ['👍','👎','👌','🤌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','☝️','👋','🤚','🖐️'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '❤️'}
-                  {#each ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','❣️','💕','💞','💓','💗','💖','💘'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '🎉'}
-                  {#each ['🎉','🎊','🎈','🎁','🎂','🍰','🥂','🍾','🎆','🎇','✨','🥳','🎤','🎵','🎶','🎸'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '🐶'}
-                  {#each ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '🍕'}
-                  {#each ['🍕','🍔','🌮','🌯','🥗','🍜','🍱','🍣','🍩','🍪','🍫','🍬','🍭','☕','🍵','🧃'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {:else if emojiCat === '⚽'}
-                  {#each ['⚽','🏀','🏈','⚾','🎾','🏐','🏉','🥏','🎱','🏓','🏸','🥊','⛷️','🏂','🏋️','🤸'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                <!-- EXTENDED_EMOJIS bloc commented for debugging -->
-
-                {:else}
-                  {#each ['🌍','🌲','🌳','🌴','🌵','🌿','☘️','🍀','🍁','🍂','🌸','🌹','🌺','🌻','🌼','💐'] as em}
-                    <button class="ep-emoji-sm" onclick={() => { toggleReaction(msg.id, em); emojiPickerMsgId = null; }}>{em}</button>
-                  {/each}
-                {/if}
-              </div>
-              <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
-            </div>
+            <emoji-picker 
+              class="msg-emoji-picker" 
+              style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
+              data-emojis-per-row="8"
+              on:emoji-click={(e) => {
+                const emoji = e.detail.unicode;
+                toggleReaction(msg.id, emoji);
+                emojiPickerMsgId = null;
+              }}
+            ></emoji-picker>
+            <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
           {/if}
-
-          <!-- Display existing reactions -->
-          {#if countReactions(msg.id).length > 0}
             <div class="message-reactions">
               {#each countReactions(msg.id) as reaction}
                 <button
@@ -2802,63 +2765,27 @@
     padding: 0 .4rem;
   }
 
-  /* Extended emoji picker for messages */
+  /* Extended emoji picker for messages (emoji-picker-element) */
   .msg-emoji-picker {
     position: absolute;
     top: 100%;
     left: 0;
     z-index: 50;
-    background: var(--bg-primary, #fff);
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    padding: .5rem;
-    min-width: 220px;
-    animation: fadeIn .15s ease;
+    background: var(--bg-primary, #fff);
   }
-  .ep-cats {
-    display: flex;
-    gap: .2rem;
-    margin-bottom: .4rem;
-    flex-wrap: wrap;
-  }
-  .ep-cat-btn {
-    width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid transparent;
-    border-radius: .3rem;
-    background: none;
-    cursor: pointer;
-    font-size: .9rem;
-    transition: all .12s;
-    padding: 0;
-  }
-  .ep-cat-btn:hover { background: var(--bg-secondary, #f1f5f9); }
-  .ep-cat-btn.active {
-    background: var(--accent, #4ade80);
-    border-color: var(--accent, #4ade80);
-  }
-  .ep-grid-small {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: .15rem;
-    max-height: 120px;
-    overflow-y: auto;
-  }
-  .ep-emoji-sm {
-    width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    border: none;
-    border-radius: .3rem;
-    background: none;
-    cursor: pointer;
-    font-size: 1rem;
-    transition: all .12s;
-    padding: 0;
-  }
-  .ep-emoji-sm:hover {
-    background: var(--bg-secondary, #f1f5f9);
-    transform: scale(1.2);
+  /* Override emoji-picker-element default styles to match Nook theme */
+  .msg-emoji-picker emoji-picker {
+    --emoji-picker-background: var(--bg-primary, #fff);
+    --emoji-picker-border-color: var(--border, #e2e8f0);
+    --emoji-picker-input-background: var(--bg-secondary, #f1f5f9);
+    --emoji-picker-input-text-color: var(--text-primary, #1e293b);
+    --emoji-picker-category-color: var(--text-secondary, #64748b);
+    --emoji-picker-hover-background: var(--bg-secondary, #f1f5f9);
+    --emoji-picker-selected-background: var(--accent, #4ade80);
+    font-size: 0.9rem;
   }
   .ep-close-sm {
     position: absolute;
