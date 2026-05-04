@@ -11,13 +11,8 @@
   import CallBanner from '$lib/components/CallBanner.svelte';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
   import Icon from '$lib/components/Icon.svelte';
-</script>
 
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</svelte:head>
-
-let { children } = $props();
+  let { children } = $props();
   let appError        = $state<string | null>(null);
   let loading         = $state(true);
   let cryptoInitialized = $state(false);
@@ -72,15 +67,35 @@ let { children } = $props();
 
     if (authStore.isAuthenticated) {
       if (pathname === '/' || pathname === '/login' || pathname === '/register') {
-        goto(authStore.isAdmin ? '/admin' : '/chat');
+        goto('/chat');
+        return;
       }
     } else {
-      const publicPaths = ['/login', '/register', '/help', '/join', '/invite'];
-      if (!publicPaths.some((p) => pathname.startsWith(p))) {
+      if (pathname !== '/login' && pathname !== '/register' && pathname !== '/help') {
         goto('/login');
+        return;
       }
     }
   });
+
+  onMount(async () => {
+    try {
+      await waitForSodium();
+      const result = await initCryptoSystem();
+      cryptoInitialized = result.success;
+      cryptoError = result.error ?? null;
+    } catch (e) {
+      cryptoError = e instanceof Error ? e.message : String(e);
+    } finally {
+      loading = false;
+    }
+  });
+</script>
+
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</svelte:head>
+
 
   // ─── Hauteur header dynamique (CSS var --header-h) ──────────────────────
   // Permet aux pages full-height (chat) de calculer leur hauteur exactement
