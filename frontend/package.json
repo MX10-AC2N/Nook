@@ -43,6 +43,7 @@
   "dependencies": {
     "chart.js": "^4.5.1",
     "dompurify": "^3.4.2",
+    "emoji-picker-element": "^1.29.1",
     "idb-keyval": "^6.2.2",
     "libsodium-wrappers": "^0.8.0",
     "simple-peer": "^9.11.1",
