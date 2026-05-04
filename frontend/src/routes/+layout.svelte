@@ -11,9 +11,13 @@
   import CallBanner from '$lib/components/CallBanner.svelte';
   import NotificationToast from '$lib/components/NotificationToast.svelte';
   import Icon from '$lib/components/Icon.svelte';
+</script>
 
-  let { children } = $props();
-  let showMenu        = $state(false);
+<svelte:head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</svelte:head>
+
+let { children } = $props();
   let appError        = $state<string | null>(null);
   let loading         = $state(true);
   let cryptoInitialized = $state(false);

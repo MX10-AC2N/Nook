@@ -1,1 +1,6 @@
-[turn]\nsecret = "${TURN_SECRET}"\nrealm = "nook.app"\nlistening-port = 3478\nlt-cred-mech = true\nsp == true
+[turn]
+secret = "${TURN_SECRET}"
+realm = "nook.app"
+listening-port = 3478
+lt-cred-mech = true
+sp = true

@@ -74,6 +74,16 @@ jobs:
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
+      - name: cargo test
+        id: test
+        env:
+          SQLX_OFFLINE: true
+        run: |
+          set +e
+          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
+
       - name: cargo build --release
         id: build
         env:
