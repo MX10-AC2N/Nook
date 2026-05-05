@@ -19,7 +19,6 @@
 //   POST  /api/chess/invitations/{id}/decline
 
 #![allow(deprecated)]
-#![allow(clippy::for_kv_map)]
 
 use crate::chess_engine::{
     AiEngine, ChessError, Color, Difficulty, Game, GameStatus, MinimaxAi, Move as ChessMove,
@@ -655,7 +654,7 @@ pub async fn make_move(
     });
     {
         let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() {
+        for tx in guard.values() {
             let _ = tx.send(ws.to_string());
         }
     }
@@ -839,7 +838,7 @@ pub async fn ai_move(
     });
     {
         let guard = state.webrtc_state.broadcasts.lock().await;
-        for (_, tx) in guard.iter() {
+        for tx in guard.values() {
             let _ = tx.send(ws.to_string());
         }
     }
@@ -1174,7 +1173,7 @@ pub async fn export_pgn(
                     pgn.push_str(&format!("{} ", san));
                 }
             }
-            pgn.push_str("\n");
+            pgn.push('\n');
 
             (StatusCode::OK, [(axum::http::header::CONTENT_TYPE, "text/plain")], pgn).into_response()
         }

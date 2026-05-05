@@ -3,7 +3,7 @@ use axum::{
     extract::{Extension, Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router, routing::{get, post},
+    Json, Router, routing::{get, post, patch, delete},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};

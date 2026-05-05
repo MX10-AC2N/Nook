@@ -8,8 +8,6 @@
 //
 // Broadcast WS à chaque changement → type "reaction_updated"
 
-#![allow(clippy::for_kv_map)]
-
 use std::sync::Arc;
 
 use axum::{

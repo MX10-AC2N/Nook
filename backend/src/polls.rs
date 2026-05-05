@@ -3,12 +3,9 @@
 //
 // Corrections session 27 (build fix) :
 //   - Structs #[derive(sqlx::FromRow)] pour tous les types de retour DB
-//     (les tuples anonymes complexes ne compilent pas sans turbofish DB explicite)
 //   - sqlx::query_as::<_, T>(...) partout (turbofish pour inférence DB)
 //   - load_poll : Option<PollRow> correctement unwrappé avec if let Some(row) = ...
 //   - Structs #[derive(sqlx::FromRow)] pour tous les types de retour DB
-
-#![allow(clippy::for_kv_map)]
 
 use axum::{
     extract::{Path, State},
@@ -541,5 +538,19 @@ pub async fn close_poll(
             (StatusCode::OK, Json(json!({ "success": true }))).into_response()
         }
     }
+}
+
+// ────────────────────────────────────────────────────────────────
+// Router — à merger dans protected_routes dans main.rs
+// ────────────────────────────────────────────────────────────────
+
+pub fn polls_routes() -> axum::Router<Arc<SharedState>> {
+    use axum::routing::{get, post};
+
+    axum::Router::new()
+        .route("/polls", get(list_polls).post(create_poll))
+        .route("/polls/{id}", get(get_poll))
+        .route("/polls/{id}/vote", post(vote_poll))
+        .route("/polls/{id}/close", post(close_poll))
 }
 
