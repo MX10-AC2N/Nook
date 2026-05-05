@@ -43,7 +43,7 @@ jobs:
         working-directory: ./frontend
         run: |
           set +e
-          npm run build:ci 2>&1 | tee /tmp/frontend-build.txt
+          npm run build 2>&1 | tee /tmp/frontend-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
