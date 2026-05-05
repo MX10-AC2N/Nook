@@ -5,8 +5,6 @@
 //   → connexion refusée si token invalide ou manquant
 // Session 36 — SEC-05 : limite 64 KB sur les messages WS de signaling
 
-#![allow(clippy::for_kv_map)]
-
 use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
     http::{header::COOKIE, StatusCode},
@@ -30,6 +28,7 @@ use std::{
 };
 use tokio::sync::broadcast;
 use tokio::sync::Mutex;
+use crate::SharedState;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
@@ -216,15 +215,29 @@ pub fn decrypt_file_from_storage(
 
 #[allow(dead_code)]
 pub async fn broadcast_message(
-    state: SharedCallState,
-    _conversation_id: String,
-    _event: String,
-    message: String,
-) {
-    let guard = state.lock().await;
+    AxumState(state): AxumState<Arc<crate::SharedState>>,
+    AxumJson(payload): AxumJson<Value>,
+) -> impl IntoResponse {
+    // Extract message from JSON payload (ignore conversation_id/event as per original logic)
+    let message = match payload.get("message").and_then(|m| m.as_str()) {
+        Some(msg) => msg.to_string(),
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                AxumJson(json!({"error": "Missing message field"})),
+            );
+        }
+    };
+
+    let guard = state.webrtc_state.broadcasts.lock().await;
     for tx in guard.values() {
         let _ = tx.send(message.clone());
     }
+
+    (
+        StatusCode::OK,
+        AxumJson(json!({"status": "message broadcasted"})),
+    )
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -496,6 +509,13 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
                     break;
                 }
+                Ok(axum::extract::ws::Message::Ping(_)) => {
+                    // Répondre au ping pour maintenir la connexion
+                    // Axum gère automatiquement les pong, on ignore juste ici
+                }
+                Ok(axum::extract::ws::Message::Pong(_)) => {
+                    // Pong reçu, connexion toujours active
+                }
                 Err(e) => {
                     tracing::debug!(ws_id = %id, error = %e, "WebSocket : erreur réception");
 
@@ -503,6 +523,20 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
             }
         }
     });
-    
-    Ok(())
+
+    ()
+}
+
+// ────────────────────────────────────────────────────────
+// Router — à merger dans protected_routes dans main.rs
+// ────────────────────────────────────────────────────────
+
+pub fn webrtc_routes() -> axum::Router<Arc<SharedState>> {
+    use axum::routing::{get, post};
+
+    axum::Router::new()
+        .route("/webrtc/offer", post(handle_offer))
+        .route("/webrtc/answer", post(handle_answer))
+        .route("/webrtc/ws", get(ws_handler))
+        .route("/webrtc/broadcast", post(broadcast_message))
 }
