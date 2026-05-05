@@ -1,4 +1,4 @@
-// db.rs - Structures et handlers DB avec Extension<CurrentUser>
+#![forbid(unsafe_code)]
 
 use axum::{
     extract::{Path, Query, State},
