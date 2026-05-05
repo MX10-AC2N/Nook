@@ -903,7 +903,8 @@ pub async fn create_event(
                 "creator": user.username,
             }).to_string();
             let guard = state.webrtc_state.broadcasts.lock().await;
-            for (_, tx) in guard.iter() { let _ = tx.send(notif.clone()); }
+            for tx in guard.values() {
+            let _ = tx.send(notif.clone()); }
 
             (StatusCode::OK, Json(json!({ "success": true, "id": id })))
         },

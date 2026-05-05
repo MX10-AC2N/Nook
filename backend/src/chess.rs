@@ -470,7 +470,7 @@ pub async fn join_game(
 
     let ws = json!({ "type": "chess_player_joined", "game_id": game_id, "player2_id": user.id });
     let guard = state.webrtc_state.broadcasts.lock().await;
-    for (_, tx) in guard.iter() {
+    for tx in guard.values() {
         let _ = tx.send(ws.to_string());
     }
     drop(guard);
