@@ -3,6 +3,8 @@
 // Base sur l'exemple rustrtc_sfu.rs — adapte pour signaling via WS Nook (pas DataChannel).
 // Pattern: Room -> Peers -> MediaRelay -> RTCP PLI forwarding.
 
+#![allow(clippy::for_kv_map)]
+
 use rustrtc::{
     RtcConfiguration, RtpCodecParameters, SdpType, SessionDescription,
     media::{self, MediaKind, MediaStreamTrack},

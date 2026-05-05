@@ -18,6 +18,9 @@
 //   POST  /api/chess/invitations/{id}/accept
 //   POST  /api/chess/invitations/{id}/decline
 
+#![allow(deprecated)]
+#![allow(clippy::for_kv_map)]
+
 use crate::chess_engine::{
     AiEngine, ChessError, Color, Difficulty, Game, GameStatus, MinimaxAi, Move as ChessMove,
     PieceType, Square,
