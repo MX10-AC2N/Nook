@@ -13,7 +13,28 @@ use tokio::fs;
 pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
 
-    // ─── 1. Messages anciens (hard delete) ────────────────────────────────
+    // ─── 1. Nettoyage des dépendances avant suppression messages ──────────
+    // Réactions liées aux messages anciens
+    let deleted_reactions = sqlx::query(
+        "DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
+    )
+        .bind(seven_days_ago)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    tracing::info!(count = deleted_reactions, "Prune : réactions orphelines supprimées");
+
+    // Votes de sondage liés aux messages anciens
+    let deleted_votes = sqlx::query(
+        "DELETE FROM poll_votes WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
+    )
+        .bind(seven_days_ago)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    tracing::info!(count = deleted_votes, "Prune : votes de sondage orphelins supprimés");
+
+    // ─── 2. Messages anciens (hard delete) ────────────────────────────────
     let deleted_messages = sqlx::query("DELETE FROM messages WHERE created_at < ?")
         .bind(seven_days_ago)
         .execute(pool)
