@@ -1144,10 +1144,8 @@ pub async fn export_pgn(
             let mut pgn = String::new();
 
             // Headers PGN (Seven Tag Roster)
-            let date = chrono::DateTime::<chrono::Utc>::from_utc(
-                chrono::NaiveDateTime::from_timestamp_opt(created_at, 0).unwrap_or_default(),
-                chrono::Utc
-            );
+            let date = chrono::DateTime::from_timestamp(created_at, 0)
+                .unwrap_or_default();
             let date_str = date.format("%Y.%m.%d").to_string();
 
             pgn.push_str("[Event \"Casual game\"]\n");
