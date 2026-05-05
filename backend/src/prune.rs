@@ -92,11 +92,35 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         "Prune : uploads orphelins supprimés"
     );
 
-    // ─── 3. Conversations vides ───────────────────────────────────────────
+    // ─── 3. Conversations vides ──────────────────────────────────────
     // ⚠️  IMPORTANT : on ne supprime QUE les conversations directes (is_group = 0).
     // Les groupes (is_group = 1, ex: default_global) sont créés intentionnellement
     // par un admin et peuvent légitimement être vides au démarrage ou entre deux
     // messages. Les supprimer causait un 404 sur POST /messages en CI (bug session 10).
+
+    // 3a. D'abord supprimer les participants des conversations vides
+    let deleted_parts = sqlx::query(
+        r#"
+        DELETE FROM conversation_participants
+        WHERE conversation_id IN (
+            SELECT id FROM conversations
+            WHERE is_group = 0
+              AND NOT EXISTS (
+                SELECT 1 FROM messages WHERE messages.conversation_id = conversations.id
+              )
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    tracing::info!(
+        count = deleted_parts,
+        "Prune : participants de conversations vides supprimés"
+    );
+
+    // 3b. Ensuite supprimer les conversations vides (maintenant que les participants sont partis)
     let deleted_convos = sqlx::query(
         r#"
         DELETE FROM conversations
@@ -115,27 +139,7 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         "Prune : conversations directes vides supprimées"
     );
 
-    // ─── 4. Participants orphelins ────────────────────────────────────────
-    // FIX session 9 : conversation_members → conversation_participants
-    let deleted_parts = sqlx::query(
-        r#"
-        DELETE FROM conversation_participants
-        WHERE NOT EXISTS (
-            SELECT 1 FROM conversations
-            WHERE conversations.id = conversation_participants.conversation_id
-        )
-        "#,
-    )
-    .execute(pool)
-    .await?
-    .rows_affected();
-
-    tracing::info!(
-        count = deleted_parts,
-        "Prune : participants orphelins supprimés"
-    );
-
-    // ─── 5. Invitations expirées (nettoyage bonus) ────────────────────────
+    // ─── 4. Invitations expirées (nettoyage bonus) ────────────────────────
     let expired_invites = sqlx::query("DELETE FROM invites WHERE expires_at < ? AND used = 0")
         .bind(chrono::Utc::now().timestamp())
         .execute(pool)
