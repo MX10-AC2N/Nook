@@ -1,5 +1,7 @@
 // db.rs - Structures et handlers DB avec Extension<CurrentUser>
 
+#![allow(clippy::for_kv_map)]
+
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,

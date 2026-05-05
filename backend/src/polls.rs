@@ -6,7 +6,9 @@
 //     (les tuples anonymes complexes ne compilent pas sans turbofish DB explicite)
 //   - sqlx::query_as::<_, T>(...) partout (turbofish pour inférence DB)
 //   - load_poll : Option<PollRow> correctement unwrappé avec if let Some(row) = ...
-//   - Pas de macros sqlx (SQLX_OFFLINE=true, queries.json vide)
+//   - Structs #[derive(sqlx::FromRow)] pour tous les types de retour DB
+
+#![allow(clippy::for_kv_map)]
 
 use axum::{
     extract::{Path, State},

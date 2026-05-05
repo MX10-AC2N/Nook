@@ -5,6 +5,8 @@
 //   → connexion refusée si token invalide ou manquant
 // Session 36 — SEC-05 : limite 64 KB sur les messages WS de signaling
 
+#![allow(clippy::for_kv_map)]
+
 use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
     http::{header::COOKIE, StatusCode},
