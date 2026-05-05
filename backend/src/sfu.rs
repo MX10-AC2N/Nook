@@ -1,9 +1,6 @@
 // backend/src/sfu.rs
 // SFU (Selective Forwarding Unit) pour appels groupe 3+ participants.
-// Base sur l'exemple rustrtc_sfu.rs — adapte pour signaling via WS Nook (pas DataChannel).
 // Pattern: Room -> Peers -> MediaRelay -> RTCP PLI forwarding.
-
-#![allow(clippy::for_kv_map)]
 
 use rustrtc::{
     RtcConfiguration, RtpCodecParameters, SdpType, SessionDescription,
@@ -312,9 +309,9 @@ impl SfuState {
                 let state = *ice_rx.borrow();
                 info!(user=%uid_ice, state=?state, "SFU ICE connection state");
                 match state {
-                    rustrtc::IceConnectionState::Disconnected
- rustrtc::IceConnectionState::Failed
- rustrtc::IceConnectionState::Closed => {
+                    rustrtc::IceConnectionState::Disconnected |
+                    rustrtc::IceConnectionState::Failed |
+                    rustrtc::IceConnectionState::Closed => {
                         info!(user=%uid_ice, "SFU closing PC on ICE disconnect");
                         pc_for_ice.close();
                         break;
@@ -412,8 +409,8 @@ impl SfuState {
                                         tokio::spawn(async move {
                                             while let Ok(packet) = rtcp_rx.recv().await {
                                                 match packet {
-                                                    RtcpPacket::PictureLossIndication(_)
- RtcpPacket::FullIntraRequest(_) => {
+                                                    RtcpPacket::PictureLossIndication(_) |
+                                                    RtcpPacket::FullIntraRequest(_) => {
                                                         info!(from=%other_log, "SFU forwarding PLI to source");
                                                         let _ = remote_track.request_key_frame().await;
                                                     }
@@ -489,12 +486,78 @@ impl SfuState {
                 }
             }
             {
-                for (_, other) in room_clone.peers.read().await.iter() {
+                for other in room_clone.peers.read().await.values() {
                     let mut added = other.added_sources.write().await;
                     added.retain(|k| !k.starts_with(&format!("{}:{}:", user_id, peer_id)));
                 }
             }
         });
+    }
+
+    // ============================================================
+
+    /// Ajoute les tracks existantes de la room au peer spécifié.
+    async fn add_existing_tracks(peer: Arc<Peer>, room: Arc<Room>, add_audio: bool) {
+        let tracks = room.tracks.read().await;
+        for track_info in tracks.iter() {
+            // Ne pas ajouter les tracks du peer lui-même
+            if track_info.peer_id == peer.id {
+                continue;
+            }
+            // Filtrer selon le type de track si add_audio est false
+            if !add_audio && track_info.kind == MediaKind::Audio {
+                continue;
+            }
+            let source_key = format!("{}:{}:{:?}", track_info.user_id, track_info.peer_id, track_info.kind);
+            // Vérifier si la track a déjà été ajoutée
+            {
+                let added = peer.added_sources.read().await;
+                if added.contains(&source_key) {
+                    info!(peer_id=?peer.id, from=?track_info.user_id, kind=?track_info.kind, "SFU track already added, skip");
+                    continue;
+                }
+            }
+            // Souscrire au relay de la track
+            let relay_track = track_info.relay.subscribe();
+            // Ajouter la track au PeerConnection du peer
+            match peer.pc.add_track_with_stream_id(
+                relay_track,
+                track_info.user_id.clone(),
+                track_info.params.clone(),
+            ) {
+                Ok(_sender) => {
+                    // Marquer comme ajoutée
+                    {
+                        let mut added = peer.added_sources.write().await;
+                        added.insert(source_key);
+                    }
+                    info!(peer_id=?peer.id, from=?track_info.user_id, kind=?track_info.kind, "SFU added existing track to new peer");
+                }
+                Err(e) => {
+                    warn!(peer_id=?peer.id, error=%e, "SFU failed to add existing track");
+                }
+            }
+        }
+    }
+
+    /// Déclenche une renégociation pour le peer spécifié.
+    async fn negotiate(peer: Arc<Peer>) {
+        // Créer une offre SDP
+        let offer = match peer.pc.create_offer().await {
+            Ok(o) => o,
+            Err(e) => {
+                warn!(peer_id=?peer.id, error=%e, "SFU negotiate: échec création offre");
+                return;
+            }
+        };
+        // Définir l'offre comme description locale
+        if let Err(e) = peer.pc.set_local_description(&offer).await {
+            warn!(peer_id=?peer.id, error=%e, "SFU negotiate: échec set_local_description");
+            return;
+        }
+        // Marquer la renégociation comme pending
+        peer.negotiation_pending.store(true, Ordering::SeqCst);
+        info!(peer_id=?peer.id, "SFU negotiate: offre crée et pending");
     }
 
     // ============================================================
