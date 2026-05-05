@@ -14,6 +14,19 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
 
     // ─── 1. Nettoyage des dépendances avant suppression messages ──────────
+    // Note : message_reactions et message_keys ont ON DELETE CASCADE, mais on supprime
+    // explicitement pour éviter les erreurs si les contraintes ne sont pas actives.
+    // ─── 1. Nettoyage des dépendances avant suppression messages ──────────
+    // Clés E2EE liées aux messages anciens (message_keys a FOREIGN KEY vers messages)
+    let deleted_keys = sqlx::query(
+        "DELETE FROM message_keys WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
+    )
+        .bind(seven_days_ago)
+        .execute(pool)
+        .await?
+        .rows_affected();
+    tracing::info!(count = deleted_keys, "Prune : clés E2EE orphelines supprimées");
+
     // Réactions liées aux messages anciens
     let deleted_reactions = sqlx::query(
         "DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
@@ -24,15 +37,9 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         .rows_affected();
     tracing::info!(count = deleted_reactions, "Prune : réactions orphelines supprimées");
 
-    // Votes de sondage liés aux messages anciens
-    let deleted_votes = sqlx::query(
-        "DELETE FROM poll_votes WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
-    )
-        .bind(seven_days_ago)
-        .execute(pool)
-        .await?
-        .rows_affected();
-    tracing::info!(count = deleted_votes, "Prune : votes de sondage orphelins supprimés");
+    // Note : poll_votes n'a pas de colonne message_id dans le schéma actuel.
+    // Les sondages sont liés aux messages par message_type = 'poll' mais
+    // poll_votes référence poll_id, pas message_id.
 
     // ─── 2. Messages anciens (hard delete) ────────────────────────────────
     let deleted_messages = sqlx::query("DELETE FROM messages WHERE created_at < ?")
