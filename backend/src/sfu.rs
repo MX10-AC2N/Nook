@@ -551,7 +551,7 @@ impl SfuState {
             }
         };
         // Définir l'offre comme description locale
-        if let Err(e) = peer.pc.set_local_description(&offer).await {
+        if let Err(e) = peer.pc.set_local_description(offer) {
             warn!(peer_id=?peer.id, error=%e, "SFU negotiate: échec set_local_description");
             return;
         }
