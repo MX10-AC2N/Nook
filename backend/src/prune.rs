@@ -27,9 +27,9 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         .rows_affected();
     tracing::info!(count = deleted_keys, "Prune : clés E2EE orphelines supprimées");
 
-    // Réactions liées aux messages anciens
+    // Réactions liées aux messages anciens (table message_reactions)
     let deleted_reactions = sqlx::query(
-        "DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
+        "DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE created_at < ?)"
     )
         .bind(seven_days_ago)
         .execute(pool)
