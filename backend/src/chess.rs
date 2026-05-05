@@ -17,7 +17,6 @@
 //   GET   /api/chess/invitations
 //   POST  /api/chess/invitations/{id}/accept
 //   POST  /api/chess/invitations/{id}/decline
-#![edition = "2024"]
 
 // backend/src/chess.rs
 // Jeu d'échecs FIDE standard — 2 joueurs (humain vs humain vs IA)
@@ -54,6 +53,8 @@ use axum::{
     Extension, Json, Router,
 };
 use chrono::Utc;
+use chrono::NaiveDateTime;
+use chrono::TimeZone;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -1164,7 +1165,7 @@ pub async fn export_pgn(
             let mut pgn = String::new();
 
             // Headers PGN (Seven Tag Roster)
-            let date = Utc.from_utc_datetime(&NaiveDateTime::from_timestamp(created_at, 0).unwrap_or_default());
+            let date = Utc.from_utc_datetime(&NaiveDateTime::from_timestamp_opt(created_at, 0).unwrap_or_default());
             let date_str = date.format("%Y.%m.%d").to_string();
 
             pgn.push_str("[Event \"Casual game\"]\n");

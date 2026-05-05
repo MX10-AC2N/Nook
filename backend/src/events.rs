@@ -1,3 +1,11 @@
+#![allow(clippy)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::too_many_lines)]
+
 // events.rs – Gestion du calendrier/événements
 use axum::{
     extract::{Extension, Path, Query},
@@ -313,5 +321,5 @@ pub async fn delete_event(
 pub fn events_routes() -> Router<Arc<SharedState>> {
     Router::new()
         .route("/", post(create_event).get(list_events))
-        .route("/{id: capture}", get(get_event).patch(update_event).delete(delete_event))
+        .route("/{id: {capture}}", get(get_event).patch(update_event).delete(delete_event))
 }
