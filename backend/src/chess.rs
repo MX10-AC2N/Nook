@@ -17,6 +17,27 @@
 //   GET   /api/chess/invitations
 //   POST  /api/chess/invitations/{id}/accept
 //   POST  /api/chess/invitations/{id}/decline
+#![edition = "2024"]
+
+// backend/src/chess.rs
+// Jeu d'échecs FIDE standard — 2 joueurs (humain vs humain vs IA)
+//
+// Moteur : chess_engine (adapté de rust-chess, MIT — RumenDamyanov)
+// Stockage : SQLite — position en FEN, historique en JSON SAN
+//
+// Routes :
+//   POST  /api/chess/create
+//   GET   /api/chess/list
+//   GET   /api/chess/{id}
+//   POST  /api/chess/{id}/join
+//   POST  /api/chess/{id}/move
+//   POST  /api/chess/{id}/ai-move
+//   POST  /api/chess/{id}/resign
+//   GET   /api/chess/{id}/moves         coups légaux (?from=e2)
+//   POST  /api/chess/{id}/invite
+//   GET   /api/chess/invitations
+//   POST  /api/chess/invitations/{id}/accept
+//   POST  /api/chess/invitations/{id}/decline
 
 #![allow(deprecated)]
 
@@ -38,8 +59,8 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use rand::Rng;
 use uuid::Uuid;
+use tokio::sync::broadcast;
 use tokio::time::{sleep as tokio_sleep, Duration as TokioDuration};
-
 // ════════════════════════════════════════════════════════════════
 // TYPES
 // ════════════════════════════════════════════════════════════════
@@ -1143,8 +1164,7 @@ pub async fn export_pgn(
             let mut pgn = String::new();
 
             // Headers PGN (Seven Tag Roster)
-            let date = chrono::DateTime::from_timestamp(created_at, 0)
-                .unwrap_or_default();
+            let date = Utc.from_utc_datetime(&NaiveDateTime::from_timestamp(created_at, 0).unwrap_or_default());
             let date_str = date.format("%Y.%m.%d").to_string();
 
             pgn.push_str("[Event \"Casual game\"]\n");
