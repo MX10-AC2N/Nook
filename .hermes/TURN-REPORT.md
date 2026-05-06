@@ -1,7 +1,7 @@
-# 🧪 Turn-Server Test Report — amd64
+# 🧪 Turn-Server Test Report — arm64
 
-> Généré par `test-turn.yml` · **2026-05-06 11:39 UTC**
-> Architecture: **amd64** | Run: [25432995518](https://github.com/MX10-AC2N/Nook/actions/runs/25432995518)
+> Généré par `test-turn.yml` · **2026-05-06 14:49 UTC**
+> Architecture: **arm64** | Run: [25442508722](https://github.com/MX10-AC2N/Nook/actions/runs/25442508722)
 
 ---
 
@@ -11,43 +11,61 @@
 |------|----------|
 | Build Docker | ✅ |
 | Container start | ✅ |
-| Port 3478 UDP | N/A |
-| Port 3478 TCP | N/A |
+| Port 3478 UDP | PASS |
+| Port 3478 TCP | PASS |
 | STUN Binding | ✅ PASS |
 | TURN Allocate (no auth) | ✅ PASS |
-| TURN Allocate (with auth) | ✅ PASS |
+| TURN Allocate (with auth) | ❌ FAIL |
 
 ---
 
 ## 🐳 Container Info
 
 ```
-
-Container info unavailable
+Image: nook-turn:test
+Status: running
+Started: 2026-05-06T14:49:39.384269796Z
+Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
 ```
 
 ## 📋 Container Logs
 
 ```
-Error response from daemon: No such container: nook-turn-test
+
 ```
 
 ## 🔧 Config Used
 
 ```toml
-Config unavailable
+[server]
+name = "nook.turn.test"
+secret = "test_secret_123"
+max-threads = 4
+
+[[server.interfaces]]
+transport = "udp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
+
+[[server.interfaces]]
+transport = "tcp"
+listen = "0.0.0.0:3478"
+external = "0.0.0.0:3478"
 ```
 
 ## 🌐 Network
 
 ```
-Port check unavailable
+udp   UNCONN 0      0              0.0.0.0:3478      0.0.0.0:*          
+udp   UNCONN 0      0                 [::]:3478         [::]:*          
+tcp   LISTEN 0      4096           0.0.0.0:3478      0.0.0.0:*          
+tcp   LISTEN 0      4096              [::]:3478         [::]:*          
 ```
 
 ## 🖥️ System Info
 
 ```
-Linux runnervmeorf1 6.17.0-1010-azure #10~24.04.1-Ubuntu SMP Fri Mar  6 22:00:57 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Linux runnervm6gd1v 6.14.0-1017-azure #17~24.04.1-Ubuntu SMP Tue Dec  2 18:52:52 UTC 2025 aarch64 aarch64 aarch64 GNU/Linux
 Docker: Docker version 28.0.4, build b8034c0
 ```
 
