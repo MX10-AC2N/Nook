@@ -54,7 +54,15 @@ jobs:
           name: nook-backend-aarch64-unknown-linux-gnu
           path: docker-context/backend
 
-      # Note: Binaries are already correctly named (nook-backend-amd64 / nook-backend-arm64) after extraction from artifacts
+      # Rename backend binaries to match Dockerfile.release expectations
+      - name: Rename backend binaries
+        run: |
+          if [ -f docker-context/backend/nook-backend-x86_64-unknown-linux-gnu ]; then
+            mv docker-context/backend/nook-backend-x86_64-unknown-linux-gnu docker-context/backend/nook-backend-amd64
+          fi
+          if [ -f docker-context/backend/nook-backend-aarch64-unknown-linux-gnu ]; then
+            mv docker-context/backend/nook-backend-aarch64-unknown-linux-gnu docker-context/backend/nook-backend-arm64
+          fi
 
       # Download turn-server
       - name: Download turn amd64
