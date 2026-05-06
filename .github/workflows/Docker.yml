@@ -56,8 +56,8 @@ jobs:
 
       - name: Rename backend binaries to match Dockerfile.release expectations
         run: |
-          mv docker-context/backend/nook-backend-x86_64-unknown-linux-musl docker-context/backend/nook-backend-amd64
-          mv docker-context/backend/nook-backend-aarch64-unknown-linux-musl docker-context/backend/nook-backend-arm64
+          mv docker-context/backend/nook-backend-x86_64-unknown-linux-gnu docker-context/backend/nook-backend-amd64
+          mv docker-context/backend/nook-backend-aarch64-unknown-linux-gnu docker-context/backend/nook-backend-arm64
 
       # Download turn-server
       - name: Download turn amd64
