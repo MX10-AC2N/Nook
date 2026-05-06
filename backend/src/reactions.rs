@@ -272,8 +272,7 @@ mod tests {
     fn test_add_reaction_request_invalid_json() {
         let json = r#"{"invalid": "field"}"#;
         let result: Result<AddReactionRequest, _> = serde_json::from_str(json);
-        // emoji field is missing, but serde doesn't error on missing fields by default
-        // unless #[serde(deny_unknown_fields)] is set
-        assert!(result.is_ok()); // serde allows missing fields
+        // emoji field is required, so deserialization should fail
+        assert!(result.is_err(), "Missing required field 'emoji' should fail deserialization");
     }
 }
