@@ -40,11 +40,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
-          # For x86_64, install zig
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            sudo apt-get install -y zig
-          fi
-          # Add target for cross-compilation
           rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
