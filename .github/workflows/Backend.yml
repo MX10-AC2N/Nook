@@ -47,6 +47,8 @@ jobs:
           if [ "${{ matrix.arch }}" = "amd64" ]; then
             sudo apt-get install -y zig
           fi
+          # Add target for cross-compilation
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
