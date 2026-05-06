@@ -54,14 +54,23 @@ jobs:
           name: nook-backend-aarch64-unknown-linux-gnu
           path: docker-context/backend
 
-      # Rename backend binaries to match Dockerfile.release expectations
-      - name: Rename backend binaries
+      - name: Prepare backend binaries
         run: |
-          if [ -f docker-context/backend/nook-backend-x86_64-unknown-linux-gnu ]; then
-            mv docker-context/backend/nook-backend-x86_64-unknown-linux-gnu docker-context/backend/nook-backend-amd64
+          # The artifacts contain files named nook-backend-amd64 and nook-backend-arm64
+          # Rename them to match Dockerfile.release expectations (add arch suffix)
+          if [ -f docker-context/backend/nook-backend-amd64 ]; then
+            echo "Found amd64 binary"
+          else
+            echo "ERROR: nook-backend-amd64 not found in docker-context/backend/"
+            ls -la docker-context/backend/
+            exit 1
           fi
-          if [ -f docker-context/backend/nook-backend-aarch64-unknown-linux-gnu ]; then
-            mv docker-context/backend/nook-backend-aarch64-unknown-linux-gnu docker-context/backend/nook-backend-arm64
+          if [ -f docker-context/backend/nook-backend-arm64 ]; then
+            echo "Found arm64 binary"
+          else
+            echo "ERROR: nook-backend-arm64 not found in docker-context/backend/"
+            ls -la docker-context/backend/
+            exit 1
           fi
 
       # Download turn-server
