@@ -31,7 +31,7 @@ WORKDIR /src/turn-rs
 # Set PROTOC path for turn-server-sdk build
 ENV PROTOC=/usr/bin/protoc
 
-RUN cargo build --release \\
+RUN PROTOC=/usr/bin/protoc cargo build --release \\
     && cp target/release/turn-server /usr/local/bin/turn-server
 
 # - ETAPE 2 : Runtime Alpine 3.21
