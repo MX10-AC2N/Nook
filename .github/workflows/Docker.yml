@@ -8,3 +8,185 @@ on:
         default: ''
         type: string
 
+jobs:
+  docker-build:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    # Only run if triggered manually OR if all upstream workflows succeeded
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set branch from trigger
+        id: set_branch
+        run: |
+          # Use inputs.branch_name if provided, otherwise use github.ref_name
+          if [ -n "${{ inputs.branch_name }}" ]; then
+            echo "branch=${{ inputs.branch_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Download backend
+      - name: Download backend amd64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ inputs.branch_name }}
+          name: nook-backend-x86_64-unknown-linux-musl
+          path: docker-context/backend
+
+      - name: Download backend arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ inputs.branch_name }}
+          name: nook-backend-aarch64-unknown-linux-musl
+          path: docker-context/backend
+
+      - name: Prepare backend binaries
+        run: |
+          # The artifacts contain files named nook-backend-amd64 and nook-backend-arm64
+          # Rename them to match Dockerfile.release expectations (add arch suffix)
+          if [ -f docker-context/backend/nook-backend-amd64 ]; then
+            echo "Found amd64 binary"
+          else
+            echo "ERROR: nook-backend-amd64 not found in docker-context/backend/"
+            ls -la docker-context/backend/
+            exit 1
+          fi
+          if [ -f docker-context/backend/nook-backend-arm64 ]; then
+            echo "Found arm64 binary"
+          else
+            echo "ERROR: nook-backend-arm64 not found in docker-context/backend/"
+            ls -la docker-context/backend/
+            exit 1
+          fi
+
+      # Download turn-server
+      - name: Download turn amd64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: turn.yml
+          branch: ${{ steps.set_branch.outputs.branch }}
+          name: nook-turn-server-amd64
+          path: docker-context/turn
+
+      - name: Download turn arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: turn.yml
+          branch: ${{ steps.set_branch.outputs.branch }}
+          name: nook-turn-server-arm64
+          path: docker-context/turn
+
+      # Download frontend
+      - name: Download frontend
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Frontend.yml
+          branch: ${{ steps.set_branch.outputs.branch }}
+          name: nook-frontend
+          path: docker-context/frontend
+
+      - name: Set lowercase repo name and version
+        id: info
+        run: |
+          echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set branch tag
+        id: branch_tag
+        run: |
+          BRANCH="${{ steps.set_branch.outputs.branch }}"
+          if [ "$BRANCH" = "main" ]; then
+            echo "tag=latest" >> $GITHUB_OUTPUT
+          elif [ "$BRANCH" = "develop" ]; then
+            echo "tag=dev" >> $GITHUB_OUTPUT
+          else
+            echo "tag=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Debug tags
+        run: |
+          echo "Version tag: ${{ steps.info.outputs.tag }}"
+          echo "Branch tag: ${{ steps.branch_tag.outputs.tag }}"
+
+      - name: Copy turn-rs config files to docker context
+        run: |
+          cp services/turn-rs/turnserver.conf.template docker-context/turn/
+          cp services/turn-rs/docker-entrypoint.sh docker-context/turn/
+          chmod +x docker-context/turn/docker-entrypoint.sh
+
+      - name: Copy nook entrypoint to docker context
+        run: |
+          cp docker-entrypoint.sh docker-context/
+          chmod +x docker-context/docker-entrypoint.sh
+
+      - name: Verify context
+        id: ctx
+        run: |
+          echo "=== Backend ==="
+          ls -la docker-context/backend/
+          echo "=== Turn ==="
+          ls -la docker-context/turn/
+          echo "=== Frontend ==="
+          ls -la docker-context/frontend/
+          test -f docker-context/backend/nook-backend-amd64 || (echo "backend amd64 missing" && exit 1)
+          test -f docker-context/backend/nook-backend-arm64 || (echo "backend arm64 missing" && exit 1)
+          test -f docker-context/turn/turn-server-amd64 || (echo "turn amd64 missing" && exit 1)
+          test -f docker-context/turn/turn-server-arm64 || (echo "turn arm64 missing" && exit 1)
+          test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
+          test -f docker-context/turn/turnserver.conf.template || (echo "turn template missing" && exit 1)
+          test -f docker-context/turn/docker-entrypoint.sh || (echo "entrypoint missing" && exit 1)
+          chmod +x docker-context/backend/nook-backend-amd64
+          chmod +x docker-context/backend/nook-backend-arm64
+          chmod +x docker-context/turn/turn-server-amd64
+          chmod +x docker-context/turn/turn-server-arm64
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build and push nook
+      - name: Build and push nook (backend + frontend)
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context
+          file: Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
+            ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.branch_tag.outputs.tag }}
+          build-args: |
+            TARGETARCH
+
+      # Build and push turn-server
+      - name: Build and push turn-server
+        uses: docker/build-push-action@v6
+        with:
+          context: docker-context/turn
+          file: services/turn-rs/Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
+            ghcr.io/mx10-ac2n/turn-server:${{ steps.branch_tag.outputs.tag }}
+          build-args: |
+            TARGETARCH
