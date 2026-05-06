@@ -16,3 +16,4 @@ nginx-local/certs/
 services/turn-rs/config.toml
 backend/target/
 backend/target/
+frontend/static/lib/
