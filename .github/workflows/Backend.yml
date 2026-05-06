@@ -92,6 +92,7 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
+          RUSTFLAGS: "--cap-lints allow"
         run: |
           set +e
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
