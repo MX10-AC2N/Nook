@@ -8,14 +8,15 @@ on:
         default: 'develop'
         type: string
 
+  workflow_run:
+    workflows: ["Frontend.yml", "Backend.yml", "turn.yml"]
+    types: [completed]
+
 jobs:
   docker-build:
     name: Build and Push
     runs-on: ubuntu-latest
     # Only run if triggered manually OR if all upstream workflows succeeded
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success')
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
