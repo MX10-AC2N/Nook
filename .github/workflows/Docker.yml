@@ -41,7 +41,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ steps.set_branch.outputs.branch }}
+          branch: ${{ inputs.branch_name }}
           name: nook-backend-x86_64-unknown-linux-gnu
           path: docker-context/backend
 
@@ -50,14 +50,11 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ steps.set_branch.outputs.branch }}
+          branch: ${{ inputs.branch_name }}
           name: nook-backend-aarch64-unknown-linux-gnu
           path: docker-context/backend
 
-      - name: Rename backend binaries to match Dockerfile.release expectations
-        run: |
-          mv docker-context/backend/nook-backend-x86_64-unknown-linux-gnu docker-context/backend/nook-backend-amd64
-          mv docker-context/backend/nook-backend-aarch64-unknown-linux-gnu docker-context/backend/nook-backend-arm64
+      # Note: Binaries are already correctly named (nook-backend-amd64 / nook-backend-arm64) after extraction from artifacts
 
       # Download turn-server
       - name: Download turn amd64
