@@ -1,7 +1,7 @@
-# 🧪 Turn-Server Test Report — arm64
+# 🧪 Turn-Server Test Report — amd64
 
 > Généré par `test-turn.yml` · **2026-05-06 11:39 UTC**
-> Architecture: **arm64** | Run: [25432995518](https://github.com/MX10-AC2N/Nook/actions/runs/25432995518)
+> Architecture: **amd64** | Run: [25432995518](https://github.com/MX10-AC2N/Nook/actions/runs/25432995518)
 
 ---
 
@@ -47,7 +47,7 @@ Port check unavailable
 ## 🖥️ System Info
 
 ```
-Linux runnervm6gd1v 6.14.0-1017-azure #17~24.04.1-Ubuntu SMP Tue Dec  2 18:52:52 UTC 2025 aarch64 aarch64 aarch64 GNU/Linux
+Linux runnervmeorf1 6.17.0-1010-azure #10~24.04.1-Ubuntu SMP Fri Mar  6 22:00:57 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 Docker: Docker version 28.0.4, build b8034c0
 ```
 
