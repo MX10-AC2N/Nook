@@ -1,3 +1,5 @@
+#![allow(clippy::for_kv_map)]
+
 // backend/src/webrtc.rs
 // Signalisation P2P + Chiffrement fichiers (XChaCha20-Poly1305)
 // Session 9  — fix sécurité : authentification du WebSocket
