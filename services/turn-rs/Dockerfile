@@ -28,7 +28,10 @@ WORKDIR /src
 RUN git clone --depth 1 https://github.com/mycrl/turn-rs.git /src/turn-rs
 WORKDIR /src/turn-rs
 
-RUN cargo build --release \
+# Set PROTOC path for turn-server-sdk build
+ENV PROTOC=/usr/bin/protoc
+
+RUN cargo build --release \\
     && cp target/release/turn-server /usr/local/bin/turn-server
 
 # - ETAPE 2 : Runtime Alpine 3.21
