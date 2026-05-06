@@ -16,9 +16,6 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-          - arch: arm64
-            target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -27,6 +24,7 @@ jobs:
 
     env:
       RUSTFLAGS: "--cap-lints allow"
+      SQLX_OFFLINE: true
 
     steps:
       - uses: actions/checkout@v4
@@ -34,33 +32,23 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Install musl tools
+      - name: Install native tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsodium-dev pkg-config musl-tools
+          sudo apt-get install -y musl-tools
           rustup target add ${{ matrix.target }}
-
-      - name: Set linker for musl target
-        run: |
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> $GITHUB_ENV
-          elif [ "${{ matrix.arch }}" = "arm64" ]; then
-            echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> $GITHUB_ENV
-          fi
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}
+          key: ${{ matrix.target }}-${{ matrix.arch }}-zig
 
       - name: cargo check
         id: check
-        env:
-          SQLX_OFFLINE: true
         run: |
           set +e
           cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
@@ -69,8 +57,6 @@ jobs:
 
       - name: cargo clippy
         id: clippy
-        env:
-          SQLX_OFFLINE: true
         run: |
           set +e
           cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
@@ -79,8 +65,6 @@ jobs:
 
       - name: cargo test
         id: test
-        env:
-          SQLX_OFFLINE: true
         run: |
           set +e
           cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
@@ -90,12 +74,10 @@ jobs:
       - name: cargo build --release
         id: build
         env:
-          SQLX_OFFLINE: true
           CARGO_PROFILE_RELEASE_LTO: "true"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
-          RUSTFLAGS: "--cap-lints allow"
         run: |
           set +e
           cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
@@ -136,24 +118,6 @@ jobs:
           REPO: "${{ github.repository }}"
           RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-backend-report.sh
-
-      - name: Commit BACKEND-BUILD-REPORT
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .hermes/BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
-          if git diff --staged --quiet; then
-            echo "No change - no commit"
-          else
-            git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]"
-            git pull --rebase --autostash origin ${{ github.ref_name }}
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "Report committed"
-          fi
 
       - uses: actions/upload-artifact@v4
         with:

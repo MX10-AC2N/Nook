@@ -2,6 +2,9 @@
 # x86_64: cible native, musl-gcc fourni par musl-tools
 # aarch64: cross-compilation (non utilise en CI)
 
+[target.x86_64-unknown-linux-musl]
+linker = "musl-gcc"
+
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-musl-gcc"
 
