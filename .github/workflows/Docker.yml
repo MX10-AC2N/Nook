@@ -4,8 +4,8 @@ on:
     inputs:
       branch_name:
         description: 'Branche où les artifacts ont été générés (ex: develop)'
-        required: true
-        default: 'develop'
+        required: false
+        default: ''
         type: string
 
   workflow_run:
@@ -25,13 +25,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set branch from trigger
+        id: set_branch
+        run: |
+          # Use inputs.branch_name if provided, otherwise use github.ref_name
+          if [ -n "${{ inputs.branch_name }}" ]; then
+            echo "branch=${{ inputs.branch_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
       # Download backend
       - name: Download backend amd64
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ steps.set_branch.outputs.branch }}
           name: nook-backend-x86_64-unknown-linux-gnu
           path: docker-context/backend
 
@@ -40,7 +50,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ steps.set_branch.outputs.branch }}
           name: nook-backend-aarch64-unknown-linux-gnu
           path: docker-context/backend
 
@@ -50,7 +60,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ steps.set_branch.outputs.branch }}
           name: nook-turn-server-amd64
           path: docker-context/turn
 
@@ -59,7 +69,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ steps.set_branch.outputs.branch }}
           name: nook-turn-server-arm64
           path: docker-context/turn
 
@@ -69,7 +79,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Frontend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ steps.set_branch.outputs.branch }}
           name: nook-frontend
           path: docker-context/frontend
 
@@ -83,7 +93,7 @@ jobs:
       - name: Set branch tag
         id: branch_tag
         run: |
-          BRANCH="${{ inputs.branch_name }}"
+          BRANCH="${{ steps.set_branch.outputs.branch }}"
           if [ "$BRANCH" = "main" ]; then
             echo "tag=latest" >> $GITHUB_OUTPUT
           elif [ "$BRANCH" = "develop" ]; then
