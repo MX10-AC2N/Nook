@@ -100,7 +100,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo build --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
