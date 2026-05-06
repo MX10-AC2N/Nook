@@ -498,3 +498,4 @@
     .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
+</style>
