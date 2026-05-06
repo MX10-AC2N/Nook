@@ -25,9 +25,9 @@ jobs:
         working-directory: ./frontend
         run: npm config delete omit
 
-      - name: Install dependencies
+      - name: Install dependencies (clean CI)
         working-directory: ./frontend
-        run: npm install --no-audit --no-fund --legacy-peer-deps --omit optional
+        run: npm ci --no-audit --no-fund --legacy-peer-deps
 
       - name: Generate SvelteKit config (ensure .svelte-kit/tsconfig.json exists)
         working-directory: ./frontend
