@@ -1,3 +1,4 @@
+<!-- Layout Nook - Build 1778048337 -->
 <script lang="ts">
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
