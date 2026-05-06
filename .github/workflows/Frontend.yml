@@ -33,8 +33,7 @@ jobs:
       - name: Install dependencies (clean CI)
         working-directory: ./frontend
         run: |
-          rm -f package-lock.json
-          npm install --no-audit --no-fund --legacy-peer-deps
+          npm ci --no-audit --no-fund
 
       - name: Generate SvelteKit config (ensure .svelte-kit/tsconfig.json exists)
         working-directory: ./frontend
