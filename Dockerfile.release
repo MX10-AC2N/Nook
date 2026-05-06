@@ -1,15 +1,15 @@
 # Nook - Backend (runtime only, pre-compiled binary)
-# Zero Google dependency - Alpine 3.21 (~15MB)
+# Uses Debian Slim for glibc compatibility (binary compiled with x86_64-unknown-linux-gnu)
 
-FROM alpine:3.21 AS runtime
+FROM debian:bookworm-slim AS runtime
 
-RUN apk add --no-cache \
-    sqlite-libs \
-    libsodium \
-    su-exec \
-    ca-certificates
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libsqlite3-0 \
+    libsodium23 \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN addgroup -S -g 1000 nook && adduser -S -u 1000 -G nook nook
+RUN adduser --system --uid 1000 --group nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app \
