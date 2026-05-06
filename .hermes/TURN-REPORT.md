@@ -1,7 +1,7 @@
 # 🧪 Turn-Server Test Report — arm64
 
-> Généré par `test-turn.yml` · **2026-05-06 11:33 UTC**
-> Architecture: **arm64** | Run: [25432715964](https://github.com/MX10-AC2N/Nook/actions/runs/25432715964)
+> Généré par `test-turn.yml` · **2026-05-06 11:39 UTC**
+> Architecture: **arm64** | Run: [25432995518](https://github.com/MX10-AC2N/Nook/actions/runs/25432995518)
 
 ---
 
