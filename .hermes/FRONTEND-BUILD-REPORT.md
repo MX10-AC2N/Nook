@@ -6,7 +6,7 @@
 |-------|--------|
 | **Build** | ❌ unknown |
 | **Branche** | develop |
-| **Commit** | 5b880e9 |
+| **Commit** | 57ea14d |
 | **Node.js** | unknown |
 | **Vite time** | N/Ams |
 | **Duration** | N/A |
@@ -15,7 +15,7 @@
 | **Warnings** | N/A |
 | **Errors** | N/A |
 | **Chunks** | N/A |
-| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25418351804 |
+| **Run** | https://github.com/MX10-AC2N/Nook/actions/runs/25418366199 |
 
 ---
 
