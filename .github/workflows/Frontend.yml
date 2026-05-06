@@ -30,12 +30,13 @@ jobs:
         working-directory: ./frontend
         run: npm config delete omit
 
-      - name: Install dependencies (CI compatible)
+      - name: Clean install (force regenerate lockfile)
         working-directory: ./frontend
         run: |
-          # npm ci fails if lockfile misses optional platforms (esbuild/rollup)
-          # We use npm install to ensure all required binaries are present and lockfile is valid
+          rm -f package-lock.json
           npm install --no-audit --no-fund --legacy-peer-deps
+          # Verify lockfile is valid
+          npm ci --no-audit --no-fund --legacy-peer-deps 2>&1 | head -20
 
       - name: Generate SvelteKit config (ensure .svelte-kit/tsconfig.json exists)
         working-directory: ./frontend
