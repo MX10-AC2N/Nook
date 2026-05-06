@@ -1,5 +1,5 @@
-<!-- Layout Nook - Build 1778048337 -->
 <script lang="ts">
+  import '../app.css';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
   import { onMount } from 'svelte';
@@ -8,17 +8,14 @@
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
   import { cryptoStore } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
-  import CallBanner from '$lib/components/CallBanner.svelte';
-  import NotificationToast from '$lib/components/NotificationToast.svelte';
-  import Icon from '$lib/components/Icon.svelte';
 
   let { children } = $props();
+  let showMenu        = $state(false);
   let appError        = $state<string | null>(null);
   let loading         = $state(true);
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
-  let showMenu        = $state(false);
 
   // Badge non-lu : somme de tous les compteurs de conversations
   const totalUnread = $derived(
@@ -26,13 +23,13 @@
   );
 
   const navItems = [
-    { path: '/chat',      label: 'Chat',            icon: 'chat',       requiresAuth: true  },
-    { path: '/chess',     label: 'Échecs',           icon: 'chess',      requiresAuth: true  },
-    { path: '/calendar',  label: 'Calendrier',       icon: 'calendar',   requiresAuth: true  },
-    { path: '/polls',     label: 'Sondages',         icon: 'check-circle', requiresAuth: true  },
-    { path: '/admin',     label: 'Administration',   icon: 'user',       requiresAuth: true, requiresAdmin: true },
-    { path: '/settings',  label: 'Paramètres',       icon: 'settings',   requiresAuth: true  },
-    { path: '/help',      label: 'Aide',             icon: 'help',       requiresAuth: false },
+    { path: '/chat',      label: '💬 Chat',           requiresAuth: true  },
+    { path: '/chess',     label: '♟️ Échecs',          requiresAuth: true  },
+    { path: '/calendar',  label: '📅 Calendrier',      requiresAuth: true  },
+    { path: '/polls',     label: '📊 Sondages',        requiresAuth: true  },
+    { path: '/admin',     label: '👑 Administration',   requiresAuth: true, requiresAdmin: true },
+    { path: '/settings',  label: '⚙️ Paramètres',      requiresAuth: true  },
+    { path: '/help',      label: '❓ Aide',             requiresAuth: false },
   ];
 
   function toggleMenu() {
@@ -68,27 +65,13 @@
 
     if (authStore.isAuthenticated) {
       if (pathname === '/' || pathname === '/login' || pathname === '/register') {
-        goto('/chat');
-        return;
+        goto(authStore.isAdmin ? '/admin' : '/chat');
       }
     } else {
-      if (pathname !== '/login' && pathname !== '/register' && pathname !== '/help') {
+      const publicPaths = ['/login', '/register', '/help', '/join', '/invite'];
+      if (!publicPaths.some((p) => pathname.startsWith(p))) {
         goto('/login');
-        return;
       }
-    }
-  });
-
-  onMount(async () => {
-    try {
-      await waitForSodium();
-      const result = await initCryptoSystem();
-      cryptoInitialized = result.success;
-      cryptoError = result.error ?? null;
-    } catch (e) {
-      cryptoError = e instanceof Error ? e.message : String(e);
-    } finally {
-      loading = false;
     }
   });
 
@@ -96,13 +79,12 @@
   // Permet aux pages full-height (chat) de calculer leur hauteur exactement
   let headerEl = $state<HTMLElement | undefined>(undefined);
   $effect(() => {
-    if (headerEl) {
-      const ro = new ResizeObserver(() => {
-        document.documentElement.style.setProperty('--header-h', headerEl.offsetHeight + 'px');
-      });
-      ro.observe(headerEl);
-      return () => ro.disconnect();
-    }
+    if (!headerEl) return;
+    const ro = new ResizeObserver(() => {
+      document.documentElement.style.setProperty('--header-h', headerEl!.offsetHeight + 'px');
+    });
+    ro.observe(headerEl);
+    return () => ro.disconnect();
   });
 
   // ─── Thème global — persisté sur toutes les pages ────────────────────────
@@ -125,31 +107,6 @@
   onMount(async () => {
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
-
-    if ('serviceWorker' in navigator) {
-      try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js', {
-          scope: '/',
-        });
-        console.log('[SW] Service worker registered:', registration.scope);
-        
-        if (registration.active) {
-          console.log('[SW] Service worker is active');
-        } else if (registration.installing) {
-          console.log('[SW] Service worker is installing...');
-          registration.installing.addEventListener('statechange', () => {
-            console.log('[SW] Service worker state:', registration.installing?.state);
-            if (registration.installing?.state === 'activated') {
-              console.log('[SW] Service worker is now active');
-            }
-          });
-        }
-      } catch (error) {
-        console.error('[SW] Service worker registration failed:', error);
-      }
-    } else {
-      console.warn('[SW] Service workers not supported');
-    }
 
     // ─────────────────────────────────────────────────────────────────────
     // ARCHITECTURE : sodium en fire-and-forget, authStore.init() en priorité
@@ -197,19 +154,7 @@
       loading = false;
     }
   });
-
-  // Clear cryptoError when crypto becomes ready (e.g., after login)
-  $effect(() => {
-    if (cryptoStore.ready && cryptoError) {
-      cryptoError = null;
-    }
-  });
 </script>
-
-<svelte:head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="/app.css">
-</svelte:head>
 
 {#if loading}
   <div class="loading-screen" data-testid="loading-screen">
@@ -241,7 +186,7 @@
   </div>
 
 {:else}
-  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && $page.url.pathname.startsWith('/chat')}
+  {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
     </div>
@@ -252,7 +197,7 @@
       ☰
     </button>
 
-    <h1 style="flex:1; justify-content:center;"><Icon name="logo" size="68" /></h1>
+    <h1>🌱 Nook</h1>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -261,12 +206,9 @@
         class="logout-btn"
         data-testid="logout-button"
         aria-label="Déconnexion"
-      ><Icon name="logout" size="20" /></button>
+      >🔌</button>
     {/if}
   </header>
-
-  <CallBanner />
-  <NotificationToast />
 
   {#if showMenu}
     <button
@@ -293,7 +235,7 @@
       </div>
 
       <ul class="nav-list">
-        {#each navItems as item (item.path)}
+        {#each navItems as item}
           {#if item.requiresAuth && !authStore.isAuthenticated}
             <!-- Skip -->
           {:else if item.requiresAdmin && !authStore.isAdmin}
@@ -301,7 +243,7 @@
           {:else}
             <li>
               <a href={item.path} onclick={closeMenu} class:active={$page.url.pathname.startsWith(item.path)}>
-                {#if item.icon}<Icon name={item.icon} size="18" /> {/if}{item.label}
+                {item.label}
                 {#if item.path === '/chat' && totalUnread > 0}
                   <span class="nav-badge">{totalUnread > 99 ? '99+' : totalUnread}</span>
                 {/if}
@@ -315,7 +257,7 @@
         <p class="version">Nook v0.5 • Svelte 5 + Rust</p>
         {#if authStore.isAuthenticated}
           <button onclick={handleLogout} class="logout-link" aria-label="Déconnexion">
-            <Icon name="logout" size="18" /> Déconnexion
+            🔌 Déconnexion
           </button>
         {/if}
       </div>
@@ -402,22 +344,21 @@
   }
 
   .app-header {
-    display: flex; align-items: center; gap: 0.5rem;
-    padding: 0.35rem 0.8rem; background: var(--bg-secondary, white);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); border-bottom: 1px solid var(--border, #e2e8f0);
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 1rem 1.5rem; background: var(--bg-secondary, white);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-bottom: 1px solid var(--border, #e2e8f0);
     position: sticky; top: 0; z-index: 100;
-    min-height: 64px;
   }
 
   .menu-toggle, .logout-btn {
-    background: none; border: none; font-size: 1rem;
-    cursor: pointer; padding: 0.25rem; border-radius: 0.4rem; transition: background 0.2s;
+    background: none; border: none; font-size: 1.5rem;
+    cursor: pointer; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s;
   }
 
   .menu-toggle:hover, .logout-btn:hover { background: var(--bg-tertiary, #f1f5f9); }
 
-  .app-header h1 { font-size: 0.9rem; font-weight: 600; margin: 0; display: flex; align-items: center; color: var(--text-primary, #1e293b); flex: 1; }
-  .user-name { font-size: 0.75rem; color: var(--text-secondary, #64748b); margin-right: 0.25rem; }
+  .app-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-primary, #1e293b); flex: 1; }
+  .user-name { font-size: 0.9rem; color: var(--text-secondary, #64748b); margin-right: 0.5rem; }
 
   .menu-overlay {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
@@ -482,7 +423,7 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-        .app-main { flex: 1; display: flex; flex-direction: column; padding: 0; background: var(--bg-primary, #f5f7fa); min-height: 0; }
+        .app-main { padding: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
@@ -493,8 +434,10 @@
   .app-footer p { margin: 0; }
 
   @media (max-width: 640px) {
-  .app-header { padding: 0.3rem 0.6rem; min-height: 44px; }
-  .app-header h1 { font-size: 0.85rem; }
+    .app-header { padding: 0.85rem 1rem; }
+    .app-header h1 { font-size: 1.1rem; }
     .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }
+  }
+</style>

@@ -30,10 +30,11 @@ jobs:
         working-directory: ./frontend
         run: npm config delete omit
 
-      - name: Install dependencies (clean CI)
+      - name: Install dependencies (CI compatible)
         working-directory: ./frontend
         run: |
-          rm -f package-lock.json
+          # npm ci fails if lockfile misses optional platforms (esbuild/rollup)
+          # We use npm install to ensure all required binaries are present and lockfile is valid
           npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: Generate SvelteKit config (ensure .svelte-kit/tsconfig.json exists)
@@ -49,7 +50,7 @@ jobs:
         working-directory: ./frontend
         run: |
           echo "Checking for corrupted line numbers in Svelte files..."
-          if grep -r "^[[:space:]]*[0-9]*|" src/routes/; then
+          if grep -r "^[[:space:]]*[0-9][0-9]*|" src/routes/; then
             echo "❌ Corrupted files detected (line numbers found)"
             exit 1
           else
@@ -79,38 +80,7 @@ jobs:
 
           exit $BUILD_EXIT
 
-      # ── Génération FRONTEND-BUILD-REPORT.md ──────────────────────────
-      - name: Générer FRONTEND-BUILD-REPORT.md
-        if: always()
-        env:
-          RUN_DATE: "${{ env.run_date }}"
-          COMMIT_SHA: "${{ github.sha }}"
-          BRANCH: "${{ github.ref_name }}"
-          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BUILD_STATUS: "${{ steps.build.outputs.build_status }}"
-          NODE_VER: "${{ steps.build.outputs.node_ver }}"
-          BUILD_DURATION: "${{ steps.build.outputs.build_duration }}"
-          OUTPUT_SIZE: "${{ steps.build.outputs.total_size }}"
-          FILE_COUNT: "${{ steps.build.outputs.file_count }}"
-          REPO: "${{ github.repository }}"
-          RUN_ID: "${{ github.run_id }}"
-        run: bash .github/scripts/generate-frontend-report.sh
-
-      - name: Commit FRONTEND-BUILD-REPORT.md
-        if: always()
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .hermes/FRONTEND-BUILD-REPORT.md
-          if git diff --staged --quiet; then
-            echo "Aucune modification — pas de commit"
-          else
-            git commit -m "ci: FRONTEND-BUILD-REPORT.md [run ${{ github.run_id }}]"
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
-          fi
+      # Report removed : caused systematic merge conflicts
 
       # Nom fixe → Docker.yml et test-nook.yml peuvent le télécharger simplement
       - uses: actions/upload-artifact@v4
