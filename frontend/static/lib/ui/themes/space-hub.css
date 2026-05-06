@@ -1,0 +1,161 @@
+/* ==========================================================================
+   NOOK Theme - Space Hub
+   ========================================================================== */
+
+.theme-space-hub {
+
+  /* ═══ Hermes: added variables ═══ */
+  --bg-hover: var(--bg-tertiary);
+  --accent-danger: #dc2626;
+  --text-danger: #dc2626;
+  --bg-danger: #fee2e2;
+  /* --------------------------------------------------------------------------
+     PALETTE DE COULEURS
+     -------------------------------------------------------------------------- */
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
+  --accent: #8b5cf6;
+  --accent-light: #a78bfa;
+  --accent-dark: #7c3aed;
+  --text-primary: #f1f5f3;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border: #4c1d95;
+  --border-light: #5b21b6;
+  
+  /* Couleurs RGB pour les effets rgba */
+  --bg-rgb: 15, 23, 42;
+  --accent-rgb: 139, 92, 246;
+  
+  /* Couleurs fonctionnelles */
+  --chat-mine: #334155;
+  --chat-theirs: #1e293b;
+  --input-bg: #0f172a;
+  --button-hover: #a78bfa;
+  --status-online: #34d399;
+  --status-online-rgb: 52, 211, 153;
+  --status-away: #f59e0b;
+  --status-away-rgb: 245, 158, 11;
+  --status-offline: #64748b;
+  
+  /* --------------------------------------------------------------------------
+     OMBRES PROFONDEUR
+     -------------------------------------------------------------------------- */
+  --depth: 0 4px 20px rgba(139, 92, 246, 0.3);
+  --depth-lg: 0 8px 32px rgba(139, 92, 246, 0.4);
+  --depth-xl: 0 16px 48px rgba(139, 92, 246, 0.5);
+  
+  /* --------------------------------------------------------------------------
+     ANIMATIONS
+     -------------------------------------------------------------------------- */
+  --animation: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* --------------------------------------------------------------------------
+     BORDURES SPÉCIALES
+     -------------------------------------------------------------------------- */
+  --border-gradient: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  
+  /* --------------------------------------------------------------------------
+     COULEURS NOTIFICATIONS
+     -------------------------------------------------------------------------- */
+  --notification-bg: #334155;
+  --notification-text: #e2e8f0;
+  
+  /* --------------------------------------------------------------------------
+     COULEURS ERREURS ET SUCCÈS
+     -------------------------------------------------------------------------- */
+  --success: #34d399;
+  --success-light: rgba(52, 211, 153, 0.15);
+  --warning: #f59e0b;
+  --warning-light: rgba(245, 158, 11, 0.15);
+  --error: #f87171;
+  --error-light: rgba(248, 113, 113, 0.15);
+  --info: #60a5fa;
+  --info-light: rgba(96, 165, 250, 0.15);
+}
+
+/* Overrides spécifiques pour le thème Space */
+.theme-space-hub .btn-primary {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+}
+
+.theme-space-hub .btn-primary:hover {
+  background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.6);
+  transform: translateY(-2px);
+}
+
+.theme-space-hub .card {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #4c1d95;
+  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.2);
+}
+
+.theme-space-hub .chat-mine {
+  background: linear-gradient(135deg, #334155, #1e3a5f);
+  border-bottom-right-radius: 20px;
+}
+
+.theme-space-hub .chat-theirs {
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border-bottom-left-radius: 20px;
+}
+
+.theme-space-hub .status-online {
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.8);
+}
+
+.theme-space-hub .header {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-bottom: 1px solid #4c1d95;
+}
+
+.theme-space-hub .nav-bar {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-top: 1px solid #4c1d95;
+}
+
+.theme-space-hub .modal {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #4c1d95;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.theme-space-hub .input {
+  border-color: #4c1d95;
+  background-color: #0f172a;
+}
+
+.theme-space-hub .input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.3);
+}
+
+.theme-space-hub .input::placeholder {
+  color: #64748b;
+}
+
+.theme-space-hub .list-item:hover {
+  background-color: #334155;
+}
+
+.theme-space-hub .badge {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.theme-space-hub body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Effet de vignette pour l'ambiance spatiale */
+.theme-space-hub::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+}
