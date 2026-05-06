@@ -5,16 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "npm run copy-themes && vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "eslint .",
     "format": "prettier --write .",
     "clean": "rm -rf .svelte-kit build node_modules/.vite",
-    "build:ci": "npm run clean && NODE_OPTIONS=--max-old-space-size=4096 vite build",
+    "build:ci": "npm run clean && npm run copy-themes && NODE_OPTIONS=--max-old-space-size=4096 vite build",
     "test:e2e": "playwright test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "copy-themes": "mkdir -p static/lib/ui && cp -r src/lib/ui/themes static/lib/ui/"
   },
   "devDependencies": {
     "@playwright/test": "^1.40.0",
