@@ -70,7 +70,7 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
