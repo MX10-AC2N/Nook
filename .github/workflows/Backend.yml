@@ -39,14 +39,8 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Install zig and cargo-zigbuild
+      - name: Add target
         run: |
-          # Install zig
-          sudo apt-get update
-          sudo apt-get install -y zig
-          # Install cargo-zigbuild
-          cargo install cargo-zigbuild
-          # Add target
           rustup target add ${{ matrix.target }}
 
       - name: Configure cargo for zig linker
