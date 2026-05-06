@@ -1,5 +1,4 @@
 name: 6 ==> Docker Build & Push
-
 on:
   workflow_dispatch:
     inputs:
@@ -14,7 +13,7 @@ jobs:
     name: Build and Push
     runs-on: ubuntu-latest
     # Only run if triggered manually OR if all upstream workflows succeeded
-    if: >-
+    if: >
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success')
     env:
@@ -79,13 +78,13 @@ jobs:
           echo "repo=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
           VERSION=$(grep "^version = " backend/Cargo.toml | head -1 | sed 's/version = "//;s/"//')
           echo "tag=v$VERSION" >> $GITHUB_OUTPUT
-          # Determine branch-specific tag
-          if [ "${{ github.ref_name }}" = "main" ]; then
+          # Force branch tag based on inputs.branch_name
+          if [ "${{ inputs.branch_name }}" = "main" ]; then
             echo "branch_tag=latest" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref_name }}" = "develop" ]; then
+          elif [ "${{ inputs.branch_name }}" = "develop" ]; then
             echo "branch_tag=dev" >> $GITHUB_OUTPUT
           else
-            echo "branch_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "branch_tag=${{ inputs.branch_name }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Copy turn-rs config files to docker context
