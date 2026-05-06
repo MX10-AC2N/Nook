@@ -48,7 +48,7 @@ jobs:
         working-directory: ./frontend
         run: |
           echo "Checking for corrupted line numbers in Svelte files..."
-          if grep -r "^[[:space:]]*[0-9]*|" src/routes/; then
+          if grep -r "^[[:space:]]*[0-9][0-9]*|" src/routes/; then
             echo "❌ Corrupted files detected (line numbers found)"
             exit 1
           else
