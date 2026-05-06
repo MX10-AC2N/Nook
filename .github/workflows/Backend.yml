@@ -137,23 +137,7 @@ jobs:
           RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-backend-report.sh
 
-      - name: Commit BACKEND-BUILD-REPORT
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .hermes/BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
-          if git diff --staged --quiet; then
-            echo "No change - no commit"
-          else
-            git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]"
-            git pull --rebase --autostash origin ${{ github.ref_name }}
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset origin/${{ github.ref_name }}
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "Report committed"
-          fi
+      # Rapport supprimé : causait des conflits de merge systématiques
 
       - uses: actions/upload-artifact@v4
         with:
