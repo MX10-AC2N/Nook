@@ -1,3 +1,5 @@
+#![allow(clippy::for_kv_map)]
+
 // backend/src/sfu.rs
 // SFU (Selective Forwarding Unit) pour appels groupe 3+ participants.
 // Pattern: Room -> Peers -> MediaRelay -> RTCP PLI forwarding.

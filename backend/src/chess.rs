@@ -1,3 +1,7 @@
+#![allow(deprecated)]
+#![allow(clippy::for_kv_map)]
+#![allow(clippy::single_char_add_str)]
+
 // backend/src/chess.rs
 // Jeu d'échecs FIDE standard — 2 joueurs (humain vs humain ou humain vs IA)
 //
@@ -54,6 +58,7 @@ use axum::{
 };
 use chrono::Utc;
 use chrono::NaiveDateTime;
+use chrono::DateTime;
 use chrono::TimeZone;
 use serde::Deserialize;
 use serde_json::{json, Value};

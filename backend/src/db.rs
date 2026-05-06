@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+#![allow(clippy::for_kv_map)]
+
 
 use axum::{
     extract::{Path, Query, State},
