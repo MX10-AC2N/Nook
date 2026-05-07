@@ -24,7 +24,7 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-          # ARM64 disabled temporarily - fix runner label
+          # ARM64 disabled temporarily
           # - arch: arm64
           #   target: aarch64-unknown-linux-musl
           #   runner: ubuntu-latest-arm64
@@ -35,9 +35,8 @@ jobs:
         working-directory: ./backend
     
     env:
-      RUSTFLAGS: "--cap-lints allow"
+      RUSTFLAGS: "-C linker=musl-gcc --cap-lints allow"
       SQLX_OFFLINE: true
-      PATH: /usr/local/bin:$PATH
     
     steps:
       - uses: actions/checkout@v4
@@ -50,32 +49,22 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
       
-      - name: Install zig
+      - name: Install musl-tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget xz-utils
-          wget -q https://ziglang.org/download/0.11.0/zig-linux-x86_64-0.11.0.tar.xz
-          tar -xf zig-linux-x86_64-0.11.0.tar.xz
-          sudo mv zig-linux-x86_64-0.11.0/zig /usr/local/bin/
-          sudo chmod +x /usr/local/bin/zig
-          rm -rf zig-linux-x86_64-0.11.0 zig-linux-x86_64-0.11.0.tar.xz
-          zig version
-      
-      - name: Install cargo-zigbuild
-        run: |
-          cargo install cargo-zigbuild 2>&1 | tail -20
-          which cargo-zigbuild || (echo "ERROR: cargo-zigbuild not found in PATH" && exit 1)
+          sudo apt-get install -y musl-tools
+          musl-gcc --version
       
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}-zig
+          key: ${{ matrix.target }}-${{ matrix.arch }}-musl
       
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo zigbuild --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
@@ -85,7 +74,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo zigbuild --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
@@ -101,7 +90,7 @@ jobs:
           set -e
           exit $EXIT_CODE
       
-      - name: cargo zigbuild --release
+      - name: cargo build --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -110,7 +99,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
+          cargo build --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           
