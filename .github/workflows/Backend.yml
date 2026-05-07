@@ -53,37 +53,37 @@ jobs:
         with:
           workspaces: backend
       
-      - name: cargo check
+      - name: cargo zigbuild check
         id: check
         run: |
           set +e
-          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          cargo zigbuild check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
           exit $EXIT_CODE
       
-      - name: cargo clippy
+      - name: cargo zigbuild clippy
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo zigbuild clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
           exit $EXIT_CODE
       
-      - name: cargo test (native)
+      - name: cargo zigbuild test (native)
         id: test
         run: |
           set +e
-          cargo test 2>&1 | tee /tmp/cargo-test.txt
+          cargo zigbuild test 2>&1 | tee /tmp/cargo-test.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "test_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
           exit $EXIT_CODE
       
-      - name: cargo build --release
+      - name: cargo zigbuild build --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -92,7 +92,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild build --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           
