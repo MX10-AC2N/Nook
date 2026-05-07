@@ -27,7 +27,6 @@ jobs:
             runner: ubuntu-latest-arm64
 
     env:
-      RUSTFLAGS: "-C linker=zig cc -C target-feature=+crt-static --cap-lints allow"
       SQLX_OFFLINE: true
 
     steps:
@@ -41,41 +40,42 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
-      - name: Install zig
+      - name: Install cross
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zig
-          zig version
+          cargo install cross --git https://github.com/cross-rs/cross --features cargo-cross
+          cross --version
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
           key: ${{ matrix.target }}-${{ matrix.arch }}
 
-      - name: cargo check
+      - name: cross check
         id: check
         working-directory: ./backend
         run: |
           set +e
-          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
-          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          cross check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo clippy
+      - name: cross clippy
         id: clippy
         working-directory: ./backend
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          cross clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo build --release
+      - name: cross build --release
         id: build
         working-directory: ./backend
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cross build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           if [ $EXIT_CODE -eq 0 ]; then
@@ -83,7 +83,7 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "📏 Taille : $BIN_SIZE"
+            echo "Taille : $BIN_SIZE"
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
           fi
@@ -94,15 +94,40 @@ jobs:
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "✅ artifacts/nook-backend-${{ matrix.arch }} prêt"
+          echo "✅ artifacts/nook-backend-${{ matrix.arch }} pret"
 
       - name: Generate BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
           ARCH="${{ matrix.arch }}"
-          echo "Report generated for $ARCH" > .hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md
-          echo "Build status: ${{ steps.build.outputs.build_status }}" >> .hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md
+          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          BRANCH="${{ github.ref_name }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
+          BUILD_STATUS="${{ steps.build.outputs.build_status }}"
+          BIN_SIZE="${{ steps.build.outputs.bin_size }}"
+          CHECK_EXIT="${{ steps.check.outputs.check_exit }}"
+          CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
+
+          REPORT=".hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md"
+          
+          # Ecrire le rapport sans '>' YAML
+          echo "# Backend Build Report — ${ARCH} — Nook" > "$REPORT"
+          echo "" >> "$REPORT"
+          echo "Genere automatiquement par Backend.yml" >> "$REPORT"
+          echo "Date: ${RUN_DATE}" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "## Statut global" >> "$REPORT"
+          [ "$BUILD_STATUS" = "OK" ] && echo "✅ OK" >> "$REPORT" || echo "❌ FAIL" >> "$REPORT"
+          echo "" >> "$REPORT"
+          echo "## Etapes" >> "$REPORT"
+          echo "- cargo check: exit ${CHECK_EXIT:-?}" >> "$REPORT"
+          echo "- cargo clippy: exit ${CLIPPY_EXIT:-?}" >> "$REPORT"
+          echo "- cargo build: ${BIN_SIZE:-N/A}" >> "$REPORT"
+          echo "✅ ${REPORT} genere"
 
       - name: Commit BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
         if: always()
