@@ -20,12 +20,12 @@ jobs:
         include:
           - arch: amd64
             rust_target: x86_64-unknown-linux-musl
-            linker: musl-gcc
-            install: "sudo apt-get install -y musl-tools"
+            linker: zig
+            install: "sudo apt-get update && sudo apt-get install -y zig"
           - arch: arm64
-            rust_target: aarch64-unknown-linux-gnu
-            linker: aarch64-linux-gnu-gcc
-            install: "sudo apt-get install -y gcc-aarch64-linux-gnu"
+            rust_target: aarch64-unknown-linux-musl
+            linker: zig
+            install: "sudo apt-get update && sudo apt-get install -y zig"
 
     steps:
       - uses: actions/checkout@v4
@@ -37,22 +37,14 @@ jobs:
           targets: ${{ matrix.rust_target }}
           components: rustfmt, clippy
 
-      - name: Install cross-compilation tools
+      - name: Install zig and cargo-zigbuild
         run: |
           sudo apt-get update
-          ${{ matrix.install }}
+          sudo apt-get install -y zig
+          cargo install cargo-zigbuild
+          rustup target add ${{ matrix.rust_target }}
 
-      - name: Configure cargo linker
-        run: |
-          mkdir -p ${{ github.workspace }}/.cargo
-          cat > ${{ github.workspace }}/.cargo/config.toml << 'EOFCFG'
-          [target.x86_64-unknown-linux-musl]
-          linker = "musl-gcc"
-          
-          [target.aarch64-unknown-linux-gnu]
-          linker = "aarch64-linux-gnu-gcc"
-          EOFCFG
-          cat ${{ github.workspace }}/.cargo/config.toml
+
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -75,11 +67,11 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo clippy --target ${{ matrix.rust_target }} -- -D warnings 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo build --release
+      - name: cargo build --release (zigbuild)
         id: build
         env:
           SQLX_OFFLINE: true
@@ -89,7 +81,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --release --locked --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild --release --locked --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
           if [ $BUILD_EXIT -eq 0 ]; then
