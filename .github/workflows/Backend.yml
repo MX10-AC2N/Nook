@@ -107,6 +107,7 @@ jobs:
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
           echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          ls -la artifacts/
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
@@ -126,7 +127,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.target }}
-          path: backend/artifacts/nook-backend-*
+          name: nook-backend-${{ matrix.arch }}
+          path: backend/artifacts/nook-backend-${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 7
