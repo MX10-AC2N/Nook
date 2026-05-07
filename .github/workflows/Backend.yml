@@ -35,7 +35,7 @@ jobs:
         working-directory: ./backend
     
     env:
-      RUSTFLAGS: "-C linker=musl-gcc --cap-lints allow"
+      RUSTFLAGS: "--cap-lints allow"
       SQLX_OFFLINE: true
     
     steps:
@@ -49,22 +49,22 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
       
-      - name: Install musl-tools
+      - name: Install cross
         run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          musl-gcc --version
+          cargo install cross 2>&1 | tail -20
+          which cross || (echo "ERROR: cross not found" && exit 1)
+          cross --version
       
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}-musl
+          key: ${{ matrix.target }}-${{ matrix.arch }}-cross
       
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          cross check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
@@ -74,7 +74,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cross clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
@@ -90,7 +90,7 @@ jobs:
           set -e
           exit $EXIT_CODE
       
-      - name: cargo build --release
+      - name: cross build --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -99,7 +99,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
+          cross build --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           
