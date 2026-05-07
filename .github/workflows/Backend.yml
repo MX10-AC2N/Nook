@@ -95,8 +95,8 @@ jobs:
       - name: Prepare binary
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.target }}
+          echo "artifacts/nook-backend-${{ matrix.target }} ready"
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
