@@ -14,7 +14,7 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
 
     runs-on: ${{ matrix.runner }}
@@ -37,19 +37,16 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
-      - name: Install cargo-zig
-        run: cargo install cargo-zig
-
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}-zig
+          key: ${{ matrix.target }}-${{ matrix.arch }}-native
 
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo zigcheck --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -57,7 +54,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo zigclippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -65,11 +62,11 @@ jobs:
         id: test
         run: |
           set +e
-          cargo zigtest --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo zigbuild --release
+      - name: cargo build --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -78,7 +75,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
