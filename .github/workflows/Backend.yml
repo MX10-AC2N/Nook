@@ -8,64 +8,73 @@ jobs:
     name: Backend (${{ matrix.arch }})
     permissions:
       contents: write
-
+    
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux-gnu
+            rust_target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-
+          - arch: arm64
+            rust_target: aarch64-unknown-linux-musl
+            runner: ubuntu-latest
+            
     runs-on: ${{ matrix.runner }}
+    
     defaults:
       run:
         working-directory: ./backend
-
+        
     env:
       RUSTFLAGS: "--cap-lints allow"
       SQLX_OFFLINE: true
-
+      
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
+          
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: ${{ matrix.target }}
-
+          targets: ${{ matrix.rust_target }}
+          
+      - name: Install musl tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}-native
-
+          key: ${{ matrix.rust_target }}-${{ matrix.arch }}-native
+          
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --all-targets --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
-
+          
       - name: cargo clippy
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
-
+          
       - name: cargo test
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo test --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
-
+          
       - name: cargo build --release
         id: build
         env:
@@ -75,12 +84,12 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo build --release --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
-
+          
           if [ $BUILD_EXIT -eq 0 ]; then
-            BINARY="target/${{ matrix.target }}/release/nook-backend"
+            BINARY="target/${{ matrix.rust_target }}/release/nook-backend"
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
@@ -89,15 +98,15 @@ jobs:
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
           fi
-
+          
           exit $BUILD_EXIT
-
+          
       - name: Prepare binary
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.target }}
-          echo "artifacts/nook-backend-${{ matrix.target }} ready"
-
+          cp target/${{ matrix.rust_target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
+          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
         working-directory: ${{ github.workspace }}
@@ -113,10 +122,10 @@ jobs:
           REPO: "${{ github.repository }}"
           RUN_ID: "${{ github.run_id }}"
         run: bash .github/scripts/generate-backend-report.sh
-
+        
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.target }}
-          path: backend/artifacts/nook-backend-*
+          name: nook-backend-${{ matrix.arch }}
+          path: backend/artifacts/nook-backend-${{ matrix.arch }}
           if-no-files-found: error
           retention-days: 7
