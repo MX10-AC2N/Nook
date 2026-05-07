@@ -36,6 +36,7 @@ jobs:
     env:
       RUSTFLAGS: "--cap-lints allow"
       SQLX_OFFLINE: true
+      PATH: /usr/local/bin:$PATH
     
     steps:
       - uses: actions/checkout@v4
