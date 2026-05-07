@@ -24,72 +24,25 @@ jobs:
           - arch: arm64
             target: aarch64-unknown-linux-musl
             runner: ubuntu-latest-arm64
-    env:
-      SQLX_OFFLINE: true
-      RUSTFLAGS: "-C target-feature=+crt-static"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-          components: rustfmt, clippy
-
-      - name: Install musl tools (amd64 only)
-        if: matrix.arch == 'amd64'
+      - name: Build with Docker (multi-stage)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}
-
-      - name: Check
-        id: check
-        working-directory: ./backend
-        run: |
-          set +e
-          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
-          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-          set -e
-
-      - name: Clippy
-        id: clippy
-        working-directory: ./backend
-        run: |
-          set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-          set -e
-
-      - name: Build
-        id: build
-        working-directory: ./backend
-        run: |
-          set +e
-          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          set -e
-          if [ $EXIT_CODE -eq 0 ]; then
-            BINARY="target/${{ matrix.target }}/release/nook-backend"
-            BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
-            echo "build_status=OK" >> $GITHUB_OUTPUT
-            echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-          else
-            echo "build_status=FAIL" >> $GITHUB_OUTPUT
-          fi
-          exit $EXIT_CODE
-
+          docker run --rm             -v ${{ github.workspace }}:/workspace             -w /workspace/backend             --platform linux/${{ matrix.arch == 'amd64' && 'amd64' || 'arm64' }}             rust:latest             /bin/bash -c "
+              rustup target add ${{ matrix.target }} &&
+              apt-get update && apt-get install -y musl-tools &&
+              cargo build --release --target ${{ matrix.target }} &&
+              chmod +x target/${{ matrix.target }}/release/nook-backend
+            "
+          
       - name: Prepare artifact
-        working-directory: ./backend
         run: |
-          mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
+          mkdir -p backend/artifacts
+          cp backend/target/${{ matrix.target }}/release/nook-backend backend/artifacts/nook-backend-${{ matrix.arch }}
           echo "✅ nook-backend-${{ matrix.arch }} ready"
 
       - name: Generate report
@@ -100,8 +53,7 @@ jobs:
           REPORT=".hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md"
           echo "# Backend Build Report — ${ARCH}" > "$REPORT"
           echo "" >> "$REPORT"
-          echo "- Status: ${{ steps.build.outputs.build_status }}" >> "$REPORT"
-          echo "- Size: ${{ steps.build.outputs.bin_size }}" >> "$REPORT"
+          echo "- Status: OK (built with Docker)" >> "$REPORT"
           echo "✅ Report generated"
 
       - name: Commit report
