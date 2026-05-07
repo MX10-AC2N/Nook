@@ -1,22 +1,18 @@
 # Nook - Backend (runtime only, pre-compiled binary)
-# Using Ubuntu 24.04 to match GitHub Actions (ubuntu-latest) GLIBC 2.39
-FROM ubuntu:24.04 AS runtime
+# Using Alpine 3.20 for minimal attack surface
+FROM alpine:3.20 AS runtime
 
-RUN apt-get update && apt-get install -y \
-    libsqlite3-0 \
-    libsodium23 \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -g 1000 nook && useradd -m -u 1000 -g nook nook
+RUN apk add --no-cache libsqlite3 ca-certificates libsodium \
+    && addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app \
     && chmod 0750 /app/data /app/data/uploads /app/logs /app/static
 
 ARG TARGETARCH=amd64
+
 COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
 COPY frontend/ /app/static/
-
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
