@@ -1,109 +1,159 @@
-name: "Backend Build & Artifact"
-
-"on":
-  workflow_dispatch: {}
+name: 1 ==> Backend Build & Artifact
+on:
+  workflow_dispatch:
   push:
     branches: [develop, main]
     paths:
       - 'backend/**'
-      - '.cargo/**'
+      - '.github/workflows/Backend.yml'
+  workflow_run:
+    workflows: ["2 ==> Frontend Build & Artifact"]
+    types: [completed]
+    branches: [develop, main]
 
 jobs:
   backend:
-    name: "Backend Build (${{ matrix.arch }})"
-    runs-on: ubuntu-latest
+    name: Backend (${{ matrix.arch }})
     permissions:
       contents: write
-    defaults:
-      run:
-        working-directory: ./backend
+    
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
             target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
           - arch: arm64
             target: aarch64-unknown-linux-musl
-
+            runner: ubuntu-latest
+    
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    env:
+      RUSTFLAGS: "--cap-lints allow"
+      SQLX_OFFLINE: true
+    
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
-
-      - name: Install zig and cargo-zigbuild
+      
+      - name: Install zig
         run: |
           sudo apt-get update
-          sudo apt-get install -y zig
-          cargo install cargo-zigbuild 2>&1 | tail -5
-          which cargo-zigbuild || (echo "cargo-zigbuild not found" && exit 1)
-          rustup target add ${{ matrix.target }}
-
+          sudo apt-get install -y wget
+          wget -q https://ziglang.org/download/0.11.0/zig-linux-x86_64-0.11.0.tar.xz
+          tar -xf zig-linux-x86_64-0.11.0.tar.xz
+          sudo mv zig-linux-x86_64-0.11.0/zig /usr/local/bin/
+          sudo chmod +x /usr/local/bin/zig
+          rm -rf zig-linux-x86_64-0.11.0 zig-linux-x86_64-0.11.0.tar.xz
+          zig version
+      
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install cargo-zigbuild 2>&1 | tail -20
+          which cargo-zigbuild || (echo "ERROR: cargo-zigbuild not found in PATH" && exit 1)
+          cargo zigbuild --version
+      
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.target }}
-
+          key: ${{ matrix.target }}-${{ matrix.arch }}-zig
+      
       - name: cargo check
         id: check
-        env:
-          SQLX_OFFLINE: true
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
-          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          cargo zigbuild --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
-
+          exit $EXIT_CODE
+      
       - name: cargo clippy
         id: clippy
-        env:
-          SQLX_OFFLINE: true
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          cargo zigbuild --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-clippy.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
-
-      - name: cargo build --release (zigbuild)
+          exit $EXIT_CODE
+      
+      - name: cargo test (native)
+        id: test
+        run: |
+          set +e
+          cargo test 2>&1 | tee /tmp/cargo-test.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "test_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          set -e
+          exit $EXIT_CODE
+      
+      - name: cargo zigbuild --release
         id: build
         env:
-          SQLX_OFFLINE: true
           CARGO_PROFILE_RELEASE_LTO: "true"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
-          BUILD_EXIT=${PIPESTATUS[0]}
+          cargo zigbuild --target ${{ matrix.target }} --release 2>&1 | tee /tmp/cargo-build.txt
+          EXIT_CODE=${PIPESTATUS[0]}
           set -e
-          if [ $BUILD_EXIT -eq 0 ]; then
+          
+          if [ $EXIT_CODE -eq 0 ]; then
             BINARY="target/${{ matrix.target }}/release/nook-backend"
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "Binary size: $BIN_SIZE"
+            echo "Size: $BIN_SIZE"
             ls -lh $BINARY
+            file $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
           fi
-          exit $BUILD_EXIT
-
+          
+          exit $EXIT_CODE
+      
       - name: Prepare binary
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "Binary ready: nook-backend-${{ matrix.arch }}"
-          ls -la artifacts/
-
+          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          file artifacts/nook-backend-${{ matrix.arch }}
+      
+      - name: Generate BACKEND-BUILD-REPORT
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          ARCH: ${{ matrix.arch }}
+          COMMIT_SHA: "${{ github.sha }}"
+          BRANCH: "${{ github.ref_name }}"
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BUILD_STATUS: "${{ steps.build.outputs.build_status }}"
+          BIN_SIZE: "${{ steps.build.outputs.bin_size }}"
+          CHECK_EXIT: "${{ steps.check.outputs.check_exit }}"
+          CLIPPY_EXIT: "${{ steps.clippy.outputs.clippy_exit }}"
+          TEST_EXIT: "${{ steps.test.outputs.test_exit }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
+        run: bash .github/scripts/generate-backend-report.sh
+      
       - uses: actions/upload-artifact@v4
         with:
           name: nook-backend-${{ matrix.arch }}
-          path: backend/artifacts/nook-backend-${{ matrix.arch }}
+          path: backend/artifacts/nook-backend-*
           if-no-files-found: error
           retention-days: 7
