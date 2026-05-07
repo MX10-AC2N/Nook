@@ -1,4 +1,5 @@
-name: "1 ==> 🏗️ Backend Build & Artifact"
+name: "Backend Build & Artifact"
+
 on:
   workflow_dispatch:
   push:
@@ -7,7 +8,7 @@ on:
 
 jobs:
   backend:
-    name: "🏗️ Backend (${{ matrix.arch }})"
+    name: "Backend (${{ matrix.arch }})"
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -19,13 +20,9 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            rust_target: x86_64-unknown-linux-musl
-            linker: zig
-            install: "sudo apt-get update && sudo apt-get install -y zig"
+            target: x86_64-unknown-linux-musl
           - arch: arm64
-            rust_target: aarch64-unknown-linux-musl
-            linker: zig
-            install: "sudo apt-get update && sudo apt-get install -y zig"
+            target: aarch64-unknown-linux-musl
 
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +31,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
       - name: Install zig and cargo-zigbuild
@@ -43,14 +40,12 @@ jobs:
           sudo apt-get install -y zig
           cargo install cargo-zigbuild 2>&1 | tail -5
           which cargo-zigbuild || (echo "cargo-zigbuild not found" && exit 1)
-          rustup target add ${{ matrix.rust_target }}
-
-
+          rustup target add ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
-          key: ${{ matrix.rust_target }}
+          key: ${{ matrix.target }}
 
       - name: cargo check
         id: check
@@ -58,7 +53,7 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -68,7 +63,7 @@ jobs:
           SQLX_OFFLINE: true
         run: |
           set +e
-          cargo clippy --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -82,11 +77,11 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --release --locked --target ${{ matrix.rust_target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild --release --locked --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
           if [ $BUILD_EXIT -eq 0 ]; then
-            BINARY="target/${{ matrix.rust_target }}/release/nook-backend"
+            BINARY="target/${{ matrix.target }}/release/nook-backend"
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
@@ -100,7 +95,7 @@ jobs:
       - name: Prepare binary (suffix amd64/arm64)
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.rust_target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
+          cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
           echo "✅ artifacts/nook-backend-${{ matrix.arch }} prêt"
           ls -la artifacts/
 
@@ -121,7 +116,7 @@ jobs:
           CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
           
           [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
-          [ "$CHECK_EXIT"  = "0" ] && CHECK_ICON="✅"  || CHECK_ICON="❌"
+          [ "$CHECK_EXIT" = "0" ] && CHECK_ICON="✅" || CHECK_ICON="❌"
           [ "$CLIPPY_EXIT" = "0" ] && CLIPPY_ICON="✅" || CLIPPY_ICON="❌"
           
           if [ "$BUILD_STATUS" = "OK" ] && [ "$CHECK_EXIT" = "0" ] && [ "$CLIPPY_EXIT" = "0" ]; then
@@ -142,10 +137,10 @@ jobs:
           REPORT=".hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md"
           mkdir -p .hermes/reports
           
-          cat > "$REPORT" << ENDMD
+          cat > "$REPORT" << 'ENDMD'
 # 🏗️ Backend Build Report — ${ARCH} — Nook
 
-> Généré automatiquement par \`Backend.yml\` · target \`${{ matrix.rust_target }}\`
+> Généré automatiquement par `Backend.yml` · target `${{ matrix.target }}`
 > **${RUN_DATE}**
 
 ---
@@ -154,10 +149,10 @@ jobs:
 
 | Champ | Valeur |
 |-------|--------|
-| **Architecture** | \`${{ matrix.arch }}\` (\`${{ matrix.rust_target }}\`) |
-| **Branche** | \`${BRANCH}\` |
-| **Commit** | [\`${COMMIT_SHORT}\`](${RUN_URL}) |
-| **Rust** | \`${RUSTC_VER}\` |
+| **Architecture** | `$[[ matrix.arch ]]` (`${{ matrix.target }}`) |
+| **Branche** | `$[[ github.ref_name ]]` |
+| **Commit** | [`${COMMIT_SHORT}`](${RUN_URL}) |
+| **Rust** | `$[[ rustc --version ]]` |
 | **Run CI** | [Voir le run complet](${RUN_URL}) |
 
 ---
@@ -167,36 +162,36 @@ jobs:
 | Étape | Statut | Détail |
 |-------|--------|--------|
 | **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT} |
-| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} (-D warnings) |
+| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} |
 | **cargo build --release** | ${BUILD_ICON} | binaire ${BIN_SIZE} stripped |
 
 ---
 
 ## Erreurs cargo check
 
-\`\`\`
+```
 ${CHECK_ERRORS}
-\`\`\`
+```
 
 ---
 
 ## Warnings clippy
 
-\`\`\`
+```
 ${CLIPPY_WARNS}
-\`\`\`
+```
 
 ---
 
 ## Erreurs cargo build
 
-\`\`\`
+```
 ${BUILD_ERRORS}
-\`\`\`
+```
 
 ---
 
-*Rapport généré par \`.github/workflows/Backend.yml\` · job \`${{ matrix.rust_target }}\`*
+*Rapport généré par `.github/workflows/Backend.yml` · job `${{ matrix.target }}`*
 ENDMD
           
           git add "$REPORT"
