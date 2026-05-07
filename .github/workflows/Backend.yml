@@ -40,8 +40,14 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
+      - name: Add musl targets explicitly
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install musl tools
         run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Set musl linker env
+        run: echo "RUSTFLAGS=-C link-er=musl-gcc" >> $GITHUB_ENV
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -79,6 +85,7 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
+          RUSTFLAGS: "--cap-lints allow -C linker=musl-gcc"
         run: |
           set +e
           cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
