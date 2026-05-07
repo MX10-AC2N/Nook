@@ -1,7 +1,7 @@
 name: "Backend Build & Artifact"
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches: [develop, main]
     paths:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   backend:
-    name: "Backend Build"
+    name: "Backend Build (${{ matrix.arch }})"
     runs-on: ubuntu-latest
     permissions:
       contents: write
