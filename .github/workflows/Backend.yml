@@ -1,6 +1,6 @@
 name: "Backend Build & Artifact"
 
-on:
+"on":
   workflow_dispatch: {}
   push:
     branches: [develop, main]
