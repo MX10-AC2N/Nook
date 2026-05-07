@@ -14,7 +14,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
-
     strategy:
       fail-fast: false
       matrix:
@@ -25,10 +24,8 @@ jobs:
           - arch: arm64
             target: aarch64-unknown-linux-musl
             runner: ubuntu-latest-arm64
-
     env:
       SQLX_OFFLINE: true
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,7 +37,8 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
-      - name: Install cross
+      - name: Install cross (for amd64 only)
+        if: matrix.arch == 'amd64'
         run: |
           cargo install cross --git https://github.com/cross-rs/cross --features cargo-cross
           cross --version
@@ -50,32 +48,42 @@ jobs:
           workspaces: backend
           key: ${{ matrix.target }}-${{ matrix.arch }}
 
-      - name: cross check
+      - name: Check
         id: check
         working-directory: ./backend
         run: |
           set +e
-          cross check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            cross check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          else
+            cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          fi
+          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cross clippy
+      - name: Clippy
         id: clippy
         working-directory: ./backend
         run: |
           set +e
-          cross clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "clippy_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            cross clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          else
+            cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          fi
+          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cross build --release
+      - name: Build
         id: build
         working-directory: ./backend
         run: |
           set +e
-          cross build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            cross build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          else
+            cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          fi
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           if [ $EXIT_CODE -eq 0 ]; then
@@ -83,62 +91,40 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "Taille : $BIN_SIZE"
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
           fi
           exit $EXIT_CODE
 
-      - name: Preparer le binaire
+      - name: Prepare artifact
         working-directory: ./backend
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "✅ artifacts/nook-backend-${{ matrix.arch }} pret"
+          echo "✅ nook-backend-${{ matrix.arch }} ready"
 
-      - name: Generate BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
+      - name: Generate report
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
           ARCH="${{ matrix.arch }}"
-          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-          COMMIT_SHA="${{ github.sha }}"
-          COMMIT_SHORT="${COMMIT_SHA:0:7}"
-          BRANCH="${{ github.ref_name }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
-          BUILD_STATUS="${{ steps.build.outputs.build_status }}"
-          BIN_SIZE="${{ steps.build.outputs.bin_size }}"
-          CHECK_EXIT="${{ steps.check.outputs.check_exit }}"
-          CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
-
           REPORT=".hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md"
-          
-          # Ecrire le rapport sans '>' YAML
-          echo "# Backend Build Report — ${ARCH} — Nook" > "$REPORT"
+          echo "# Backend Build Report — ${ARCH}" > "$REPORT"
           echo "" >> "$REPORT"
-          echo "Genere automatiquement par Backend.yml" >> "$REPORT"
-          echo "Date: ${RUN_DATE}" >> "$REPORT"
-          echo "" >> "$REPORT"
-          echo "## Statut global" >> "$REPORT"
-          [ "$BUILD_STATUS" = "OK" ] && echo "✅ OK" >> "$REPORT" || echo "❌ FAIL" >> "$REPORT"
-          echo "" >> "$REPORT"
-          echo "## Etapes" >> "$REPORT"
-          echo "- cargo check: exit ${CHECK_EXIT:-?}" >> "$REPORT"
-          echo "- cargo clippy: exit ${CLIPPY_EXIT:-?}" >> "$REPORT"
-          echo "- cargo build: ${BIN_SIZE:-N/A}" >> "$REPORT"
-          echo "✅ ${REPORT} genere"
+          echo "- Status: ${{ steps.build.outputs.build_status }}" >> "$REPORT"
+          echo "- Size: ${{ steps.build.outputs.bin_size }}" >> "$REPORT"
+          echo "✅ Report generated"
 
-      - name: Commit BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
+      - name: Commit report
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .hermes/reports/BACKEND-BUILD-REPORT-${{ matrix.arch }}.md
-          git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]" || echo "No changes"
-          git pull --rebase --autostash origin ${{ github.ref_name }} || echo "Pull failed"
-          git push --force-with-lease origin HEAD:${{ github.ref_name }} || echo "Push failed"
+          git add .hermes/reports/BACKEND-BUILD-REPORT-${{ matrix.arch }}.md || true
+          git commit -m "ci: update backend report for ${{ matrix.arch }}" || echo "No changes"
+          git pull --rebase --autostash origin ${{ github.ref_name }} || true
+          git push --force-with-lease origin HEAD:${{ github.ref_name }} || true
 
       - uses: actions/upload-artifact@v4
         with:
