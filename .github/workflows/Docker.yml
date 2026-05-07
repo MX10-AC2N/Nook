@@ -38,7 +38,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ inputs.branch_name }}
-          name: nook-backend-x86_64-unknown-linux-musl
+          name: nook-backend-amd64
           path: docker-context/backend
 
       - name: Download backend arm64
@@ -47,27 +47,25 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
           branch: ${{ inputs.branch_name }}
-          name: nook-backend-aarch64-unknown-linux-musl
+          name: nook-backend-arm64
           path: docker-context/backend
 
       - name: Prepare backend binaries
         run: |
-          # The artifacts contain files named nook-backend-amd64 and nook-backend-arm64
-          # Rename them to match Dockerfile.release expectations (add arch suffix)
-          if [ -f docker-context/backend/nook-backend-amd64 ]; then
-            echo "Found amd64 binary"
-          else
-            echo "ERROR: nook-backend-amd64 not found in docker-context/backend/"
-            ls -la docker-context/backend/
+          cd docker-context/backend
+          # Verify binaries exist
+          if [ ! -f nook-backend-amd64 ]; then
+            echo "ERROR: nook-backend-amd64 not found"
+            ls -la
             exit 1
           fi
-          if [ -f docker-context/backend/nook-backend-arm64 ]; then
-            echo "Found arm64 binary"
-          else
-            echo "ERROR: nook-backend-arm64 not found in docker-context/backend/"
-            ls -la docker-context/backend/
+          if [ ! -f nook-backend-arm64 ]; then
+            echo "ERROR: nook-backend-arm64 not found"
+            ls -la
             exit 1
           fi
+          chmod +x nook-backend-amd64 nook-backend-arm64
+          ls -la
 
       # Download turn-server
       - name: Download turn amd64
