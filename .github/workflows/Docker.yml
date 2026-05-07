@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Download backend
+      # Download backend amd64
       - name: Download backend amd64
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -35,16 +35,17 @@ jobs:
           name: nook-backend-x86_64-unknown-linux-gnu
           path: docker-context/backend
 
-      - name: Download backend arm64
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: Backend.yml
-          branch: ${{ inputs.branch_name }}
-          name: nook-backend-aarch64-unknown-linux-gnu
-          path: docker-context/backend
+      # Download backend arm64 (temporarily disabled - focusing on amd64 stability)
+      # - name: Download backend arm64
+      #   uses: dawidd6/action-download-artifact@v6
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     workflow: Backend.yml
+      #     branch: ${{ inputs.branch_name }}
+      #     name: nook-backend-aarch64-unknown-linux-gnu
+      #     path: docker-context/backend
 
-      # Download turn-server
+      # Download turn-server (amd64 only for now)
       - name: Download turn amd64
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -54,14 +55,14 @@ jobs:
           name: nook-turn-server-amd64
           path: docker-context/turn
 
-      - name: Download turn arm64
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: turn.yml
-          branch: ${{ inputs.branch_name }}
-          name: nook-turn-server-arm64
-          path: docker-context/turn
+      # - name: Download turn arm64
+      #   uses: dawidd6/action-download-artifact@v6
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     workflow: turn.yml
+      #     branch: ${{ inputs.branch_name }}
+      #     name: nook-turn-server-arm64
+      #     path: docker-context/turn
 
       # Download frontend
       - name: Download frontend
@@ -109,16 +110,17 @@ jobs:
           echo "=== Frontend ==="
           ls -la docker-context/frontend/
           test -f docker-context/backend/nook-backend-amd64 || (echo "backend amd64 missing" && exit 1)
-          test -f docker-context/backend/nook-backend-arm64 || (echo "backend arm64 missing" && exit 1)
+          # Temporarily skip arm64 check
+          # test -f docker-context/backend/nook-backend-arm64 || (echo "backend arm64 missing" && exit 1)
           test -f docker-context/turn/turn-server-amd64 || (echo "turn amd64 missing" && exit 1)
-          test -f docker-context/turn/turn-server-arm64 || (echo "turn arm64 missing" && exit 1)
+          # test -f docker-context/turn/turn-server-arm64 || (echo "turn arm64 missing" && exit 1)
           test -f docker-context/frontend/index.html || (echo "frontend missing" && exit 1)
           test -f docker-context/turn/turnserver.conf.template || (echo "turn template missing" && exit 1)
           test -f docker-context/turn/docker-entrypoint.sh || (echo "entrypoint missing" && exit 1)
           chmod +x docker-context/backend/nook-backend-amd64
-          chmod +x docker-context/backend/nook-backend-arm64
+          # chmod +x docker-context/backend/nook-backend-arm64
           chmod +x docker-context/turn/turn-server-amd64
-          chmod +x docker-context/turn/turn-server-arm64
+          # chmod +x docker-context/turn/turn-server-arm64
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -136,21 +138,21 @@ jobs:
           context: docker-context
           file: Dockerfile.release
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
             ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.branch_tag }}
           build-args: |
             TARGETARCH
 
-      # Build and push turn-server
+      # Build and push turn-server (amd64 only for now)
       - name: Build and push turn-server
         uses: docker/build-push-action@v6
         with:
           context: docker-context/turn
           file: services/turn-rs/Dockerfile.release
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
             ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.branch_tag }}
