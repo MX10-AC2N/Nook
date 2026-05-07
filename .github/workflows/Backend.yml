@@ -41,7 +41,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zig
-          cargo install cargo-zigbuild
+          cargo install cargo-zigbuild 2>&1 | tail -5
+          which cargo-zigbuild || (echo "cargo-zigbuild not found" && exit 1)
           rustup target add ${{ matrix.rust_target }}
 
 
