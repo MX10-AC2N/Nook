@@ -128,8 +128,8 @@ jobs:
           cat > "$REPORT" << 'ENDOFMD'
 # 🏗️ Backend Build Report — ${ARCH} — Nook
 
-> Généré automatiquement par `Backend.yml` · target `${{ matrix.target }}`
-> **${RUN_DATE}**
+  > Généré automatiquement par `Backend.yml` · target `${{ matrix.target }}`
+  > **${RUN_DATE}**
 
 ---
 
