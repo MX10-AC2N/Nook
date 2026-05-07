@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies (CI compatible)
         working-directory: ./frontend
         run: |
-          # npm ci fails if lockfile misses optional platforms (esbuild/rollup)
+          # npm install fails if lockfile misses optional platforms (esbuild/rollup)
           # We use npm install to ensure all required binaries are present and lockfile is valid
           npm install --no-audit --no-fund --legacy-peer-deps
 
