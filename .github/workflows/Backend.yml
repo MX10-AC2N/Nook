@@ -26,6 +26,7 @@ jobs:
             runner: ubuntu-latest-arm64
     env:
       SQLX_OFFLINE: true
+      RUSTFLAGS: "-C target-feature=+crt-static"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,11 +38,11 @@ jobs:
           targets: ${{ matrix.target }}
           components: rustfmt, clippy
 
-      - name: Install cross (for amd64 only)
+      - name: Install musl tools (amd64 only)
         if: matrix.arch == 'amd64'
         run: |
-          cargo install cross --git https://github.com/cross-rs/cross --features cargo-cross
-          cross --version
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -53,11 +54,7 @@ jobs:
         working-directory: ./backend
         run: |
           set +e
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            cross check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
-          else
-            cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
-          fi
+          cargo check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -66,11 +63,7 @@ jobs:
         working-directory: ./backend
         run: |
           set +e
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            cross clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          else
-            cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
-          fi
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -79,11 +72,7 @@ jobs:
         working-directory: ./backend
         run: |
           set +e
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            cross build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
-          else
-            cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
-          fi
+          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           EXIT_CODE=${PIPESTATUS[0]}
           set -e
           if [ $EXIT_CODE -eq 0 ]; then
