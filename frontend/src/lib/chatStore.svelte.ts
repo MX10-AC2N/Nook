@@ -291,14 +291,8 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
           ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
         });
         raw.encrypted = false;
-      } else {
-        // cryptoStore pas prêt (clés non déverrouillées)
-        raw.content = '🔒 Message chiffré (clé indisponible)';
       }
-    } catch (e) { 
-      console.error('[chatStore] Erreur déchiffrement:', e);
-      raw.content = '🔒 Message chiffré (erreur)'; 
-    }
+    } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
   }
   if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
