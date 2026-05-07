@@ -1,4 +1,4 @@
-name: 1 ==> Backend Build
+name: 1 ==> 🏗️ Backend Build & Artifact
 
 on:
   workflow_dispatch:
@@ -37,14 +37,13 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
-      - name: Add musl targets explicitly
-        run: rustup target add ${{ matrix.target }}
+      - name: Install Zig (for cargo-zig)
+        uses: mlugg/install-zig@v1
+        with:
+          version: 0.11.0
 
-      - name: Install musl tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      - name: Set musl linker env
-        run: echo "RUSTFLAGS=-C link-er=musl-gcc" >> $GITHUB_ENV
+      - name: Install cargo-zig
+        run: cargo install cargo-zig
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -55,7 +54,7 @@ jobs:
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo zigcheck --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -63,7 +62,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo zigclippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -71,29 +70,20 @@ jobs:
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo zigtest --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: Set up Cargo config for musl
-        run: |
-          mkdir -p ~/.cargo
-          cat >> ~/.cargo/config.toml << 'EOF'
-          [target.x86_64-unknown-linux-musl]
-          linker = "musl-gcc"
-          EOF
-
-      - name: cargo build --release
+      - name: cargo zigbuild --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
           CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
           CARGO_PROFILE_RELEASE_STRIP: "true"
-          RUSTFLAGS: "--cap-lints allow"
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
@@ -114,7 +104,7 @@ jobs:
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "artifacts/nook-backend-${{ matrix.arch }} pret"
+          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
