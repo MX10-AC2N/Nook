@@ -4,11 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [develop, main]
-    paths: ['backend/**', '.cargo/**']
+    paths:
+      - 'backend/**'
+      - '.cargo/**'
 
 jobs:
   backend:
-    name: "Backend (${{ matrix.arch }})"
+    name: "Backend Build"
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -85,130 +87,19 @@ jobs:
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
-            echo "📏 Taille : $BIN_SIZE"
+            echo "Binary size: $BIN_SIZE"
             ls -lh $BINARY
           else
             echo "build_status=FAIL" >> $GITHUB_OUTPUT
           fi
           exit $BUILD_EXIT
 
-      - name: Prepare binary (suffix amd64/arm64)
+      - name: Prepare binary
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "✅ artifacts/nook-backend-${{ matrix.arch }} prêt"
+          echo "Binary ready: nook-backend-${{ matrix.arch }}"
           ls -la artifacts/
-
-      - name: Generate BACKEND-BUILD-REPORT-{arch}.md
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: |
-          ARCH="${{ matrix.arch }}"
-          RUN_DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
-          COMMIT_SHA="${{ github.sha }}"
-          COMMIT_SHORT="${COMMIT_SHA:0:7}"
-          BRANCH="${{ github.ref_name }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RUSTC_VER=$(rustc --version 2>/dev/null || echo "?")
-          BUILD_STATUS="${{ steps.build.outputs.build_status }}"
-          BIN_SIZE="${{ steps.build.outputs.bin_size }}"
-          CHECK_EXIT="${{ steps.check.outputs.check_exit }}"
-          CLIPPY_EXIT="${{ steps.clippy.outputs.clippy_exit }}"
-          
-          [ "$BUILD_STATUS" = "OK" ] && BUILD_ICON="✅" || BUILD_ICON="❌"
-          [ "$CHECK_EXIT" = "0" ] && CHECK_ICON="✅" || CHECK_ICON="❌"
-          [ "$CLIPPY_EXIT" = "0" ] && CLIPPY_ICON="✅" || CLIPPY_ICON="❌"
-          
-          if [ "$BUILD_STATUS" = "OK" ] && [ "$CHECK_EXIT" = "0" ] && [ "$CLIPPY_EXIT" = "0" ]; then
-            GLOBAL_STATUS="✅ OK"
-          else
-            GLOBAL_STATUS="❌ FAIL"
-          fi
-          
-          CHECK_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-check.txt 2>/dev/null | head -30 || true)
-          [ -z "$CHECK_ERRORS" ] && CHECK_ERRORS="(aucune)"
-          
-          CLIPPY_WARNS=$(grep -E "^warning\[|^warning:" /tmp/cargo-clippy.txt 2>/dev/null | head -40 || true)
-          [ -z "$CLIPPY_WARNS" ] && CLIPPY_WARNS="(aucun)"
-          
-          BUILD_ERRORS=$(grep -E "^error\[|^error:" /tmp/cargo-build.txt 2>/dev/null | head -30 || true)
-          [ -z "$BUILD_ERRORS" ] && BUILD_ERRORS="(aucune)"
-          
-          REPORT=".hermes/reports/BACKEND-BUILD-REPORT-${ARCH}.md"
-          mkdir -p .hermes/reports
-          
-          cat > "$REPORT" << 'ENDMD'
-# 🏗️ Backend Build Report — ${ARCH} — Nook
-
-> Généré automatiquement par `Backend.yml` · target `${{ matrix.target }}`
-> **${RUN_DATE}**
-
----
-
-## Statut global : ${GLOBAL_STATUS}
-
-| Champ | Valeur |
-|-------|--------|
-| **Architecture** | `$[[ matrix.arch ]]` (`${{ matrix.target }}`) |
-| **Branche** | `$[[ github.ref_name ]]` |
-| **Commit** | [`${COMMIT_SHORT}`](${RUN_URL}) |
-| **Rust** | `$[[ rustc --version ]]` |
-| **Run CI** | [Voir le run complet](${RUN_URL}) |
-
----
-
-## Étapes
-
-| Étape | Statut | Détail |
-|-------|--------|--------|
-| **cargo check** | ${CHECK_ICON} | exit ${CHECK_EXIT} |
-| **cargo clippy** | ${CLIPPY_ICON} | exit ${CLIPPY_EXIT} |
-| **cargo build --release** | ${BUILD_ICON} | binaire ${BIN_SIZE} stripped |
-
----
-
-## Erreurs cargo check
-
-```
-${CHECK_ERRORS}
-```
-
----
-
-## Warnings clippy
-
-```
-${CLIPPY_WARNS}
-```
-
----
-
-## Erreurs cargo build
-
-```
-${BUILD_ERRORS}
-```
-
----
-
-*Rapport généré par `.github/workflows/Backend.yml` · job `${{ matrix.target }}`*
-ENDMD
-          
-          git add "$REPORT"
-          echo "✅ $REPORT généré"
-
-      - name: Commit BACKEND-BUILD-REPORT-{arch}.md
-        if: always()
-        working-directory: ${{ github.workspace }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --staged --quiet && echo "Aucune modification" || {
-            git commit -m "ci: BACKEND-BUILD-REPORT-${{ matrix.arch }}.md [run ${{ github.run_id }}]"
-            git pull --rebase --autostash origin ${{ github.ref_name }}
-            git push origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
-          }
 
       - uses: actions/upload-artifact@v4
         with:
