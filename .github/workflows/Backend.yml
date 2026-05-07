@@ -37,11 +37,6 @@ jobs:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
 
-      - name: Install Zig (for cargo-zig)
-        uses: mlugg/install-zig@v1
-        with:
-          version: 0.11.0
-
       - name: Install cargo-zig
         run: cargo install cargo-zig
 
