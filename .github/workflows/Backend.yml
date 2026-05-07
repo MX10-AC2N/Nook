@@ -53,11 +53,11 @@ jobs:
         with:
           workspaces: backend
       
-      - name: cargo zigbuild check
+      - name: export PATH="$HOME/.cargo/bin:$PATH" && cargo zigbuild check
         id: check
         run: |
           set +e
-          cargo zigbuild check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
+          export PATH="$HOME/.cargo/bin:$PATH" && cargo zigbuild check --target ${{ matrix.target }} --all-targets 2>&1 | tee /tmp/cargo-check.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "check_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
           set -e
