@@ -1,12 +1,13 @@
 # Nook - Backend (runtime only, pre-compiled binary)
-# Using Alpine for minimal attack surface and compatibility with musl builds
-FROM alpine:3.19 AS runtime
+# Using Ubuntu 24.04 to match GitHub Actions (ubuntu-latest) GLIBC 2.39
+FROM ubuntu:24.04 AS runtime
 
-RUN apk add --no-cache \
-    sqlite-libs \
-    libsodium \
+RUN apt-get update && apt-get install -y \
+    libsqlite3-0 \
+    libsodium23 \
     ca-certificates \
-    && addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 nook && useradd -m -u 1000 -g nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app \
