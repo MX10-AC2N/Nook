@@ -35,7 +35,7 @@ jobs:
         working-directory: ./backend
     
     env:
-      RUSTFLAGS: "--cap-lints allow"
+      RUSTFLAGS: "-C linker=musl-gcc -C target-feature=+crt-static --cap-lints allow"
       SQLX_OFFLINE: true
     
     steps:
