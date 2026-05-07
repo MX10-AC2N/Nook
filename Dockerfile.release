@@ -1,15 +1,12 @@
 # Nook - Backend (runtime only, pre-compiled binary)
-# Uses Debian Slim for glibc compatibility (binary compiled with x86_64-unknown-linux-gnu)
+# Using Alpine for minimal attack surface and compatibility with musl builds
+FROM alpine:3.19 AS runtime
 
-FROM debian:bookworm-slim AS runtime
-
-RUN apt-get update && apt-get install -y \
+RUN apk add --no-cache \
+    sqlite-libs \
+    libsodium \
     ca-certificates \
-    libsqlite3-0 \
-    libsodium23 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN adduser --system --uid 1000 --group nook
+    && addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
     && chown -R nook:nook /app \

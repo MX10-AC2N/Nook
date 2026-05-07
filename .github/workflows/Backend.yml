@@ -1,4 +1,5 @@
-name: 1 ==> Backend Build & Artifact
+name: 1 ==> Backend Build
+
 on:
   workflow_dispatch:
 
@@ -13,10 +14,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
           - arch: arm64
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             runner: ubuntu-latest
 
     runs-on: ${{ matrix.runner }}
@@ -36,16 +37,11 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
           components: rustfmt, clippy
+          targets: ${{ matrix.target }}
 
-      - name: Install cross-compilation tools for arm64
-        if: matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-          rustup target add aarch64-unknown-linux-gnu
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -106,8 +102,7 @@ jobs:
         run: |
           mkdir -p artifacts
           cp target/${{ matrix.target }}/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
-          ls -la artifacts/
+          echo "artifacts/nook-backend-${{ matrix.arch }} pret"
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
@@ -127,7 +122,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.arch }}
-          path: backend/artifacts/nook-backend-${{ matrix.arch }}
+          name: nook-backend-${{ matrix.target }}
+          path: backend/artifacts/nook-backend-*
           if-no-files-found: error
           retention-days: 7

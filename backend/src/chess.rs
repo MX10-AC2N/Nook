@@ -1167,9 +1167,8 @@ pub async fn export_pgn(
             // Générer le PGN
             let mut pgn = String::new();
 
-            // Utiliser DateTime::from_timestamp (remplacement de from_timestamp_opt)
-            // et garder un DateTime<Utc> pour le formatage (remplacement de from_utc)
-            let date = chrono::DateTime::from_timestamp(created_at, 0).unwrap_or_default();
+            // Headers PGN (Seven Tag Roster)
+            let date = DateTime::from_timestamp(created_at, 0).unwrap_or_default();
             let date_str = date.format("%Y.%m.%d").to_string();
 
             pgn.push_str("[Event \"Casual game\"]\n");
