@@ -1,6 +1,15 @@
 name: 1 ==> Backend Build & Artifact
 on:
   workflow_dispatch:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/Backend.yml'
+  workflow_run:
+    workflows: ["2 ==> Frontend Build & Artifact"]
+    types: [completed]
+    branches: [develop, main]
 
 jobs:
   backend:
@@ -13,10 +22,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
           - arch: arm64
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux-musl
             runner: ubuntu-latest
 
     runs-on: ${{ matrix.runner }}
@@ -44,6 +53,24 @@ jobs:
           sudo apt-get install -y musl-tools
           echo "MUSL=1" >> $GITHUB_ENV
 
+      - name: Install zig
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          # Install zig 0.11.0
+          wget -q https://ziglang.org/download/0.11.0/zig-linux-x86_64-0.11.0.tar.xz
+          tar -xf zig-linux-x86_64-0.11.0.tar.xz
+          sudo mv zig-linux-x86_64-0.11.0/zig /usr/local/bin/
+          sudo chmod +x /usr/local/bin/zig
+          rm -rf zig-linux-x86_64-0.11.0 zig-linux-x86_64-0.11.0.tar.xz
+          zig version
+
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install cargo-zigbuild 2>&1 | tail -20
+          which cargo-zigbuild || (echo "ERROR: cargo-zigbuild not found in PATH" && exit 1)
+          cargo zigbuild --version
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
@@ -53,7 +80,7 @@ jobs:
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo zigbuild --target ${{ matrix.target }} --verbose --all-targets 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -61,7 +88,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo zigbuild --target ${{ matrix.target }} --verbose --release 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -69,7 +96,7 @@ jobs:
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo zigbuild --target ${{ matrix.target }} --verbose --test 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -86,7 +113,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild --target ${{ matrix.target }}-musl --verbose --release 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
