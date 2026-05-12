@@ -1,4 +1,4 @@
-name: 1 ==> Backend Build & Artifact
+name: 1==>🏗️ Backend Build & Artifact
 on:
   workflow_dispatch:
   push:
@@ -19,10 +19,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux
+            target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
           - arch: arm64
-            target: aarch64-unknown-linux
+            target: aarch64-unknown-linux-musl
             runner: ubuntu-latest
 
     runs-on: ${{ matrix.runner }}
@@ -43,33 +43,33 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: ${{ matrix.target }}-musl
+          targets: ${{ matrix.target }}
 
-      - name: cargo check (musl)
+      - name: cargo check
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo clippy (musl)
+      - name: cargo clippy
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo test (musl)
+      - name: cargo test
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-test.txt
+          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo build --release (musl)
+      - name: cargo build --release
         id: build
         env:
           CARGO_PROFILE_RELEASE_LTO: "true"
@@ -78,11 +78,12 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-build.txt
-          BUILD_EXIT=${PIPESTATUS[0]}\n          set -e
+          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
 
           if [ $BUILD_EXIT -eq 0 ]; then
-            BINARY="target/${{ matrix.target }}-musl/release/nook-backend"
+            BINARY="target/${{ matrix.target }}/release/nook-backend"
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
@@ -97,8 +98,19 @@ jobs:
       - name: Prepare binary
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}-musl/release/nook-backend artifacts/nook-backend-${{ matrix.arch }}
-          echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          BINARY="target/${{ matrix.target }}/release/nook-backend"
+          echo "Looking for: $BINARY"
+          if test -f "$BINARY"; then
+            cp "$BINARY" artifacts/nook-backend-${{ matrix.arch }}
+            chmod +x artifacts/nook-backend-${{ matrix.arch }}
+            ls -lh artifacts/nook-backend-${{ matrix.arch }}
+            echo "artifacts/nook-backend-${{ matrix.arch }} ready"
+          else
+            echo "FATAL: $BINARY not found, searching..."
+            find . -name "nook-backend" -type f 2>/dev/null || echo "not found anywhere"
+            ls -la "target/${{ matrix.target }}/release/" 2>/dev/null || echo "release dir missing"
+            exit 1
+          fi
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
@@ -118,7 +130,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.target }}-musl
+          name: nook-backend-${{ matrix.target }}
           path: backend/artifacts/nook-backend-*
           if-no-files-found: error
           retention-days: 7
