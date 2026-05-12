@@ -1078,7 +1078,9 @@
 
 
   onMount(async () => {
-    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    // Wait for authStore to finish loading before checking auth state
+    while (authStore.loading) { await new Promise(r => setTimeout(r, 50)); }
+    if (!authStore.isAuthenticated) return; // Le layout gérera le redirect
     await loadConversations();
     
     // FIX refresh: read conversationId from URL parameter
@@ -1369,7 +1371,9 @@
         >
           <!-- Message content -->
           <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
-            {#if isEmojiOnly(msg.content)}
+            {#if msg.encrypted}
+              <div class="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
+            {:else if isEmojiOnly(msg.content)}
               <div class="emoji-only">{@html msg.content}</div>
             {:else}
               {@html msg.content}
@@ -2862,5 +2866,12 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  .encrypted-placeholder {
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.5rem;
   }
 </style>
