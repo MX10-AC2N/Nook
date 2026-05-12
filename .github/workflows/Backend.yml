@@ -1,6 +1,12 @@
 name: 1 ==> Backend Build & Artifact
 on:
   workflow_dispatch:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'backend/**'
+      - 'Cargo.lock'
+      - '.github/workflows/Backend.yml'
 
 jobs:
   backend:
@@ -13,10 +19,10 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux
             runner: ubuntu-latest
           - arch: arm64
-            target: aarch64-unknown-linux-gnu
+            target: aarch64-unknown-linux
             runner: ubuntu-latest
 
     runs-on: ${{ matrix.runner }}
@@ -37,45 +43,31 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          targets: ${{ matrix.target }}-musl
 
-      - name: Install musl-tools for musl build
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-          echo "MUSL=1" >> $GITHUB_ENV
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend
-          key: ${{ matrix.target }}-${{ matrix.arch }}-zig
-
-      - name: cargo check
+      - name: cargo check (musl)
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --all-targets --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo clippy
+      - name: cargo clippy (musl)
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
-      - name: cargo test
+      - name: cargo test (musl)
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo test --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
-
-      - name: Add musl targets
-        run: |
-          rustup target add ${{ matrix.target }}-musl
 
       - name: cargo build --release (musl)
         id: build
@@ -87,8 +79,7 @@ jobs:
         run: |
           set +e
           cargo build --release --target ${{ matrix.target }}-musl 2>&1 | tee /tmp/cargo-build.txt
-          BUILD_EXIT=${PIPESTATUS[0]}
-          set -e
+          BUILD_EXIT=${PIPESTATUS[0]}\n          set -e
 
           if [ $BUILD_EXIT -eq 0 ]; then
             BINARY="target/${{ matrix.target }}-musl/release/nook-backend"
@@ -127,7 +118,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.target }}
+          name: nook-backend-${{ matrix.target }}-musl
           path: backend/artifacts/nook-backend-*
           if-no-files-found: error
           retention-days: 7
