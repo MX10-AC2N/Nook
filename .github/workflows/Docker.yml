@@ -55,14 +55,15 @@ jobs:
           name: nook-turn-server-amd64
           path: docker-context/turn
 
-      # - name: Download turn arm64
-      #   uses: dawidd6/action-download-artifact@v6
-      #   with:
-      #     github_token: ${{ secrets.GITHUB_TOKEN }}
-      #     workflow: turn.yml
-      #     branch: ${{ inputs.branch_name }}
-      #     name: nook-turn-server-arm64
-      #     path: docker-context/turn
+      # Download turn arm64
+      - name: Download turn arm64
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: turn.yml
+          branch: ${{ inputs.branch_name }}
+          name: nook-turn-server-arm64
+          path: docker-context/turn
 
       # Download frontend
       - name: Download frontend
