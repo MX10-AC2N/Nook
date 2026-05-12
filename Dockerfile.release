@@ -2,7 +2,7 @@
 # Using Alpine 3.20 for minimal attack surface
 FROM alpine:3.20 AS runtime
 
-RUN apk add --no-cache libsqlite3 ca-certificates libsodium \
+RUN apk add --no-cache sqlite-libs ca-certificates libsodium \
     && addgroup -g 1000 nook && adduser -D -u 1000 -G nook nook
 
 RUN mkdir -p /app/data/uploads /app/logs /app/static \
