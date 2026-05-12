@@ -8,30 +8,20 @@ on:
       - 'Cargo.lock'
       - '.github/workflows/Backend.yml'
 
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  backend:
-    name: Backend (${{ matrix.arch }})
+  backend-amd64:
+    name: Backend (amd64)
     permissions:
       contents: write
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            target: x86_64-unknown-linux-musl
-            zig: x86_64-linux-musl
-          - arch: arm64
-            target: aarch64-unknown-linux-musl
-            zig: aarch64-linux-musl
-
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend
-
     env:
-      RUSTFLAGS: "--cap-lints allow"
       SQLX_OFFLINE: true
 
     steps:
@@ -42,19 +32,17 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
+          targets: x86_64-unknown-linux-musl
           components: rustfmt, clippy
 
-      - name: Install zig + cargo-zigbuild
-        run: |
-          curl -L https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar xJ -C /opt
-          ln -s /opt/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
-          cargo install cargo-zigbuild
+      - name: Install musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo check 2>&1 | tee /tmp/cargo-check.txt
+          cargo check --target x86_64-unknown-linux-musl 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -62,7 +50,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo clippy 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy --target x86_64-unknown-linux-musl 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -83,12 +71,12 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo zigbuild --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
           if [ $BUILD_EXIT -eq 0 ]; then
-            BINARY="target/${{ matrix.target }}/release/nook-backend"
+            BINARY="target/x86_64-unknown-linux-musl/release/nook-backend"
             BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
             echo "build_status=OK" >> $GITHUB_OUTPUT
             echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
@@ -103,25 +91,16 @@ jobs:
       - name: Prepare binary
         run: |
           mkdir -p artifacts
-          BINARY="target/${{ matrix.target }}/release/nook-backend"
-          echo "Looking for: $BINARY"
-          if test -f "$BINARY"; then
-            cp "$BINARY" artifacts/nook-backend-${{ matrix.arch }}
-            chmod +x artifacts/nook-backend-${{ matrix.arch }}
-            ls -lh artifacts/nook-backend-${{ matrix.arch }}
-            echo "artifacts/nook-backend-${{ matrix.arch }} ready"
-          else
-            echo "FATAL: $BINARY not found, searching..."
-            find . -name "nook-backend" -type f 2>/dev/null || echo "not found anywhere"
-            ls -la "target/${{ matrix.target }}/release/" 2>/dev/null || echo "release dir missing"
-            exit 1
-          fi
+          cp target/x86_64-unknown-linux-musl/release/nook-backend artifacts/nook-backend-amd64
+          chmod +x artifacts/nook-backend-amd64
+          ls -lh artifacts/nook-backend-amd64
+          echo "artifacts/nook-backend-amd64 ready"
 
       - name: Generate BACKEND-BUILD-REPORT
         if: always()
         working-directory: ${{ github.workspace }}
         env:
-          ARCH: ${{ matrix.arch }}
+          ARCH: amd64
           COMMIT_SHA: "${{ github.sha }}"
           BRANCH: "${{ github.ref_name }}"
           RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -135,7 +114,113 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nook-backend-${{ matrix.target }}
-          path: backend/artifacts/nook-backend-*
+          name: nook-backend-x86_64-unknown-linux-musl
+          path: backend/artifacts/nook-backend-amd64
+          if-no-files-found: error
+          retention-days: 7
+
+  backend-arm64:
+    name: Backend (arm64)
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        working-directory: ./backend
+    env:
+      SQLX_OFFLINE: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+          components: rustfmt, clippy
+
+      - name: Install musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: cargo check
+        id: check
+        run: |
+          set +e
+          cargo check --target aarch64-unknown-linux-musl 2>&1 | tee /tmp/cargo-check.txt
+          echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
+
+      - name: cargo clippy
+        id: clippy
+        run: |
+          set +e
+          cargo clippy --target aarch64-unknown-linux-musl 2>&1 | tee /tmp/cargo-clippy.txt
+          echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
+
+      - name: cargo test
+        id: test
+        run: |
+          set +e
+          cargo test 2>&1 | tee /tmp/cargo-test.txt
+          echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+          set -e
+
+      - name: cargo build --release
+        id: build
+        env:
+          CARGO_PROFILE_RELEASE_LTO: "true"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "z"
+          CARGO_PROFILE_RELEASE_STRIP: "true"
+        run: |
+          set +e
+          cargo build --release --target aarch64-unknown-linux-musl 2>&1 | tee /tmp/cargo-build.txt
+          BUILD_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [ $BUILD_EXIT -eq 0 ]; then
+            BINARY="target/aarch64-unknown-linux-musl/release/nook-backend"
+            BIN_SIZE=$(ls -lh $BINARY | awk '{print $5}')
+            echo "build_status=OK" >> $GITHUB_OUTPUT
+            echo "bin_size=$BIN_SIZE" >> $GITHUB_OUTPUT
+            echo "Size: $BIN_SIZE"
+            ls -lh $BINARY
+          else
+            echo "build_status=FAIL" >> $GITHUB_OUTPUT
+          fi
+
+          exit $BUILD_EXIT
+
+      - name: Prepare binary
+        run: |
+          mkdir -p artifacts
+          cp target/aarch64-unknown-linux-musl/release/nook-backend artifacts/nook-backend-arm64
+          chmod +x artifacts/nook-backend-arm64
+          ls -lh artifacts/nook-backend-arm64
+          echo "artifacts/nook-backend-arm64 ready"
+
+      - name: Generate BACKEND-BUILD-REPORT
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          ARCH: arm64
+          COMMIT_SHA: "${{ github.sha }}"
+          BRANCH: "${{ github.ref_name }}"
+          RUN_URL: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BUILD_STATUS: "${{ steps.build.outputs.build_status }}"
+          BIN_SIZE: "${{ steps.build.outputs.bin_size }}"
+          CHECK_EXIT: "${{ steps.check.outputs.check_exit }}"
+          CLIPPY_EXIT: "${{ steps.clippy.outputs.clippy_exit }}"
+          REPO: "${{ github.repository }}"
+          RUN_ID: "${{ github.run_id }}"
+        run: bash .github/scripts/generate-backend-report.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nook-backend-aarch64-unknown-linux-musl
+          path: backend/artifacts/nook-backend-arm64
           if-no-files-found: error
           retention-days: 7
