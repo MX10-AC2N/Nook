@@ -20,12 +20,12 @@ jobs:
         include:
           - arch: amd64
             target: x86_64-unknown-linux-musl
-            runner: ubuntu-latest
+            zig: x86_64-linux-musl
           - arch: arm64
             target: aarch64-unknown-linux-musl
-            runner: ubuntu-latest
+            zig: aarch64-linux-musl
 
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./backend
@@ -43,13 +43,21 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: ${{ matrix.target }}
+
+      - name: Install zig + cargo-zigbuild
+        run: |
+          # Install zig
+          curl -L https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar xJ -C /opt
+          ln -s /opt/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
+
+          # Install cargo-zigbuild
+          cargo install cargo-zigbuild
 
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo check --all-targets --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo zigcheck --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -57,7 +65,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo clippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo zigclippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -78,7 +86,7 @@ jobs:
           CARGO_PROFILE_RELEASE_STRIP: "true"
         run: |
           set +e
-          cargo build --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
+          cargo zigbuild --release --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-build.txt
           BUILD_EXIT=${PIPESTATUS[0]}
           set -e
 
