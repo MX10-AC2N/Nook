@@ -1,7 +1,3 @@
-#![allow(deprecated)]
-#![allow(clippy::for_kv_map)]
-#![allow(clippy::single_char_add_str)]
-
 // backend/src/chess.rs
 // Jeu d'échecs FIDE standard — 2 joueurs (humain vs humain ou humain vs IA)
 //
@@ -21,28 +17,6 @@
 //   GET   /api/chess/invitations
 //   POST  /api/chess/invitations/{id}/accept
 //   POST  /api/chess/invitations/{id}/decline
-
-// backend/src/chess.rs
-// Jeu d'échecs FIDE standard — 2 joueurs (humain vs humain vs IA)
-//
-// Moteur : chess_engine (adapté de rust-chess, MIT — RumenDamyanov)
-// Stockage : SQLite — position en FEN, historique en JSON SAN
-//
-// Routes :
-//   POST  /api/chess/create
-//   GET   /api/chess/list
-//   GET   /api/chess/{id}
-//   POST  /api/chess/{id}/join
-//   POST  /api/chess/{id}/move
-//   POST  /api/chess/{id}/ai-move
-//   POST  /api/chess/{id}/resign
-//   GET   /api/chess/{id}/moves         coups légaux (?from=e2)
-//   POST  /api/chess/{id}/invite
-//   GET   /api/chess/invitations
-//   POST  /api/chess/invitations/{id}/accept
-//   POST  /api/chess/invitations/{id}/decline
-
-#![allow(deprecated)]
 
 use crate::chess_engine::{
     AiEngine, ChessError, Color, Difficulty, Game, GameStatus, MinimaxAi, Move as ChessMove,
