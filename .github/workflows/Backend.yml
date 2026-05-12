@@ -46,18 +46,15 @@ jobs:
 
       - name: Install zig + cargo-zigbuild
         run: |
-          # Install zig
           curl -L https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz | tar xJ -C /opt
           ln -s /opt/zig-linux-x86_64-0.13.0/zig /usr/local/bin/zig
-
-          # Install cargo-zigbuild
           cargo install cargo-zigbuild
 
       - name: cargo check
         id: check
         run: |
           set +e
-          cargo zigcheck --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-check.txt
+          cargo check 2>&1 | tee /tmp/cargo-check.txt
           echo "check_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -65,7 +62,7 @@ jobs:
         id: clippy
         run: |
           set +e
-          cargo zigclippy --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-clippy.txt
+          cargo clippy 2>&1 | tee /tmp/cargo-clippy.txt
           echo "clippy_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
@@ -73,7 +70,7 @@ jobs:
         id: test
         run: |
           set +e
-          cargo test --target ${{ matrix.target }} 2>&1 | tee /tmp/cargo-test.txt
+          cargo test 2>&1 | tee /tmp/cargo-test.txt
           echo "test_exit=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
           set -e
 
