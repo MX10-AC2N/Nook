@@ -62,15 +62,16 @@ export const messagesStore = writable<ChatMessage[]>([]);
 let _cryptoReadyInterval: ReturnType<typeof setInterval> | null = null;
 let _cryptoReadyAttempts = 0;
 const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
+const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
 
 async function _decryptAllIfReady(): Promise<void> {
   if (!cryptoStore.ready) return;
   
   const msgs = get(messagesStore);
-  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
+  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
   
   if (encrypted.length === 0) {
-    // Plus de messages chiffrés, on continue à surveiller un peu au cas où
+    // Plus de messages déchiffrables, on continue à surveiller un peu au cas où
     if (_cryptoReadyAttempts > 10) {
       _stopCryptoReadyListener();
     }
@@ -89,7 +90,11 @@ async function _decryptAllIfReady(): Promise<void> {
         msg.encrypted = false;
       } catch (e) {
         console.error('[Chat] Erreur déchiffrement message', msg.id, e);
+        _FAILED_DECRYPT_IDS.add(msg.id);
         msg.content = '🔒 Message chiffré (clé indisponible)';
+        msg.encrypted = false; // Marquer comme non chiffré pour ne pas retenter
+        msg.nonce = null;
+        msg.sender_public_key = null;
       }
     }
     messagesStore.set([...msgs]);
@@ -292,7 +297,13 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
         });
         raw.encrypted = false;
       }
-    } catch { raw.content = '🔒 Message chiffré (clé indisponible)'; }
+    } catch {
+        _FAILED_DECRYPT_IDS.add(raw.id);
+        raw.content = '🔒 Message chiffré (clé indisponible)';
+        raw.encrypted = false;
+        raw.nonce = null;
+        raw.sender_public_key = null;
+      }
   }
   if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
@@ -388,7 +399,13 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
             messageId: msg.id, conversationId: msg.conversation_id,
             ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
           });
-        } catch { msg.content = '🔒 Message chiffré (clé indisponible)'; }
+        } catch {
+          _FAILED_DECRYPT_IDS.add(msg.id);
+          msg.content = '🔒 Message chiffré (clé indisponible)';
+          msg.encrypted = false;
+          msg.nonce = null;
+          msg.sender_public_key = null;
+        }
       }
     }
   } catch { /* cryptoStore pas dispo */ }

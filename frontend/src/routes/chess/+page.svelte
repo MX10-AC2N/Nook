@@ -18,7 +18,12 @@
   let timerChoice = $state(0); // 0=illimité, 300=5min, 600=10min, 900=15min, 1800=30min
 
   onMount(async () => {
-    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    // Attendre que authStore ait fini son init — éviter la race condition
+    // qui redirigeait vers /login avant que le layout ne finisse authStore.init()
+    while (authStore.loading) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+    if (!authStore.isAuthenticated) return; // Le layout gérera le redirect
     await chessStore.loadGameList();
   });
 

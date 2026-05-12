@@ -53,7 +53,9 @@
   const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
   onMount(async () => {
-    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    // Wait for authStore to finish loading before checking auth state
+    while (authStore.loading) { await new Promise(r => setTimeout(r, 50)); }
+    if (!authStore.isAuthenticated) return; // Le layout gérera le redirect
     await loadEvents();
   });
 
