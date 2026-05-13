@@ -850,7 +850,9 @@ pub async fn get_events(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(_)): Extension<CurrentUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let events = sqlx::query_as::<_, Event>("SELECT * FROM events ORDER BY date ASC, time ASC")
+    let events = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events ORDER BY start_time ASC, end_time ASC"
+    )
         .fetch_all(&state.db)
         .await
         .map_err(|e| {
