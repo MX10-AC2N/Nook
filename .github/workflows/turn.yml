@@ -33,6 +33,7 @@ jobs:
       - name: Build turn-server on Alpine (Docker)
         run: |
           docker build \
+            --no-cache \
             --target builder \
             --tag turn-builder:latest \
             -f services/turn-rs/Dockerfile \
