@@ -1535,7 +1535,7 @@
       </div>
     {/if}
 
-    <form class="input-area" onsubmit={handleSubmit}>
+    <form class="input-area">
       <!-- Mention autocomplete dropdown -->
       {#if showMentions && filteredMentions.length > 0}
         <div class="mention-dropdown">
@@ -1576,7 +1576,12 @@
         oninput={handleTyping}
         disabled={false}
       />
-      <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
+      <button
+        type="button"
+        class="send-btn"
+        onclick={handleSendMessage}
+        disabled={!newMessage.trim() || sending}
+      >
         {sending ? '…' : 'Envoyer'}
       </button>
     </form>
