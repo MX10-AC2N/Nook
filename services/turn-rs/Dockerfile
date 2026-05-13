@@ -8,6 +8,8 @@
 # - ETAPE 1 : Builder Alpine 3.21
 FROM alpine:3.21 AS builder
 
+# Install protobuf compiler and development files
+# Alpine uses 'protobuf-dev' for protoc and headers; ensure it's present
 RUN apk add --no-cache \
     curl \
     gcc \
@@ -18,7 +20,11 @@ RUN apk add --no-cache \
     protobuf-dev \
     protobuf \
     git \
-    pkgconfig
+    pkgconfig \
+  && command -v protoc \
+  && ls -l /usr/bin/protoc \
+  && echo "protoc found at: $(command -v protoc)" \
+  && protoc --version
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
