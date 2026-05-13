@@ -1030,6 +1030,7 @@
   }
 
   function startEdit(msg: { id: string; content: string }) {
+    console.log('[Edit] startEdit called for msg:', msg.id, 'content preview:', msg.content.substring(0, 50));
     editingMsgId   = msg.id;
     editingContent = msg.content;
   }
@@ -1376,6 +1377,19 @@
             {:else}
               {@html msg.content}
             {/if}
+          <!-- Message editing UI (when this message is being edited) -->
+          {#if editingMsgId === msg.id}
+            <div class="message-edit-input">
+              <input
+                type="text"
+                class="edit-input"
+                bind:value={editingContent}
+                onkeydown={handleEditKeydown}
+                onblur={submitEdit}
+                autofocus
+              />
+            </div>
+          {/if}
           </div>
 
           <!-- Message actions (visible on hover) -->
