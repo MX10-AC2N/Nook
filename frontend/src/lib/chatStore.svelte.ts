@@ -417,10 +417,15 @@ const PAGE_SIZE = 50;
 
 export async function loadMessages(conversationId: string): Promise<void> {
   try {
-    const res = await fetch(
-      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}&order=desc`,
-      { credentials: 'include' }
-    );
+    const url = new URL(`/api/conversations/${conversationId}/messages`, window.location.origin);
+    url.searchParams.set('limit', PAGE_SIZE.toString());
+    url.searchParams.set('order', 'desc');
+    url.searchParams.set('_ts', Date.now().toString()); // cache-bust
+    const res = await fetch(url.toString(), {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-store' }
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
@@ -521,6 +526,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
 // -----------------------------------------------------------------
 
 export async function editMessage(msgId: string, convId: string, newContent: string): Promise<boolean> {
+  console.log('[editMessage] PATCH', convId, msgId, 'preview:', newContent.substring(0, 50));
   try {
     const res = await fetch(`/api/conversations/${convId}/messages/${msgId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
