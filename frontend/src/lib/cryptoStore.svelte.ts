@@ -120,9 +120,10 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
     }
 
     // kp est garanti non-null ici (chargé depuis IndexedDB)
-    _keyPair           = kp;
-    cryptoStore.userId = userId;
-    cryptoStore.ready  = true;
+      _keyPair           = kp;
+      cryptoStore.userId = userId;
+      cryptoStore.ready  = true;
+      console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
 
     // Always try to register public key on server, even if loaded from IndexedDB
     // This ensures the server has the latest public key
