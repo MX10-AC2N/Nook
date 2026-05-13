@@ -69,6 +69,7 @@ let _keyPair: KeyPair | null = null;
 //   4. Si déchiffrement échoue (mauvais mot de passe) → exception catch → error
 // ─────────────────────────────────────────────────────────────────────────────
 export async function unlockCrypto(userId: string, password: string): Promise<boolean> {
+  console.log('[cryptoStore] unlockCrypto CALLED for userId:', userId, 'passwordLen:', password.length);
   cryptoStore.error  = null;
   cryptoStore.ready  = false;
   cryptoStore.userId = null;

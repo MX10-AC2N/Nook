@@ -152,6 +152,12 @@
 
       // Au reload: si authStore est authentifié mais cryptoStore non prêt,
       // tenter de débloquer E2EE avec le mot de passe stocké en sessionStorage
+      console.log('[layout] Post-auth init check:', {
+        isAuth: authStore.isAuthenticated,
+        userId: authStore.user?.id,
+        cryptoReady: cryptoStore.ready,
+        sessionKeyPresent: !!sessionStorage.getItem('nook_crypto_key')
+      });
       if (authStore.isAuthenticated && !cryptoStore.ready) {
         try {
           const sessionKey = typeof sessionStorage !== 'undefined'
