@@ -56,7 +56,7 @@ export async function registerDevice(name: string): Promise<void> {
 
   return new Promise<void>((resolve, reject) => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${protocol}://${window.location.host}/ws`);
+    const ws = new WebSocket(`${protocol}://${window.location.host}/webrtc/ws`);
 
     const timeout = setTimeout(() => {
       ws.close();

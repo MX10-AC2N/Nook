@@ -168,7 +168,7 @@ function _openWs(): void {
   if (typeof window === 'undefined') return;
 
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+  const ws = new WebSocket(`${proto}://${window.location.host}/webrtc/ws`);
   _ws = ws;
 
   ws.onopen = () => {
