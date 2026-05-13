@@ -678,8 +678,6 @@
     
     try {
       await sendMessage(content, activeConvId);
-      // Recharger les messages pour confirmer la persistance
-      await loadMessages(activeConvId);
       // Scroller vers le haut pour voir le nouveau message
       if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
