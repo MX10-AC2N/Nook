@@ -65,18 +65,15 @@ const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
 const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
 
 async function _decryptAllIfReady(): Promise<void> {
-  if (!cryptoStore.ready) return;
-  
-  const msgs = get(messagesStore);
-  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
-  
-  if (encrypted.length === 0) {
-    // Plus de messages déchiffrables, on continue à surveiller un peu au cas où
-    if (_cryptoReadyAttempts > 10) {
-      _stopCryptoReadyListener();
-    }
+  if (!cryptoStore.ready) {
+    console.log('[Chat] _decryptAllIfReady: cryptoStore NOT ready, abort');
     return;
   }
+  
+  const msgs = get(messagesStore);
+  console.log('[Chat] _decryptAllIfReady: crypto ready, messages count:', msgs.length);
+  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
+  console.log('[Chat] _decryptAllIfReady: messages to decrypt:', encrypted.length, encrypted.map(m=>({id:m.id.slice(0,8), hasKey:!!m.sender_public_key, hasNonce:!!m.nonce})));
   
   console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages (attempt ${_cryptoReadyAttempts})`);
   try {
