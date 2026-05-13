@@ -476,6 +476,7 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 // -----------------------------------------------------------------
 
 export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
+  console.log('[DEBUG sendMessage] called with', { content: content.slice(0, 30), conversationId });
   if (!content.trim()) return null;
   try {
     const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -490,12 +491,15 @@ export async function sendMessage(content: string, conversationId: string): Prom
     } else {
       body = { content: content.trim(), encrypted: false };
     }
+    console.log('[DEBUG sendMessage] about to fetch', body);
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(body),
     });
+    console.log('[DEBUG sendMessage] fetch response status', res.status);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const msgData: ChatMessage = await res.json();
+    console.log('[DEBUG sendMessage] got message from API', msgData.id, msgData.content.slice(0, 30));
     chatStore.connectionError = null;
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();

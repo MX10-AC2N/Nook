@@ -670,6 +670,7 @@
   // ─────────────────────────────────────────────────────────────────
 
   async function handleSendMessage() {
+    console.log('[DEBUG] handleSendMessage called', { newMessage: newMessage.trim(), sending, activeConvId });
     if (!newMessage.trim() || sending) return;
     sending = true;
     const content = newMessage;
@@ -677,7 +678,9 @@
     chatStore.showEmojiPicker = false;
     
     try {
+      console.log('[DEBUG] about to call sendMessage', { content, activeConvId });
       await sendMessage(content, activeConvId);
+      console.log('[DEBUG] sendMessage resolved');
       // Scroller vers le haut pour voir le nouveau message
       if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
