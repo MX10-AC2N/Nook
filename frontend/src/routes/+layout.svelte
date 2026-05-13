@@ -109,6 +109,15 @@
   }
 
   onMount(async () => {
+    // Register emoji-picker web component (client-only)
+    if (typeof window !== 'undefined') {
+      try {
+        await import('emoji-picker-element');
+        console.log('[layout] emoji-picker-element registered');
+      } catch (e) {
+        console.warn('[layout] emoji-picker-element import failed:', e);
+      }
+    }
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
