@@ -30,6 +30,8 @@ WORKDIR /src/turn-rs
 
 # Set PROTOC path for turn-server-sdk build
 ENV PROTOC=/usr/bin/protoc
+ENV PATH="/usr/bin:$PATH"
+RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
 
 RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
 
