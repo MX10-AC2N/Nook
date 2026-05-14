@@ -124,9 +124,11 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       // 3. Stocker dans IndexedDB — ne dépend pas de sodium, rapide
       await storeKeysInIndexedDB(userId, newKeyPair.publicKey, encryptedPrivKey);
 
-      // 4. Activer le store IMMÉDIATEMENT — les clés sont prêtes en mémoire
-      //    L'enregistrement serveur se fait en arrière-plan pour ne pas bloquer
-      //    si sodium n'est pas encore chargé (race condition DT-01 — 938kb WASM)
+      // 4. Enregistrer la clé publique sur le serveur AVANT d'activer le store
+      //    pour éviter une race où les messages sont envoyés avec une clé non encore synchronisée
+      await registerPublicKeyOnServer(newKeyPair.publicKey);
+
+      // 5. Activer le store maintenant que la clé publique est sur le serveur
       _keyPair           = newKeyPair;
       cryptoStore.userId = userId;
       cryptoStore.ready  = true;
@@ -141,12 +143,7 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
         console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
       }
 
-      // Enregistrement serveur en arrière-plan (non bloquant)
-      registerPublicKeyOnServer(newKeyPair.publicKey)
-        .then(() => console.info('[cryptoStore] Clé publique enregistrée sur le serveur ✓'))
-        .catch((e) => console.warn('[cryptoStore] Enregistrement clé différé (sodium pas encore prêt) :', e?.message));
-
-      console.info('[cryptoStore] Clé E2EE générée et activée ✓ (enregistrement serveur en cours)');
+      console.info('[cryptoStore] Clé E2EE générée et activée ✓');
       return true;
     }
 
