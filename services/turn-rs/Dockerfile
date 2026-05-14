@@ -10,23 +10,21 @@ FROM alpine:3.21 AS builder
 
 # Install protobuf compiler and development files
 # Alpine uses 'protobuf-dev' for protoc and headers; ensure it's present
-RUN apk add --no-cache \\\
-    curl \\\
-    gcc \\\
-    g++ \\\
-    musl-dev \\\
-    build-base \\\
-    cmake \\\
-    protobuf-dev \\\
-    protobuf \\\
-    git \\\
-    pkgconfig \\\
-  && command -v protoc \\\
-  && protoc --version \\\
-  && ls -l /usr/bin/protoc
-
-# Also install static protoc binary from official release as fallback
-RUN curl -L -o /usr/local/bin/protoc https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protoc-28.2-linux-aarch_64.tar.gz | tar xz -C /usr/local/bin bin/protoc && chmod +x /usr/local/bin/protoc && protoc --version
+RUN apk add --no-cache \
+    curl \
+    gcc \
+    g++ \
+    musl-dev \
+    build-base \
+    cmake \
+    protobuf-dev \
+    protobuf \
+    git \
+    pkgconfig \
+  && command -v protoc \
+  && ls -l /usr/bin/protoc \
+  && echo "protoc found at: $(command -v protoc)" \
+  && protoc --version
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
@@ -41,12 +39,8 @@ ENV PROTOC=/usr/bin/protoc
 ENV PATH="/usr/bin:/usr/local/bin:/root/.cargo/bin:$PATH"
 RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
 
-# Verify protoc is usable by cargo build environment
-RUN set -ex; \
-    command -v protoc; \
-    protoc --version; \
-    ls -l /usr/bin/protoc; \
-    echo "Protoc is ready"
+# Ensure protoc is found by prost-build during cargo build
+RUN test -x /usr/bin/protoc && /usr/bin/protoc --version
 
 RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
 
