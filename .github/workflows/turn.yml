@@ -1,4 +1,4 @@
-name: 3 ==> Turn-Server Build
+name: Turn-Server Build
 
 on:
   workflow_dispatch:
