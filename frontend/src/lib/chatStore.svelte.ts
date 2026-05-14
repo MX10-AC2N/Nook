@@ -409,20 +409,20 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
     if (!cs.ready) return msgs;
     for (const msg of msgs) {
       if (msg.encrypted && msg.nonce && msg.sender_public_key) {
-      try {
-          try {
-            msg.content = await decryptMessage({
-              messageId: msg.id, conversationId: msg.conversation_id,
-              ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
-            });
-          } catch (e) {
-            console.error('[Chat] decryptMessage error for msg', msg.id.slice(0,8), e);
-            _FAILED_DECRYPT_IDS.add(msg.id);
-            msg.content = '🔒 Message chiffré (clé indisponible)';
-            msg.encrypted = false;
-            msg.nonce = null;
-            msg.sender_public_key = null;
-          }
+        try {
+          msg.content = await decryptMessage({
+            messageId: msg.id, conversationId: msg.conversation_id,
+            ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+          });
+        } catch (e) {
+          console.error('[Chat] decryptMessage error for msg', msg.id.slice(0,8), e);
+          _FAILED_DECRYPT_IDS.add(msg.id);
+          msg.content = '🔒 Message chiffré (clé indisponible)';
+          msg.encrypted = false;
+          msg.nonce = null;
+          msg.sender_public_key = null;
+        }
+      }
     }
   } catch { /* cryptoStore pas dispo */ }
   return msgs;
