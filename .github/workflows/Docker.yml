@@ -55,8 +55,9 @@ jobs:
           name: nook-turn-server-amd64
           path: docker-context/turn
 
-      # Download turn arm64
+      # Download turn arm64 (optional for now)
       - name: Download turn arm64
+        if: always()  # continue even if amd64 succeeded but arm64 not built yet
         uses: dawidd6/action-download-artifact@v6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -64,6 +65,7 @@ jobs:
           branch: ${{ inputs.branch_name }}
           name: nook-turn-server-arm64
           path: docker-context/turn
+          if_no_artifact_found: ignore
 
       # Download frontend
       - name: Download frontend
