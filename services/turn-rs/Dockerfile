@@ -20,12 +20,12 @@ RUN apk add --no-cache \
     protobuf-dev \
     protobuf \
     git \
-    pkgconfig \
-  && command -v protoc \
-  && ls -l /usr/bin/protoc \
-  && echo "protoc found at: $(command -v protoc)" \
-  && protoc --version
+    pkgconfig
 
+# Verify protoc is available and working
+RUN test -x /usr/bin/protoc && /usr/bin/protoc --version
+
+# Install Rust (nightly)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -36,13 +36,12 @@ WORKDIR /src/turn-rs
 
 # Set PROTOC path for turn-server-sdk build
 ENV PROTOC=/usr/bin/protoc
-ENV PATH="/usr/bin:/usr/local/bin:/root/.cargo/bin:$PATH"
+ENV PATH="/usr/local/bin:/usr/bin:/root/.cargo/bin:$PATH"
 RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
 
-# Ensure protoc is found by prost-build during cargo build
-RUN test -x /usr/bin/protoc && /usr/bin/protoc --version
-
-RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
+# Build turn-server natively for the builder's architecture (musl)
+RUN PROTOC=/usr/bin/protoc cargo build --release && \
+    cp target/release/turn-server /usr/local/bin/turn-server
 
 # - ETAPE 2 : Runtime Alpine 3.21
 FROM alpine:3.21 AS runtime
