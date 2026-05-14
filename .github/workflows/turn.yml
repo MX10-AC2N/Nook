@@ -36,7 +36,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build turn-server (release)
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} --manifest-path services/turn-rs/Cargo.toml
 
       - name: Prepare artifact
         run: |
