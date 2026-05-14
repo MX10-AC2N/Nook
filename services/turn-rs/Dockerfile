@@ -23,7 +23,11 @@ RUN apk add --no-cache \
     pkgconfig
 
 # Verify protoc is available and working
-RUN test -x /usr/bin/protoc && /usr/bin/protoc --version
+RUN set -eux; \\
+    test -x /usr/bin/protoc; \\
+    /usr/bin/protoc --version; \\
+    echo "PROTOC=/usr/bin/protoc"; \\
+    echo "PATH=$PATH"
 
 # Install Rust (nightly)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
