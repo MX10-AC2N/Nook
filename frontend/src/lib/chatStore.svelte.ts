@@ -448,6 +448,16 @@ export async function loadMessages(conversationId: string): Promise<void> {
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
+    if (msgs.length > 0) {
+      const first = msgs[0];
+      console.log('[Chat] FIRST RAW MESSAGE:', {
+        id: first.id,
+        encrypted: first.encrypted,
+        nonce: first.nonce,
+        sender_public_key: first.sender_public_key?.slice(0, 20),
+        content_preview: first.content?.slice(0, 50)
+      });
+    }
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
     messagesStore.set([...msgs]);
