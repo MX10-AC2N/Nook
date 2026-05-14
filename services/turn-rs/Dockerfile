@@ -10,21 +10,20 @@ FROM alpine:3.21 AS builder
 
 # Install protobuf compiler and development files
 # Alpine uses 'protobuf-dev' for protoc and headers; ensure it's present
-RUN apk add --no-cache \
-    curl \
-    gcc \
-    g++ \
-    musl-dev \
-    build-base \
-    cmake \
-    protobuf-dev \
-    protobuf \
-    git \
-    pkgconfig \
-  && command -v protoc \
-  && ls -l /usr/bin/protoc \
-  && echo "protoc found at: $(command -v protoc)" \
-  && protoc --version
+RUN apk add --no-cache \\\
+    curl \\\
+    gcc \\\
+    g++ \\\
+    musl-dev \\\
+    build-base \\\
+    cmake \\\
+    protobuf-dev \\\
+    protobuf \\\
+    git \\\
+    pkgconfig \\\
+  && which protoc \\\
+  && protoc --version \\\
+  && ls -l $(which protoc)
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
@@ -36,8 +35,11 @@ WORKDIR /src/turn-rs
 
 # Set PROTOC path for turn-server-sdk build
 ENV PROTOC=/usr/bin/protoc
-ENV PATH="/usr/bin:$PATH"
+ENV PATH="/usr/bin:/usr/local/bin:/root/.cargo/bin:$PATH"
 RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
+
+# Verify protoc is usable by cargo build environment
+RUN protoc --version && which protoc
 
 RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
 
