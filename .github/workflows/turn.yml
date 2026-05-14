@@ -17,20 +17,15 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-            linker: x86_64-linux-musl-gcc
-          - arch: arm64
-            target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
-            linker: aarch64-linux-gnu-gcc
 
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build dependencies (protobuf, musl, cross)
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools gcc-${{ matrix.linker }} g++-${{ matrix.linker }}
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools
 
       - name: Install Rust (nightly)
         run: |
@@ -39,11 +34,6 @@ jobs:
 
       - name: Add musl target
         run: rustup target add ${{ matrix.target }}
-
-      - name: Set musl linker environment
-        run: |
-          TARGET_ENV=$(echo "${{ matrix.target }}" | tr '-' '_')
-          echo "CARGO_TARGET_${TARGET_ENV}_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
 
       - name: Build turn-server (release)
         run: cargo build --release --target ${{ matrix.target }}
