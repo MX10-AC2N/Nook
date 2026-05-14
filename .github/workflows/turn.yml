@@ -17,34 +17,36 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
+            linker: x86_64-linux-musl-gcc
           - arch: arm64
             target: aarch64-unknown-linux-musl
             runner: ubuntu-24.04-arm
+            linker: aarch64-linux-gnu-gcc
 
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install protobuf-compiler
+      - name: Install build dependencies (protobuf, musl, cross)
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libprotobuf-dev
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools gcc-${{ matrix.linker }} g++-${{ matrix.linker }}
 
-      - name: Build turn-server on Alpine (Docker)
-        run: |
-          docker build \
-            --no-cache \
-            --target builder \
-            --tag turn-builder:latest \
-            -f services/turn-rs/Dockerfile \
-            services/turn-rs
+      - name: Add musl target
+        run: rustup target add ${{ matrix.target }}
 
-      - name: Extract turn-server binary
+      - name: Set musl linker environment
+        run: echo "CARGO_TARGET_${{
+          matrix.target | replace('-', '_')
+        }}_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
+
+      - name: Build turn-server (release)
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare artifact
         run: |
           mkdir -p artifacts
-          id=$(docker create turn-builder:latest /bin/sh -c "cat /usr/local/bin/turn-server")
-          docker start -a $id > artifacts/turn-server-${{ matrix.arch }}
-          docker rm $id
+          cp target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
           chmod +x artifacts/turn-server-${{ matrix.arch }}
           file artifacts/turn-server-${{ matrix.arch }}
           ls -la artifacts/turn-server-${{ matrix.arch }}
