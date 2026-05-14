@@ -1,7 +1,7 @@
 # 🧪 Turn-Server Test Report — amd64
 
-> Généré par `test-turn.yml` · **2026-05-13 11:13 UTC**
-> Architecture: **amd64** | Run: [25795292964](https://github.com/MX10-AC2N/Nook/actions/runs/25795292964)
+> Généré par `test-turn.yml` · **2026-05-14 11:34 UTC**
+> Architecture: **amd64** | Run: [25857803177](https://github.com/MX10-AC2N/Nook/actions/runs/25857803177)
 
 ---
 
@@ -11,61 +11,43 @@
 |------|----------|
 | Build Docker | ✅ |
 | Container start | ✅ |
-| Port 3478 UDP | PASS |
-| Port 3478 TCP | PASS |
+| Port 3478 UDP | N/A |
+| Port 3478 TCP | N/A |
 | STUN Binding | ✅ PASS |
 | TURN Allocate (no auth) | ✅ PASS |
-| TURN Allocate (with auth) | ❌ FAIL |
+| TURN Allocate (with auth) | ✅ PASS |
 
 ---
 
 ## 🐳 Container Info
 
 ```
-Image: nook-turn:test
-Status: running
-Started: 2026-05-13T11:13:17.076051923Z
-Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
+
+Container info unavailable
 ```
 
 ## 📋 Container Logs
 
 ```
-
+Error response from daemon: No such container: nook-turn-test
 ```
 
 ## 🔧 Config Used
 
 ```toml
-[server]
-name = "nook.turn.test"
-secret = "test_secret_123"
-max-threads = 4
-
-[[server.interfaces]]
-transport = "udp"
-listen = "0.0.0.0:3478"
-external = "0.0.0.0:3478"
-
-[[server.interfaces]]
-transport = "tcp"
-listen = "0.0.0.0:3478"
-external = "0.0.0.0:3478"
+Config unavailable
 ```
 
 ## 🌐 Network
 
 ```
-udp   UNCONN 0      0             0.0.0.0:3478      0.0.0.0:*          
-udp   UNCONN 0      0                [::]:3478         [::]:*          
-tcp   LISTEN 0      4096          0.0.0.0:3478      0.0.0.0:*          
-tcp   LISTEN 0      4096             [::]:3478         [::]:*          
+Port check unavailable
 ```
 
 ## 🖥️ System Info
 
 ```
-Linux runnervmeorf1 6.17.0-1010-azure #10~24.04.1-Ubuntu SMP Fri Mar  6 22:00:57 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Linux runnervmrw5os 6.17.0-1013-azure #13~24.04.1-Ubuntu SMP Wed Apr 15 16:52:17 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 Docker: Docker version 28.0.4, build b8034c0
 ```
 
