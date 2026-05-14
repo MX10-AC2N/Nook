@@ -35,13 +35,17 @@ jobs:
       - name: Add musl target
         run: rustup target add ${{ matrix.target }}
 
+      - name: Clone turn-rs source
+        run: |
+          git clone --depth 1 https://github.com/mycrl/turn-rs.git services/turn-rs
+
       - name: Build turn-server (release)
         run: cargo build --release --target ${{ matrix.target }} --manifest-path services/turn-rs/Cargo.toml
 
       - name: Prepare artifact
         run: |
           mkdir -p artifacts
-          cp target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
+          cp services/turn-rs/target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
           chmod +x artifacts/turn-server-${{ matrix.arch }}
           file artifacts/turn-server-${{ matrix.arch }}
           ls -la artifacts/turn-server-${{ matrix.arch }}
