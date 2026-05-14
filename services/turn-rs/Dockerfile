@@ -21,9 +21,12 @@ RUN apk add --no-cache \\\
     protobuf \\\
     git \\\
     pkgconfig \\\
-  && which protoc \\\
+  && command -v protoc \\\
   && protoc --version \\\
-  && ls -l $(which protoc)
+  && ls -l /usr/bin/protoc
+
+# Also install static protoc binary from official release as fallback
+RUN curl -L -o /usr/local/bin/protoc https://github.com/protocolbuffers/protobuf/releases/download/v28.2/protoc-28.2-linux-aarch_64.tar.gz | tar xz -C /usr/local/bin bin/protoc && chmod +x /usr/local/bin/protoc && protoc --version
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
@@ -40,6 +43,7 @@ RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
 
 # Verify protoc is usable by cargo build environment
 RUN command -v protoc && protoc --version && ls -l /usr/bin/protoc
+RUN echo "PATH=$PATH" && echo "PROTOC=$PROTOC" && env | sort | grep -i proto
 
 RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
 
