@@ -450,11 +450,13 @@ export async function loadMessages(conversationId: string): Promise<void> {
     console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
     if (msgs.length > 0) {
       const first = msgs[0];
-      console.log('[Chat] FIRST RAW MESSAGE:', {
+      console.log('[Chat] FIRST RAW MESSAGE (pre-decrypt):', {
         id: first.id,
         encrypted: first.encrypted,
-        nonce: first.nonce,
-        sender_public_key: first.sender_public_key?.slice(0, 20),
+        hasNonce: first.nonce != null,
+        hasPubkey: first.sender_public_key != null,
+        nonce_preview: first.nonce?.slice(0, 20),
+        pubkey_preview: first.sender_public_key?.slice(0, 20),
         content_preview: first.content?.slice(0, 50)
       });
     }
