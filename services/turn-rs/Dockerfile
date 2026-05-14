@@ -22,11 +22,15 @@ RUN apk add --no-cache \
     git \
     pkgconfig
 
+# Set environment variables for protoc and cargo
+ENV PROTOC=/usr/bin/protoc
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin"
+
 # Verify protoc is available and working
-RUN set -eux; \\
-    test -x /usr/bin/protoc; \\
-    /usr/bin/protoc --version; \\
-    echo "PROTOC=/usr/bin/protoc"; \\
+RUN set -eux; \
+    which protoc; \
+    $PROTOC --version; \
+    echo "PROTOC=$PROTOC"; \
     echo "PATH=$PATH"
 
 # Install Rust (nightly)
@@ -38,13 +42,8 @@ WORKDIR /src
 RUN git clone --depth 1 https://github.com/mycrl/turn-rs.git /src/turn-rs
 WORKDIR /src/turn-rs
 
-# Set PROTOC path for turn-server-sdk build
-ENV PROTOC=/usr/bin/protoc
-ENV PATH="/usr/local/bin:/usr/bin:/root/.cargo/bin:$PATH"
-RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
-
 # Build turn-server natively for the builder's architecture (musl)
-RUN PROTOC=/usr/bin/protoc cargo build --release && \
+RUN $PROTOC --version && cargo build --release && \
     cp target/release/turn-server /usr/local/bin/turn-server
 
 # - ETAPE 2 : Runtime Alpine 3.21
