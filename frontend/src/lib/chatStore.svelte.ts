@@ -63,13 +63,27 @@ let _cryptoReadyInterval: ReturnType<typeof setInterval> | null = null;
 let _cryptoReadyAttempts = 0;
 const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
 const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
+let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 
 async function _decryptAllIfReady(): Promise<void> {
   if (!cryptoStore.ready) {
     console.log('[Chat] _decryptAllIfReady: cryptoStore NOT ready, abort');
     return;
   }
-  
+
+  // Premier déclenchement après restauration crypto : recharger les messages depuis le serveur
+  // pour restaurer les champs E2EE (nonce, sender_public_key) qui peuvent avoir été perdus
+  // lors d'une tentative de déchiffrement précédente (crypto pas encore prêt).
+  if (!_messagesReloaded) {
+    console.log('[Chat] Crypto ready — rechargement des messages depuis le serveur pour restaurer champs E2EE');
+    _messagesReloaded = true;
+    // Recharger la conversation active (convId depuis l'URL ou l'état)
+    const convId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conv') || 'default_global' : 'default_global';
+    await loadMessages(convId);
+    // Ne pas déchiffrer tout de suite — laisser le prochain tick (1s) le faire
+    return;
+  }
+
   const msgs = get(messagesStore);
   console.log('[Chat] _decryptAllIfReady: crypto ready, messages count:', msgs.length);
   const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
@@ -78,7 +92,7 @@ async function _decryptAllIfReady(): Promise<void> {
     const first = msgs[0];
     console.log('[Chat] FIRST MESSAGE DEBUG:', {id:first.id.slice(0,8), encrypted:first.encrypted, hasNonce:!!first.nonce, hasPubkey:!!first.sender_public_key, contentStart:first.content?.slice(0,40), message_type:first.message_type});
   }
-  
+
   console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages (attempt ${_cryptoReadyAttempts})`);
   try {
     const { decryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -93,7 +107,7 @@ async function _decryptAllIfReady(): Promise<void> {
         console.error('[Chat] Erreur déchiffrement message', msg.id, e);
         _FAILED_DECRYPT_IDS.add(msg.id);
         msg.content = '🔒 Message chiffré (clé indisponible)';
-        msg.encrypted = false; // Marquer comme non chiffré pour ne pas retenter
+        msg.encrypted = false;
         msg.nonce = null;
         msg.sender_public_key = null;
       }
