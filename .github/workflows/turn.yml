@@ -41,9 +41,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Set musl linker environment
-        run: echo "CARGO_TARGET_${{
-          matrix.target | replace('-', '_')
-        }}_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
+        run: echo "CARGO_TARGET_${{ matrix.target | replace('-', '_') }}_LINKER=${{ matrix.linker }}" >> $GITHUB_ENV
 
       - name: Build turn-server (release)
         run: cargo build --release --target ${{ matrix.target }}
