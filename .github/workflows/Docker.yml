@@ -140,7 +140,7 @@ jobs:
           context: docker-context
           file: Dockerfile.release
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.tag }}
             ghcr.io/${{ steps.info.outputs.repo }}:${{ steps.info.outputs.branch_tag }}
@@ -154,7 +154,7 @@ jobs:
           context: docker-context/turn
           file: services/turn-rs/Dockerfile.release
           push: true
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: |
             ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.tag }}
             ghcr.io/mx10-ac2n/turn-server:${{ steps.info.outputs.branch_tag }}
