@@ -39,7 +39,7 @@ ENV PATH="/usr/bin:/usr/local/bin:/root/.cargo/bin:$PATH"
 RUN ln -sf /usr/bin/protoc /usr/local/bin/protoc
 
 # Verify protoc is usable by cargo build environment
-RUN protoc --version && which protoc
+RUN command -v protoc && protoc --version && ls -l /usr/bin/protoc
 
 RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
 
