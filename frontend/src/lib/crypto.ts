@@ -150,6 +150,7 @@ export async function decryptSessionKey(
   const senderPub = na.from_base64(senderPubB64, na.base64_variants.ORIGINAL);
 
   console.log('[crypto] decryptSessionKey: combined length', combined.length, 'boxed from', combined.length - na.crypto_box_NONCEBYTES);
+  console.log('[crypto] decryptSessionKey: senderPub.length', senderPub.length, 'myPrivKey.length', myPrivKey.length);
 
   const asymNonce = combined.slice(0, na.crypto_box_NONCEBYTES);
   const boxed     = combined.slice(na.crypto_box_NONCEBYTES);
