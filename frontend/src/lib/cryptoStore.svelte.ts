@@ -59,6 +59,27 @@ export const cryptoStore = $state<CryptoStoreState>({
 let _keyPair: KeyPair | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Restauration automatique depuis sessionStorage (reload sans mot de passe)
+// ─────────────────────────────────────────────────────────────────────────────
+(function restoreFromSessionStorage() {
+  try {
+    const encPriv = sessionStorage.getItem('nook_privkey');
+    const encPub = sessionStorage.getItem('nook_pubkey');
+    const uid = sessionStorage.getItem('nook_userid');
+    if (encPriv && encPub && uid) {
+      const priv = Uint8Array.from(atob(encPriv), c => c.charCodeAt(0));
+      const pub = Uint8Array.from(atob(encPub), c => c.charCodeAt(0));
+      _keyPair = { privateKey: priv, publicKey: pub };
+      cryptoStore.userId = uid;
+      cryptoStore.ready = true;
+      console.log('[cryptoStore] Clés restaurées depuis sessionStorage (session sans mot de passe)');
+    }
+  } catch (e) {
+    console.warn('[cryptoStore] Échec restauration sessionStorage:', e);
+  }
+})();
+
+// ─────────────────────────────────────────────────────────────────────────────
 // unlockCrypto — appeler après login avec le mot de passe en clair
 //
 // Comportement :
@@ -110,6 +131,16 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       cryptoStore.userId = userId;
       cryptoStore.ready  = true;
 
+      // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+      try {
+        sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
+        sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
+        sessionStorage.setItem('nook_userid', userId);
+        console.log('[cryptoStore] Clés E2EE stockées en sessionStorage (restauration sans mot de passe possible)');
+      } catch (e) {
+        console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
+      }
+
       // Enregistrement serveur en arrière-plan (non bloquant)
       registerPublicKeyOnServer(newKeyPair.publicKey)
         .then(() => console.info('[cryptoStore] Clé publique enregistrée sur le serveur ✓'))
@@ -120,10 +151,20 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
     }
 
     // kp est garanti non-null ici (chargé depuis IndexedDB)
-      _keyPair           = kp;
-      cryptoStore.userId = userId;
-      cryptoStore.ready  = true;
-      console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
+    _keyPair           = kp;
+    cryptoStore.userId = userId;
+    cryptoStore.ready  = true;
+    console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
+
+    // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+    try {
+      sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
+      sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
+      sessionStorage.setItem('nook_userid', userId);
+      console.log('[cryptoStore] Clés E2EE stockées en sessionStorage (restauration sans mot de passe possible)');
+    } catch (e) {
+      console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
+    }
 
     // Always try to register public key on server, even if loaded from IndexedDB
     // This ensures the server has the latest public key
