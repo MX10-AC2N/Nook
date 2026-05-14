@@ -73,7 +73,11 @@ async function _decryptAllIfReady(): Promise<void> {
   const msgs = get(messagesStore);
   console.log('[Chat] _decryptAllIfReady: crypto ready, messages count:', msgs.length);
   const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
-  console.log('[Chat] _decryptAllIfReady: messages to decrypt:', encrypted.length, encrypted.map(m=>({id:m.id.slice(0,8), hasKey:!!m.sender_public_key, hasNonce:!!m.nonce})));
+  console.log('[Chat] _decryptAllIfReady: messages to decrypt:', encrypted.length, encrypted.map(m=>({id:m.id.slice(0,8), hasKey:!!m.sender_public_key, hasNonce:!!m.nonce, pubkey:m.sender_public_key?.slice(0,20), nonce:!!m.nonce, encrypted:m.encrypted})));
+  if (msgs.length > 0) {
+    const first = msgs[0];
+    console.log('[Chat] FIRST MESSAGE DEBUG:', {id:first.id.slice(0,8), encrypted:first.encrypted, hasNonce:!!first.nonce, hasPubkey:!!first.sender_public_key, contentStart:first.content?.slice(0,40), message_type:first.message_type});
+  }
   
   console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages (attempt ${_cryptoReadyAttempts})`);
   try {
