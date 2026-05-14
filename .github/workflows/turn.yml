@@ -32,6 +32,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools gcc-${{ matrix.linker }} g++-${{ matrix.linker }}
 
+      - name: Install Rust (nightly)
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
       - name: Add musl target
         run: rustup target add ${{ matrix.target }}
 
