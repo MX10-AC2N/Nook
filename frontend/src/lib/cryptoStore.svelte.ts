@@ -243,6 +243,7 @@ export async function encryptMessage(
 ): Promise<EncryptedMessage> {
   if (!_keyPair) throw new Error('[cryptoStore] Clés non chargées — appelez unlockCrypto() d\'abord.');
   const pubkeys = await fetchMemberPubkeys(conversationId);
+  console.info('[cryptoStore] encryptMessage conv:', conversationId, 'destinataires:', Object.keys(pubkeys).length, 'mes clés:', !!_keyPair);
   return encryptForRecipients(plaintext, pubkeys, _keyPair);
 }
 

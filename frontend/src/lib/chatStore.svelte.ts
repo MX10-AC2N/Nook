@@ -394,7 +394,7 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
     const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
     if (!cs.ready) return msgs;
     for (const msg of msgs) {
-      if (msg.encrypted && msg.nonce && msg.sender_public_key) {
+      if (msg.encrypted && msg.nonce && msg.sender_public_key && !_FAILED_DECRYPT_IDS.has(msg.id)) {
         try {
           msg.content = await decryptMessage({
             messageId: msg.id, conversationId: msg.conversation_id,
@@ -403,10 +403,8 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
         } catch (e) {
           console.error('[Chat] decryptMessage error for msg', msg.id.slice(0,8), e);
           _FAILED_DECRYPT_IDS.add(msg.id);
-          msg.content = '🔒 Message chiffré (clé indisponible)';
-          msg.encrypted = false;
-          msg.nonce = null;
-          msg.sender_public_key = null;
+          // NE PAS mutiler les champs E2EE du message → on garde encrypted/nonce/sender_public_key
+          // pour permettre le re-déchiffrement automatique quand la clé sera disponible.
         }
       }
     }

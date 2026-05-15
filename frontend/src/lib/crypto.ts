@@ -109,21 +109,25 @@ export async function encryptForRecipients(
   // Chiffrement de la clé de session pour chaque destinataire
   const encryptedKeys: Record<string, string> = {};
   for (const [userId, pubKeyB64] of Object.entries(recipientPubkeys)) {
-    const recipientPub = na.from_base64(pubKeyB64, na.base64_variants.ORIGINAL);
-    // console.log('[encryptForRecipients] userId:', userId, 'pubKeyBytes:', recipientPub.length, 'privKeyBytes:', senderKeyPair.privateKey.length);
-    const asymNonce    = na.randombytes_buf(na.crypto_box_NONCEBYTES);
-    const boxed        = na.crypto_box_easy(
-      sessionKey,
-      asymNonce,
-      recipientPub,
-      senderKeyPair.privateKey
-    );
-    // Stocker : asymNonce(24) || boxed — le destinataire les sépare à la réception
-    const combined = new Uint8Array(asymNonce.length + boxed.length);
-    combined.set(asymNonce, 0);
-    combined.set(boxed, asymNonce.length);
-    encryptedKeys[userId] = na.to_base64(combined, na.base64_variants.ORIGINAL);
-    // console.log('[encryptForRecipients] encryptedKeys[' + userId + '] len:', encryptedKeys[userId].length);
+    try {
+      const recipientPub = na.from_base64(pubKeyB64, na.base64_variants.ORIGINAL);
+      // console.log('[encryptForRecipients] userId:', userId, 'pubKeyBytes:', recipientPub.length, 'privKeyBytes:', senderKeyPair.privateKey.length);
+      const asymNonce    = na.randombytes_buf(na.crypto_box_NONCEBYTES);
+      const boxed        = na.crypto_box_easy(
+        sessionKey,
+        asymNonce,
+        recipientPub,
+        senderKeyPair.privateKey
+      );
+      // Stocker : asymNonce(24) || boxed — le destinataire les sépare à la réception
+      const combined = new Uint8Array(asymNonce.length + boxed.length);
+      combined.set(asymNonce, 0);
+      combined.set(boxed, asymNonce.length);
+      encryptedKeys[userId] = na.to_base64(combined, na.base64_variants.ORIGINAL);
+      // console.log('[encryptForRecipients] encryptedKeys[' + userId + '] len:', encryptedKeys[userId].length);
+    } catch (e) {
+      console.warn('[encryptForRecipients] Échec chiffrement pour', userId, e?.message);
+    }
   }
 
   // console.log('[encryptForRecipients] FINAL encryptedKeys count:', Object.keys(encryptedKeys).length);
