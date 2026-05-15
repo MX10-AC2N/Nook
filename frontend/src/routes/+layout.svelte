@@ -45,6 +45,10 @@
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    // Effacer le mot de passe crypto en sessionStorage au logout
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('nook_crypto_key');
+    }
     authStore.logout();
     closeMenu();
     goto('/login');
@@ -105,6 +109,15 @@
   }
 
   onMount(async () => {
+    // Register emoji-picker web component (client-only)
+    if (typeof window !== 'undefined') {
+      try {
+        await import('emoji-picker-element');
+        console.log('[layout] emoji-picker-element registered');
+      } catch (e) {
+        console.warn('[layout] emoji-picker-element import failed:', e);
+      }
+    }
     // Thème appliqué EN PREMIER — avant tout le reste
     initThemeGlobal();
 
@@ -145,6 +158,31 @@
     // C'est la SEULE chose qui doit bloquer l'affichage
     try {
       await authStore.init();
+
+      // Au reload: si authStore est authentifié mais cryptoStore non prêt,
+      // tenter de débloquer E2EE avec le mot de passe stocké en sessionStorage
+      console.log('[layout] Post-auth init check:', {
+        isAuth: authStore.isAuthenticated,
+        userId: authStore.user?.id,
+        cryptoReady: cryptoStore.ready,
+        sessionKeyPresent: !!sessionStorage.getItem('nook_crypto_key')
+      });
+      if (authStore.isAuthenticated && !cryptoStore.ready) {
+        try {
+          const sessionKey = typeof sessionStorage !== 'undefined'
+            ? sessionStorage.getItem('nook_crypto_key')
+            : null;
+          if (sessionKey) {
+            // Attendre que libsodium soit prêt AVANT unlockCrypto
+            const { waitForSodium } = await import('$lib/sodium.svelte.js');
+            await waitForSodium();
+            const { unlockCrypto } = await import('$lib/cryptoStore.svelte');
+            await unlockCrypto(authStore.user.id, sessionKey);
+          }
+        } catch (e) {
+          console.warn('[layout] Crypto unlock au reload échoué:', e);
+        }
+      }
     } catch (err) {
       console.error("Erreur d'initialisation de session :", err);
       appError = 'Impossible de vérifier votre session. Réessayez.';

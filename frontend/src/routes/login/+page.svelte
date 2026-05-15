@@ -46,6 +46,12 @@
         console.warn('[login] E2EE non activé :', cryptoStore.error);
       }
 
+      // Persister le mot de passe en sessionStorage pour le déverrouillage E2EE au reload
+      // Volatile: effacé à la fermeture du navigateur (sécurité acceptable)
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('nook_crypto_key', password);
+      }
+
       goto('/chat');
 
     } catch (err: any) {

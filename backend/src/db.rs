@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![allow(clippy::for_kv_map)]
 
 
 use axum::{
@@ -472,15 +471,16 @@ pub async fn send_message(
             .unwrap_or_else(|| user.username.clone());
 
     // Récupérer le style et seed d'avatar de l'expéditeur
-    let avatar_data: Option<(Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT avatar_style, avatar_seed FROM users WHERE id = ?"
+    let avatar_data: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT avatar_style, avatar_seed, public_key FROM users WHERE id = ?"
     )
         .bind(&user.id)
         .fetch_one(&state.db)
         .await
         .ok();
-    let sender_avatar_style = avatar_data.as_ref().and_then(|(s, _)| s.clone());
-    let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s)| s.clone());
+    let sender_avatar_style = avatar_data.as_ref().and_then(|(s, _, _)| s.clone());
+    let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s, _)| s.clone());
+    let sender_public_key = avatar_data.as_ref().and_then(|(_, _, k)| k.clone());
 
     let msg_json = serde_json::json!({
         "id": id,
@@ -489,7 +489,7 @@ pub async fn send_message(
         "sender_name": sender_name,
         "sender_avatar_style": sender_avatar_style,
         "sender_avatar_seed": sender_avatar_seed,
-        "sender_public_key": null,
+        "sender_public_key": sender_public_key,
         "content": req.content,
         "message_type": "text",
         "file_id": null,
@@ -851,7 +851,9 @@ pub async fn get_events(
     State(state): State<Arc<crate::SharedState>>,
     Extension(CurrentUser(_)): Extension<CurrentUser>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let events = sqlx::query_as::<_, Event>("SELECT * FROM events ORDER BY date ASC, time ASC")
+    let events = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events ORDER BY start_time ASC, end_time ASC"
+    )
         .fetch_all(&state.db)
         .await
         .map_err(|e| {

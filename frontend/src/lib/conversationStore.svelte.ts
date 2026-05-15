@@ -346,7 +346,7 @@ export function setupMessageWebSocket(): () => void {
   if (!browser) return () => {};
 
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${protocol}://${window.location.host}/ws/messages`;
+  const url = `${protocol}://${window.location.host}/webrtc/ws`;
   ws = new WebSocket(url);
 
   ws.onmessage = (event) => {

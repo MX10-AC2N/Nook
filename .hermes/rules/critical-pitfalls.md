@@ -69,7 +69,15 @@
 - Utiliser `onclick={(e) => { e.stopPropagation(); ... }}` (Svelte 5)
 - Les `$derived` sont des propriétés, PAS des fonctions — `chessStore.board` pas `chessStore.board()`
 
-## Docker
+## Docker & CI (2026-05-12)
+- Alpine APK: `sqlite-libs` PAS `libsqlite3` (c'est le nom Debian)
+- Backend.yml: noms d'artefacts = `nook-backend-x86_64-unknown-linux-musl` / `nook-backend-aarch64-unknown-linux-musl` (triplet Rust)
+- Binaire dans l'artefact = `nook-backend-amd64` / `nook-backend-arm64` (nom cp séparé)
+- docker.yml: chercher les noms d'artefacts GitHub, Verify context cherche les binaires
+- Turn.yml: matrix `amd64`/`arm64` → artefacts `nook-turn-server-amd64` / `nook-turn-server-arm64`
+- Ne JAMAIS utiliser `cargo zigcheck` ou `cargo zigclippy` (n'existent pas)
+- `cargo-zigbuild` + cargo zigbuild = incompatible Rust 1.95 / Zig 0.13 sur GitHub runners
+- Backend CI: natif + `musl-tools` sur ubuntu-latest / ubuntu-24.04-arm (pas zig ni cross)
 - TOUS les containers doivent utiliser UID/GID 1000 (match host casaos user)
 - turn-server : `--config /etc/turn-server/config.toml` obligatoire (TOML format, pas coturn)
 - Volume turn-config doit être `:rw` (pas `:ro`) pour l'init automatique

@@ -678,8 +678,6 @@
     
     try {
       await sendMessage(content, activeConvId);
-      // Recharger les messages pour confirmer la persistance
-      await loadMessages(activeConvId);
       // Scroller vers le haut pour voir le nouveau message
       if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
@@ -1032,6 +1030,7 @@
   }
 
   function startEdit(msg: { id: string; content: string }) {
+    console.log('[Edit] startEdit called for msg:', msg.id, 'content preview:', msg.content.substring(0, 50));
     editingMsgId   = msg.id;
     editingContent = msg.content;
   }
@@ -1078,7 +1077,9 @@
 
 
   onMount(async () => {
-    if (!authStore.isAuthenticated) { goto('/login'); return; }
+    // Wait for authStore to finish loading before checking auth state
+    while (authStore.loading) { await new Promise(r => setTimeout(r, 50)); }
+    if (!authStore.isAuthenticated) return; // Le layout gérera le redirect
     await loadConversations();
     
     // FIX refresh: read conversationId from URL parameter
@@ -1369,11 +1370,26 @@
         >
           <!-- Message content -->
           <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
-            {#if isEmojiOnly(msg.content)}
+            {#if msg.encrypted}
+              <div class="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
+            {:else if isEmojiOnly(msg.content)}
               <div class="emoji-only">{@html msg.content}</div>
             {:else}
               {@html msg.content}
             {/if}
+          <!-- Message editing UI (when this message is being edited) -->
+          {#if editingMsgId === msg.id}
+            <div class="message-edit-input">
+              <input
+                type="text"
+                class="edit-input"
+                bind:value={editingContent}
+                onkeydown={handleEditKeydown}
+                onblur={submitEdit}
+                autofocus
+              />
+            </div>
+          {/if}
           </div>
 
           <!-- Message actions (visible on hover) -->
@@ -1533,7 +1549,7 @@
       </div>
     {/if}
 
-    <form class="input-area" onsubmit={handleSubmit}>
+    <form class="input-area">
       <!-- Mention autocomplete dropdown -->
       {#if showMentions && filteredMentions.length > 0}
         <div class="mention-dropdown">
@@ -1574,7 +1590,12 @@
         oninput={handleTyping}
         disabled={false}
       />
-      <button type="submit" class="send-btn" disabled={!newMessage.trim() || sending}>
+      <button
+        type="button"
+        class="send-btn"
+        onclick={handleSendMessage}
+        disabled={!newMessage.trim() || sending}
+      >
         {sending ? '…' : 'Envoyer'}
       </button>
     </form>
@@ -2862,5 +2883,12 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  .encrypted-placeholder {
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.5rem;
   }
 </style>

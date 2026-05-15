@@ -1,5 +1,3 @@
-#![allow(clippy::for_kv_map)]
-
 // backend/src/polls.rs
 // Sondages familiaux — CRUD + vote + fermeture
 //

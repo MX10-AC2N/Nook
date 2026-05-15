@@ -8,6 +8,8 @@
 # - ETAPE 1 : Builder Alpine 3.21
 FROM alpine:3.21 AS builder
 
+# Install protobuf compiler and development files
+# Alpine uses 'protobuf-dev' for protoc and headers; ensure it's present
 RUN apk add --no-cache \
     curl \
     gcc \
@@ -20,6 +22,18 @@ RUN apk add --no-cache \
     git \
     pkgconfig
 
+# Set environment variables for protoc and cargo
+ENV PROTOC=/usr/bin/protoc
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.cargo/bin"
+
+# Verify protoc is available and working
+RUN set -eux; \
+    which protoc; \
+    $PROTOC --version; \
+    echo "PROTOC=$PROTOC"; \
+    echo "PATH=$PATH"
+
+# Install Rust (nightly)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
 ENV PATH="/root/.cargo/bin:$PATH"
@@ -28,10 +42,9 @@ WORKDIR /src
 RUN git clone --depth 1 https://github.com/mycrl/turn-rs.git /src/turn-rs
 WORKDIR /src/turn-rs
 
-# Set PROTOC path for turn-server-sdk build
-ENV PROTOC=/usr/bin/protoc
-
-RUN PROTOC=/usr/bin/protoc cargo build --release && cp target/release/turn-server /usr/local/bin/turn-server
+# Build turn-server natively for the builder's architecture (musl)
+RUN $PROTOC --version && cargo build --release && \
+    cp target/release/turn-server /usr/local/bin/turn-server
 
 # - ETAPE 2 : Runtime Alpine 3.21
 FROM alpine:3.21 AS runtime

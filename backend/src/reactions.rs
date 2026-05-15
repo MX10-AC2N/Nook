@@ -1,5 +1,3 @@
-#![allow(clippy::for_kv_map)]
-
 // backend/src/reactions.rs — Réactions aux messages
 // Session 35 — POST/DELETE réaction + GET agrégées par message
 //

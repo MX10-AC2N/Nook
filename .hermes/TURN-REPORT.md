@@ -1,7 +1,7 @@
 # 🧪 Turn-Server Test Report — amd64
 
-> Généré par `test-turn.yml` · **2026-05-06 14:50 UTC**
-> Architecture: **amd64** | Run: [25442508722](https://github.com/MX10-AC2N/Nook/actions/runs/25442508722)
+> Généré par `test-turn.yml` · **2026-05-14 13:17 UTC**
+> Architecture: **amd64** | Run: [25861955942](https://github.com/MX10-AC2N/Nook/actions/runs/25861955942)
 
 ---
 
@@ -24,7 +24,7 @@
 ```
 Image: nook-turn:test
 Status: running
-Started: 2026-05-06T14:50:34.068611405Z
+Started: 2026-05-14T13:17:13.072782234Z
 Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
 ```
 
