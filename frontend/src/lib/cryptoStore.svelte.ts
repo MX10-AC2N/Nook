@@ -90,7 +90,6 @@ let _keyPair: KeyPair | null = null;
 //   4. Si déchiffrement échoue (mauvais mot de passe) → exception catch → error
 // ─────────────────────────────────────────────────────────────────────────────
 export async function unlockCrypto(userId: string, password: string): Promise<boolean> {
-  console.log('[cryptoStore] unlockCrypto CALLED for userId:', userId, 'passwordLen:', password.length);
   cryptoStore.error  = null;
   cryptoStore.ready  = false;
   cryptoStore.userId = null;
@@ -98,12 +97,9 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
 
   try {
     let kp = await loadKeysFromIndexedDB(userId, password);
-    console.log('[cryptoStore] loadKeysFromIndexedDB result:', kp ? 'KEYS_FOUND' : 'NO_KEYS_FOUND', 'for userId:', userId);
 
     if (!kp) {
-      // Check if keys actually exist in IndexedDB (without decryption)
       const keysExist = await hasStoredKeys(userId);
-      console.log('[cryptoStore] hasStoredKeys check:', keysExist, 'for userId:', userId);
 
       if (keysExist) {
         // Keys exist but failed to load (wrong password, corrupted data)
@@ -113,19 +109,19 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       }
       
       // ── Premier setup E2EE pour cet utilisateur (aucune clé trouvée) ─────
-      console.info('[cryptoStore] Aucune clé en IndexedDB → génération initiale E2EE');
+      console.info('[cryptoStore] Premier setup E2EE — génération paire de clés');
 
       // 1. Générer la paire de clés Curve25519
       const newKeyPair = await generateKeyPair();
 
-      // 2. Chiffrer la clé privée avec le mot de passe (XSalsa20+Argon2)
+      // 2. Chiffrer la clé privée avec le mot de passe
       const encryptedPrivKey = await encryptPrivateKey(newKeyPair.privateKey, password);
 
-      // 3. Stocker dans IndexedDB — ne dépend pas de sodium, rapide
+      // 3. Stocker dans IndexedDB
       await storeKeysInIndexedDB(userId, newKeyPair.publicKey, encryptedPrivKey);
 
       // 4. Enregistrer la clé publique sur le serveur AVANT d'activer le store
-      //    pour éviter une race où les messages sont envoyés avec une clé non encore synchronisée
+      //    pour éviter une race où les messages sont envoyés avec une clé non synchronisée
       await registerPublicKeyOnServer(newKeyPair.publicKey);
 
       // 5. Activer le store maintenant que la clé publique est sur le serveur
@@ -138,12 +134,11 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
         sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
         sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
         sessionStorage.setItem('nook_userid', userId);
-        console.log('[cryptoStore] Clés E2EE stockées en sessionStorage (restauration sans mot de passe possible)');
       } catch (e) {
         console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
       }
 
-      console.info('[cryptoStore] Clé E2EE générée et activée ✓');
+      console.info('[cryptoStore] Première paire de clés générée et activée ✓');
       return true;
     }
 
@@ -154,23 +149,22 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
       sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
       sessionStorage.setItem('nook_userid', userId);
-      console.log('[cryptoStore] Clés E2EE stockées en sessionStorage (restauration sans mot de passe possible)');
     } catch (e) {
-      console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
+      console.warn('[cryptoStore] sessionStorage:', e);
     }
 
     // Await public key registration BEFORE activating the store
-    // to prevent sending messages with a pubkey that's not yet on the server
+    // to prevent sending messages with a pubkey not yet on the server
     if (kp.publicKey) {
       await registerPublicKeyOnServer(kp.publicKey);
-      console.info('[cryptoStore] Clé publique synchronisée avec le serveur ✓');
+      console.info('[cryptoStore] Clé publique synchronisée ✓');
     }
 
     // Activer le store maintenant que la clé publique est garantie sur le serveur
     _keyPair           = kp;
     cryptoStore.userId = userId;
     cryptoStore.ready  = true;
-    console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
+    console.info('[cryptoStore] unlockCrypto DONE — ready=true');
 
   } catch (e: any) {
     // Seules vraies erreurs : mot de passe incorrect ou IndexedDB inaccessible
@@ -265,21 +259,12 @@ export async function decryptMessage(params: {
   if (!_keyPair)           throw new Error('[cryptoStore] Clés non chargées.');
   if (!cryptoStore.userId) throw new Error('[cryptoStore] userId absent.');
 
-  console.log('[decryptMessage] START', {
-    messageId: params.messageId.slice(0,8),
-    senderPubkeyLen: params.senderPubkeyB64.length,
-    myPubKeyLen: _keyPair.publicKey.length,
-    myPrivKeyLen: _keyPair.privateKey.length,
-  });
-
   const res = await fetch(
     `/api/conversations/${params.conversationId}/my-encrypted-key/${params.messageId}`,
     { credentials: 'include' }
   );
   if (!res.ok) throw new Error(`[cryptoStore] get encrypted key: HTTP ${res.status}`);
   const { encrypted_key } = await res.json();
-
-  console.log('[decryptMessage] encrypted_key length:', encrypted_key.length);
 
   const sessionKey = await decryptSessionKey(
     encrypted_key,
