@@ -153,8 +153,15 @@ export async function decryptSessionKey(
   const senderPub = na.from_base64(senderPubB64, na.base64_variants.ORIGINAL);
   console.log('[decryptSessionKey] encKeyB64 len:', encKeyB64.length, 'combined len:', combined.length, 'senderPubB64:', senderPubB64.substring(0,30)+'...', 'senderPub len:', senderPub.length, 'myPrivKey len:', myPrivKey.length);
 
+  console.log('[crypto] decryptSessionKey: combined length', combined.length, 'boxed from', combined.length - na.crypto_box_NONCEBYTES);
+  console.log('[crypto] decryptSessionKey: senderPub.length', senderPub.length, 'myPrivKey.length', myPrivKey.length);
+
   const asymNonce = combined.slice(0, na.crypto_box_NONCEBYTES);
   const boxed     = combined.slice(na.crypto_box_NONCEBYTES);
+
+  if (boxed.length < na.crypto_secretbox_MACBYTES) {
+    console.error('[crypto] decryptSessionKey: boxed too short', boxed.length, 'expected at least', na.crypto_secretbox_MACBYTES);
+  }
 
   const sessionKey = na.crypto_box_open_easy(boxed, asymNonce, senderPub, myPrivKey);
   return sessionKey;

@@ -1,11 +1,3 @@
-#![allow(clippy)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::too_many_lines)]
-
 // events.rs – Gestion du calendrier/événements
 use axum::{
     extract::{Extension, Path, Query},

@@ -62,21 +62,37 @@ export const messagesStore = writable<ChatMessage[]>([]);
 let _cryptoReadyInterval: ReturnType<typeof setInterval> | null = null;
 let _cryptoReadyAttempts = 0;
 const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
+const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
+let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 
 async function _decryptAllIfReady(): Promise<void> {
-  if (!cryptoStore.ready) return;
-  
-  const msgs = get(messagesStore);
-  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key);
-  
-  if (encrypted.length === 0) {
-    // Plus de messages chiffrés, on continue à surveiller un peu au cas où
-    if (_cryptoReadyAttempts > 10) {
-      _stopCryptoReadyListener();
-    }
+  if (!cryptoStore.ready) {
+    console.log('[Chat] _decryptAllIfReady: cryptoStore NOT ready, abort');
     return;
   }
-  
+
+  // Premier déclenchement après restauration crypto : recharger les messages depuis le serveur
+  // pour restaurer les champs E2EE (nonce, sender_public_key) qui peuvent avoir été perdus
+  // lors d'une tentative de déchiffrement précédente (crypto pas encore prêt).
+  if (!_messagesReloaded) {
+    console.log('[Chat] Crypto ready — rechargement des messages depuis le serveur pour restaurer champs E2EE');
+    _messagesReloaded = true;
+    // Recharger la conversation active (convId depuis l'URL ou l'état)
+    const convId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conv') || 'default_global' : 'default_global';
+    await loadMessages(convId);
+    // Ne pas déchiffrer tout de suite — laisser le prochain tick (1s) le faire
+    return;
+  }
+
+  const msgs = get(messagesStore);
+  console.log('[Chat] _decryptAllIfReady: crypto ready, messages count:', msgs.length);
+  const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
+  console.log('[Chat] _decryptAllIfReady: messages to decrypt:', encrypted.length, encrypted.map(m=>({id:m.id.slice(0,8), hasKey:!!m.sender_public_key, hasNonce:!!m.nonce, pubkey:m.sender_public_key?.slice(0,20), nonce:!!m.nonce, encrypted:m.encrypted})));
+  if (msgs.length > 0) {
+    const first = msgs[0];
+    console.log('[Chat] FIRST MESSAGE DEBUG:', {id:first.id.slice(0,8), encrypted:first.encrypted, hasNonce:!!first.nonce, hasPubkey:!!first.sender_public_key, contentStart:first.content?.slice(0,40), message_type:first.message_type});
+  }
+
   console.log(`[Chat] Crypto prêt → déchiffrement de ${encrypted.length} messages (attempt ${_cryptoReadyAttempts})`);
   try {
     const { decryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -89,7 +105,11 @@ async function _decryptAllIfReady(): Promise<void> {
         msg.encrypted = false;
       } catch (e) {
         console.error('[Chat] Erreur déchiffrement message', msg.id, e);
+        _FAILED_DECRYPT_IDS.add(msg.id);
         msg.content = '🔒 Message chiffré (clé indisponible)';
+        msg.encrypted = false;
+        msg.nonce = null;
+        msg.sender_public_key = null;
       }
     }
     messagesStore.set([...msgs]);
@@ -166,7 +186,7 @@ function _openWs(): void {
   if (typeof window === 'undefined') return;
 
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
+  const ws = new WebSocket(`${proto}://${window.location.host}/webrtc/ws`);
   _ws = ws;
 
   ws.onopen = () => {
@@ -291,14 +311,14 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
           ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
         });
         raw.encrypted = false;
-      } else {
-        // cryptoStore pas prêt (clés non déverrouillées)
-        raw.content = '🔒 Message chiffré (clé indisponible)';
       }
-    } catch (e) { 
-      console.error('[chatStore] Erreur déchiffrement:', e);
-      raw.content = '🔒 Message chiffré (erreur)'; 
-    }
+    } catch {
+        _FAILED_DECRYPT_IDS.add(raw.id);
+        raw.content = '🔒 Message chiffré (clé indisponible)';
+        raw.encrypted = false;
+        raw.nonce = null;
+        raw.sender_public_key = null;
+      }
   }
   if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
@@ -394,7 +414,14 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
             messageId: msg.id, conversationId: msg.conversation_id,
             ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
           });
-        } catch { msg.content = '🔒 Message chiffré (clé indisponible)'; }
+        } catch (e) {
+          console.error('[Chat] decryptMessage error for msg', msg.id.slice(0,8), e);
+          _FAILED_DECRYPT_IDS.add(msg.id);
+          msg.content = '🔒 Message chiffré (clé indisponible)';
+          msg.encrypted = false;
+          msg.nonce = null;
+          msg.sender_public_key = null;
+        }
       }
     }
   } catch { /* cryptoStore pas dispo */ }
@@ -409,14 +436,31 @@ const PAGE_SIZE = 50;
 
 export async function loadMessages(conversationId: string): Promise<void> {
   try {
-    const res = await fetch(
-      `/api/conversations/${conversationId}/messages?limit=${PAGE_SIZE}&order=desc`,
-      { credentials: 'include' }
-    );
+    const url = new URL(`/api/conversations/${conversationId}/messages`, window.location.origin);
+    url.searchParams.set('limit', PAGE_SIZE.toString());
+    url.searchParams.set('order', 'desc');
+    url.searchParams.set('_ts', Date.now().toString()); // cache-bust
+    const res = await fetch(url.toString(), {
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-store' }
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     console.log('[Chat] loadMessages:', msgs.length, 'messages loaded for', conversationId);
+    if (msgs.length > 0) {
+      const first = msgs[0];
+      console.log('[Chat] FIRST RAW MESSAGE (pre-decrypt):', {
+        id: first.id,
+        encrypted: first.encrypted,
+        hasNonce: first.nonce != null,
+        hasPubkey: first.sender_public_key != null,
+        nonce_preview: first.nonce?.slice(0, 20),
+        pubkey_preview: first.sender_public_key?.slice(0, 20),
+        content_preview: first.content?.slice(0, 50)
+      });
+    }
     msgs.sort((a, b) => a.created_at - b.created_at);
     await _decryptBatch(msgs);
     messagesStore.set([...msgs]);
@@ -465,6 +509,7 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 // -----------------------------------------------------------------
 
 export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
+  console.log('[DEBUG sendMessage] called with', { content: content.slice(0, 30), conversationId });
   if (!content.trim()) return null;
   try {
     const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -479,12 +524,15 @@ export async function sendMessage(content: string, conversationId: string): Prom
     } else {
       body = { content: content.trim(), encrypted: false };
     }
+    console.log('[DEBUG sendMessage] about to fetch', body);
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(body),
     });
+    console.log('[DEBUG sendMessage] fetch response status', res.status);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const msgData: ChatMessage = await res.json();
+    console.log('[DEBUG sendMessage] got message from API', msgData.id, msgData.content.slice(0, 30));
     chatStore.connectionError = null;
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
@@ -495,8 +543,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
       if (idx !== -1) { msgs[idx] = msgData; return [...msgs]; }
       return [...msgs, msgData];
     });
-    // Recharger après 500ms pour assurer la persistance backend
-    setTimeout(() => loadMessages(conversationId), 500);
+    // Le WebSocket apportera la confirmation — pas de reload nécessaire
     return msgData;
   } catch (err) {
     chatStore.connectionError = "Erreur lors de l'envoi du message";
@@ -510,6 +557,7 @@ export async function sendMessage(content: string, conversationId: string): Prom
 // -----------------------------------------------------------------
 
 export async function editMessage(msgId: string, convId: string, newContent: string): Promise<boolean> {
+  console.log('[editMessage] PATCH', convId, msgId, 'preview:', newContent.substring(0, 50));
   try {
     const res = await fetch(`/api/conversations/${convId}/messages/${msgId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },

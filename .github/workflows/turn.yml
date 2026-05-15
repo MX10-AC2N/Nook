@@ -1,4 +1,4 @@
-name: 3 ==> Turn-Server Build
+name: Turn-Server Build
 
 on:
   workflow_dispatch:
@@ -17,33 +17,35 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
-          - arch: arm64
-            target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install protobuf-compiler
+      - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y protobuf-compiler libprotobuf-dev
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools
 
-      - name: Build turn-server on Alpine (Docker)
+      - name: Install Rust (nightly)
         run: |
-          docker build \
-            --target builder \
-            --tag turn-builder:latest \
-            -f services/turn-rs/Dockerfile \
-            services/turn-rs
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly --profile minimal
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-      - name: Extract turn-server binary
+      - name: Add musl target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Clone turn-rs source
+        run: |
+          git clone --depth 1 https://github.com/mycrl/turn-rs.git turn-rs-src
+
+      - name: Build turn-server (release)
+        run: cargo build --release --target ${{ matrix.target }} --manifest-path turn-rs-src/Cargo.toml
+
+      - name: Prepare artifact
         run: |
           mkdir -p artifacts
-          id=$(docker create turn-builder:latest /bin/sh -c "cat /usr/local/bin/turn-server")
-          docker start -a $id > artifacts/turn-server-${{ matrix.arch }}
-          docker rm $id
+          cp turn-rs-src/target/${{ matrix.target }}/release/turn-server artifacts/turn-server-${{ matrix.arch }}
           chmod +x artifacts/turn-server-${{ matrix.arch }}
           file artifacts/turn-server-${{ matrix.arch }}
           ls -la artifacts/turn-server-${{ matrix.arch }}

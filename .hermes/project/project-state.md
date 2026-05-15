@@ -1,25 +1,19 @@
 # 📂 Project State — Hermes Agent
 
-> Mis à jour : 2026-05-06 (session en cours)
+> Mis à jour : 2026-05-12
 
 ## 🏷️ Identité du projet
 - **Nom :** Nook
 - **Version :** 0.5.0 (développement)
 - **Repo :** https://github.com/MX10-AC2N/Nook
 - **Branche de travail :** `develop`
-- **Dernier commit :** `7562f847` (ci(backend): switch nightly -> stable)
+- **Dernier commit CI stable :** `0ee77f90` (fix(docker): sqlite-libs pour Alpine)
 
 ## 🏗️ Architecture
 - **Backend :** Rust + Axum 0.8 + SQLx 0.8.6 + SQLite
 - **Frontend :** SvelteKit 5 (Runes) + TypeScript
-- **Déploiement :** Docker multi-arch (Alpine 3.21)
-- **CI :** GitHub Actions (Rust stable, see Backend.yml line 34)
-
-## 🔧 Outils CI disponibles
-- **Backend.yml** : Build amd64/arm64 avec Rust stable (was nightly)
-- **Frontend.yml** : Build SvelteKit (Node 22)
-- **turn.yml** : Build Turn Server (turn-rs)
-- **Docker.yml** : Build & push image multi-arch
+- **Déploiement :** Docker multi-arch (Alpine 3.20, musl)
+- **CI :** GitHub Actions (Rust stable, musl-tools sur runners natifs)
 
 ## 🚨 Problèmes connus (à résoudre)
 
@@ -28,10 +22,12 @@
 | BUG-001 : Compilation backend (admin.rs) | ✅ FIXÉ | `327b08e6` |
 | BUG-002 : E2EE refresh bug | ✅ FIXÉ | `0219c73e` |
 | BUG-003 : P2P file transfer (sécurité) | ✅ FIXÉ | `e9b17418` |
-| BUG-004 : Axum 0.8 panic (events.rs:316) | 🔵 EN COURS | `7562f847` (stable switch) |
-| CI-001 : Frontend npm ci failure | ✅ FIXÉ | `25442320465` (package-lock regen) |
-| CI-002 : Turn Dockerfile syntax error | ✅ FIXÉ | `abb11c7e` (&& fix) |
-| CI-003 : Backend nightly rustc target info | ✅ FIXÉ | `7562f847` (switch stable) |
+| BUG-004 : Axum 0.8 panic (events.rs:316) | ✅ FIXÉ | dans le code |
+| CI-001 : Frontend npm ci failure | ✅ FIXÉ | package-lock regen |
+| CI-002 : Backend build musl | ✅ FIXÉ | `49f40a5d` (musl-tools natifs) |
+| CI-003 : Backend artifact names mismatch | ✅ FIXÉ | `471cee80` |
+| CI-004 : Docker libsqlite3 → sqlite-libs | ✅ FIXÉ | `0ee77f90` |
+| CI-005 : Turn arm64 download manquant | ✅ FIXÉ | `087eee5f` |
 
 ## 🔗 Liens utiles
 - CI Backend : https://github.com/MX10-AC2N/Nook/actions/workflows/Backend.yml
@@ -41,12 +37,11 @@
 - Repo : https://github.com/MX10-AC2N/Nook
 - Déploiement local : https://192.168.1.192:6443 (HTTPS cert auto-signé)
 
-## 📊 Status actuel (2026-05-06 14:47 UTC)
-- **Frontend CI :** ✅ PASSE (commit `25442320465`, package-lock.json regenerated)
-- **Backend CI :** 🔴 EN COURS (commit `7562f847`, switch nightly->stable, amd64 OK, arm64 compiling)
-- **Turn CI :** 🔴 EN COURS (commit `abb11c7e`, Dockerfile syntax fix)
-- **Docker CI :** ⏳ EN ATTENTE (des 3 autres)
-- **Deployed :** 🔴 Unhealthy (Axum 0.8 panic in events.rs:316, fix in code but needs rebuild)
+## 📊 Status actuel (2026-05-12 16:00 UTC)
+- **Backend CI :** ✅ PASS `49f40a5d` (musl-tools natifs, amd64+arm64)
+- **Frontend CI :** ✅ PASS
+- **Turn CI :** ✅ PASS
+- **Docker CI :** ✅ PASS `0ee77f90` (sqlite-libs)
 
 ## 🔑 Informations critiques
 

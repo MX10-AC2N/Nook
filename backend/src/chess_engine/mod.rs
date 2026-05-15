@@ -15,7 +15,6 @@
 
 // Bibliothèque intégrée : toutes les APIs ne sont pas encore utilisées
 #![allow(dead_code)]
-#![allow(clippy::unnecessary_map_or)]
 
 pub mod ai_engine;
 pub mod attacks;

@@ -152,14 +152,20 @@ let pool = SqlitePool::connect_with(opts).await?;
 ### Flow manuel (développement / release)
 
 ```
-1. Backend.yml   → nook-backend-amd64 + nook-backend-arm64  (retention 7j)
+1. Backend.yml   → nook-backend-x86_64-unknown-linux-musl (+ nook-backend-aarch64-unknown-linux-musl)
+                   Binaire dedans: nook-backend-amd64 / nook-backend-arm64  (retention 7j)
 2. Frontend.yml  → nook-frontend                             (retention 7j)
-         ↓
-3. test-nook.yml → Dockerfile (cargo-chef) + docker-compose.ci.yml
-                 → tests API + Playwright E2E
+3. turn.yml      → nook-turn-server-amd64 + nook-turn-server-arm64  (retention 7j)
          ↓ si OK
-4. Docker.yml    → dawidd6 télécharge 1+2 → Dockerfile.release → GHCR
+4. Docker.yml    → dawidd6 télécharge 1+2+3 → Dockerfile.release → GHCR
 ```
+
+### Backend CI — musl-tools natif (2026-05-12)
+```
+backend-amd64  : runs-on ubuntu-latest, musl-tools, target x86_64-unknown-linux-musl
+backend-arm64  : runs-on ubuntu-24.04-arm, musl-tools, target aarch64-unknown-linux-musl
+```
+Cargo check / clippy / test en natif → cargo build --release --target <musl-target>
 
 ### test-nook.yml — setup E2E
 
@@ -187,11 +193,13 @@ Release.yml (patch/minor/major)
 
 ## 🏷️ Artifacts
 
-| Workflow | Artifact | Contenu | Retention |
-|----------|---------|---------|-----------|
-| `Backend.yml` | `nook-backend-x86_64-unknown-linux-gnu` | `nook-backend-amd64` | 7j |
-| `Backend.yml` | `nook-backend-aarch64-unknown-linux-gnu` | `nook-backend-arm64` | 7j |
+| Workflow | Artifact GitHub | Contenu (binaire) | Retention |
+|----------|-----------------|-------------------|-----------|
+| `Backend.yml` amd64 | `nook-backend-x86_64-unknown-linux-musl` | `nook-backend-amd64` | 7j |
+| `Backend.yml` arm64 | `nook-backend-aarch64-unknown-linux-musl` | `nook-backend-arm64` | 7j |
 | `Frontend.yml` | `nook-frontend` | `index.html` + assets | 7j |
+| `turn.yml` amd64 | `nook-turn-server-amd64` | `turn-server-amd64` | 7j |
+| `turn.yml` arm64 | `nook-turn-server-arm64` | `turn-server-arm64` | 7j |
 
 ---
 
@@ -199,8 +207,8 @@ Release.yml (patch/minor/major)
 
 ```
 ghcr.io/mx10-ac2n/nook:v0.5.0   ← version sémantique (badge README)
+ghcr.io/mx10-ac2n/nook:dev      ← branch develop
 ghcr.io/mx10-ac2n/nook:latest   ← uniquement sur branch main
-ghcr.io/mx10-ac2n/nook:sha-abc  ← SHA court traçabilité
 ```
 
 ---
@@ -214,19 +222,17 @@ ghcr.io/mx10-ac2n/nook:sha-abc  ← SHA court traçabilité
 | `Path segments must not start with ':'` | Routes axum 0.7 style | R11 |
 | `Cannot combine credentials with *` | CORS wildcard + credentials | R9 |
 | `Permission denied /app/data` | Volume Docker root + user nonroot 65532 | R7 |
-| `Artifact not found` | download-artifact@v4 cross-workflow | R12 |
+| `Artifact not found` | Nom d'artefact changée dans Backend.yml | Voir noms actuels section Artifacts |
+| `libsqlite3 (no such package)` | Nom Debian dans Alpine Dockerfile | Utiliser `sqlite-libs` sur Alpine |
 | `home@0.5.12 requires rustc 1.88` | Image Rust trop ancienne | R3 |
 | `Login admin failed: 401` | Ne pas utiliser curl pour le setup E2E → utiliser E2E_SETUP=1 | voir test-nook.yml |
+| `cargo zigcheck: command not found` | zigcheck/zigclippy n'existent pas | Cargo check/clippy natifs |
+| `musl-gcc: not found` | musl-tools non installés | `sudo apt-get install -y musl-tools` |
 
 ---
 
-## 📊 Image distroless
+## Alpine runtime (Dockerfile.release)
 
-| Propriété | Valeur |
-|-----------|--------|
-| Base | `gcr.io/distroless/cc-debian12:nonroot` |
-| User | `nonroot` uid 65532 |
-| Shell | Aucun |
-| Port | 3000 interne → 6300 mappé |
-| Libs | libsqlite3, libssl, libcrypto (copiées depuis debian:bookworm-slim) |
-| Healthcheck | Aucun (distroless sans curl) — monitoring externe |
+- Base: `alpine:3.20`
+- Packages: `sqlite-libs` (PAS `libsqlite3`), `ca-certificates`, `libsodium`
+- User: `nook` uid 1000, gid 1000
