@@ -110,7 +110,7 @@ export async function encryptForRecipients(
   const encryptedKeys: Record<string, string> = {};
   for (const [userId, pubKeyB64] of Object.entries(recipientPubkeys)) {
     const recipientPub = na.from_base64(pubKeyB64, na.base64_variants.ORIGINAL);
-    console.log('[encryptForRecipients] userId:', userId, 'pubKeyB64:', pubKeyB64.substring(0,30)+'...', 'pubKeyBytes:', recipientPub.length, 'privKeyBytes:', senderKeyPair.privateKey.length);
+    // console.log('[encryptForRecipients] userId:', userId, 'pubKeyBytes:', recipientPub.length, 'privKeyBytes:', senderKeyPair.privateKey.length);
     const asymNonce    = na.randombytes_buf(na.crypto_box_NONCEBYTES);
     const boxed        = na.crypto_box_easy(
       sessionKey,
@@ -123,10 +123,10 @@ export async function encryptForRecipients(
     combined.set(asymNonce, 0);
     combined.set(boxed, asymNonce.length);
     encryptedKeys[userId] = na.to_base64(combined, na.base64_variants.ORIGINAL);
-    console.log('[encryptForRecipients] encryptedKeys[' + userId + ']:', encryptedKeys[userId].substring(0,30) + '...', 'len:', encryptedKeys[userId].length);
+    // console.log('[encryptForRecipients] encryptedKeys[' + userId + '] len:', encryptedKeys[userId].length);
   }
 
-  console.log('[encryptForRecipients] FINAL encryptedKeys count:', Object.keys(encryptedKeys).length, 'ciphertext len:', na.to_base64(ciphertext, na.base64_variants.ORIGINAL).length, 'nonce len:', na.to_base64(nonce, na.base64_variants.ORIGINAL).length);
+  // console.log('[encryptForRecipients] FINAL encryptedKeys count:', Object.keys(encryptedKeys).length);
   return {
     ciphertext: na.to_base64(ciphertext, na.base64_variants.ORIGINAL),
     nonce:      na.to_base64(nonce,      na.base64_variants.ORIGINAL),
@@ -151,20 +151,15 @@ export async function decryptSessionKey(
   const na        = await ensureSodium();
   const combined  = na.from_base64(encKeyB64,    na.base64_variants.ORIGINAL);
   const senderPub = na.from_base64(senderPubB64, na.base64_variants.ORIGINAL);
-  console.log('[decryptSessionKey] encKeyB64 len:', encKeyB64.length, 'combined len:', combined.length, 'senderPubB64:', senderPubB64.substring(0,30)+'...', 'senderPub len:', senderPub.length, 'myPrivKey len:', myPrivKey.length);
-
-  console.log('[crypto] decryptSessionKey: combined length', combined.length, 'boxed from', combined.length - na.crypto_box_NONCEBYTES);
-  console.log('[crypto] decryptSessionKey: senderPub.length', senderPub.length, 'myPrivKey.length', myPrivKey.length);
 
   const asymNonce = combined.slice(0, na.crypto_box_NONCEBYTES);
   const boxed     = combined.slice(na.crypto_box_NONCEBYTES);
 
   if (boxed.length < na.crypto_secretbox_MACBYTES) {
-    console.error('[crypto] decryptSessionKey: boxed too short', boxed.length, 'expected at least', na.crypto_secretbox_MACBYTES);
+    console.error('[crypto] decryptSessionKey: boxed trop court', boxed.length, 'attendu au moins', na.crypto_secretbox_MACBYTES);
   }
 
-  const sessionKey = na.crypto_box_open_easy(boxed, asymNonce, senderPub, myPrivKey);
-  return sessionKey;
+  return na.crypto_box_open_easy(boxed, asymNonce, senderPub, myPrivKey);
 }
 
 /**

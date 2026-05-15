@@ -148,30 +148,29 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
     }
 
     // kp est garanti non-null ici (chargé depuis IndexedDB)
-    _keyPair           = kp;
-    cryptoStore.userId = userId;
-    cryptoStore.ready  = true;
-    console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
 
     // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
     try {
-      sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
-      sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
+      sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
+      sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
       sessionStorage.setItem('nook_userid', userId);
       console.log('[cryptoStore] Clés E2EE stockées en sessionStorage (restauration sans mot de passe possible)');
     } catch (e) {
       console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
     }
 
-    // Always try to register public key on server, even if loaded from IndexedDB
-    // This ensures the server has the latest public key
+    // Await public key registration BEFORE activating the store
+    // to prevent sending messages with a pubkey that's not yet on the server
     if (kp.publicKey) {
-      registerPublicKeyOnServer(kp.publicKey)
-        .then(() => console.info('[cryptoStore] Clé publique synchronisée avec le serveur ✓'))
-        .catch((e) => console.warn('[cryptoStore] Échec synchronisation clé publique :', e?.message));
+      await registerPublicKeyOnServer(kp.publicKey);
+      console.info('[cryptoStore] Clé publique synchronisée avec le serveur ✓');
     }
 
-    return true;
+    // Activer le store maintenant que la clé publique est garantie sur le serveur
+    _keyPair           = kp;
+    cryptoStore.userId = userId;
+    cryptoStore.ready  = true;
+    console.log('[cryptoStore] unlockCrypto DONE — ready set to true for userId:', userId);
 
   } catch (e: any) {
     // Seules vraies erreurs : mot de passe incorrect ou IndexedDB inaccessible
