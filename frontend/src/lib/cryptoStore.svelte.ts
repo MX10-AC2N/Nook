@@ -266,12 +266,21 @@ export async function decryptMessage(params: {
   if (!_keyPair)           throw new Error('[cryptoStore] Clés non chargées.');
   if (!cryptoStore.userId) throw new Error('[cryptoStore] userId absent.');
 
+  console.log('[decryptMessage] START', {
+    messageId: params.messageId.slice(0,8),
+    senderPubkeyLen: params.senderPubkeyB64.length,
+    myPubKeyLen: _keyPair.publicKey.length,
+    myPrivKeyLen: _keyPair.privateKey.length,
+  });
+
   const res = await fetch(
     `/api/conversations/${params.conversationId}/my-encrypted-key/${params.messageId}`,
     { credentials: 'include' }
   );
   if (!res.ok) throw new Error(`[cryptoStore] get encrypted key: HTTP ${res.status}`);
   const { encrypted_key } = await res.json();
+
+  console.log('[decryptMessage] encrypted_key length:', encrypted_key.length);
 
   const sessionKey = await decryptSessionKey(
     encrypted_key,
