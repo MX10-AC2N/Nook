@@ -199,3 +199,36 @@ Objectif : Appliquer les corrections critiques identifiees par l'audit global No
 - Docker: 5 Dockerfiles corrigés (Alpine + UID/GID + USER)
 - Git: **2 commits ahead** (audit + fixes), tout pushé sur origin/develop
 - Score Audit Global: 75.4/100 (était 78/100 avant corrections)
+
+---
+
+## Session 53 — 2026-05-16 (Validation E2EE + .hermes update)
+
+### Contexte
+Objectif : Valider les fixes E2EE sur serveur CasaOS après commit f0a8c8d1 et mettre à jour le répertoire `.hermes` du repo avec le contexte final E2EE + CI.
+
+### Progrès Réalisés
+- ✅ CI pipeline 4/4 verts pour f0a8c8d1 (Frontend/Backend/Turn/Docker)
+- ✅ Serveur CasaOS 192.168.1.192:6300 rebuildé par utilisateur (`git pull && docker compose up -d --build`)
+- ✅ Diagnostic E2EE post-fix : nouveaux messages `encrypted_keys` non vide, `decryptSessionKey` logs présents
+- ✅ `.hermes/` repo mis à jour :
+  - `project-state.md` — dernier commit f0a8c8d1, CI 4/4 verts, E2EE statut
+  - `hermes/known-issues.md` — BUG-004/005/006 E2EE documentés
+  - `hermes/memory/backend.md` — créé (contexte E2EE + Axum 0.8 + SQLx)
+  - `hermes/memory/frontend.md` — créé (contexte E2EE + Svelte 5 patterns)
+  - `hermes/memory/devops.md` — mis à jour (CI ordering, outils, déploiement)
+  - `hermes/project/BUGS.md` — section E2EE bugs résolus ajoutée
+  - `memory/sessions/2026-05-16-e2ee-validation.md` — ce fichier
+
+### Décisions Clés
+- **SSH CasaOS bloqué** : accès SSH root non autorisé depuis ma configuration → navigateur direct pour diagnostic serveur
+- **Nook-context.md** créé comme fichier de référence combiné (backend + frontend + E2EE + CI)
+- **Pas d'ancien messages fix** : rotation de clé X25519 = structurellement indéchiffrable, pas de fix code
+- **_FAILED_DECRYPT_IDS** : ne plus mutiler champs E2EE en cas d'échec — re-déchiffrement futur possible
+
+### État Final
+- Branche: `develop`
+- Commit HEAD: `f0a8c8d1`
+- CI: 4/4 verts ✅
+- Serveur CasaOS: healthy, rebuildé, nouveaux messages E2EE OK
+- .hermes/: organisé par domaine, contextes backend/frontend/devops à jour

@@ -1,6 +1,6 @@
 # 🐛 BUGS.md — Nook
 
-> Mis à jour : **2026-04-08** (session 47 — déploiement Zimaboard)
+> Mis à jour : **2026-05-16** (session 2026-05-16 — validation E2EE + .hermes update)
 
 ---
 
@@ -116,3 +116,40 @@
 - **UID/GID 1000** — tous les conteneurs doivent utiliser UID 1000 pour matcher `casaos` sur l'hôte
 - **Contexte Docker** : `docker-context/turn/` ne contient que les binaires. Tout nouveau fichier dans `services/turn-rs/` doit être copié dans le contexte pendant le workflow `Docker.yml`
 - **Volume turn-config** : `:rw` (pas `:ro`) pour permettre l'init automatique du config
+
+---
+
+## ✅ BUGS E2EE RÉSOLUS (sessions 2026-05-15/16)
+
+### E2EE-BUG-01 : Clé publique désynchronisée — `incorrect key pair`
+
+**Fichiers** : `cryptoStore.svelte.ts` — `unlockCrypto()` + `registerPublicKeyOnServer()`
+**Symptôme** : `sodium.crypto_box_open_easy` échoue avec "incorrect key pair" au déchiffrement.
+**Cause** : `unlockCrypto` assignait `ready=true` avant `await registerPublicKeyOnServer()` (fire-and-forget) → `users.public_key` pas synchronisé.
+**Fix** (commit `36eefe5c`) : `await registerPublicKeyOnServer(kp.publicKey)` avant `_keyPair=kp` et `ready=true`.
+
+### E2EE-BUG-02 : `encryptForRecipients` casse tout si un destinataire invalide
+
+**Fichiers** : `crypto.ts` — `encryptForRecipients()`
+**Symptôme** : `encrypted_keys: {}` vide sur serveur — messages sans moyen de déchiffrement.
+**Cause** : Boucle sans try/catch — une clé invalide casse toute la boucle.
+**Fix** (commit `f0a8c8d1`) : try/catch par destinataire + `console.warn` par échec individué.
+**Note** : `db.rs ligne 456` ne stocke pas `encrypted_keys` si vide.
+
+### E2EE-BUG-03 : `_FAILED_DECRYPT_IDS` mutilait les champs E2EE
+
+**Fichier** : `chatStore.svelte.ts` — `_decryptAllIfReady()`
+**Symptôme** : `delete message.nonce, message.encrypted` en cas d'échec → message irrémédiablement perdu.
+**Fix** (commit `36eefe5c`) : Conservation des champs E2EE, seul l'ID ajouté au Set → re-déchiffrement futur possible.
+
+---
+
+## ⚠️ LIMITES E2EE CONNUES (non-bugs)
+
+### Anciens messages indéchiffrables après rotation de clé X25519
+- **Nature** : Structurale, pas un bug de code.
+- **Cause** : `users.public_key` change entre sessions → ancienne clé de session n'a pas de paire privée.
+- **Conséquence** : Échec systématique "incorrect key pair" sur anciens messages.
+- **Pas de fix** : Rotation de clé = opération destructive par conception en chiffrement asymétrique.
+- **À documenter** : guide utilisateur → changement compte = perte lisibilité anciens messages.
+
