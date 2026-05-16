@@ -1,96 +1,83 @@
 # ⚠️ Known Issues — Hermes Agent
 
 > Liste des bugs, pièges et problèmes récurrents à ne pas répéter
-> Mis à jour : 2026-05-02
+> Mis à jour : 2026-05-16
 
-## 🔴 Bugs critiques (à corriger en priorité)
+## 🔴 Bugs critiques (RÉSOLUS)
 
 ### BUG-001 : Compilation backend échoue (admin.rs)
-- **Status :** EN COURS (commit 327b08e6 poussé, CI à vérifier)
+- **Status :** ✅ FIXÉ commit `327b08e6`
 - **Symptôme :** `mismatched closing delimiter` sur `.map_err()`
-- **Cause :** Parenthèses mal fermées dans les closures
-- **Fix :** Utiliser bloc `{ }` dans `.map_err(|err| { (...) })?`
 - **Leçon :** Toujours vérifier la syntaxe Rust avant push
 
-### BUG-002 : E2EE refresh bug
-- **Status :** ✅ FIXÉ (commit 0219c73e)
-- **Symptôme :** Messages chiffrés visibles après refresh page
-- **Cause :** `cryptoStore.ready = false` après refresh, pas de déchiffrement auto
-- **Fix :** Polling dans `chatStore.svelte.ts` (ne s'arrête plus à 1ère tentative)
-- **Code :** `_decryptAllIfReady()` appelé APRÈS chargement messages (loadMessages, loadMoreMessages)
-- **Contrainte :** Mot de passe PAS stocké (sécurité), pas d'unlockCrypto() auto
+### BUG-002 : E2EE refresh bug — messages non déchiffrés après F5
+- **Status :** ✅ FIXÉ commit `0219c73e`
+- **Symptôme :** `cryptoStore.ready=false` après refresh, pas de déchiffrement auto
+- **Fix :** Polling `_decryptAllIfReady()` dans `chatStore.svelte.ts`
+- **Contrainte :** Mot de passe PAS stocké
 
-### BUG-003 : P2P file transfer (sécurité)
-- **Status :** ✅ CODE FIXÉ (commit e9b17418)
-- **Symptôme :** Transfert >50 Mo uniquement 1-to-1 (pas de groupes)
-- **Code :** `file-transfer.svelte.ts` + `e2ee.ts` (export e2ee instance)
-- **Fix sécurité :** Utilise maintenant `e2ee.loadGroupKey(convoId)` au lieu d'une clé dérivée
-- **À faire :** Tester sur conversation 1-to-1 réelle, créer tests E2E
+### BUG-003 : P2P file transfer sécurité groupes
+- **Status :** ✅ FIXÉ commit `e9b17418`
+- **Fix :** `e2ee.loadGroupKey(convoId)` au lieu clé dérivée
+
+### BUG-004 / BUG-005 : E2EE clé publique désynchronisée serveur
+- **Status** : ✅ FIXÉ commit `36eefe5c`
+- **Symptôme** : `"incorrect key pair for the given ciphertext"` dans `crypto_box_open_easy`
+- **Cause** : `unlockCrypto` positionnait `ready=true` avant completion de `registerPublicKeyOnServer()` (fire-and-forget)
+- **Fix** : `await registerPublicKeyOnServer(kp.publicKey)` avant `_keyPair=kp` et `ready=true`
+- **Duplication** : `sessionStorage` SET + `await registerPublicKeyOnServer` maintenant groupés avant activation store, duplication ligne 148-185 corrigée
+
+### BUG-006 : E2EE encryptForRecipients casse total si 1 destinataire invalide
+- **Status :** ✅ FIXÉ commit `f0a8c8d1`
+- **Symptôme :** `encrypted_keys:{}` (vide) sur serveur, messages marqués `encrypted:true` mais impossibles à déchiffrer
+- **Cause** : Boucle `for (const [userId, pubKeyB64] of Object.entries(...))` sans try/catch → un seul destinataire avec clé malformée casse toute la boucle
+- **Fix** : try/catch par destinataire + `console.warn` par participant échoué + `console.info` dans `encryptMessage` pour diagnostic
+- **Impact backend** : `db.rs ligne 456` ne stocke pas `encrypted_keys` si vide → message arrive sans mécanisme de déchiffrement
+
+### _FAILED_DECRYPT_IDS Fix
+- **Commit** : `36eefe5c` (inclus dans BUG-005)
+- **Avant** : En cas d'échec de déchiffrement, `_FAILED_DECRYPT_IDS` mutilait les champs E2EE du message (`delete nonce/encrypted/sender_public_key`) → re-déchiffrement futur impossible
+- **Après** : Les champs E2EE sont conservés — seul l'ID est ajouté au Set → re-déchiffrement automatique possible quand la racine causale est corrigée
 
 ## 🟡 Pièges récurrents (attention !)
 
 ### PITFALL-001 : Modifier les versions des dépendances
-- **Règle :** Un commit de fix ne touche QUE le bug signalé
-- **Erreur commise :** J'ai changé `rustrtc` 0.3.40 → 0.3.39 par erreur
-- **Correction :** Restauré immédiatement sur demande utilisateur
-- **À retenir :** Jamais toucher à Cargo.toml dans un commit de fix code
+- Règle : Un commit de fix ne touche QUE le bug signalé
+- Jamais toucher à Cargo.toml dans un fix code
 
 ### PITFALL-002 : rand 0.9 API change
-- **Erreur :** `rand::thread_rng()` n'existe plus
-- **Correct :** `rand::rng()`
-- **Distribution :** `distr::` pas `distributions::`
-- **Import :** `use rand::Rng;` pour `sample_iter()`
+- `thread_rng()` → `rng()`
+- `distributions::` → `distr::`
 
 ### PITFALL-003 : Axum 0.8 breaking changes
-- **Routes :** `{param}` pas `:param`
-- **Message::Text :** `Utf8Bytes` pas `String`
-- **Host :** `axum::extract::Host` supprimé → extraire du HeaderMap
+- `{param}` pas `:param`
+- `Message::Text` → `Utf8Bytes`
+- `axum::extract::Host` supprimé → HeaderMap
 
-### PITFALL-004 : CORS + credentials
-- **Erreur :** `allow_origin(Any)` + `allow_credentials(true)` → PANIC
-- **Correct :** Lister origines explicitement depuis config
+### PITFALL-004 : CORS + credentials PANIC
+- `allow_origin(Any)` + `allow_credentials(true)` → PANIC
+- Lister origines explicitement depuis config
 
-## 🟠 Nouveaux Bugs (2026-05-02)
+### PITFALL-005 : Svelte 5 form onsubmit
+- `<form onsubmit={handler}>` ne fire pas fiablement avec `<button type="submit">`
+- Fix : `<button type="button" onclick={handler}>` — pas de form onsubmit
 
-### BUG-07 : Emoji réaction étendue non fonctionnelle
-- **Status :** ✅ FIXÉ (commit 13af4b3c + test validé 2026-05-02)
-- **Symptôme :** Clic sur le bouton + à côté des réactions existantes ne faisait rien
-- **Cause :** Bouton + masqué, nécessitait d'ouvrir d'abord le picker rapide (😊)
-- **Fix :** Le workflow est maintenant clair : 
-  1. Survole message → bouton 😊 apparaît
-  2. Clic 😊 → ouvre picker rapide (6 emojis + bouton ＋)
-  3. Clic ＋ → affiche les emojis étendus (ALL_EMOJIS)
-- **Fichiers touchés :** `frontend/src/routes/chat/+page.svelte` (lignes 1451-1474)
-- **Test :** Validé via browser — le bouton ＋ fonctionne, les emojis étendus s'affichent
+## 🟠 Problèmes connus non résolus
 
-### BUG-08 : Chat refresh perd le dernier message
-- **Status :** ✅ FIXÉ (commit 13af4b3c + test validé 2026-05-02)
-- **Symptôme :** Après postage d'un nouveau message, recharger la page (F5) → le message disparaissait
-- **Cause :** Backend `get_conversation_messages` utilisait `ORDER BY m.created_at DESC LIMIT 50` puis `reverse()` — logique correcte
-- **Correction :** Le commit 13af4b3c a corrigé la persistance du message avant refresh
-- **Fichiers touchés :** `backend/src/db.rs` (get_conversation_messages), `frontend/src/lib/chatStore.svelte.ts`
-- **Test :** Envoi message "Test BUG-08", refresh → message toujours présent ✅
+### E2EE : Anciens messages indéchiffrables après rotation de clé
+- **Status** : ⚠️ STRUCTUREL — pas de fix code possible
+- **Cause** : Rotation de clé X25519 côté serveur → clé de session des anciens messages chiffrée avec ancienne clé, n'a pas de paire privée actuelle
+- **Workaround** : Nouveaux messages OK, anciens deviennent illisibles (attendu après reset/changement mot de passe)
 
-## 🔵 Problèmes de build CI
-
-### CI-001 : Rust nightly dans Backend.yml
-- **Fichier :** `.github/workflows/Backend.yml` ligne 34
-- **Toolchain :** `dtolnay/rust-toolchain@nightly`
-- **Impact :** Comportement peut différer de stable
-- **À vérifier :** Compatibilité `rustrtc` avec nightly
-
-### CI-002 : simple-peer 9.11.1 non maintenu
-- **Statut :** ✅ RÉSOLU (PR #28 mergé, commit 65386b88)
-- **Risque :** Sécurité, bugs non corrigés
-- **Action :** ✅ `webrtc.ts` réécrit avec API WebRTC native (RTCPeerConnection)
-- **Commit :** 65386b88 - simple-peer complètement supprimé
-
-## 📝 Ce que je dois vérifier avant chaque commit
+## 📝 Checklists pre-commit
 
 1. ✅ Syntaxe Rust correcte (`.map_err()`, parenthèses, accolades)
 2. ✅ Pas de modification de versions dans Cargo.toml
-3. ✅ `cargo check` pass (si disponible, sinon déléguer à Claude Code)
-4. ✅ Patterns Svelte 5 respectés (`$state`, `$derived.by`, pas de réassignation)
+3. ✅ `cargo clippy` clean
+4. ✅ Patterns Svelte 5 respectés (`$state`, `$derived.by`)
 5. ✅ Tests E2E mis à jour si nouveaux endpoints
-6. ✅ Pas de secrets en dur (TURN_SECRET, mots de passe admin)
-7. ✅ Workflows respectant l'ordre : Frontend → Backend → Turn → Docker
+6. ✅ Pas de secrets en dur
+7. ✅ Workflows dans l'ordre : Frontend → Backend → Turn → Docker
+8. ✅ `concurrent futures` nécessitent `join!` pas `spawn` dans les handlers Axum
+9. ✅ X25519 keys : 32 bytes Uint8Array, base64 encode → 44 chars
+10. ✅ `activate_no_keepalive` pour éviter connexion HTTP keep-alive sur serveur Nook
