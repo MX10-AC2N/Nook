@@ -309,14 +309,22 @@
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
   let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
-  function toggleExtendedEmoji(msgId: string) {
-    if (extendedEmojiMsgId === msgId) {
-      extendedEmojiMsgId = null;
-    } else {
-      extendedEmojiMsgId = msgId;
+  let messageMenuMsgId = $state<string | null>(null);   // menu contextuel (éditer/supprimer)
+  let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
+
+  function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
+    emojiPickerMsgId = msgId;
+    extendedEmojiMsgId = null;
+    // Calculer la position du picker par rapport au target (fixed → coordonnées viewport)
+    if (targetEl) {
+      const rect = targetEl.getBoundingClientRect();
+      emojiPickerPos = {
+        top: rect.bottom + 6,
+        left: rect.left,
+        right: window.innerWidth - rect.right,
+      };
     }
   }
-  let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
   let pickerTab   = $state<'emoji'|'gif'>('emoji'); // onglet actif emoji vs GIF
@@ -1402,23 +1410,27 @@
                 </button>
               {/each}
               <!-- More reactions button -->
-              <button class="action-btn react-more" onclick={() => { emojiPickerMsgId = msg.id; extendedEmojiMsgId = null; }} title="Plus d'emojis">
+              <button class="action-btn react-more" onclick={(e: MouseEvent) => openMsgEmojiPicker(msg.id, e.currentTarget as HTMLElement)} title="Plus d'emojis">
                 😊+
               </button>
-              <!-- Edit button (only for own messages) -->
+              <!-- Message menu (...) — only for own messages -->
               {#if isMyMessage(msg.sender_id)}
-                <button class="action-btn" onclick={() => startEdit(msg)} title="Éditer">✏️</button>
-                <button class="action-btn" onclick={() => confirmDelete(msg.id)} title="Supprimer">🗑️</button>
+                <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
+                {#if messageMenuMsgId === msg.id}
+                  <div class="message-menu-dropdown">
+                    <button class="msg-menu-item" onclick={() => { startEdit(msg); messageMenuMsgId = null; }}>✏️ Éditer</button>
+                    <button class="msg-menu-item delete" onclick={() => { confirmDelete(msg.id); messageMenuMsgId = null; }}>🗑️ Supprimer</button>
+                  </div>
+                {/if}
               {/if}
             </div>
           {/if}
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if emojiPickerMsgId === msg.id}
-            <emoji-picker 
+            <emoji-picker
               use:emojiPickerAction={msg.id}
-              class="msg-emoji-picker" 
-              style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
+              class="msg-emoji-picker"
               data-emojis-per-row="8"
             ></emoji-picker>
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
@@ -2758,6 +2770,7 @@
     display: flex;
     gap: .25rem;
     padding: .25rem;
+    position: relative;
     margin-top: .15rem;
     align-self: flex-start;
     animation: fadeIn .15s ease;
@@ -2802,7 +2815,50 @@
     padding: 0 .4rem;
   }
 
+  /* Message menu */
+  .msg-menu-toggle {
+    font-size: .9rem;
+    width: auto;
+    padding: 0 .35rem;
+    letter-spacing: .15em;
+  }
+  .msg-menu-toggle.active {
+    background: var(--accent, #4ade80);
+    color: #fff;
+    border-color: var(--accent, #4ade80);
+  }
+  .message-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 60;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    padding: .25rem 0;
+    min-width: 130px;
+  }
+  .msg-menu-item {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    width: 100%;
+    padding: .35rem .6rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--text-primary, #1e293b);
+    text-align: left;
+    transition: background .1s;
+  }
+  .msg-menu-item:hover { background: var(--bg-secondary, #f1f5f9); }
+  .msg-menu-item.delete { color: var(--danger, #ef4444); }
+  .msg-menu-item.delete:hover { background: #fef2f2; }
+
   /* Extended emoji picker for messages (emoji-picker-element) */
+  /* position: relative pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
     position: absolute;
     top: 100%;
