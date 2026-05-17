@@ -1432,6 +1432,7 @@
               use:emojiPickerAction={msg.id}
               class="msg-emoji-picker"
               data-emojis-per-row="8"
+              style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
             ></emoji-picker>
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
           {/if}
@@ -2860,9 +2861,7 @@
   /* Extended emoji picker for messages (emoji-picker-element) */
   /* position: relative pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
-    position: absolute;
-    top: 100%;
-    left: 0;
+    position: fixed;
     z-index: 50;
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .5rem;
