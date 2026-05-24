@@ -32,7 +32,7 @@ export async function sendEmergencyAlert(message: string): Promise<void> {
   // -----------------------------------------------------------------
   await new Promise<void>((resolve, reject) => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${protocol}://${window.location.host}/webrtc/ws`);
+    const ws = new WebSocket(`${protocol}://${window.location.host}/api/webrtc/ws`);
 
     // Timeout de secours (5 s) au cas où le serveur ne répondrait pas.
     const timeout = setTimeout(() => {

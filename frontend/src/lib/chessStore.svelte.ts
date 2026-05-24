@@ -604,7 +604,7 @@ class ChessStore {
   private _wsConnect(): void {
     if (!browser || !this.wsGameId) return;
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${window.location.host}/webrtc/ws`);
+    const ws = new WebSocket(`${proto}://${window.location.host}/api/webrtc/ws`);
     this.ws = ws;
 
     ws.onopen = () => {
