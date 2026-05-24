@@ -116,8 +116,14 @@
   let localMessages = $state<ChatMessage[]>([]);
   let reversedMessages = $derived(localMessages.slice().reverse());
   // Sync store → local state for reactivity
+  // Use a promise-based bridge so callers can await the update after set()
+  let _messagesResolve: (() => void) | null = null;
   $effect(() => {
-    const unsub = messagesStore.subscribe(msgs => { localMessages = [...msgs]; });
+    const unsub = messagesStore.subscribe(msgs => {
+      localMessages = [...msgs];
+      _messagesResolve?.();
+      _messagesResolve = null;
+    });
     return unsub;
   });
 
@@ -574,9 +580,9 @@
     
     // Activer la conv : connecte le WS, reset badge non-lus
     setActiveConv(conv.id);
-    // Load messages (single call)
-    await loadMessages(conv.id);
-    await loadReactionsForMessages(conv.id);
+    // Load messages (single call) — retourne les messages chargés pour éviter la race condition
+    const msgs = await loadMessages(conv.id);
+    await loadReactionsForMessages(conv.id, msgs);
     // Scroll to top après chargement — nouveaux messages en haut
     await Promise.resolve();
     if (chatContainer) chatContainer.scrollTop = 0;
@@ -587,10 +593,10 @@
     }
   }
 
-  async function loadReactionsForMessages(convId: string) {
-    // Charger les réactions des messages visibles en parallèle (max 50)
-    const msgs = localMessages.slice(-50);
-    await Promise.allSettled(msgs.map(async (msg) => {
+  async function loadReactionsForMessages(convId: string, msgs?: ChatMessage[]) {
+    // Si msgs est fourni, l'utiliser directement (évite race condition après selectConversation)
+    const toLoad = (msgs ?? localMessages.slice(-50));
+    await Promise.allSettled(toLoad.map(async (msg) => {
       try {
         const res = await fetch(
           `/api/conversations/${convId}/messages/${msg.id}/reactions`,

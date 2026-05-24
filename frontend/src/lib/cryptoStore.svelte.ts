@@ -69,13 +69,19 @@ let _keyPair: KeyPair | null = null;
     if (encPriv && encPub && uid) {
       const priv = Uint8Array.from(atob(encPriv), c => c.charCodeAt(0));
       const pub = Uint8Array.from(atob(encPub), c => c.charCodeAt(0));
+      // X25519 clés font 32 bytes — rejeter données corrompues
+      if (priv.length !== 32 || pub.length !== 32) throw new Error('Clés de taille invalide');
       _keyPair = { privateKey: priv, publicKey: pub };
       cryptoStore.userId = uid;
       cryptoStore.ready = true;
-      console.log('[cryptoStore] Clés restaurées depuis sessionStorage (session sans mot de passe)');
+      console.log('[cryptoStore] Clés restaurées depuis sessionStorage');
     }
   } catch (e) {
     console.warn('[cryptoStore] Échec restauration sessionStorage:', e);
+    // Nettoyer données corrompues pour forcer re-login
+    sessionStorage.removeItem('nook_privkey');
+    sessionStorage.removeItem('nook_pubkey');
+    sessionStorage.removeItem('nook_userid');
   }
 })();
 

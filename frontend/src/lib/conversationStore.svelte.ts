@@ -101,11 +101,13 @@ export async function loadConversations(): Promise<void> {
     if (!resp.ok) throw new Error('Impossible de charger les conversations');
 
     const data = await resp.json();
-    conversationStore.conversations = data.conversations ?? [];
+    // L'API retourne soit une liste directe, soit { conversations: [...] }
+    const list = Array.isArray(data) ? data : (data.conversations ?? []);
+    conversationStore.conversations = list;
     setConnectionError(null);
 
-    if (!conversationStore.activeConversationId && data.conversations?.length) {
-      const firstId = data.conversations[0].id;
+    if (!conversationStore.activeConversationId && list.length) {
+      const firstId = list[0].id;
       conversationStore.activeConversationId = firstId;
       await loadParticipants(firstId);
     }
