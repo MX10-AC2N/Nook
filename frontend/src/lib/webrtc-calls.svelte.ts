@@ -789,8 +789,8 @@ class WebRTCCallManager {
       // --- WebSocket (signalling) ---
       // Protocole correct : ws en HTTP, wss en HTTPS — même logique que chatStore
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      // BUG-CALL-1 FIX : /webrtc/ws est le bon endpoint backend
-      const wsUrl = `${proto}://${window.location.host}/webrtc/ws`;
+      // BUG-CALL-1 FIX : /api/webrtc/ws est le bon endpoint backend
+      const wsUrl = `${proto}://${window.location.host}/api/webrtc/ws`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
