@@ -418,7 +418,7 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
 
 const PAGE_SIZE = 50;
 
-export async function loadMessages(conversationId: string): Promise<void> {
+export async function loadMessages(conversationId: string): Promise<ChatMessage[]> {
   try {
     const url = new URL(`/api/conversations/${conversationId}/messages`, window.location.origin);
     url.searchParams.set('limit', PAGE_SIZE.toString());
@@ -439,9 +439,11 @@ export async function loadMessages(conversationId: string): Promise<void> {
     chatStore.connectionError = null;
     // APRÈS chargement, si crypto prêt → déchiffrer (race condition)
     if (cryptoStore.ready) _decryptAllIfReady();
+    return msgs;
   } catch (err) {
     chatStore.connectionError = 'Erreur de chargement des messages';
     console.error('[Chat] loadMessages:', err);
+    return [];
   }
 }
 
