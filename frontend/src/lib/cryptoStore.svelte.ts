@@ -59,9 +59,14 @@ export const cryptoStore = $state<CryptoStoreState>({
 let _keyPair: KeyPair | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Restauration automatique depuis sessionStorage (reload sans mot de passe)
+// Restauration depuis sessionStorage (appelée explicitement côté client)
 // ─────────────────────────────────────────────────────────────────────────────
-(function restoreFromSessionStorage() {
+export function restoreFromSessionStorage(): boolean {
+  if (typeof sessionStorage === 'undefined') return false;
+  if (cryptoStore.ready && _keyPair) {
+    console.log('[cryptoStore] restoreFromSessionStorage skip — déjà ready');
+    return true;
+  }
   try {
     const encPriv = sessionStorage.getItem('nook_privkey');
     const encPub = sessionStorage.getItem('nook_pubkey');
@@ -75,15 +80,16 @@ let _keyPair: KeyPair | null = null;
       cryptoStore.userId = uid;
       cryptoStore.ready = true;
       console.log('[cryptoStore] Clés restaurées depuis sessionStorage');
+      return true;
     }
   } catch (e) {
     console.warn('[cryptoStore] Échec restauration sessionStorage:', e);
-    // Nettoyer données corrompues pour forcer re-login
     sessionStorage.removeItem('nook_privkey');
     sessionStorage.removeItem('nook_pubkey');
     sessionStorage.removeItem('nook_userid');
   }
-})();
+  return false;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // unlockCrypto — appeler après login avec le mot de passe en clair

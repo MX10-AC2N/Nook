@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, restoreFromSessionStorage, unlockCrypto } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -157,6 +157,10 @@
     // Vérification de session : c'est ça qui détermine si on est connecté ou non
     // C'est la SEULE chose qui doit bloquer l'affichage
     try {
+      // Restaurer les clés E2EE depuis sessionStorage AVANT auth init
+      // pour éviter que unlockCrypto regénère une nouvelle paire
+      restoreFromSessionStorage();
+
       await authStore.init();
 
       // Au reload: si authStore est authentifié mais cryptoStore non prêt,
@@ -176,7 +180,6 @@
             // Attendre que libsodium soit prêt AVANT unlockCrypto
             const { waitForSodium } = await import('$lib/sodium.svelte.js');
             await waitForSodium();
-            const { unlockCrypto } = await import('$lib/cryptoStore.svelte');
             await unlockCrypto(authStore.user.id, sessionKey);
           }
         } catch (e) {
