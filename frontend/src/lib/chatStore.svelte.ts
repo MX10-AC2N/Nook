@@ -50,7 +50,7 @@ export interface ChatState {
 
 import { writable, get } from 'svelte/store';
 import { callManager } from '$lib/webrtc-calls.svelte.ts';
-import { cryptoStore } from '$lib/cryptoStore.svelte';
+import { cryptoStore, decryptMessage } from '$lib/cryptoStore.svelte';
 
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
@@ -81,7 +81,6 @@ async function _decryptAllIfReady(): Promise<void> {
   const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
 
   try {
-    const { decryptMessage } = await import('$lib/cryptoStore.svelte');
     for (const msg of encrypted) {
       try {
         msg.content = await decryptMessage({
