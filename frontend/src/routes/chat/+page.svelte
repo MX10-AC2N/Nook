@@ -445,10 +445,14 @@
     const cur = reactions[msgId];
     const isMyEmoji = cur?.myEmoji === emoji;
 
-    console.log('[toggleReaction] Called with:', { msgId, emoji, isMyEmoji, cur });
+    console.log('[toggleReaction] Called with:', { msgId, emoji, isMyEmoji, cur, activeConvId });
 
     try {
       const convId = activeConvId;
+      if (!convId) {
+        console.error('[toggleReaction] Aucune conversation active');
+        return;
+      }
       let res: Response;
       if (isMyEmoji) {
         res = await fetch(`/api/conversations/${convId}/messages/${msgId}/reactions`, {
@@ -462,7 +466,7 @@
           body: JSON.stringify({ emoji }),
         });
       }
-      console.log('[toggleReaction] Response:', res.status, res.ok);
+      console.log('[toggleReaction] Response:', { status: res.status, ok: res.ok, statusText: res.statusText });
       if (res.ok) {
         const data = await res.json();
         console.log('[toggleReaction] Data:', data);
@@ -470,6 +474,9 @@
         // Use spread to trigger Svelte 5 reactivity reliably
         reactions = { ...reactions, [msgId]: updated };
         console.log('[toggleReaction] Updated reactions:', reactions[msgId]);
+      } else {
+        const text = await res.text().catch(() => '');
+        console.error('[toggleReaction] API error:', res.status, text);
       }
     } catch (e) {
       console.error('[Reaction]', e);
