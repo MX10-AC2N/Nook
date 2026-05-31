@@ -12,7 +12,7 @@ import { expect, type Page, type BrowserContext } from '@playwright/test';
 export const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 export const E2E_USER = 'e2e_ci';
 export const E2E_PASS = 'E2eTest123!';
-export const BASE = 'http://localhost:6300/api';
+export const BASE = `${process.env.NOOK_BASE_URL || 'http://localhost:6300'}/api`;
 
 // ─────────────────────────────────────────────────────────────────
 // clearSession — révoque token serveur + vide browser state
