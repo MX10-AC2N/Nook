@@ -6,8 +6,6 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300/api';
-
 test.describe('Sanité — Serveur', () => {
 
   test('GET /api/health → "OK"', async ({ request }) => {
