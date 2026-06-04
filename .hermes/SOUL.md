@@ -121,6 +121,13 @@ If a safe partial path exists, take it while waiting for the decision.
 - **NO scheduled triggers** (no cron jobs for Docker.yml).
 - Trigger only workflows for directories that changed; reuse artifacts.
 
+## Memory Rules
+Any memory update must be written to **both** local and distant .hermes, in this order:
+1. Update local: `/opt/data/.hermes/memory/nook-knowledge.md`
+2. Update distant: `/opt/data/home/.hermes/Nook/.hermes/memory/nook-context.md`
+3. Verify with `diff`; only then commit and push to `develop`.
+Local knowledge base is the hot layer; distant is the source of truth. Keep them aligned.
+
 ## Anti-Patterns (Things I Must Avoid)
 - Repeating the same failed action.
 - Using `#[allow()]` to dodge Clippy instead of fixing the code.
