@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore, unlockCrypto } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, unlockCrypto, hasKeys } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -253,7 +253,7 @@
   <!-- DEBUG: cryptoStore state visibility -->
   {#if authStore.isAuthenticated}
     <div style="background: #fff3cd; color: #856404; padding: 8px 16px; font-family: monospace; font-size: 12px; border-bottom: 1px solid #ffeeba; z-index: 1000;">
-      🔐 DEBUG: cryptoStore.ready={cryptoStore.ready} cryptoError={cryptoStore.error || 'none'} hasKeyPair={!!cryptoStore.keyPair}
+      🔐 DEBUG: cryptoStore.ready={cryptoStore.ready} cryptoError={cryptoStore.error || 'none'} hasKeyPair={hasKeys()}
       <button onclick={() => { console.log('DEBUG: Manual unlockCrypto'); import('$lib/cryptoStore.svelte').then(m => m.unlockCrypto(authStore.user.id, sessionStorage.getItem('nook_crypto_key') || '')).then(r => console.log('DEBUG: unlock result:', r)); }} style="margin-left: 16px; padding: 2px 8px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">🔓 Test Unlock</button>
     </div>
   {/if}

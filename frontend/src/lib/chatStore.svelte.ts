@@ -50,7 +50,7 @@ export interface ChatState {
 
 import { writable, get } from 'svelte/store';
 import { callManager } from '$lib/webrtc-calls.svelte.ts';
-import { cryptoStore, decryptMessage } from '$lib/cryptoStore.svelte';
+import { cryptoStore, decryptMessage, hasKeys } from '$lib/cryptoStore.svelte';
 
 // Svelte writable store for messages — proper cross-file reactivity
 export const messagesStore = writable<ChatMessage[]>([]);
@@ -66,8 +66,8 @@ const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en é
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 
 async function _decryptAllIfReady(): Promise<void> {
-  console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, '_messagesReloaded=', _messagesReloaded);
-  if (!cryptoStore.ready) { console.log('[Chat] cryptoStore not ready, returning'); return; }
+  console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, 'hasKeys=', hasKeys(), '_messagesReloaded=', _messagesReloaded);
+  if (!cryptoStore.ready || !hasKeys()) { console.log('[Chat] cryptoStore not ready or no keys, returning'); return; }
 
   // Premier déclenchement après restauration crypto : recharger les messages depuis le serveur
   // pour restaurer les champs E2EE (nonce, sender_public_key) qui peuvent avoir été perdus
