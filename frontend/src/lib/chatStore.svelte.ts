@@ -526,9 +526,17 @@ export async function sendMessage(content: string, conversationId: string): Prom
 export async function editMessage(msgId: string, convId: string, newContent: string): Promise<boolean> {
   console.log('[editMessage] PATCH', convId, msgId, 'preview:', newContent.substring(0, 50));
   try {
+    let body: Record<string, unknown>;
+    if (cryptoStore.ready) {
+      try {
+        const { encryptMessage } = await import('$lib/cryptoStore.svelte');
+        const enc = await encryptMessage(newContent.trim(), convId);
+        body = { content: enc.ciphertext, encrypted: true, nonce: enc.nonce, encrypted_keys: enc.encryptedKeys };
+      } catch { body = { content: newContent.trim(), encrypted: false }; }
+    } else { body = { content: newContent.trim(), encrypted: false }; }
     const res = await fetch(`/api/conversations/${convId}/messages/${msgId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', body: JSON.stringify({ content: newContent }),
+      credentials: 'include', body: JSON.stringify(body),
     });
     if (!res.ok) return false;
     // Optimistic local update (WS will confirm or overwrite)
