@@ -102,6 +102,7 @@ export function restoreFromSessionStorage(): boolean {
 //   4. Si déchiffrement échoue (mauvais mot de passe) → exception catch → error
 // ─────────────────────────────────────────────────────────────────────────────
 export async function unlockCrypto(userId: string, password: string): Promise<boolean> {
+  console.log('[cryptoStore] unlockCrypto called for userId:', userId);
   // Déjà déverrouillé via sessionStorage? skip pour éviter regen de clés
   if (cryptoStore.ready && _keyPair) {
     console.log('[cryptoStore] unlockCrypto skip — déjà ready');
@@ -113,10 +114,13 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
   _keyPair           = null;
 
   try {
+    console.log('[cryptoStore] loading keys from IndexedDB...');
     let kp = await loadKeysFromIndexedDB(userId, password);
 
     if (!kp) {
+      console.log('[cryptoStore] no keys loaded from IndexedDB');
       const keysExist = await hasStoredKeys(userId);
+      console.log('[cryptoStore] keysExist:', keysExist);
 
       if (keysExist) {
         // Keys exist but failed to load (wrong password, corrupted data)
@@ -124,7 +128,7 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
         console.error('[cryptoStore] Keys exist but load failed for userId:', userId);
         return false;
       }
-      
+      // ...
       // ── Premier setup E2EE pour cet utilisateur (aucune clé trouvée) ─────
       console.info('[cryptoStore] Premier setup E2EE — génération paire de clés');
 
