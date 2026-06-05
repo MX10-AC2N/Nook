@@ -165,14 +165,21 @@
       // unlockCrypto charge depuis IndexedDB + déchiffre avec le mot de passe → source de vérité.
       if (authStore.isAuthenticated) {
         try {
+          console.log('[layout] authStore.user.id:', authStore.user?.id);
           const sessionKey = typeof sessionStorage !== 'undefined'
             ? sessionStorage.getItem('nook_crypto_key')
             : null;
+          console.log('[layout] sessionKey:', sessionKey ? 'SET' : 'NULL');
           if (sessionKey) {
             // Attendre que libsodium soit prêt AVANT unlockCrypto
             const { waitForSodium } = await import('$lib/sodium.svelte.js');
+            console.log('[layout] sodium module imported');
             await waitForSodium();
-            await unlockCrypto(authStore.user.id, sessionKey);
+            console.log('[layout] waitForSodium done, calling unlockCrypto...');
+            const result = await unlockCrypto(authStore.user.id, sessionKey);
+            console.log('[layout] unlockCrypto result:', result);
+          } else {
+            console.warn('[layout] nook_crypto_key not in sessionStorage');
           }
         } catch (e) {
           console.warn('[layout] Crypto unlock au reload échoué:', e);
