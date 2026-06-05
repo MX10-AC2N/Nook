@@ -66,12 +66,14 @@ const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en é
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 
 async function _decryptAllIfReady(): Promise<void> {
-  if (!cryptoStore.ready) return;
+  console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, '_messagesReloaded=', _messagesReloaded);
+  if (!cryptoStore.ready) { console.log('[Chat] cryptoStore not ready, returning'); return; }
 
   // Premier déclenchement après restauration crypto : recharger les messages depuis le serveur
   // pour restaurer les champs E2EE (nonce, sender_public_key) qui peuvent avoir été perdus
   if (!_messagesReloaded) {
     _messagesReloaded = true;
+    console.log('[Chat] First decryptAllIfReady - reloading messages from server');
     const convId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conv') || 'default_global' : 'default_global';
     await loadMessages(convId);
     return;
@@ -79,6 +81,7 @@ async function _decryptAllIfReady(): Promise<void> {
 
   const msgs = get(messagesStore);
   const encrypted = msgs.filter(m => m.encrypted && m.nonce && m.sender_public_key && !_FAILED_DECRYPT_IDS.has(m.id));
+  console.log('[Chat] _decryptAllIfReady: found', encrypted.length, 'encrypted messages to decrypt (failed:', _FAILED_DECRYPT_IDS.size, ')');
 
   try {
     for (const msg of encrypted) {
@@ -88,6 +91,7 @@ async function _decryptAllIfReady(): Promise<void> {
           ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
         });
         msg.encrypted = false;
+        console.log('[Chat] Decrypt SUCCESS (2nd pass) for msg', msg.id.slice(0,8));
       } catch (e) {
         console.error('[Chat] Erreur déchiffrement message', msg.id, e);
         _FAILED_DECRYPT_IDS.add(msg.id);
@@ -290,20 +294,25 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
   if (raw.encrypted && raw.nonce && raw.sender_public_key) {
     try {
       const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
+      console.log('[WS] _injectMessage: cs.ready=', cs.ready, 'msg=', raw.id.slice(0,8));
       if (cs.ready) {
         raw.content = await decryptMessage({
           messageId: raw.id, conversationId: raw.conversation_id,
           ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
         });
         raw.encrypted = false;
+        console.log('[WS] Decrypt SUCCESS for msg', raw.id.slice(0,8));
+      } else {
+        console.log('[WS] Crypto not ready, keeping message encrypted');
       }
-    } catch {
-        _FAILED_DECRYPT_IDS.add(raw.id);
-        raw.content = '🔒 Message chiffré (clé indisponible)';
-        raw.encrypted = false;
-        raw.nonce = null;
-        raw.sender_public_key = null;
-      }
+    } catch (e) {
+      console.error('[WS] Decrypt error for msg', raw.id.slice(0,8), e);
+      _FAILED_DECRYPT_IDS.add(raw.id);
+      raw.content = '🔒 Message chiffré (clé indisponible)';
+      raw.encrypted = false;
+      raw.nonce = null;
+      raw.sender_public_key = null;
+    }
   }
   if (existing === -1) {
     messagesStore.update(msgs => [...msgs, raw]);
@@ -391,23 +400,25 @@ export function formatTimestamp(ts: number): string {
 async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
   try {
     const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
-    if (!cs.ready) return msgs;
+    console.log('[Chat] _decryptBatch called, cs.ready=', cs.ready, 'messages=', msgs.length);
+    if (!cs.ready) { console.log('[Chat] cryptoStore not ready, skipping decrypt'); return msgs; }
     for (const msg of msgs) {
       if (msg.encrypted && msg.nonce && msg.sender_public_key && !_FAILED_DECRYPT_IDS.has(msg.id)) {
         try {
+          console.log('[Chat] Attempting decrypt for msg', msg.id.slice(0,8));
           msg.content = await decryptMessage({
             messageId: msg.id, conversationId: msg.conversation_id,
             ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
           });
+          msg.encrypted = false;
+          console.log('[Chat] Decrypt SUCCESS for msg', msg.id.slice(0,8));
         } catch (e) {
           console.error('[Chat] decryptMessage error for msg', msg.id.slice(0,8), e);
           _FAILED_DECRYPT_IDS.add(msg.id);
-          // NE PAS mutiler les champs E2EE du message → on garde encrypted/nonce/sender_public_key
-          // pour permettre le re-déchiffrement automatique quand la clé sera disponible.
         }
       }
     }
-  } catch { /* cryptoStore pas dispo */ }
+  } catch (e) { console.error('[Chat] _decryptBatch error:', e); }
   return msgs;
 }
 
