@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore, restoreFromSessionStorage, unlockCrypto } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, unlockCrypto } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -135,7 +135,7 @@
     //   la session (authStore.init = fetch /api/auth/me).
     //   On lance sodium en arrière-plan sans bloquer, puis on fait authStore.init()
     //   immédiatement → loading = false dès que la session est vérifiée (~100ms).
-    //   La crypto s'active toute seule quand sodium est prêt (via unlockCrypto au login).
+    //   La crypto s'active via unlockCrypto avec le mot de passe (source de vérité = IndexedDB).
     // ─────────────────────────────────────────────────────────────────────
 
     // Lance sodium en arrière-plan — ne PAS await ici
@@ -157,21 +157,13 @@
     // Vérification de session : c'est ça qui détermine si on est connecté ou non
     // C'est la SEULE chose qui doit bloquer l'affichage
     try {
-      // Restaurer les clés E2EE depuis sessionStorage AVANT auth init
-      // pour éviter que unlockCrypto regénère une nouvelle paire
-      restoreFromSessionStorage();
-
       await authStore.init();
 
-      // Au reload: si authStore est authentifié mais cryptoStore non prêt,
-      // tenter de débloquer E2EE avec le mot de passe stocké en sessionStorage
-      console.log('[layout] Post-auth init check:', {
-        isAuth: authStore.isAuthenticated,
-        userId: authStore.user?.id,
-        cryptoReady: cryptoStore.ready,
-        sessionKeyPresent: !!sessionStorage.getItem('nook_crypto_key')
-      });
-      if (authStore.isAuthenticated && !cryptoStore.ready) {
+      // Au reload: si authentifié, débloquer E2EE avec le mot de passe (sessionStorage)
+      // On ne fait PLUS confiance à restoreFromSessionStorage() qui restaurait
+      // des clés brutes potentiellement obsolètes (problème "clé indisponible" au refresh).
+      // unlockCrypto charge depuis IndexedDB + déchiffre avec le mot de passe → source de vérité.
+      if (authStore.isAuthenticated) {
         try {
           const sessionKey = typeof sessionStorage !== 'undefined'
             ? sessionStorage.getItem('nook_crypto_key')
