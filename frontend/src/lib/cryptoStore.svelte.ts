@@ -63,6 +63,14 @@ let _keyPair: KeyPair | null = null;
 // ─────────────────────────────────────────────────────────────────────────────
 export function restoreFromSessionStorage(): boolean {
   if (typeof sessionStorage === 'undefined') return false;
+  // Garde anti état fantôme : ready=true mais _keyPair=null → on nettoie
+  if (cryptoStore.ready && !_keyPair) {
+    console.warn('[cryptoStore] Ghost ready state detected — resetting');
+    cryptoStore.ready = false;
+    sessionStorage.removeItem('nook_privkey');
+    sessionStorage.removeItem('nook_pubkey');
+    sessionStorage.removeItem('nook_userid');
+  }
   if (cryptoStore.ready && _keyPair) {
     console.log('[cryptoStore] restoreFromSessionStorage skip — déjà ready');
     return true;
@@ -194,6 +202,9 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       ? 'Stockage local inaccessible (mode privé ?).'
       : 'Clés inaccessibles — vérifiez votre mot de passe.';
     console.error('[cryptoStore] unlock:', e);
+    // Garde de sécurité : si on arrive ici, ready doit être false et _keyPair null
+    cryptoStore.ready = false;
+    _keyPair = null;
     return false;
   }
 }
@@ -301,6 +312,13 @@ export async function decryptMessage(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 export function getPublicKey(): Uint8Array | null {
   return _keyPair?.publicKey ?? null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// hasKeys — vérifie si les clés E2EE sont chargées en mémoire
+// ─────────────────────────────────────────────────────────────────────────────
+export function hasKeys(): boolean {
+  return _keyPair !== null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
