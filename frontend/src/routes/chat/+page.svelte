@@ -1161,6 +1161,24 @@
     disconnectWs();
   });
 
+  // DEBUG: Update decryption status in UI
+  $effect(() => {
+    const encryptedCount = localMessages.filter(m => m.encrypted).length;
+    const totalCount = localMessages.length;
+    const el = document.getElementById('debug-decrypt-status');
+    if (el) {
+      el.textContent = `Total: ${totalCount} | Encrypted: ${encryptedCount} | ${encryptedCount === 0 && totalCount > 0 ? '✅ All decrypted' : encryptedCount > 0 ? '⏳ Decrypting...' : '📭 No messages'}`;
+    }
+  });
+
+  // DEBUG: Manual retry decrypt
+  if (typeof window !== 'undefined') {
+    window.addEventListener('debug-retry-decrypt', async () => {
+      const { loadMessages, _decryptAllIfReady } = await import('$lib/chatStore.svelte.ts');
+      await _decryptAllIfReady();
+    });
+  }
+
   let initialScrollDone = $state(false);
 
   $effect(() => {
@@ -1369,7 +1387,14 @@
       {/if}
     </header>
 
-      <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
+  <!-- DEBUG: Decryption status -->
+  <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px 12px; font-family: monospace; font-size: 11px; margin: 8px 16px; border-radius: 4px;">
+    <strong>🔍 DEBUG Decryption:</strong>
+    <span id="debug-decrypt-status">Waiting...</span>
+    <button onclick="window.dispatchEvent(new CustomEvent('debug-retry-decrypt'))" style="margin-left: 8px; padding: 2px 8px; font-size: 11px;">🔄 Retry Decrypt</button>
+  </div>
+
+  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
       {#if localMessages.length === 0}
         {#if loadingConvs}
           <div class="empty-state">
