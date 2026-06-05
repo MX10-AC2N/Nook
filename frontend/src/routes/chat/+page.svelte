@@ -2876,6 +2876,8 @@
   .msg-emoji-picker {
     position: fixed;
     z-index: 50;
+    width: 320px;
+    max-height: 400px;
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
