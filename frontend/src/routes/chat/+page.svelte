@@ -18,11 +18,11 @@
     setActiveConv,
     disconnectWs,
     requestNotificationPermission,
-    ChatMessage,
     MAX_BYTES_SERVER,
     cancelTransfer,
     triggerDecryptAllIfReady,
   } from '$lib/chatStore';
+  import type { ChatMessage } from '$lib/chatStore';
   import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
   import {
     recordingState,
