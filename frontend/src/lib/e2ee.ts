@@ -14,6 +14,7 @@ export interface KeyPair {
 export class E2EE {
   private myKeys: KeyPair | null = null;
   private groupKeys = new Map<string, Uint8Array>(); // convoId → groupKey (en mémoire)
+  private keyVersions = new Map<string, number>(); // convoId → current key version
 
   async init(userId: string) {
     await initSodium();
@@ -29,11 +30,23 @@ export class E2EE {
   }
 
   private async uploadPublicKey(pub: Uint8Array) {
+    // Convert Uint8Array to ArrayBuffer (fetch requires ArrayBuffer, not SharedArrayBuffer)
+    const buffer = new Uint8Array(pub).buffer;
     await fetch('/api/auth/public-key', {
       method: 'POST',
-      body: pub,
+      body: buffer,
       headers: { 'Content-Type': 'application/octet-stream' }
     });
+  }
+
+  /** Get current key version for a conversation */
+  currentVersion(convoId: string): number {
+    return this.keyVersions.get(convoId) ?? 1;
+  }
+
+  /** Public getter for group key (for file-transfer module) */
+  getGroupKey(convoId: string): Uint8Array | undefined {
+    return this.groupKeys.get(convoId);
   }
 
   // === Distribution clé de groupe (appelée par créateur ou admin) ===
@@ -47,10 +60,13 @@ export class E2EE {
       distributions[uid] = sodium.to_base64(sealed);
     }
 
+    const version = (this.keyVersions.get(convoId) ?? 0) + 1;
+    this.keyVersions.set(convoId, version);
+
     await fetch(`/api/conversations/${convoId}/keys`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ distributions, keyVersion: 1 })
+      body: JSON.stringify({ distributions, keyVersion: version })
     });
 
     this.groupKeys.set(convoId, groupKey);
@@ -120,10 +136,27 @@ async addMemberToConversation(convoId: string, newMemberPubkeyB64: string, newMe
 }
 
 async rotateGroupKey(convoId: string, remainingMembers: Record<string, string>) {
+  await initSodium();
   const newGroupKey = sodium.randombytes_buf(32);
+  
+  const version = (this.keyVersions.get(convoId) ?? 0) + 1;
+  this.keyVersions.set(convoId, version);
+  
   // même logique de distribution que avant, mais avec newGroupKey
-  // + mise à jour de la version
+  const distributions: Record<string, string> = {};
+  for (const [uid, pubB64] of Object.entries(remainingMembers)) {
+    const sealed = sodium.crypto_box_seal(newGroupKey, sodium.from_base64(pubB64));
+    distributions[uid] = sodium.to_base64(sealed);
+  }
+  
+  await fetch(`/api/conversations/${convoId}/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ distributions, keyVersion: version })
+  });
+  
   this.groupKeys.set(convoId, newGroupKey);
+  return newGroupKey;
 }
 
 

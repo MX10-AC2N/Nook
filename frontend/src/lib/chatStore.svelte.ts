@@ -42,6 +42,17 @@ export interface ChatState {
   wsConnected: boolean;
   /** Signal WS pour les mises à jour de réactions — { messageId, conversationId, ts } */
   lastReactionUpdate: { messageId: string; conversationId: string; ts: number } | null;
+  /** WebSocket instance for direct access */
+  ws: WebSocket | null;
+  /** Participants cache per conversation */
+  participants: Map<string, Participant[]>;
+}
+
+export interface Participant {
+  id: string;
+  username: string;
+  name: string | null;
+  role: string;
 }
 
 // -----------------------------------------------------------------
@@ -151,6 +162,8 @@ export const chatStore = $state<Omit<ChatState, 'messages'>>({
   unreadCounts: {},
   wsConnected: false,
   lastReactionUpdate: null,
+  ws: null,
+  participants: new Map<string, Participant[]>(),
 });
 
 // -----------------------------------------------------------------
@@ -177,6 +190,7 @@ function _openWs(): void {
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${window.location.host}/api/webrtc/ws`);
   _ws = ws;
+  chatStore.ws = ws;
 
   ws.onopen = () => {
     chatStore.wsConnected = true;
@@ -192,6 +206,7 @@ function _openWs(): void {
 
   ws.onclose = () => {
     chatStore.wsConnected = false;
+    chatStore.ws = null;
     if (_wsRetries < WS_MAX_RETRIES) {
       const delay = Math.min(1000 * 2 ** _wsRetries, 30_000);
       _wsRetries++;
@@ -245,18 +260,18 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   // ── Poll notifications ──
   if (type === 'new_poll') {
     const title = msg.title as string || 'Nouveau sondage';
-    notifyPoll('📊 Sondage créé', title, '/polls');
+    notifyPoll('📊 Sondage créé', title);
     return;
   }
 
   if (type === 'poll_voted') {
-    const voter = msg.voter as string || 'Quelqu\'un';
-    notifyPoll('🗳️ Nouveau vote', `${voter} a voté`, '/polls');
+    const voter = msg.voter as string || 'Quelqu\\'un';
+    notifyPoll('🗳️ Nouveau vote', `${voter} a voté`);
     return;
   }
 
   if (type === 'poll_closed') {
-    notifyPoll('📊 Sondage fermé', 'Un sondage est terminé', '/polls');
+    notifyPoll('📊 Sondage fermé', 'Un sondage est terminé');
     return;
   }
 
@@ -324,6 +339,7 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
 export function disconnectWs(): void {
   if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
   if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
+  chatStore.ws = null;
   _wsConvId = null;
   chatStore.wsConnected = false;
   _wsRetries = 0;
@@ -581,4 +597,26 @@ export async function deleteMessage(msgId: string, convId: string): Promise<bool
 
 export async function sendEmoji(emoji: string, conversationId: string): Promise<void> {
   await sendMessage(emoji, conversationId);
+}
+
+// -----------------------------------------------------------------
+// 📦 Constants & internal exports
+// -----------------------------------------------------------------
+
+/** Max file size for server upload (50 MB) — larger files must use P2P */
+export const MAX_BYTES_SERVER = 50 * 1024 * 1024;
+
+/** Cancel an in-progress P2P file transfer */
+export function cancelTransfer(fileId: string): void {
+  // This is called from the chat page to cancel a transfer
+  // The actual cancellation logic is in file-transfer.svelte.ts
+  // We emit a custom event that the file-transfer module listens to
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('cancel-file-transfer', { detail: { fileId } }));
+  }
+}
+
+/** Force re-check and decrypt all pending messages (exported for debug/manual retry) */
+export async function triggerDecryptAllIfReady(): Promise<void> {
+  return _decryptAllIfReady();
 }
