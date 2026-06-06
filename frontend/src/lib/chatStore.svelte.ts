@@ -265,7 +265,7 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   }
 
   if (type === 'poll_voted') {
-    const voter = msg.voter as string || 'Quelqu\\'un';
+    const voter = (msg.voter as string) || 'Quelqu\\'un';
     notifyPoll('🗳️ Nouveau vote', `${voter} a voté`);
     return;
   }
