@@ -75,18 +75,12 @@ export interface CallState {
   rtt: number; // round-trip ms
   remoteResolution: string | null; // e.g. "1280x720"
   remoteFps: number;
-    // SFU state
-    useSfu: false,
-    sfuAnswer: null,
-    sfuRenegotiateOffer: null,
-    sfuPeers: [],
-    sfuPendingOffer: null,
-    // ═══ SFU state ═══
-    useSfu: boolean;
-    sfuAnswer: string | null;
-    sfuRenegotiateOffer: string | null;
-    sfuPeers: string[];
-    sfuPendingOffer: string | null; // offer from SFU for renegotiation
+  // SFU state
+  useSfu: boolean;
+  sfuAnswer: string | null;
+  sfuRenegotiateOffer: string | null;
+  sfuPeers: string[];
+  sfuPendingOffer: string | null; // offer from SFU for renegotiation
 }
 
 /** Crée un état vierge (utilisé au démarrage et lors du reset). */
@@ -116,6 +110,12 @@ function createInitialState(): CallState {
     rtt: 0,
     remoteResolution: null,
     remoteFps: 0,
+    // SFU state defaults
+    useSfu: false,
+    sfuAnswer: null,
+    sfuRenegotiateOffer: null,
+    sfuPeers: [],
+    sfuPendingOffer: null,
   };
 }
 
@@ -128,6 +128,8 @@ export const callStore = $state<CallState>(createInitialState());
 class WebRTCCallManager {
   private ws: WebSocket | null = null;
   private conversationId: string = '';
+  // ── File transfer data channels ────────────────────────────────
+  private fileDataChannels: Map<string, RTCDataChannel> = new Map();
   // ── Sonnerie ────────────────────────────────────────────────
   private ringtoneCtx: AudioContext | null = null;
   private ringtoneInterval: ReturnType<typeof setInterval> | null = null;
@@ -146,6 +148,11 @@ class WebRTCCallManager {
     if (this.ringtoneInterval) return; // déjà en cours
     this._ringOnce();
     this.ringtoneInterval = setInterval(() => this._ringOnce(), 3000);
+  }
+
+  // Alias for internal call handling
+  public playRingtone(): void {
+    this.startRingtone();
   }
 
   private _ringOnce(): void {
@@ -237,8 +244,6 @@ class WebRTCCallManager {
       // Latency optimizations
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
-      // Prefer low-latency codecs
-      encodedInsertableStreams: false,
     });
 
     // ── File Transfer Data Channel ──
@@ -251,7 +256,7 @@ class WebRTCCallManager {
     
     fileChan.onmessage = (ev) => {
       import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
-        handleFileTransferMessage(ev.data);
+        handleFileTransferMessage(ev.data, this.conversationId, fileChan);
       }).catch(e => console.error('[FileChannel] Error:', e));
     };
     fileChan.onopen = () => {
@@ -268,7 +273,7 @@ class WebRTCCallManager {
       ch.binaryType = 'arraybuffer';
       ch.onmessage = (ev) => {
         import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
-          handleFileTransferMessage(ev.data);
+          handleFileTransferMessage(ev.data, this.conversationId, ch);
         }).catch(e => console.error('[FileChannel] Incoming error:', e));
       };
     };
@@ -366,7 +371,7 @@ class WebRTCCallManager {
     // Gestion des messages entrants
     fileChan.onmessage = (ev) => {
       import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
-        handleFileTransferMessage(ev.data);
+        handleFileTransferMessage(ev.data, this.conversationId, fileChan);
       }).catch(e => console.error('[FileTransfer] Error:', e));
     };
     
@@ -425,13 +430,13 @@ class WebRTCCallManager {
 
   /** Envoie un signal via le WebSocket (signalling). */
   private sendSignal(signal: Partial<CallSignal>) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.conversationId || !signal.type) return;
 
     const fullSignal: CallSignal = {
       conversationId: this.conversationId,
       from_user_id: this.userId,
       to_user_id: signal.to_user_id ?? null,
-      type: signal.type ?? 'unknown',
+      type: signal.type,
       sdp: signal.sdp ?? null,
       candidate: signal.candidate ?? null,
       timestamp: Date.now(),
@@ -648,7 +653,7 @@ class WebRTCCallManager {
         // Gérer les messages entrants
         ch.onmessage = (ev) => {
           import('./file-transfer.svelte.ts').then(({ handleFileTransferMessage }) => {
-            handleFileTransferMessage(ev.data);
+            handleFileTransferMessage(ev.data, this.conversationId, ch);
           }).catch(e => console.error('[FileTransfer] Error:', e));
         };
         
@@ -910,7 +915,7 @@ class WebRTCCallManager {
     if (callStore.isScreenSharing) return;
 
     const displayStream = await navigator.mediaDevices.getDisplayMedia({
-      video: { cursor: 'always', displaySurface: 'monitor' },
+      video: { cursor: 'always', displaySurface: 'monitor' } as any,
       audio: false, // On ne capture pas l'audio systeme pour un appel familial
     });
 
@@ -995,7 +1000,7 @@ class WebRTCCallManager {
       try {
         const stats = await pc.getStats();
         
-        for (const report of stats.values()) {
+        stats.forEach((report) => {
           // Inbound RTP (receiving remote media)
           if (report.type === 'inbound-rtp' && report.kind === 'video') {
             totalPacketsLost += (report.packetsLost ?? 0);
@@ -1010,7 +1015,7 @@ class WebRTCCallManager {
           if (report.type === 'candidate-pair' && report.state === 'succeeded') {
             maxRtt = Math.max(maxRtt, report.currentRoundTripTime ?? 0);
           }
-        }
+        });
       } catch (err) {
         // Ignore stats errors
       }
@@ -1119,7 +1124,7 @@ class WebRTCCallManager {
     await this.createPeerConnection(this.userId);
     this.sendSignal({
       type: 'sfu_join',
-      conversation_id: conversationId,
+      conversationId: conversationId,
       sdp: 'offer',
     });
   }
@@ -1140,7 +1145,7 @@ class WebRTCCallManager {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.sendSignal({
         type: 'sfu_answer',
-        conversation_id: callStore.currentConversationId || '',
+        conversationId: callStore.currentConversationId || '',
         sdp: 'answer',
       });
     }

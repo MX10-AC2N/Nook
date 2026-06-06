@@ -40,6 +40,7 @@ interface FileSendState {
   acknowledged: boolean;
   startTime: number;
   progress: number;
+  cancelled: boolean;
 }
 
 // Constantes
@@ -123,8 +124,8 @@ async function decryptChunk(
 // Récupérer la clé de groupe depuis E2EE
 async function getGroupKey(convoId: string): Promise<Uint8Array | null> {
   try {
-    // Utiliser l'instance e2ee exportée depuis ./e2ee
-    const groupKey = e2ee.groupKeys.get(convoId) || await e2ee.loadGroupKey(convoId);
+    // Utiliser la méthode publique getGroupKey depuis l'instance e2ee
+    const groupKey = e2ee.getGroupKey(convoId) || await e2ee.loadGroupKey(convoId);
     if (!groupKey) {
       throw new Error('Clé de groupe non disponible pour cette conversation');
     }
@@ -179,7 +180,8 @@ export async function sendFile(
     sentChunks: 0,
     acknowledged: false,
     startTime: Date.now(),
-    progress: 0
+    progress: 0,
+    cancelled: false
   };
   
   activeSends.set(fileId, sendState);
@@ -573,9 +575,14 @@ function handleFileAck(message: FileTransferMessage): void {
 
 function handleFileError(message: FileTransferMessage): void {
   const { fileId, chunkIndex, error } = message;
-  
+
+  if (!fileId) {
+    console.error('[file-transfer] Error without fileId:', message);
+    return;
+  }
+
   console.error(`[file-transfer] Error for ${fileId} (chunk ${chunkIndex}): ${error}`);
-  
+
   // Annuler le transfert
   cancelTransfer(fileId);
 }

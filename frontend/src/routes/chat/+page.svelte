@@ -18,6 +18,10 @@
     setActiveConv,
     disconnectWs,
     requestNotificationPermission,
+    ChatMessage,
+    MAX_BYTES_SERVER,
+    cancelTransfer,
+    triggerDecryptAllIfReady,
   } from '$lib/chatStore.svelte.ts';
   import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
   import {
@@ -31,7 +35,7 @@
   import 'emoji-picker-element';
   import MissedCalls from '$lib/components/MissedCalls.svelte';
   import MessageSearch from '$lib/components/MessageSearch.svelte';
-  import { callStore } from '$lib/webrtc-calls.svelte.ts';
+  import { callStore, callManager } from '$lib/webrtc-calls.svelte.ts';
 
   // ─────────────────────────────────────────────────────────────────
   // Types locaux
@@ -319,8 +323,8 @@
   let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
 
   function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
-    emojiPickerMsgId = msgId;
-    extendedEmojiMsgId = null;
+    extendedEmojiMsgId = msgId;
+    emojiPickerMsgId = null;
     // Calculer la position du picker par rapport au target (fixed → coordonnées viewport)
     if (targetEl) {
       const rect = targetEl.getBoundingClientRect();
@@ -862,7 +866,7 @@
     
     // Si aucun canal dispo → essayer de créer avec retry
     if (!channel || !targetUserId) {
-      const participants = chatStore.participants.get(activeConvId);
+      const participants = participantsCache[activeConvId];
       if (!participants || participants.length === 0) {
         chatStore.connectionError = 'Aucun participant trouvé dans la conversation.';
         input.value = '';
@@ -1475,6 +1479,21 @@
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
           {/if}
 
+          <!-- Extended emoji picker (ALL_EMOJIS grid) -->
+          {#if extendedEmojiMsgId === msg.id}
+            <div class="extended-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
+              <div class="extended-emoji-header">
+                <span>Plus d'emojis</span>
+                <button class="ep-close-sm" onclick={() => extendedEmojiMsgId = null}>✕</button>
+              </div>
+              <div class="extended-emoji-grid">
+                {#each ALL_EMOJIS as emoji}
+                  <button class="extended-emoji-btn" onclick={() => { toggleReaction(msg.id, emoji); extendedEmojiMsgId = null; }} title="{emoji}">{emoji}</button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
           {#if countReactions(msg.id).length > 0}
             <div class="message-reactions">
               {#each countReactions(msg.id) as reaction}
@@ -1745,7 +1764,8 @@
 <style>
   .chat-page {
     display: flex;
-    height: calc(100dvh - var(--header-h, 30px));
+    flex-direction: row;
+    height: 100%;
     overflow: hidden;
     max-width: 100%;
   }
@@ -2933,6 +2953,43 @@
   }
   .ep-close-sm:hover { color: var(--text-primary, #1e293b); }
 
+  /* Extended emoji picker (ALL_EMOJIS grid) */
+  .extended-emoji-picker {
+    position: fixed;
+    z-index: 50;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .5rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    padding: .4rem;
+    max-width: 340px;
+    max-height: 360px;
+    overflow-y: auto;
+    animation: pop .12s ease;
+  }
+  .extended-emoji-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 .3rem .3rem;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    margin-bottom: .3rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+  }
+  .extended-emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: .15rem;
+  }
+  .extended-emoji-btn {
+    padding: .2rem; border: none; background: transparent;
+    font-size: 1.2rem; cursor: pointer; border-radius: .3rem;
+    transition: background .1s, transform .1s; line-height: 1;
+  }
+  .extended-emoji-btn:hover { background: var(--bg-secondary, #f1f5f9); transform: scale(1.2); }
+
   /* Message reactions display */
   .message-reactions {
     display: flex;
@@ -2941,7 +2998,7 @@
     margin-top: .3rem;
     align-self: flex-start;
   }
-  .message.mine + .message-reactions {
+  .message.mine ~ .message-reactions {
     align-self: flex-end;
   }
   .reaction-badge {
