@@ -42,7 +42,10 @@ export interface Participant {
   role: string;
 }
 
-// Ré-export depuis le store Svelte (runtime)
+// Ré-export des types depuis le store Svelte (type-only)
+export type { ChatMessage, ChatState, Participant } from './chatStore.svelte';
+
+// Ré-export runtime depuis le store Svelte
 export {
   chatStore,
   messagesStore,
