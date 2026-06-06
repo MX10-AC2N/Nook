@@ -22,7 +22,7 @@
     MAX_BYTES_SERVER,
     cancelTransfer,
     triggerDecryptAllIfReady,
-  } from '$lib/chatStore.svelte';
+  } from '$lib/chatStore';
   import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
   import {
     recordingState,
