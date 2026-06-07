@@ -1417,7 +1417,22 @@
              onmouseenter={() => { hoveredMsgId = msg.id; }}
              onmouseleave={() => { if (emojiPickerMsgId !== msg.id && extendedEmojiMsgId !== msg.id) hoveredMsgId = null; }}
              class:is-emoji-only={isEmojiOnly(msg.content)}
+             class:mine={msg.sender_id === authStore.user?.id}
         >
+          <!-- Sender avatar (for other users' messages) -->
+          {#if msg.sender_id !== authStore.user?.id}
+            <div class="message-avatar">
+              <Avatar
+                username={msg.sender_name}
+                name={msg.sender_name}
+                size={28}
+                userId={msg.sender_id}
+                style={msg.sender_avatar_style ?? ''}
+                seed={msg.sender_avatar_seed ?? ''}
+              />
+            </div>
+          {/if}
+
           <!-- Message content -->
           <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
             {#if msg.encrypted}
@@ -2790,12 +2805,21 @@
     position: relative;
     margin-bottom: .5rem;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: .5rem;
+  }
+  .message-wrapper.mine {
+    flex-direction: row-reverse;
   }
   .message-wrapper.is-emoji-only {
-    display: flex;
+    flex-direction: column;
     justify-content: center;
     margin: .8rem 0;
+  }
+  .message-avatar {
+    flex-shrink: 0;
+    margin-bottom: .1rem;
   }
   .message-wrapper.is-emoji-only .message {
     font-size: 2.5rem;
