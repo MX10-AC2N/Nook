@@ -2853,13 +2853,20 @@
     display: flex;
     gap: .25rem;
     padding: .25rem;
-    position: relative;
-    margin-top: .15rem;
-    align-self: flex-start;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: .2rem;
     animation: fadeIn .15s ease;
+    z-index: 10;
+    background: var(--bg-primary, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: .5rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
   }
-  .message.mine + .message-actions {
-    align-self: flex-end;
+  .message-wrapper.mine .message-actions {
+    left: auto;
+    right: 0;
   }
   .quick-react-btn {
     width: 28px; height: 28px;
