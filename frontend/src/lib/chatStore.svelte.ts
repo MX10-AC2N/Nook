@@ -178,8 +178,23 @@ const WS_MAX_RETRIES = 8;
 
 export function connectWs(convId: string): void {
   if (typeof window === 'undefined') return;
+  console.log('[chatStore] connectWs called:', convId, '_ws:', _ws, 'readyState:', _ws?.readyState, 'OPEN:', WebSocket.OPEN);
   _wsConvId = convId;
-  if (_ws?.readyState === WebSocket.OPEN) return;
+  
+  // Clean up stale connections (CLOSED, CLOSING, CONNECTING)
+  if (_ws && _ws.readyState !== WebSocket.OPEN) {
+    console.log('[chatStore] connectWs: cleaning up stale WS, readyState:', _ws.readyState);
+    _ws.onclose = null;
+    _ws.close();
+    _ws = null;
+  }
+  
+  if (_ws?.readyState === WebSocket.OPEN) {
+    console.log('[chatStore] connectWs: WS already OPEN, returning');
+    return;
+  }
+  
+  console.log('[chatStore] connectWs: calling _openWs');
   _openWs();
 }
 
