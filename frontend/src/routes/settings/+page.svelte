@@ -228,12 +228,7 @@
               onclick={() => selectStyle(opt.id)}
               title={opt.label}
             >
-              <img
-                src="https://api.dicebear.com/9.x/{opt.id}/svg?seed=Nook&size=36"
-                alt={opt.label}
-                class="avatar-style-img"
-                loading="lazy"
-              />
+              <Avatar username="Nook" name="Nook" size={36} userId="style-preview" style={opt.id} seed="Nook" />
               <span class="avatar-style-label">{opt.label}</span>
             </button>
           {/each}
@@ -250,12 +245,7 @@
               onclick={() => selectSeed(s)}
               title={s}
             >
-              <img
-                src="https://api.dicebear.com/9.x/{selectedAvatarStyle}/svg?seed={s}&size=48"
-                alt={s}
-                class="avatar-seed-img"
-                loading="lazy"
-              />
+              <Avatar username={s} name={s} size={48} userId={s} style={selectedAvatarStyle} seed={s} />
             </button>
           {/each}
         </div>
@@ -679,11 +669,6 @@
     border-width: 3px;
     background: var(--bg-accent, #dcfce7);
   }
-  .avatar-style-img {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-  }
   .avatar-style-label {
     font-size: 0.65rem;
     color: var(--text-secondary);
@@ -715,11 +700,6 @@
     border-color: var(--accent-color, #4ade80);
     background: var(--bg-accent, #dcfce7);
     box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
-  }
-  .avatar-seed-img {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
   }
   .regenerate-btn {
     padding: 6px 16px;
