@@ -1528,22 +1528,6 @@
               </div>
             </div>
           {/if}
-
-          {#if countReactions(msg.id).length > 0}
-            <div class="message-reactions">
-              {#each countReactions(msg.id) as reaction}
-                <button
-                  class="reaction-badge"
-                  class:my-reaction={reactions[msg.id]?.myEmoji === reaction.emoji}
-                  onclick={() => toggleReaction(msg.id, reaction.emoji)}
-                  title="{reaction.names}"
-                >
-                  <span class="reaction-emoji">{reaction.emoji}</span>
-                  <span class="reaction-count">{reaction.count}</span>
-                </button>
-              {/each}
-            </div>
-          {/if}
         </div>
       {/each}
 
