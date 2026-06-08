@@ -2831,12 +2831,7 @@
     display: flex;
     flex-direction: column;
     max-width: 70%;
-  }
-  .message-wrapper.mine .message-column {
-    align-items: flex-end;
-  }
-  .message-wrapper:not(.mine) .message-column {
-    align-items: flex-start;
+    align-items: center;
   }
 
   .message-wrapper.is-emoji-only .message {
