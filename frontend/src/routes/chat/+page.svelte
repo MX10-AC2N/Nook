@@ -1433,28 +1433,48 @@
             </div>
           {/if}
 
-          <!-- Message content -->
-          <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
-            {#if msg.encrypted}
-              <div class="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
-            {:else if isEmojiOnly(msg.content)}
-              <div class="emoji-only">{@html msg.content}</div>
-            {:else}
-              {@html msg.content}
+          <!-- Message column: bubble + reactions stacked vertically -->
+          <div class="message-column">
+            <!-- Message content -->
+            <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
+              {#if msg.encrypted}
+                <div class="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
+              {:else if isEmojiOnly(msg.content)}
+                <div class="emoji-only">{@html msg.content}</div>
+              {:else}
+                {@html msg.content}
+              {/if}
+            <!-- Message editing UI (when this message is being edited) -->
+            {#if editingMsgId === msg.id}
+              <div class="message-edit-input">
+                <input
+                  type="text"
+                  class="edit-input"
+                  bind:value={editingContent}
+                  onkeydown={handleEditKeydown}
+                  onblur={submitEdit}
+                  autofocus
+                />
+              </div>
             {/if}
-          <!-- Message editing UI (when this message is being edited) -->
-          {#if editingMsgId === msg.id}
-            <div class="message-edit-input">
-              <input
-                type="text"
-                class="edit-input"
-                bind:value={editingContent}
-                onkeydown={handleEditKeydown}
-                onblur={submitEdit}
-                autofocus
-              />
             </div>
-          {/if}
+
+            <!-- Message reactions (below the bubble) -->
+            {#if countReactions(msg.id).length > 0}
+              <div class="message-reactions">
+                {#each countReactions(msg.id) as reaction}
+                  <button
+                    class="reaction-badge"
+                    class:my-reaction={reactions[msg.id]?.myEmoji === reaction.emoji}
+                    onclick={() => toggleReaction(msg.id, reaction.emoji)}
+                    title="{reaction.names}"
+                  >
+                    <span class="reaction-emoji">{reaction.emoji}</span>
+                    <span class="reaction-count">{reaction.count}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </div>
 
           <!-- Message actions (visible on hover) -->
@@ -2821,6 +2841,20 @@
     flex-shrink: 0;
     margin-bottom: .1rem;
   }
+
+  /* Message column: stacks message bubble + reactions vertically */
+  .message-column {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+  }
+  .message-wrapper.mine .message-column {
+    align-items: flex-end;
+  }
+  .message-wrapper:not(.mine) .message-column {
+    align-items: flex-start;
+  }
+
   .message-wrapper.is-emoji-only .message {
     font-size: 2.5rem;
     background: none;
@@ -2830,21 +2864,20 @@
   .message {
     padding: .5rem .75rem;
     border-radius: .65rem;
-    max-width: 70%;
     word-break: break-word;
     line-height: 1.45;
     font-size: .92rem;
+    width: fit-content;
+    max-width: 100%;
   }
   .message.mine {
     background: var(--accent, #4ade80);
     color: #fff;
-    align-self: flex-end;
     border-bottom-right-radius: .2rem;
   }
   .message.theirs {
     background: var(--bg-secondary, #f1f5f9);
     color: var(--text-primary, #1e293b);
-    align-self: flex-start;
     border-bottom-left-radius: .2rem;
   }
 
@@ -3027,10 +3060,6 @@
     gap: .25rem;
     flex-wrap: wrap;
     margin-top: .3rem;
-    align-self: flex-start;
-  }
-  .message.mine ~ .message-reactions {
-    align-self: flex-end;
   }
   .reaction-badge {
     display: flex;
