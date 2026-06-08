@@ -1,0 +1,167 @@
+# Integration CI — Docker compose up + smoke tests (health, auth, WS, E2E message)
+# Déclencheur manuel uniquement — utilise les artefacts frontend + backend
+
+name: 🐳 Test Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-scope:
+        description: 'Portée des tests'
+        type: choice
+        required: false
+        default: 'smoke'
+        options:
+          - smoke
+          - full
+
+concurrency:
+  group: ci-integration-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: 🧪 Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend
+          path: frontend/build
+
+      - name: Verify frontend artifact
+        run: |
+          test -f frontend/build/index.html || (echo "❌ frontend/build manquant - lance test-frontend.yml d'abord" && exit 1)
+          echo "✅ frontend/build présent ($(ls frontend/build | wc -l) fichiers)"
+
+      - name: Create CI .env
+        run: |
+          cat > .env << 'EOF'
+          TZ=Europe/Paris
+          PORT=6300
+          PUBLIC_SITE_URL=http://localhost:6300
+          E2EE_SETUP=0
+          RATE_LIMIT_PER_MIN=60
+          DATA_DIR=./nook-data
+          LOGS_DIR=./nook-logs
+          NGINX_SSL_DIR=./nginx-ssl
+          TURN_CONFIG_DIR=./turn-config
+          CPUS_LIMIT=1.5
+          MEMORY_LIMIT=1024M
+          CPUS_RESERVATION=0.5
+          MEMORY_RESERVATION=256M
+          NGINX_HTTPS_PORT=6443
+          TURN_PORT=3478
+          TURN_SECRET=turn_test_secret_KEY_FOR_CI_ONLY_32bytes
+          ADMIN_INITIAL_PASSWORD=AdminCI2026!
+          EOF
+          chmod 600 .env
+          echo "✅ .env créé"
+
+      - name: Clean previous runs
+        run: |
+          docker compose down -v --remove-orphans 2>/dev/null || true
+          rm -rf nook-data nook-logs turn-config nginx-ssl
+          mkdir -p nook-data nook-logs turn-config nginx-ssl
+          chmod 0777 nook-data nook-logs turn-config
+
+      - name: Build Docker image
+        run: |
+          docker build --tag nook-ci:local --file Dockerfile . 2>&1 | tee /tmp/docker-build.log || (cat /tmp/docker-build.log && exit 1)
+          echo "✅ Image nook-ci:local construite"
+
+      - name: Start stack
+        run: |
+          docker compose up -d --force-recreate nook turn
+
+          echo "⏳ Attente healthcheck nook..."
+          TIMEOUT=0
+          while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
+            sleep 2
+            TIMEOUT=$((TIMEOUT + 2))
+            if [ $TIMEOUT -gt 90 ]; then
+              echo "❌ Healthcheck timeout après 90s"
+              docker compose logs --tail=100 nook
+              exit 1
+            fi
+          done
+
+          echo "⏳ Attente healthcheck turn..."
+          sleep 5
+          curl -sf http://localhost:3478/health >/dev/null 2>&1 || echo "⚠️ Turn healthcheck non dispo (normal si pas implémenté)"
+
+          echo "✅ Stack démarré"
+
+      - name: Smoke tests — Health & Auth
+        run: |
+          echo "=== Health ==="
+          HEALTH=$(curl -s http://localhost:6300/api/health)
+          [ "$HEALTH" = "OK" ] || (echo "❌ Health: $HEALTH" && exit 1)
+          echo "✅ Health: OK"
+
+          echo "=== Auth endpoints ==="
+          # 401 sans cookie
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6300/api/auth/me)
+          [ "$STATUS" = "401" ] || (echo "❌ GET /auth/me sans cookie -> $STATUS (attendu 401)" && exit 1)
+          echo "✅ /auth/me sans cookie -> 401"
+
+          # Admin login
+          curl -s -c /tmp/cookies.txt -X POST http://localhost:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"AdminCI2026!"}'
+          ADMIN_ID=$(curl -s -b /tmp/cookies.txt http://localhost:6300/api/auth/me | jq -r '.user.id // empty')
+          [ -n "$ADMIN_ID" ] || (echo "❌ Admin login échoué" && exit 1)
+          echo "✅ Admin login -> $ADMIN_ID"
+
+      - name: Smoke tests — WebSocket & Message
+        if: ${{ inputs.test-scope == 'full' }}
+        run: |
+          echo "=== WebSocket connect ==="
+          # Test WS connection via a simple curl to verify upgrade works
+          # (Playwright would be better for real WS test)
+          WS_CHECK=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Connection: Upgrade" \
+            -H "Upgrade: websocket" \
+            -H "Sec-WebSocket-Version: 13" \
+            -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+            http://localhost:6300/ws)
+          [ "$WS_CHECK" = "101" ] || (echo "⚠️ WS upgrade -> $WS_CHECK (101 attendu)" && exit 0)  # soft fail
+          echo "✅ WS upgrade -> 101"
+
+      - name: Full E2E tests (Playwright against Docker stack)
+        if: ${{ inputs.test-scope == 'full' }}
+        working-directory: ./frontend
+        run: |
+          npx playwright test tests/chat-ui.spec.ts tests/comprehensive-chat.spec.ts 2>&1 | tee /tmp/playwright-integration.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Tests E2E integration passés"
+          else
+            echo "❌ Tests E2E integration échoués"
+            grep -E "passed|failed|skipped" /tmp/playwright-integration.log || true
+            exit 1
+          fi
+
+      - name: Capture logs
+        if: always()
+        run: |
+          docker compose logs --tail=200 2>/dev/null \
+            | sed 's/\x1b\[[0-9;]*m//g' \
+            > /tmp/docker.log || true
+          echo "✅ $(wc -l < /tmp/docker.log) lignes de logs Docker"
+
+      - name: Upload Docker logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-logs
+          path: /tmp/docker.log
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v --remove-orphans

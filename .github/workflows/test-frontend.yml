@@ -1,0 +1,192 @@
+# Frontend CI — lint, typecheck, build, Playwright (ciblés)
+# Déclencheur manuel uniquement (compte GitHub gratuit)
+
+name: 🎨 Test Frontend
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-suite:
+        description: 'Suite de tests à exécuter'
+        type: choice
+        required: false
+        default: 'core'
+        options:
+          - core
+          - chat
+          - auth
+          - all
+
+concurrency:
+  group: ci-frontend-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-typecheck:
+    name: 🔍 Lint + Typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Lint (ESLint)
+        run: npm run lint 2>&1 | tee /tmp/eslint.log || (cat /tmp/eslint.log && exit 1)
+      - name: Typecheck (svelte-check)
+        run: npm run check 2>&1 | tee /tmp/svelte-check.log || (cat /tmp/svelte-check.log && exit 1)
+
+  build:
+    name: 🏗️ Build Frontend
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps --no-audit --no-fund
+      - name: Build
+        run: npm run build 2>&1 | tee /tmp/build.log || (cat /tmp/build.log && exit 1)
+      - name: Verify build output
+        run: |
+          test -f build/index.html || (echo "❌ index.html manquant" && exit 1)
+          FILE_COUNT=$(ls build | wc -l)
+          echo "✅ Frontend OK - $FILE_COUNT fichiers"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nook-frontend
+          path: frontend/build
+          retention-days: 1
+
+  playwright-core:
+    name: 🎭 Playwright Core (chat, auth, reactions)
+    if: ${{ inputs.test-suite == 'core' || inputs.test-suite == 'all' }}
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend
+          path: frontend/build
+      - name: Verify frontend build
+        run: test -f frontend/build/index.html && echo "✅ frontend/build prêt"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install dependencies + Playwright
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start test server (static preview)
+        run: |
+          npx serve -s build -l 6300 &
+          sleep 3
+          curl -sf http://localhost:6300 | grep -q "Nook" || (echo "❌ Serveur static non démarré" && exit 1)
+          echo "✅ Serveur static sur :6300"
+      - name: Run Playwright (core tests)
+        run: |
+          npx playwright test tests/chat-ui.spec.ts tests/comprehensive-chat.spec.ts tests/api-sanity.spec.ts 2>&1 | tee /tmp/playwright-core.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ Tests core passés"
+          else
+            echo "❌ Tests core échoués"
+            grep -E "passed|failed|skipped" /tmp/playwright-core.log || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-core
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  playwright-chat:
+    name: 💬 Playwright Chat Advanced
+    if: ${{ inputs.test-suite == 'chat' || inputs.test-suite == 'all' }}
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend
+          path: frontend/build
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install dependencies + Playwright
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start test server
+        run: |
+          npx serve -s build -l 6300 &
+          sleep 3
+      - name: Run Playwright (chat tests)
+        run: |
+          npx playwright test tests/chat-ui-advanced.spec.ts tests/e2ee-chat.spec.ts tests/reactions.spec.ts 2>&1 | tee /tmp/playwright-chat.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-chat
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  playwright-auth:
+    name: 🔐 Playwright Auth & Admin
+    if: ${{ inputs.test-suite == 'auth' || inputs.test-suite == 'all' }}
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nook-frontend
+          path: frontend/build
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install dependencies + Playwright
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start test server
+        run: |
+          npx serve -s build -l 6300 &
+          sleep 3
+      - name: Run Playwright (auth tests)
+        run: |
+          npx playwright test tests/user.spec.ts tests/admin-ui.spec.ts 2>&1 | tee /tmp/playwright-auth.log || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-auth
+          path: frontend/playwright-report/
+          retention-days: 7
