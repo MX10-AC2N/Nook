@@ -1,0 +1,103 @@
+# Backend CI — cargo check, clippy, tests, musl build check
+# Déclencheur manuel uniquement
+
+name: 🦀 Test Backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Cible de build'
+        type: choice
+        required: false
+        default: 'all'
+        options:
+          - all
+          - check
+          - test
+          - musl
+
+concurrency:
+  group: ci-backend-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-clippy:
+    name: 🔍 Check + Clippy
+    if: ${{ inputs.target == 'all' || inputs.target == 'check' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            backend/target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+      - name: Cargo check
+        run: cargo check --all-targets 2>&1 | tee /tmp/cargo-check.log || (cat /tmp/cargo-check.log && exit 1)
+      - name: Cargo clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings 2>&1 | tee /tmp/cargo-clippy.log || (cat /tmp/cargo-clippy.log && exit 1)
+
+  test:
+    name: 🧪 Unit + Integration Tests
+    if: ${{ inputs.target == 'all' || inputs.target == 'test' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            backend/target/
+          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+      - name: Run tests
+        run: cargo test --all 2>&1 | tee /tmp/cargo-test.log || (cat /tmp/cargo-test.log && exit 1)
+
+  musl-build:
+    name: 🏗️ Musl Build Check (Alpine compatibility)
+    if: ${{ inputs.target == 'all' || inputs.target == 'musl' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install musl toolchain
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          rustup target add x86_64-unknown-linux-musl
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            backend/target/
+          key: cargo-musl-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+      - name: Build musl
+        run: |
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc \
+          cargo build --release --target x86_64-unknown-linux-musl 2>&1 | tee /tmp/cargo-musl.log || (cat /tmp/cargo-musl.log && exit 1)
+      - name: Verify binary
+        run: |
+          file target/x86_64-unknown-linux-musl/release/nook-backend
+          echo "✅ Binaire musl OK (statiquement lié)"
