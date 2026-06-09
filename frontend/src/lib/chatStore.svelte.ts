@@ -75,6 +75,18 @@ let _cryptoReadyAttempts = 0;
 const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
 const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
+let _wasCryptoReady = false; // Track crypto ready state for reactive effect
+
+// Reactive effect: trigger decryption immediately when cryptoStore.ready becomes true
+$effect(() => {
+  if (cryptoStore.ready && !_wasCryptoReady) {
+    _wasCryptoReady = true;
+    console.log('[Chat] cryptoStore became ready, triggering decrypt');
+    _decryptAllIfReady();
+  } else if (!cryptoStore.ready) {
+    _wasCryptoReady = false;
+  }
+});
 
 async function _decryptAllIfReady(): Promise<void> {
   console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, 'hasKeys=', hasKeys(), '_messagesReloaded=', _messagesReloaded);
