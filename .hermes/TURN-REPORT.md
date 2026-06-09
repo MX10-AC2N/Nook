@@ -1,7 +1,7 @@
-# 🧪 Turn-Server Test Report — arm64
+# 🧪 Turn-Server Test Report — amd64
 
-> Généré par `test-turn.yml` · **2026-06-09 05:24 UTC**
-> Architecture: **arm64** | Run: [27185597706](https://github.com/MX10-AC2N/Nook/actions/runs/27185597706)
+> Généré par `test-turn.yml` · **2026-06-09 05:25 UTC**
+> Architecture: **amd64** | Run: [27185597706](https://github.com/MX10-AC2N/Nook/actions/runs/27185597706)
 
 ---
 
@@ -24,7 +24,7 @@
 ```
 Image: nook-turn:test
 Status: running
-Started: 2026-06-09T05:24:20.355080774Z
+Started: 2026-06-09T05:25:07.0809019Z
 Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
 ```
 
@@ -65,7 +65,7 @@ tcp   LISTEN 0      4096              [::]:3478         [::]:*
 ## 🖥️ System Info
 
 ```
-Linux runnervmfoai2 6.17.0-1015-azure #15~24.04.1-Ubuntu SMP Thu May  7 19:56:06 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+Linux runnervm3jyl0 6.17.0-1015-azure #15~24.04.1-Ubuntu SMP Wed May  6 22:37:49 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 Docker: Docker version 28.0.4, build b8034c0
 ```
 
