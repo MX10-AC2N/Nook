@@ -111,6 +111,13 @@ export function restoreFromSessionStorage(): boolean {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function unlockCrypto(userId: string, password: string): Promise<boolean> {
   console.log('[cryptoStore] unlockCrypto called for userId:', userId);
+  // Garde anti état fantôme : ready=true mais _keyPair=null → on nettoie
+  if (cryptoStore.ready && !_keyPair) {
+    console.warn('[cryptoStore] Ghost ready state detected in unlockCrypto — resetting');
+    cryptoStore.ready = false;
+    cryptoStore.userId = null;
+    cryptoStore.error = null;
+  }
   // Déjà déverrouillé via sessionStorage? skip pour éviter regen de clés
   if (cryptoStore.ready && _keyPair) {
     console.log('[cryptoStore] unlockCrypto skip — déjà ready');
