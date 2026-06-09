@@ -2132,13 +2132,13 @@
   }
   .message-content :global(img.uploaded-image),
   .message-content :global(img.chat-gif) {
-    max-width: 400px; border-radius: 8px; margin-top: .3rem; display: block;
+    max-width: 100%; height: auto; border-radius: 8px; margin-top: .3rem; display: block;
   }
   .message-content :global(.file-preview) {
-    position: relative; display: inline-block; max-width: 400px;
+    position: relative; display: inline-block; max-width: 100%;
   }
   .message-content :global(.file-preview img) {
-    max-width: 100%; border-radius: 8px; display: block;
+    max-width: 100%; height: auto; border-radius: 8px; display: block;
   }
   .message-content :global(.file-download) {
     position: absolute; top: 6px; right: 6px;
