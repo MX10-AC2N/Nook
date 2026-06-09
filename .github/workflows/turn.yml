@@ -17,6 +17,9 @@ jobs:
           - arch: amd64
             target: x86_64-unknown-linux-musl
             runner: ubuntu-latest
+          - arch: arm64
+            target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -26,6 +29,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y protobuf-compiler libprotobuf-dev musl-tools
+          # Verify protoc is available
+          protoc --version
+          echo "PROTOC=$(which protoc)" >> $GITHUB_ENV
 
       - name: Install Rust (nightly)
         run: |
@@ -40,6 +46,8 @@ jobs:
           git clone --depth 1 https://github.com/mycrl/turn-rs.git turn-rs-src
 
       - name: Build turn-server (release)
+        env:
+          PROTOC: ${{ env.PROTOC }}
         run: cargo build --release --target ${{ matrix.target }} --manifest-path turn-rs-src/Cargo.toml
 
       - name: Prepare artifact
