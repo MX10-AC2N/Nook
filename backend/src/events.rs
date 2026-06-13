@@ -6,9 +6,8 @@ use axum::{
     Json, Router, routing::{get, post, patch, delete},
 };
 use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::FromRow;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -259,7 +258,7 @@ pub async fn update_event(
     .fetch_optional(&state.db)
     .await;
 
-    let mut event = match event {
+    let event = match event {
         Ok(Some(e)) => e,
         Ok(None) => return (
             StatusCode::NOT_FOUND,
@@ -273,14 +272,9 @@ pub async fn update_event(
 
     // Compute new start_time if date/time provided
     let new_start_time = if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
-        let date_str = payload.date.as_deref().unwrap_or(&{
-            let (d, _) = timestamp_to_date_time(event.start_time);
-            d
-        });
-        let time_str = payload.time.as_ref().and_then(|o| o.as_deref()).unwrap_or(&{
-            let (_, t) = timestamp_to_date_time(event.start_time);
-            t
-        });
+        let default_date_time = timestamp_to_date_time(event.start_time);
+        let date_str = payload.date.as_deref().unwrap_or(&default_date_time.0);
+        let time_str = payload.time.as_ref().and_then(|o| o.as_deref()).unwrap_or(&default_date_time.1);
 
         let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
             Ok(d) => d,
