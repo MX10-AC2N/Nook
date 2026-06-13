@@ -152,26 +152,46 @@ pub async fn list_events(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Query(query): Query<ListEventsQuery>,
 ) -> impl IntoResponse {
-    let mut sql = "SELECT * FROM events WHERE creator_id = ?".to_string();
-    let mut args: Vec<&dyn sqlx::Encode<'_, sqlx::Sqlite> + Send + Sync> = vec![&user.id];
+    let events = match (query.start, query.end) {
+        (Some(start), Some(end)) => {
+            sqlx::query_as::<_, Event>(
+                "SELECT * FROM events WHERE creator_id = ? AND start_time >= ? AND start_time <= ? ORDER BY start_time ASC"
+            )
+            .bind(&user.id)
+            .bind(start)
+            .bind(end)
+            .fetch_all(&state.db)
+            .await
+        }
+        (Some(start), None) => {
+            sqlx::query_as::<_, Event>(
+                "SELECT * FROM events WHERE creator_id = ? AND start_time >= ? ORDER BY start_time ASC"
+            )
+            .bind(&user.id)
+            .bind(start)
+            .fetch_all(&state.db)
+            .await
+        }
+        (None, Some(end)) => {
+            sqlx::query_as::<_, Event>(
+                "SELECT * FROM events WHERE creator_id = ? AND start_time <= ? ORDER BY start_time ASC"
+            )
+            .bind(&user.id)
+            .bind(end)
+            .fetch_all(&state.db)
+            .await
+        }
+        (None, None) => {
+            sqlx::query_as::<_, Event>(
+                "SELECT * FROM events WHERE creator_id = ? ORDER BY start_time ASC"
+            )
+            .bind(&user.id)
+            .fetch_all(&state.db)
+            .await
+        }
+    };
 
-    if let Some(start) = query.start {
-        sql.push_str(" AND start_time >= ?");
-        args.push(&start);
-    }
-    if let Some(end) = query.end {
-        sql.push_str(" AND start_time <= ?");
-        args.push(&end);
-    }
-
-    sql.push_str(" ORDER BY start_time ASC");
-
-    let mut query_builder = sqlx::query_as::<_, Event>(&sql);
-    for arg in args {
-        query_builder = query_builder.bind(arg);
-    }
-
-    let mut events = query_builder.fetch_all(&state.db).await.unwrap_or_default();
+    let mut events = events.unwrap_or_default();
 
     // Add computed date/time fields
     for event in &mut events {
@@ -278,48 +298,116 @@ pub async fn update_event(
 
     let new_end_time = new_start_time + (event.end_time - event.start_time);
 
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    let mut bindings: Vec<Box<dyn sqlx::Encode<'_, sqlx::Sqlite> + Send + Sync>> = Vec::new();
-
-    if let Some(title) = payload.title {
-        updates.push("title = ?");
-        bindings.push(Box::new(title));
-    }
-    if let Some(desc) = payload.description {
-        updates.push("description = ?");
-        bindings.push(Box::new(desc));
-    }
-    if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
-        updates.push("start_time = ?");
-        updates.push("end_time = ?");
-        bindings.push(Box::new(new_start_time));
-        bindings.push(Box::new(new_end_time));
-    }
-    if updates.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse { error: "No fields to update".to_string() }),
-        ).into_response();
-    }
-
-    updates.push("updated_at = ?");
+    // Build update query based on what fields are provided
     let now = Utc::now().timestamp();
-    bindings.push(Box::new(now));
 
-    let sql = format!(
-        "UPDATE events SET {} WHERE id = ? AND creator_id = ?",
-        updates.join(", ")
-    );
-
-    let mut query_builder = sqlx::query(&sql);
-    for binding in bindings {
-        query_builder = query_builder.bind(binding);
+    if payload.title.is_some() && payload.description.is_some() && payload.date.is_some() && payload.time.as_ref().is_some_and(|o| o.is_some()) {
+        // All fields
+        let result = sqlx::query(
+            "UPDATE events SET title = ?, description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.title.unwrap())
+        .bind(payload.description.unwrap())
+        .bind(new_start_time)
+        .bind(new_end_time)
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.title.is_some() && payload.description.is_some() {
+        // title + description
+        let result = sqlx::query(
+            "UPDATE events SET title = ?, description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.title.unwrap())
+        .bind(payload.description.unwrap())
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.title.is_some() && payload.date.is_some() {
+        // title + date/time
+        let result = sqlx::query(
+            "UPDATE events SET title = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.title.unwrap())
+        .bind(new_start_time)
+        .bind(new_end_time)
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.title.is_some() {
+        // title only
+        let result = sqlx::query(
+            "UPDATE events SET title = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.title.unwrap())
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.description.is_some() && payload.date.is_some() {
+        // description + date/time
+        let result = sqlx::query(
+            "UPDATE events SET description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.description.unwrap())
+        .bind(new_start_time)
+        .bind(new_end_time)
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.description.is_some() {
+        // description only
+        let result = sqlx::query(
+            "UPDATE events SET description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(payload.description.unwrap())
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
+    } else if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
+        // date/time only
+        let result = sqlx::query(
+            "UPDATE events SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+        )
+        .bind(new_start_time)
+        .bind(new_end_time)
+        .bind(now)
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
+        .await;
+        return handle_update_result(result, state, id).await;
     }
-    query_builder = query_builder.bind(&id).bind(&user.id);
 
-    let result = query_builder.execute(&state.db).await;
+    // No fields to update
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ErrorResponse { error: "No fields to update".to_string() }),
+    ).into_response()
+}
 
+async fn handle_update_result(
+    result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
+    state: Arc<SharedState>,
+    id: String,
+) -> impl IntoResponse {
     match result {
         Ok(_) => {
             // Fetch updated event
