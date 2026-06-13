@@ -1,15 +1,18 @@
 // events.rs – Gestion du calendrier/événements
 use axum::{
-    extract::{Extension, Path, Query},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router, routing::{get, post},
+    Json, Router, routing::{get, post, patch, delete},
 };
+use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use std::sync::Arc;
-use rand::Rng;
+use uuid::Uuid;
 
+use crate::auth::CurrentUser;
 use crate::SharedState;
 
 // Structure d'un événement
@@ -32,7 +35,6 @@ pub struct Event {
 }
 
 fn timestamp_to_date_time(ts: i64) -> (String, String) {
-    use chrono::{TimeZone, Utc};
     let dt = Utc.timestamp_opt(ts, 0).single().unwrap_or_else(|| Utc::now());
     let date = dt.format("%Y-%m-%d").to_string();
     let time = dt.format("%H:%M").to_string();
@@ -70,18 +72,17 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
+#[derive(Serialize)]
+pub struct ListEventsResponse {
+    pub events: Vec<Event>,
+}
+
 // Créer un événement
 pub async fn create_event(
-    Extension(pool): Extension<Arc<SqlitePool>>,
-    Extension(user_id): Extension<String>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
     Json(payload): Json<CreateEventPayload>,
 ) -> impl IntoResponse {
-    use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
-
-    let event_id: String = std::iter::repeat_with(|| rand::rng().sample(rand::distr::Alphanumeric) as char)
-        .take(12)
-        .collect();
-
     // Parse date (YYYY-MM-DD)
     let date = match NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d") {
         Ok(d) => d,
@@ -90,18 +91,19 @@ pub async fn create_event(
             Json(ErrorResponse { error: "Invalid date format (expected YYYY-MM-DD)".to_string() })
         ).into_response(),
     };
-    
+
     // Parse optional time (HH:MM)
     let time = payload.time
         .as_deref()
         .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
         .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-    
+
     let start_dt = Utc.from_utc_datetime(&date.and_time(time));
     let start_time = start_dt.timestamp();
     let end_time = start_time + 3600; // Default 1 hour duration
 
     let now = Utc::now().timestamp();  // i64 Unix timestamp
+    let event_id = Uuid::new_v4().to_string();
 
     let result = sqlx::query(
         r#"
@@ -110,285 +112,270 @@ pub async fn create_event(
         "#,
     )
     .bind(&event_id)
-    .bind(&user_id)
+    .bind(&user.id)
     .bind(&payload.title)
     .bind(&payload.description)
     .bind(start_time)
     .bind(end_time)
     .bind(now)
     .bind(now)
-    .execute(&*pool)
+    .execute(&state.db)
     .await;
 
     match result {
         Ok(_) => {
-            let mut event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
-                .bind(&event_id)
-                .fetch_one(&*pool)
-                .await
-                .unwrap();
-            // Add computed date/time fields for frontend
-            let (date_str, time_str) = timestamp_to_date_time(event.start_time);
-            event.date = date_str;
-            event.time = time_str;
+            let (date_str, time_str) = timestamp_to_date_time(start_time);
+            let event = Event {
+                id: event_id.clone(),
+                creator_id: user.id.clone(),
+                title: payload.title,
+                description: payload.description,
+                start_time,
+                end_time,
+                created_at: now,
+                updated_at: now,
+                date: date_str,
+                time: time_str,
+            };
             (StatusCode::CREATED, Json(event)).into_response()
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to create event: {}", e),
-            }),
+            Json(ErrorResponse { error: format!("Failed to create event: {}", e) }),
         ).into_response(),
     }
 }
 
-// Lister les événements (filtrés par plage de dates)
+// Lister les événements
 pub async fn list_events(
-    Extension(pool): Extension<Arc<SqlitePool>>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
     Query(query): Query<ListEventsQuery>,
 ) -> impl IntoResponse {
-    let mut sql = "SELECT * FROM events WHERE 1=1".to_string();
-    let mut bindings = vec![];
+    let mut sql = "SELECT * FROM events WHERE creator_id = ?".to_string();
+    let mut args: Vec<&dyn sqlx::Encode<'_, sqlx::Sqlite> + Send + Sync> = vec![&user.id];
 
     if let Some(start) = query.start {
-        sql.push_str(" AND end_time >= ?");
-        bindings.push(start);
+        sql.push_str(" AND start_time >= ?");
+        args.push(&start);
     }
     if let Some(end) = query.end {
         sql.push_str(" AND start_time <= ?");
-        bindings.push(end);
+        args.push(&end);
     }
+
     sql.push_str(" ORDER BY start_time ASC");
 
-    // Bind parameters dynamiquement
     let mut query_builder = sqlx::query_as::<_, Event>(&sql);
-    for binding in bindings {
-        query_builder = query_builder.bind(binding);
+    for arg in args {
+        query_builder = query_builder.bind(arg);
     }
 
-    let mut events = query_builder
-        .fetch_all(&*pool)
-        .await;
+    let mut events = query_builder.fetch_all(&state.db).await.unwrap_or_default();
 
-    match events {
-        Ok(ref mut events) => {
-            // Add computed date/time fields for frontend
-            for event in events.iter_mut() {
-                let (date_str, time_str) = timestamp_to_date_time(event.start_time);
-                event.date = date_str;
-                event.time = time_str;
-            }
-            (StatusCode::OK, Json(events.clone())).into_response()
-        }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to list events: {}", e),
-            }),
-        ).into_response(),
+    // Add computed date/time fields
+    for event in &mut events {
+        let (date_str, time_str) = timestamp_to_date_time(event.start_time);
+        event.date = date_str;
+        event.time = time_str;
     }
+
+    (StatusCode::OK, Json(ListEventsResponse { events })).into_response()
 }
 
-// Obtenir un événement par ID
+// Récupérer un événement par ID
 pub async fn get_event(
-    Extension(pool): Extension<Arc<SqlitePool>>,
-    Path(event_id): Path<String>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
-        .bind(&event_id)
-        .fetch_optional(&*pool)
-        .await;
+    let event = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events WHERE id = ? AND creator_id = ?"
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await;
 
     match event {
-        Ok(Some(mut event)) => {
-            let (date_str, time_str) = timestamp_to_date_time(event.start_time);
-            event.date = date_str;
-            event.time = time_str;
-            (StatusCode::OK, Json(event)).into_response()
+        Ok(Some(mut e)) => {
+            let (date_str, time_str) = timestamp_to_date_time(e.start_time);
+            e.date = date_str;
+            e.time = time_str;
+            (StatusCode::OK, Json(e)).into_response()
         }
         Ok(None) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse {
-                error: "Event not found".to_string(),
-            }),
+            Json(ErrorResponse { error: "Event not found".to_string() }),
         ).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to get event: {}", e),
-            }),
+            Json(ErrorResponse { error: format!("Failed to get event: {}", e) }),
         ).into_response(),
     }
 }
 
 // Mettre à jour un événement
 pub async fn update_event(
-    Extension(pool): Extension<Arc<SqlitePool>>,
-    Extension(user_id): Extension<String>,
-    Path(event_id): Path<String>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
     Json(payload): Json<UpdateEventPayload>,
 ) -> impl IntoResponse {
-    use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+    // Vérifier que l'événement existe et appartient à l'utilisateur
+    let event = sqlx::query_as::<_, Event>(
+        "SELECT * FROM events WHERE id = ? AND creator_id = ?"
+    )
+    .bind(&id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await;
 
-    // Vérifier que l'utilisateur est le créateur
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
-        .bind(&event_id)
-        .fetch_optional(&*pool)
-        .await;
-
-    let event = match event {
+    let mut event = match event {
         Ok(Some(e)) => e,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: "Event not found".to_string(),
-                }),
-            ).into_response()
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("Failed to get event: {}", e),
-                }),
-            ).into_response()
-        }
+        Ok(None) => return (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse { error: "Event not found".to_string() }),
+        ).into_response(),
+        Err(e) => return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: format!("Failed to get event: {}", e) }),
+        ).into_response(),
     };
 
-    if event.creator_id != user_id {
+    // Compute new start_time if date/time provided
+    let new_start_time = if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
+        let date_str = payload.date.as_deref().unwrap_or(&{
+            let (d, _) = timestamp_to_date_time(event.start_time);
+            d
+        });
+        let time_str = payload.time.as_ref().and_then(|o| o.as_deref()).unwrap_or(&{
+            let (_, t) = timestamp_to_date_time(event.start_time);
+            t
+        });
+
+        let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+            Ok(d) => d,
+            Err(_) => return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse { error: "Invalid date format (expected YYYY-MM-DD)".to_string() }),
+            ).into_response(),
+        };
+
+        let time = match NaiveTime::parse_from_str(time_str, "%H:%M") {
+            Ok(t) => t,
+            Err(_) => return (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse { error: "Invalid time format (expected HH:MM)".to_string() }),
+            ).into_response(),
+        };
+
+        let start_dt = Utc.from_utc_datetime(&date.and_time(time));
+        start_dt.timestamp()
+    } else {
+        event.start_time
+    };
+
+    let new_end_time = new_start_time + (event.end_time - event.start_time);
+
+    // Build dynamic update query
+    let mut updates = Vec::new();
+    let mut bindings: Vec<Box<dyn sqlx::Encode<'_, sqlx::Sqlite> + Send + Sync>> = Vec::new();
+
+    if let Some(title) = payload.title {
+        updates.push("title = ?");
+        bindings.push(Box::new(title));
+    }
+    if let Some(desc) = payload.description {
+        updates.push("description = ?");
+        bindings.push(Box::new(desc));
+    }
+    if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
+        updates.push("start_time = ?");
+        updates.push("end_time = ?");
+        bindings.push(Box::new(new_start_time));
+        bindings.push(Box::new(new_end_time));
+    }
+    if updates.is_empty() {
         return (
-            StatusCode::FORBIDDEN,
-            Json(ErrorResponse {
-                error: "You can only update your own events".to_string(),
-            }),
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse { error: "No fields to update".to_string() }),
         ).into_response();
     }
 
-    let now = Utc::now().timestamp();  // i64 Unix timestamp
+    updates.push("updated_at = ?");
+    let now = Utc::now().timestamp();
+    bindings.push(Box::new(now));
 
-    // Parse date/time if provided
-    let mut new_start_time = event.start_time;
-    let mut new_end_time = event.end_time;
+    let sql = format!(
+        "UPDATE events SET {} WHERE id = ? AND creator_id = ?",
+        updates.join(", ")
+    );
 
-    if let Some(date_str) = payload.date {
-        if let Some(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok() {
-            // payload.time is Option<Option<String>>: 
-            // - None = not provided in payload → keep current time
-            // - Some(None) = explicitly null → reset to default (00:00)
-            // - Some(Some("HH:MM")) = parse the time
-            let time = match payload.time {
-                Some(Some(t)) => NaiveTime::parse_from_str(&t, "%H:%M").ok()
-                    .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap()),
-                Some(None) => NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
-                None => {
-                    // Keep current time if not provided
-                    let current_dt = Utc.timestamp_opt(event.start_time, 0).single().unwrap_or_else(|| Utc::now());
-                    current_dt.time()
-                }
-            };
-            let start_dt = Utc.from_utc_datetime(&date.and_time(time));
-            new_start_time = start_dt.timestamp();
-            // Keep same duration
-            let duration = event.end_time - event.start_time;
-            new_end_time = new_start_time + duration;
-        }
+    let mut query_builder = sqlx::query(&sql);
+    for binding in bindings {
+        query_builder = query_builder.bind(binding);
     }
+    query_builder = query_builder.bind(&id).bind(&user.id);
 
-    let result = sqlx::query(
-        r#"
-        UPDATE events
-        SET title = COALESCE(?, title),
-            description = COALESCE(?, description),
-            start_time = ?,
-            end_time = ?,
-            updated_at = ?
-        WHERE id = ?
-        "#,
-    )
-    .bind(payload.title)
-    .bind(payload.description)
-    .bind(new_start_time)
-    .bind(new_end_time)
-    .bind(now)
-    .bind(&event_id)
-    .execute(&*pool)
-    .await;
+    let result = query_builder.execute(&state.db).await;
 
     match result {
         Ok(_) => {
-            let mut updated = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
-                .bind(&event_id)
-                .fetch_one(&*pool)
-                .await
-                .unwrap();
-            let (date_str, time_str) = timestamp_to_date_time(updated.start_time);
-            updated.date = date_str;
-            updated.time = time_str;
-            (StatusCode::OK, Json(updated)).into_response()
+            // Fetch updated event
+            let updated = sqlx::query_as::<_, Event>(
+                "SELECT * FROM events WHERE id = ?"
+            )
+            .bind(&id)
+            .fetch_one(&state.db)
+            .await;
+
+            match updated {
+                Ok(mut e) => {
+                    let (date_str, time_str) = timestamp_to_date_time(e.start_time);
+                    e.date = date_str;
+                    e.time = time_str;
+                    (StatusCode::OK, Json(e)).into_response()
+                }
+                Err(e) => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse { error: format!("Failed to fetch updated event: {}", e) }),
+                ).into_response(),
+            }
         }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to update event: {}", e),
-            }),
+            Json(ErrorResponse { error: format!("Failed to update event: {}", e) }),
         ).into_response(),
     }
 }
 
 // Supprimer un événement
 pub async fn delete_event(
-    Extension(pool): Extension<Arc<SqlitePool>>,
-    Extension(user_id): Extension<String>,
-    Path(event_id): Path<String>,
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(id): Path<String>,
 ) -> impl IntoResponse {
-    // Vérifier que l'utilisateur est le créateur
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
-        .bind(&event_id)
-        .fetch_optional(&*pool)
-        .await;
-
-    let event = match event {
-        Ok(Some(e)) => e,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ErrorResponse {
-                    error: "Event not found".to_string(),
-                }),
-            ).into_response()
-        }
-        Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("Failed to get event: {}", e),
-                }),
-            ).into_response()
-        }
-    };
-
-    if event.creator_id != user_id {
-        return (
-            StatusCode::FORBIDDEN,
-            Json(ErrorResponse {
-                error: "You can only delete your own events".to_string(),
-            }),
-        ).into_response();
-    }
-
-    let result = sqlx::query("DELETE FROM events WHERE id = ?")
-        .bind(&event_id)
-        .execute(&*pool)
+    let result = sqlx::query("DELETE FROM events WHERE id = ? AND creator_id = ?")
+        .bind(&id)
+        .bind(&user.id)
+        .execute(&state.db)
         .await;
 
     match result {
-        Ok(_) => (StatusCode::NO_CONTENT).into_response(),
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse { error: "Event not found".to_string() }),
+                ).into_response()
+            } else {
+                StatusCode::NO_CONTENT.into_response()
+            }
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: format!("Failed to delete event: {}", e),
-            }),
+            Json(ErrorResponse { error: format!("Failed to delete event: {}", e) }),
         ).into_response(),
     }
 }
