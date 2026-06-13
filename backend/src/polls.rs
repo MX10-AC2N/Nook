@@ -541,15 +541,73 @@ pub async fn close_poll(
 }
 
 // ────────────────────────────────────────────────────────────────
+// DELETE /api/polls/{id} — supprimer un sondage (créateur seulement)
+// ────────────────────────────────────────────────────────────────
+pub async fn delete_poll(
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(poll_id): Path<String>,
+) -> impl IntoResponse {
+    let row = sqlx::query_as::<_, CreatorRow>(
+        "SELECT created_by FROM polls WHERE id = ?",
+    )
+    .bind(&poll_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    match row {
+        None => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "message": "Sondage introuvable" })),
+        ).into_response(),
+        Some(row) if row.created_by != user.id && user.role != "admin" => (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "message": "Non autorisé" })),
+        ).into_response(),
+        Some(_) => {
+            // Supprimer en cascade : votes → options → sondage
+            let _ = sqlx::query("DELETE FROM poll_votes WHERE poll_id = ?")
+                .bind(&poll_id)
+                .execute(&state.db)
+                .await;
+            
+            let _ = sqlx::query("DELETE FROM poll_options WHERE poll_id = ?")
+                .bind(&poll_id)
+                .execute(&state.db)
+                .await;
+            
+            let _ = sqlx::query("DELETE FROM polls WHERE id = ?")
+                .bind(&poll_id)
+                .execute(&state.db)
+                .await;
+
+            // Broadcast WS notification
+            let notif = serde_json::json!({
+                "type": "poll_deleted",
+                "poll_id": poll_id,
+            }).to_string();
+            let guard = state.webrtc_state.broadcasts.lock().await;
+            for tx in guard.values() {
+                let _ = tx.send(notif.clone());
+            }
+
+            (StatusCode::OK, Json(json!({ "success": true }))).into_response()
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
 // Router — à merger dans protected_routes dans main.rs
 // ────────────────────────────────────────────────────────────────
 
 pub fn polls_routes() -> axum::Router<Arc<SharedState>> {
-    use axum::routing::{get, post};
+    use axum::routing::{delete, get, post};
 
     axum::Router::new()
         .route("/polls", get(list_polls).post(create_poll))
-        .route("/polls/{id}", get(get_poll))
+        .route("/polls/{id}", get(get_poll).delete(delete_poll))
         .route("/polls/{id}/vote", post(vote_poll))
         .route("/polls/{id}/close", post(close_poll))
 }

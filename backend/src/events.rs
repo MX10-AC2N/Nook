@@ -25,6 +25,19 @@ pub struct Event {
     pub end_time: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    // Champs calculés pour le frontend (non stockés en DB)
+    #[serde(skip_deserializing)]
+    pub date: String,      // YYYY-MM-DD (dérivé de start_time)
+    #[serde(skip_deserializing)]
+    pub time: String,      // HH:MM (dérivé de start_time)
+}
+
+fn timestamp_to_date_time(ts: i64) -> (String, String) {
+    use chrono::{DateTime, TimeZone, Utc};
+    let dt = Utc.timestamp_opt(ts, 0).single().unwrap_or_else(|| Utc::now());
+    let date = dt.format("%Y-%m-%d").to_string();
+    let time = dt.format("%H:%M").to_string();
+    (date, time)
 }
 
 // Payload de création
@@ -32,8 +45,8 @@ pub struct Event {
 pub struct CreateEventPayload {
     pub title: String,
     pub description: Option<String>,
-    pub start_time: i64,  // Unix timestamp
-    pub end_time: i64,
+    pub date: String,      // YYYY-MM-DD
+    pub time: Option<String>, // HH:MM (optional)
 }
 
 // Payload de mise à jour
@@ -41,8 +54,8 @@ pub struct CreateEventPayload {
 pub struct UpdateEventPayload {
     pub title: Option<String>,
     pub description: Option<Option<String>>,
-    pub start_time: Option<i64>,
-    pub end_time: Option<i64>,
+    pub date: Option<String>,
+    pub time: Option<Option<String>>,
 }
 
 // Paramètres de requête pour lister les événements
@@ -64,9 +77,24 @@ pub async fn create_event(
     Extension(user_id): Extension<String>,
     Json(payload): Json<CreateEventPayload>,
 ) -> impl IntoResponse {
+    use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+
     let event_id: String = std::iter::repeat_with(|| rand::rng().sample(rand::distr::Alphanumeric) as char)
         .take(12)
         .collect();
+
+    // Parse date (YYYY-MM-DD) and optional time (HH:MM)
+    let date = NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d")
+        .map_err(|_| {
+            (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "Invalid date format (expected YYYY-MM-DD)".to_string() })).into_response()
+        })?;
+    let time = payload.time.as_ref()
+        .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
+        .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+    
+    let start_dt = Utc.from_utc_datetime(&date.and_time(time));
+    let start_time = start_dt.timestamp();
+    let end_time = start_time + 3600; // Default 1 hour duration
 
     let now = Utc::now().timestamp();  // i64 Unix timestamp
 
@@ -80,8 +108,8 @@ pub async fn create_event(
     .bind(&user_id)
     .bind(&payload.title)
     .bind(&payload.description)
-    .bind(payload.start_time)
-    .bind(payload.end_time)
+    .bind(start_time)
+    .bind(end_time)
     .bind(now)
     .bind(now)
     .execute(&*pool)
@@ -89,11 +117,15 @@ pub async fn create_event(
 
     match result {
         Ok(_) => {
-            let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
+            let mut event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
                 .bind(&event_id)
                 .fetch_one(&*pool)
                 .await
                 .unwrap();
+            // Add computed date/time fields for frontend
+            let (date_str, time_str) = timestamp_to_date_time(event.start_time);
+            event.date = date_str;
+            event.time = time_str;
             (StatusCode::CREATED, Json(event)).into_response()
         }
         Err(e) => (
@@ -129,12 +161,20 @@ pub async fn list_events(
         query_builder = query_builder.bind(binding);
     }
 
-    let events = query_builder
+    let mut events = query_builder
         .fetch_all(&*pool)
         .await;
 
     match events {
-        Ok(events) => (StatusCode::OK, Json(events)).into_response(),
+        Ok(ref mut events) => {
+            // Add computed date/time fields for frontend
+            for event in events.iter_mut() {
+                let (date_str, time_str) = timestamp_to_date_time(event.start_time);
+                event.date = date_str;
+                event.time = time_str;
+            }
+            (StatusCode::OK, Json(events.clone())).into_response()
+        }
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -149,13 +189,18 @@ pub async fn get_event(
     Extension(pool): Extension<Arc<SqlitePool>>,
     Path(event_id): Path<String>,
 ) -> impl IntoResponse {
-    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
+    let mut event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
         .bind(&event_id)
         .fetch_optional(&*pool)
         .await;
 
     match event {
-        Ok(Some(event)) => (StatusCode::OK, Json(event)).into_response(),
+        Ok(Some(mut event)) => {
+            let (date_str, time_str) = timestamp_to_date_time(event.start_time);
+            event.date = date_str;
+            event.time = time_str;
+            (StatusCode::OK, Json(event)).into_response()
+        }
         Ok(None) => (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
@@ -178,13 +223,15 @@ pub async fn update_event(
     Path(event_id): Path<String>,
     Json(payload): Json<UpdateEventPayload>,
 ) -> impl IntoResponse {
+    use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
+
     // Vérifier que l'utilisateur est le créateur
     let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
         .bind(&event_id)
         .fetch_optional(&*pool)
         .await;
 
-    let event = match event {
+    let mut event = match event {
         Ok(Some(e)) => e,
         Ok(None) => {
             return (
@@ -214,21 +261,39 @@ pub async fn update_event(
     }
 
     let now = Utc::now().timestamp();  // i64 Unix timestamp
+
+    // Parse date/time if provided
+    let mut new_start_time = event.start_time;
+    let mut new_end_time = event.end_time;
+
+    if let Some(date_str) = payload.date {
+        if let Some(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok() {
+            let time = payload.time.as_ref()
+                .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
+                .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+            let start_dt = Utc.from_utc_datetime(&date.and_time(time));
+            new_start_time = start_dt.timestamp();
+            // Keep same duration
+            let duration = event.end_time - event.start_time;
+            new_end_time = new_start_time + duration;
+        }
+    }
+
     let result = sqlx::query(
         r#"
         UPDATE events
         SET title = COALESCE(?, title),
             description = COALESCE(?, description),
-            start_time = COALESCE(?, start_time),
-            end_time = COALESCE(?, end_time),
+            start_time = ?,
+            end_time = ?,
             updated_at = ?
         WHERE id = ?
         "#,
     )
     .bind(payload.title)
     .bind(payload.description)
-    .bind(payload.start_time)
-    .bind(payload.end_time)
+    .bind(new_start_time)
+    .bind(new_end_time)
     .bind(now)
     .bind(&event_id)
     .execute(&*pool)
@@ -236,11 +301,14 @@ pub async fn update_event(
 
     match result {
         Ok(_) => {
-            let updated = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
+            let mut updated = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
                 .bind(&event_id)
                 .fetch_one(&*pool)
                 .await
                 .unwrap();
+            let (date_str, time_str) = timestamp_to_date_time(updated.start_time);
+            updated.date = date_str;
+            updated.time = time_str;
             (StatusCode::OK, Json(updated)).into_response()
         }
         Err(e) => (
