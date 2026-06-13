@@ -93,8 +93,7 @@ pub async fn create_event(
     
     // Parse optional time (HH:MM)
     let time = payload.time
-        .as_ref()
-        .and_then(|t| t.as_deref())
+        .as_deref()
         .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
         .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
     
@@ -195,7 +194,7 @@ pub async fn get_event(
     Extension(pool): Extension<Arc<SqlitePool>>,
     Path(event_id): Path<String>,
 ) -> impl IntoResponse {
-    let mut event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
+    let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = ?")
         .bind(&event_id)
         .fetch_optional(&*pool)
         .await;
@@ -237,7 +236,7 @@ pub async fn update_event(
         .fetch_optional(&*pool)
         .await;
 
-    let mut event = match event {
+    let event = match event {
         Ok(Some(e)) => e,
         Ok(None) => {
             return (
@@ -275,8 +274,7 @@ pub async fn update_event(
     if let Some(date_str) = payload.date {
         if let Some(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok() {
             let time = payload.time
-                .as_ref()
-                .and_then(|t| t.as_deref())
+                .as_deref()
                 .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
                 .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
             let start_dt = Utc.from_utc_datetime(&date.and_time(time));
