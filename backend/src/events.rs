@@ -51,7 +51,7 @@ pub struct CreateEventPayload {
 }
 
 // Payload de mise à jour
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct UpdateEventPayload {
     pub title: Option<String>,
     pub description: Option<Option<String>>,
@@ -102,7 +102,7 @@ pub async fn create_event(
     let start_time = start_dt.timestamp();
     let end_time = start_time + 3600; // Default 1 hour duration
 
-    let now = Utc::now().timestamp();  // i64 Unix timestamp
+    let now = Utc::now().timestamp();
     let event_id = Uuid::new_v4().to_string();
 
     let result = sqlx::query(
@@ -306,90 +306,100 @@ pub async fn update_event(
 
     let new_end_time = new_start_time + (event.end_time - event.start_time);
 
-    // Build update query based on what fields are provided
+    // Extract values from payload BEFORE binding (to avoid partial moves)
+    let title_val = payload.title.as_ref().map(|s| s.as_str());
+    let desc_val = payload.description.as_ref().map(|opt| opt.as_ref().map(|s| s.as_str()));
+    let has_date_time = payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some());
     let now = Utc::now().timestamp();
 
-    let update_result = if payload.title.is_some() && payload.description.is_some() && payload.date.is_some() && payload.time.as_ref().is_some_and(|o| o.is_some()) {
-        // All fields
-        let result = sqlx::query(
-            "UPDATE events SET title = ?, description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.title.unwrap())
-        .bind(payload.description.unwrap())
-        .bind(new_start_time)
-        .bind(new_end_time)
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.title.is_some() && payload.description.is_some() {
-        // title + description
-        let result = sqlx::query(
-            "UPDATE events SET title = ?, description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.title.unwrap())
-        .bind(payload.description.unwrap())
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.title.is_some() && payload.date.is_some() {
-        // title + date/time
-        let result = sqlx::query(
-            "UPDATE events SET title = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.title.unwrap())
-        .bind(new_start_time)
-        .bind(new_end_time)
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.title.is_some() {
-        // title only
-        let result = sqlx::query(
-            "UPDATE events SET title = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.title.unwrap())
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.description.is_some() && payload.date.is_some() {
-        // description + date/time
-        let result = sqlx::query(
-            "UPDATE events SET description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.description.unwrap())
-        .bind(new_start_time)
-        .bind(new_end_time)
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.description.is_some() {
-        // description only
-        let result = sqlx::query(
-            "UPDATE events SET description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
-        )
-        .bind(payload.description.unwrap())
-        .bind(now)
-        .bind(&id)
-        .bind(&user.id)
-        .execute(&state.db)
-        .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
-    } else if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
+    // Build update query based on what fields are provided
+    let update_result = if let (Some(title), Some(desc)) = (title_val, desc_val) {
+        if has_date_time {
+            // All fields
+            let result = sqlx::query(
+                "UPDATE events SET title = ?, description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(title)
+            .bind(desc)
+            .bind(new_start_time)
+            .bind(new_end_time)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        } else {
+            // title + description
+            let result = sqlx::query(
+                "UPDATE events SET title = ?, description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(title)
+            .bind(desc)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        }
+    } else if let Some(title) = title_val {
+        if has_date_time {
+            // title + date/time
+            let result = sqlx::query(
+                "UPDATE events SET title = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(title)
+            .bind(new_start_time)
+            .bind(new_end_time)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        } else {
+            // title only
+            let result = sqlx::query(
+                "UPDATE events SET title = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(title)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        }
+    } else if let Some(desc) = desc_val {
+        if has_date_time {
+            // description + date/time
+            let result = sqlx::query(
+                "UPDATE events SET description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(desc)
+            .bind(new_start_time)
+            .bind(new_end_time)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        } else {
+            // description only
+            let result = sqlx::query(
+                "UPDATE events SET description = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
+            )
+            .bind(desc)
+            .bind(now)
+            .bind(&id)
+            .bind(&user.id)
+            .execute(&state.db)
+            .await;
+            handle_update_result(result, state.clone(), id).await
+        }
+    } else if has_date_time {
         // date/time only
         let result = sqlx::query(
             "UPDATE events SET start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
@@ -401,7 +411,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
+        handle_update_result(result, state.clone(), id).await
     } else {
         return (
             StatusCode::BAD_REQUEST,
@@ -421,10 +431,6 @@ async fn handle_update_result(
     result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
     state: Arc<SharedState>,
     id: String,
-    _new_start: i64,
-    _new_end: i64,
-    _now: i64,
-    _payload: UpdateEventPayload,
 ) -> UpdateResult {
     match result {
         Ok(_) => {
