@@ -235,6 +235,14 @@ pub async fn get_event(
     }
 }
 
+// Résultat interne pour update_event
+enum UpdateResult {
+    Updated(Event),
+    NotFound,
+    Error(String),
+    NoFields,
+}
+
 // Mettre à jour un événement
 pub async fn update_event(
     State(state): State<Arc<SharedState>>,
@@ -301,7 +309,7 @@ pub async fn update_event(
     // Build update query based on what fields are provided
     let now = Utc::now().timestamp();
 
-    if payload.title.is_some() && payload.description.is_some() && payload.date.is_some() && payload.time.as_ref().is_some_and(|o| o.is_some()) {
+    let update_result = if payload.title.is_some() && payload.description.is_some() && payload.date.is_some() && payload.time.as_ref().is_some_and(|o| o.is_some()) {
         // All fields
         let result = sqlx::query(
             "UPDATE events SET title = ?, description = ?, start_time = ?, end_time = ?, updated_at = ? WHERE id = ? AND creator_id = ?"
@@ -315,7 +323,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.title.is_some() && payload.description.is_some() {
         // title + description
         let result = sqlx::query(
@@ -328,7 +336,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.title.is_some() && payload.date.is_some() {
         // title + date/time
         let result = sqlx::query(
@@ -342,7 +350,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.title.is_some() {
         // title only
         let result = sqlx::query(
@@ -354,7 +362,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.description.is_some() && payload.date.is_some() {
         // description + date/time
         let result = sqlx::query(
@@ -368,7 +376,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.description.is_some() {
         // description only
         let result = sqlx::query(
@@ -380,7 +388,7 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
     } else if payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some()) {
         // date/time only
         let result = sqlx::query(
@@ -393,21 +401,31 @@ pub async fn update_event(
         .bind(&user.id)
         .execute(&state.db)
         .await;
-        return handle_update_result(result, state, id).await;
-    }
+        handle_update_result(result, state.clone(), id, new_start_time, new_end_time, now, payload).await
+    } else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse { error: "No fields to update".to_string() }),
+        ).into_response()
+    };
 
-    // No fields to update
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ErrorResponse { error: "No fields to update".to_string() }),
-    ).into_response()
+    match update_result {
+        UpdateResult::Updated(event) => (StatusCode::OK, Json(event)).into_response(),
+        UpdateResult::NotFound => (StatusCode::NOT_FOUND, Json(ErrorResponse { error: "Event not found".to_string() })).into_response(),
+        UpdateResult::Error(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e })).into_response(),
+        UpdateResult::NoFields => (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "No fields to update".to_string() })).into_response(),
+    }
 }
 
 async fn handle_update_result(
     result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
     state: Arc<SharedState>,
     id: String,
-) -> impl IntoResponse {
+    _new_start: i64,
+    _new_end: i64,
+    _now: i64,
+    _payload: UpdateEventPayload,
+) -> UpdateResult {
     match result {
         Ok(_) => {
             // Fetch updated event
@@ -423,18 +441,12 @@ async fn handle_update_result(
                     let (date_str, time_str) = timestamp_to_date_time(e.start_time);
                     e.date = date_str;
                     e.time = time_str;
-                    (StatusCode::OK, Json(e)).into_response()
+                    UpdateResult::Updated(e)
                 }
-                Err(e) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse { error: format!("Failed to fetch updated event: {}", e) }),
-                ).into_response(),
+                Err(e) => UpdateResult::Error(format!("Failed to fetch updated event: {}", e)),
             }
         }
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: format!("Failed to update event: {}", e) }),
-        ).into_response(),
+        Err(e) => UpdateResult::Error(format!("Failed to update event: {}", e)),
     }
 }
 
