@@ -3,11 +3,10 @@ use axum::{
     extract::{Extension, Path, Query},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router, routing::{get, post, patch, delete},
+    Json, Router, routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
-use chrono::Utc;
 use std::sync::Arc;
 use rand::Rng;
 
@@ -33,7 +32,7 @@ pub struct Event {
 }
 
 fn timestamp_to_date_time(ts: i64) -> (String, String) {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{TimeZone, Utc};
     let dt = Utc.timestamp_opt(ts, 0).single().unwrap_or_else(|| Utc::now());
     let date = dt.format("%Y-%m-%d").to_string();
     let time = dt.format("%H:%M").to_string();
@@ -83,12 +82,19 @@ pub async fn create_event(
         .take(12)
         .collect();
 
-    // Parse date (YYYY-MM-DD) and optional time (HH:MM)
-    let date = NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d")
-        .map_err(|_| {
-            (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "Invalid date format (expected YYYY-MM-DD)".to_string() })).into_response()
-        })?;
-    let time = payload.time.as_ref()
+    // Parse date (YYYY-MM-DD)
+    let date = match NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d") {
+        Ok(d) => d,
+        Err(_) => return (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse { error: "Invalid date format (expected YYYY-MM-DD)".to_string() })
+        ).into_response(),
+    };
+    
+    // Parse optional time (HH:MM)
+    let time = payload.time
+        .as_ref()
+        .and_then(|t| t.as_deref())
         .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
         .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
     
@@ -268,7 +274,9 @@ pub async fn update_event(
 
     if let Some(date_str) = payload.date {
         if let Some(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok() {
-            let time = payload.time.as_ref()
+            let time = payload.time
+                .as_ref()
+                .and_then(|t| t.as_deref())
                 .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
                 .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
             let start_dt = Utc.from_utc_datetime(&date.and_time(time));
