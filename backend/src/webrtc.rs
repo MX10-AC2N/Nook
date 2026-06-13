@@ -9,8 +9,6 @@ use axum::{
     extract::{ws::WebSocket, Json as AxumJson, State as AxumState},
     http::{header::COOKIE, StatusCode},
     response::IntoResponse,
-    routing::{get, post},
-    Router,
 };
 use base64ct::{Base64Unpadded, Encoding};
 use chacha20poly1305::aead::generic_array::GenericArray;
@@ -409,7 +407,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
 
-    let send_task = tokio::spawn(async move {
+    let _send_task = tokio::spawn(async move {
         let mut rx = broadcast_tx_for_send.subscribe();
         while let Ok(msg) = rx.recv().await {
             if let Err(e) = sender
@@ -424,7 +422,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
     let state_recv = state.clone();
     let user_id_recv = user_id.clone();
-    let receive_task = tokio::spawn(async move {
+    let _receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
@@ -523,8 +521,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
             }
         }
     });
-
-    ()
 }
 
 // ────────────────────────────────────────────────────────

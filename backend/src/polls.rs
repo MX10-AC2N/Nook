@@ -11,8 +11,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Json},
-    routing::{get, post},
-    Extension, Router,
+    Extension,
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -621,7 +620,7 @@ pub async fn delete_poll(
 // ────────────────────────────────────────────────────────────────
 
 pub fn polls_routes() -> axum::Router<Arc<SharedState>> {
-    use axum::routing::{delete, get, post};
+    use axum::routing::{get, post};
 
     axum::Router::new()
         .route("/polls", get(list_polls).post(create_poll))
