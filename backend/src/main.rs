@@ -14,7 +14,7 @@ use axum::{
     },
     middleware::{self, Next},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{get, post},
     Router,
 };
 use governor::{
