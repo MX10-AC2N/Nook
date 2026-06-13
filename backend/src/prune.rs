@@ -160,5 +160,26 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
         );
     }
 
+    // ─── 5. Parties d'échecs anciennes terminées/abandonnées (> 7 jours) ──────
+    let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
+    let deleted_chess = sqlx::query(
+        r#"
+        DELETE FROM chess_games
+        WHERE (status = 'finished' OR status = 'abandoned')
+          AND updated_at < ?
+        "#
+    )
+    .bind(seven_days_ago)
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    if deleted_chess > 0 {
+        tracing::info!(
+            count = deleted_chess,
+            "Prune : parties d'échecs terminées/abandonnées supprimées"
+        );
+    }
+
     Ok(())
 }
