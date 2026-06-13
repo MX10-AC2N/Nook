@@ -161,7 +161,6 @@ pub async fn prune_old_data(pool: &SqlitePool) -> Result<(), Error> {
     }
 
     // ─── 5. Parties d'échecs anciennes terminées/abandonnées (> 7 jours) ──────
-    let seven_days_ago = chrono::Utc::now().timestamp() - (7 * 24 * 3600);
     let deleted_chess = sqlx::query(
         r#"
         DELETE FROM chess_games

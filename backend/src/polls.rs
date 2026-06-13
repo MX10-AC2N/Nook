@@ -568,20 +568,38 @@ pub async fn delete_poll(
         ).into_response(),
         Some(_) => {
             // Supprimer en cascade : votes → options → sondage
-            let _ = sqlx::query("DELETE FROM poll_votes WHERE poll_id = ?")
+            match sqlx::query("DELETE FROM poll_votes WHERE poll_id = ?")
                 .bind(&poll_id)
                 .execute(&state.db)
-                .await;
+                .await {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!(error = %e, "delete_poll: failed to delete votes");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur suppression votes" }))).into_response();
+                }
+            }
             
-            let _ = sqlx::query("DELETE FROM poll_options WHERE poll_id = ?")
+            match sqlx::query("DELETE FROM poll_options WHERE poll_id = ?")
                 .bind(&poll_id)
                 .execute(&state.db)
-                .await;
+                .await {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!(error = %e, "delete_poll: failed to delete options");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur suppression options" }))).into_response();
+                }
+            }
             
-            let _ = sqlx::query("DELETE FROM polls WHERE id = ?")
+            match sqlx::query("DELETE FROM polls WHERE id = ?")
                 .bind(&poll_id)
                 .execute(&state.db)
-                .await;
+                .await {
+                Ok(_) => {},
+                Err(e) => {
+                    tracing::error!(error = %e, "delete_poll: failed to delete poll");
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "message": "Erreur suppression sondage" }))).into_response();
+                }
+            }
 
             // Broadcast WS notification
             let notif = serde_json::json!({

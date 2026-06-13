@@ -15,7 +15,7 @@ use crate::SharedState;
 
 // Structure d'un événement
 // Note: Utilise i64 (Unix timestamps) pour compatibilité sqlx, comme le reste de Nook
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Event {
     pub id: String,
     pub creator_id: String,
