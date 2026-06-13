@@ -273,10 +273,20 @@ pub async fn update_event(
 
     if let Some(date_str) = payload.date {
         if let Some(date) = NaiveDate::parse_from_str(&date_str, "%Y-%m-%d").ok() {
-            let time = payload.time
-                .as_deref()
-                .and_then(|t| NaiveTime::parse_from_str(t, "%H:%M").ok())
-                .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+            // payload.time is Option<Option<String>>: 
+            // - None = not provided in payload → keep current time
+            // - Some(None) = explicitly null → reset to default (00:00)
+            // - Some(Some("HH:MM")) = parse the time
+            let time = match payload.time {
+                Some(Some(t)) => NaiveTime::parse_from_str(&t, "%H:%M").ok()
+                    .unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap()),
+                Some(None) => NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+                None => {
+                    // Keep current time if not provided
+                    let current_dt = Utc.timestamp_opt(event.start_time, 0).single().unwrap_or_else(|| Utc::now());
+                    current_dt.time()
+                }
+            };
             let start_dt = Utc.from_utc_datetime(&date.and_time(time));
             new_start_time = start_dt.timestamp();
             // Keep same duration
