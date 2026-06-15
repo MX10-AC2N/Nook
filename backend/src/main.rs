@@ -521,6 +521,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(missed_calls::missed_calls_routes())
         .merge(search::search_routes())
         .merge(presence::presence_routes())
+        .with_state(shared_state.clone())
         .layer(middleware::from_fn(auth::require_auth));
 
     tracing::info!("✓ Routes protégées + admin configurées");
