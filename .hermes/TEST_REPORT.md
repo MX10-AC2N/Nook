@@ -1,6 +1,6 @@
 # 🧪 Rapport E2E — Nook
 
-> Généré par `test-nook.yml` · **2026-06-09 05:37 UTC**
+> Généré par `test-nook.yml` · **2026-06-15 18:28 UTC**
 
 ---
 
@@ -9,15 +9,15 @@
 | Indicateur | Valeur |
 |-----------|--------|
 | **Statut** | ❌ **ÉCHEC** |
-| **Tests passés** | 7 |
-| **Tests échoués** | 69 |
+| **Tests passés** | 70 |
+| **Tests échoués** | 4 |
 | **Tests flaky** | 0 |
-| **Tests ignorés** | 106 |
-| **Total** | 182 |
-| **Durée totale** | 1m 42.4s |
+| **Tests ignorés** | 107 |
+| **Total** | 181 |
+| **Durée totale** | 9.1s |
 | **Branche** | `develop` |
-| **Commit** | [`c74c3d4`](https://github.com/MX10-AC2N/Nook/commit/c74c3d4d12b397c63fa1b3e8d3accd3f94cf007e) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/27185591768) |
+| **Commit** | [`7a83edb`](https://github.com/MX10-AC2N/Nook/commit/7a83edbea4ec53a07882edab157747c149b8d62a) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/27566613057) |
 
 ---
 
@@ -35,101 +35,100 @@
 
 | Rang | Test | Durée | Fichier |
 |------|------|-------|---------|
-| 1 | /call/fake-id avec auth → page charge | 21.2s | `?` |
-| 2 | /call/fake-id sans auth → redirige vers /login | 0.3s | `?` |
-| 3 | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | `?` |
-| 4 | GET /conversations → 401 | 0.0s | `?` |
-| 5 | GET /conversations/default_global → 401 | 0.0s | `?` |
-| 6 | POST /chess/fake-id/move → 401 | 0.0s | `?` |
-| 7 | GET /api/health → "OK" | 0.0s | `?` |
-| 8 | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | `?` |
+| 1 | /call/fake-id sans auth → redirige vers /login | 0.7s | `?` |
+| 2 | Mot de passe 8 chars → accepte | 0.1s | `?` |
+| 3 | User normal change pwd autre user → 403 | 0.1s | `?` |
+| 4 | Mot de passe 7 chars → 400 | 0.1s | `?` |
+| 5 | Mot de passe 5 chars → 400 | 0.1s | `?` |
+| 6 | GET /api/health → "OK" | 0.0s | `?` |
+| 7 | Upload fichier vide → 400 | 0.0s | `?` |
+| 8 | GET /polls → 401 | 0.0s | `?` |
 | 9 | GET /auth/me → 401 | 0.0s | `?` |
-| 10 | POST /auth/logout → 401 | 0.0s | `?` |
+| 10 | POST /conversations/default_global/leave → 401 | 0.0s | `?` |
 
 ---
 
 ## 📋 Résultats par catégorie
 
-### ❌ **api-sanity.spec.ts** — 7/76 passés · ❌ 69 failed
+### ❌ **api-sanity.spec.ts** — 70/75 passés · ❌ 4 failed
 
 | Statut | Test | Durée | Retries |
 |--------|------|-------|---------|
-| ❌ | /call/fake-id avec auth → page charge | 21.2s  +1 | |
-| ❌ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s  +1 | |
-| ❌ | GET /conversations → 401 | 0.0s  +1 | |
-| ❌ | GET /conversations/default_global → 401 | 0.0s  +1 | |
-| ❌ | POST /chess/fake-id/move → 401 | 0.0s  +1 | |
-| ❌ | GET /api/health → "OK" | 0.0s  +1 | |
-| ❌ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s  +1 | |
-| ❌ | GET /auth/me → 401 | 0.0s  +1 | |
-| ❌ | POST /auth/logout → 401 | 0.0s  +1 | |
-| ❌ | POST /auth/change-password → 401 | 0.0s  +1 | |
-| ❌ | POST /auth/public-key → 401 | 0.0s  +1 | |
-| ❌ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s  +1 | |
-| ❌ | POST /conversations → 401 | 0.0s  +1 | |
-| ❌ | GET /conversations/default_global/messages → 401 | 0.0s  +1 | |
-| ❌ | GET /conversations/default_global/participants → 401 | 0.0s  +1 | |
-| ❌ | POST /conversations/default_global/participants → 401 | 0.0s  +1 | |
-| ❌ | POST /conversations/default_global/leave → 401 | 0.0s  +1 | |
-| ❌ | PATCH /conversations/default_global/rename → 401 | 0.0s  +1 | |
-| ❌ | GET /download/fake-id-000 → 401 | 0.0s  +1 | |
-| ❌ | GET /events → 401 | 0.0s  +1 | |
-| ❌ | POST /events → 401 | 0.0s  +1 | |
-| ❌ | DELETE /events/fake-id → 401 | 0.0s  +1 | |
-| ❌ | GET /polls → 401 | 0.0s  +1 | |
-| ❌ | POST /polls → 401 | 0.0s  +1 | |
-| ❌ | GET /polls/fake-id → 401 | 0.0s  +1 | |
-| ❌ | POST /polls/fake-id/vote → 401 | 0.0s  +1 | |
-| ❌ | DELETE /polls/fake-id → 401 | 0.0s  +1 | |
-| ❌ | GET /chess/list → 401 | 0.0s  +1 | |
-| ❌ | GET /chess/invitations → 401 | 0.0s  +1 | |
-| ❌ | GET /chess/fake-id → 401 | 0.0s  +1 | |
-| ❌ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s  +1 | |
-| ❌ | POST /chess/fake-id/ai-move → 401 | 0.0s  +1 | |
-| ❌ | POST /chess/fake-id/resign → 401 | 0.0s  +1 | |
-| ❌ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s  +1 | |
-| ❌ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s  +1 | |
-| ❌ | POST /user/update → 401 | 0.0s  +1 | |
-| ❌ | GET /users/available → 401 | 0.0s  +1 | |
-| ❌ | GET /push/preferences → 401 | 0.0s  +1 | |
-| ❌ | GET /users → 401 | 0.0s  +1 | |
-| ❌ | POST /users/approve → 401 | 0.0s  +1 | |
-| ❌ | GET /invites → 401 | 0.0s  +1 | |
-| ❌ | POST /invites → 401 | 0.0s  +1 | |
-| ❌ | POST /invites/delete → 401 | 0.0s  +1 | |
-| ❌ | GET /analytics → 401 | 0.0s  +1 | |
-| ❌ | Mot de passe 1 char → 400 | 0.0s  +1 | |
-| ❌ | Mot de passe 5 chars → 400 | 0.0s  +1 | |
-| ❌ | Mot de passe 7 chars → 400 | 0.0s  +1 | |
-| ❌ | Mot de passe 8 chars → accepte | 0.0s  +1 | |
-| ❌ | User normal change pwd autre user → 403 | 0.0s  +1 | |
-| ❌ | Upload fichier vide → 400 | 0.0s  +1 | |
-| ❌ | Upload fichier texte → file_id, puis download OK | 0.0s  +1 | |
-| ❌ | Download fichier inexistant → 404 | 0.0s  +1 | |
-| ❌ | Envoyer message → 200, récupérer → contient message | 0.0s  +1 | |
-| ❌ | Rename conversation → 200 | 0.0s  +1 | |
-| ❌ | Créer partie → jouer e2→e4 → IA répond | 0.0s  +1 | |
-| ❌ | 5 chars → 400 | 0.0s  +1 | |
-| ❌ | 8 chars → accepte | 0.0s  +1 | |
-| ❌ | User change pwd autre user → 403 (integration) | 0.0s  +1 | |
-| ❌ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s  +1 | |
-| ❌ | Download inexistant → 404 | 0.0s  +1 | |
-| ❌ | Envoyer message → 200 | 0.0s  +1 | |
-| ❌ | Rename conversation → 200 (second block) | 0.0s  +1 | |
-| ❌ | POST /conversations/default_global/messages → 401 | 0.0s  +1 | |
-| ❌ | POST /polls/fake-id/close → 401 | 0.0s  +1 | |
-| ❌ | POST /chess/create → 401 | 0.0s  +1 | |
-| ❌ | Upload fichier texte → 200 | 0.0s  +1 | |
-| ❌ | Upload → Download end-to-end | 0.0s  +1 | |
-| ❌ | GET /users/pending → 401 | 0.0s  +1 | |
-| ❌ | 1 char → 400 | 0.0s  +1 | |
-| ✅ | /call/fake-id sans auth → redirige vers /login | 0.3s | |
-| ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
-| ✅ | Modifier message → 200 | 0.0s | |
-| ✅ | Chess coup illégal → 400 | 0.0s | |
-| ✅ | Supprimer message → 200/204 | 0.0s | |
+| ❌ | Mot de passe 8 chars → accepte | 0.1s  +1 | |
+| ❌ | User normal change pwd autre user → 403 | 0.1s  +1 | |
+| ❌ | Mot de passe 7 chars → 400 | 0.1s  +1 | |
+| ❌ | Mot de passe 5 chars → 400 | 0.1s  +1 | |
+| ✅ | /call/fake-id sans auth → redirige vers /login | 0.7s | |
+| ✅ | GET /api/health → "OK" | 0.0s | |
+| ✅ | Upload fichier vide → 400 | 0.0s | |
+| ✅ | GET /polls → 401 | 0.0s | |
+| ✅ | GET /auth/me → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/leave → 401 | 0.0s | |
+| ✅ | Upload → Download end-to-end | 0.0s | |
+| ✅ | DELETE /polls/fake-id → 401 | 0.0s | |
+| ✅ | 1 char → 400 | 0.0s | |
+| ✅ | GET /push/vapid-public-key → 200 (route publique, pas d'auth requise) | 0.0s | |
 | ✅ | Chess resign → status finished | 0.0s | |
+| ✅ | POST /auth/logout → 401 | 0.0s | |
+| ✅ | POST /auth/change-password → 401 | 0.0s | |
+| ✅ | POST /conversations → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | POST /events → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/ai-move → 401 | 0.0s | |
+| ✅ | Upload fichier texte → file_id, puis download OK | 0.0s | |
+| ✅ | Upload sec -- fichier vide refuse → 400 (second block) | 0.0s | |
+| ✅ | POST /auth/public-key → 401 | 0.0s | |
+| ✅ | GET /auth/public-keys?conversation_id=default_global → 401 | 0.0s | |
+| ✅ | GET /conversations → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/participants → 401 | 0.0s | |
+| ✅ | PATCH /conversations/default_global/rename → 401 | 0.0s | |
+| ✅ | GET /download/fake-id-000 → 401 | 0.0s | |
+| ✅ | GET /events → 401 | 0.0s | |
+| ✅ | POST /polls → 401 | 0.0s | |
+| ✅ | GET /chess/fake-id/moves?from=e2 → 401 | 0.0s | |
+| ✅ | POST /api/upload/chat sans auth → 401 | 0.0s | |
+| ✅ | Download fichier inexistant → 404 | 0.0s | |
+| ✅ | Envoyer message → 200, récupérer → contient message | 0.0s | |
+| ✅ | Rename conversation → 200 | 0.0s | |
+| ✅ | Chess coup illégal → 400 | 0.0s | |
+| ✅ | User change pwd autre user → 403 (integration) | 0.0s | |
+| ✅ | Download inexistant → 404 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages → 401 | 0.0s | |
+| ✅ | GET /polls/fake-id → 401 | 0.0s | |
+| ✅ | POST /polls/fake-id/vote → 401 | 0.0s | |
+| ✅ | GET /chess/list → 401 | 0.0s | |
+| ✅ | POST /chess/create → 401 | 0.0s | |
+| ✅ | GET /chess/invitations → 401 | 0.0s | |
+| ✅ | GET /chess/fake-id → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/move → 401 | 0.0s | |
+| ✅ | POST /chess/fake-id/resign → 401 | 0.0s | |
+| ✅ | POST /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | DELETE /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | POST /user/update → 401 | 0.0s | |
+| ✅ | GET /users/available → 401 | 0.0s | |
+| ✅ | GET /push/preferences → 401 | 0.0s | |
+| ✅ | GET /users/pending → 401 | 0.0s | |
+| ✅ | GET /users → 401 | 0.0s | |
+| ✅ | POST /users/approve → 401 | 0.0s | |
+| ✅ | POST /invites → 401 | 0.0s | |
+| ✅ | POST /invites/delete → 401 | 0.0s | |
+| ✅ | Mot de passe 1 char → 400 | 0.0s | |
+| ✅ | Créer partie → jouer e2→e4 → IA répond | 0.0s | |
+| ✅ | 5 chars → 400 | 0.0s | |
+| ✅ | 8 chars → accepte | 0.0s | |
+| ✅ | Upload fichier texte → 200 | 0.0s | |
+| ✅ | Envoyer message → 200 | 0.0s | |
+| ✅ | Rename conversation → 200 (second block) | 0.0s | |
+| ✅ | POST /polls/fake-id/close → 401 | 0.0s | |
+| ✅ | GET /conversations/default_global/messages/x/reactions → 401 | 0.0s | |
+| ✅ | GET /invites → 401 | 0.0s | |
+| ✅ | GET /analytics → 401 | 0.0s | |
 | ✅ | Lister messages → contient le message modifié | 0.0s | |
+| ✅ | Modifier message → 200 | 0.0s | |
+| ✅ | Supprimer message → 200/204 | 0.0s | |
+| ⏭️ | /call/fake-id avec auth → page charge | 0.0s | |
 
 ### ✅ **admin-ui.spec.ts** — 0/6 passés
 
@@ -293,2295 +292,168 @@
 
 | Fichier | ✅ Passés | ❌ Échoués | ⚠️ Flaky | Total |
 |---------|-----------|-------------|-----------|-------|
-| ❌ `unknown` | 7 | 69 | 0 | 182 |
+| ❌ `unknown` | 70 | 4 | 0 | 181 |
 
 ---
 
 ## ❌ Échecs détaillés
 
-> 69 test(s) en échec
+> 4 test(s) en échec
 
-### Échec 1 — `GET /api/health → "OK"`
-
-**Suite :** `api-sanity.spec.ts > Sanité — Serveur`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  10 |
-  11 |   test('GET /api/health → "OK"', async ({ request }) => {
-> 12 |     const res = await request.get(`${BASE}/health`);
-     |                                      ^
-  13 |     expect(res.status()).toBe(200);
-  14 |     expect((await res.text()).trim()).toBe('OK');
-  15 |   });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:12:38
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  10 |
-  11 |   test('GET /api/health → "OK"', async ({ request }) => {
-> 12 |     const res = await request.get(`${BASE}/health`);
-     |                                      ^
-  13 |     expect(res.status()).toBe(200);
-  14 |     expect((await res.text()).trim()).toBe('OK');
-  15 |   });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:12:38
-```
-
-### Échec 2 — `GET /push/vapid-public-key → 200 (route publique, pas d'auth requise)`
-
-**Suite :** `api-sanity.spec.ts > Sanité — Serveur`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  18 |     // La clé VAPID publique doit être accessible sans cookie :
-  19 |     // le browser en a besoin pour créer un PushSubscription avant même le login.
-> 20 |     const res = await request.get(`${BASE}/push/vapid-public-key`);
-     |                                      ^
-  21 |     expect(res.status()).toBe(200);
-  22 |     const body = await res.json();
-  23 |     expect(typeof body.public_key).toBe('string');
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:20:38
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  18 |     // La clé VAPID publique doit être accessible sans cookie :
-  19 |     // le browser en a besoin pour créer un PushSubscription avant même le login.
-> 20 |     const res = await request.get(`${BASE}/push/vapid-public-key`);
-     |                                      ^
-  21 |     expect(res.status()).toBe(200);
-  22 |     const body = await res.json();
-  23 |     expect(typeof body.public_key).toBe('string');
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:20:38
-```
-
-### Échec 3 — `GET /auth/me → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 4 — `POST /auth/logout → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 5 — `POST /auth/change-password → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 6 — `POST /auth/public-key → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 7 — `GET /auth/public-keys?conversation_id=default_global → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 8 — `GET /conversations → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 9 — `POST /conversations → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 10 — `GET /conversations/default_global → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 11 — `GET /conversations/default_global/messages → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 12 — `POST /conversations/default_global/messages → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 13 — `GET /conversations/default_global/participants → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 14 — `POST /conversations/default_global/participants → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 15 — `POST /conversations/default_global/leave → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 16 — `PATCH /conversations/default_global/rename → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-> 85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-     |                                                                        ^
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:85:72
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-> 85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-     |                                                                        ^
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:85:72
-```
-
-### Échec 17 — `GET /download/fake-id-000 → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 18 — `GET /events → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 19 — `POST /events → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 20 — `DELETE /events/fake-id → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-### Échec 21 — `GET /polls → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 22 — `POST /polls → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 23 — `GET /polls/fake-id → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 24 — `POST /polls/fake-id/vote → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 25 — `POST /polls/fake-id/close → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 26 — `DELETE /polls/fake-id → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-### Échec 27 — `GET /chess/list → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 28 — `POST /chess/create → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 29 — `GET /chess/invitations → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 30 — `GET /chess/fake-id → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 31 — `POST /chess/fake-id/move → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 32 — `GET /chess/fake-id/moves?from=e2 → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 33 — `POST /chess/fake-id/ai-move → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 34 — `POST /chess/fake-id/resign → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 35 — `POST /conversations/default_global/messages/x/reactions → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 36 — `DELETE /conversations/default_global/messages/x/reactions → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  82 |       let res;
-  83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-> 84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-     |                                                                         ^
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-  87 |       expect(res.status()).toBe(401);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:84:73
-```
-
-### Échec 37 — `GET /conversations/default_global/messages/x/reactions → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 38 — `POST /user/update → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-     |                                        ^
-  87 |       expect(res.status()).toBe(401);
-  88 |     });
-  89 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:86:40
-```
-
-### Échec 39 — `GET /users/available → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 40 — `GET /push/preferences → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes non-auth → 401`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  81 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  82 |       let res;
-> 83 |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
-     |                                                                 ^
-  84 |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
-  85 |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-  86 |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:83:65
-```
-
-### Échec 41 — `GET /users/pending → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-### Échec 42 — `GET /users → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-### Échec 43 — `POST /users/approve → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-### Échec 44 — `GET /invites → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-### Échec 45 — `POST /invites → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-### Échec 46 — `POST /invites/delete → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  117 |       const res = route.method === 'GET'
-  118 |         ? await request.get(`${BASE}${route.path}`)
-> 119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-      |                                 ^
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-  122 |   }
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:119:33
-```
-
-### Échec 47 — `GET /analytics → 401`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Routes admin → 401 sans auth`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  116 |     test(`${route.method} ${route.path} → 401`, async ({ request }) => {
-  117 |       const res = route.method === 'GET'
-> 118 |         ? await request.get(`${BASE}${route.path}`)
-      |                                ^
-  119 |         : await request.post(`${BASE}${route.path}`, { data: route.body ?? {} });
-  120 |       expect(res.status()).toBe(401);
-  121 |     });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:118:32
-```
-
-### Échec 48 — `Mot de passe 1 char → 400`
+### Échec 1 — `Mot de passe 5 chars → 400`
 
 **Suite :** `api-sanity.spec.ts > Sécurité — Mot de passe faible → rejeté`
-**Durée :** 0.0s
+**Durée :** 0.1s
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toBe(expected) // Object.is equality
 
-  129 | test.describe('Sécurité — Mot de passe faible → rejeté', () => {
-  130 |   test('Mot de passe 1 char → 400', async ({ request }) => {
-> 131 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  132 |       data: { username: 'weakpwd1', password: 'a', email: 'w1@nook.local', name: 'W1' },
-  133 |     });
-  134 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:131:39
-```
+Expected: 400
+Received: 429
 
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  129 | test.describe('Sécurité — Mot de passe faible → rejeté', () => {
-  130 |   test('Mot de passe 1 char → 400', async ({ request }) => {
-> 131 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  132 |       data: { username: 'weakpwd1', password: 'a', email: 'w1@nook.local', name: 'W1' },
-  133 |     });
-  134 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:131:39
-```
-
-### Échec 49 — `Mot de passe 5 chars → 400`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Mot de passe faible → rejeté`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  136 |
-  137 |   test('Mot de passe 5 chars → 400', async ({ request }) => {
-> 138 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
   139 |       data: { username: 'weakpwd2', password: 'abcde', email: 'w2@nook.local', name: 'W2' },
   140 |     });
-  141 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:138:39
+> 141 |     expect(res.status()).toBe(400);
+      |                          ^
+  142 |   });
+  143 |
+  144 |   test('Mot de passe 7 chars → 400', async ({ request }) => {
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:141:26
 ```
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toBe(expected) // Object.is equality
 
-  136 |
-  137 |   test('Mot de passe 5 chars → 400', async ({ request }) => {
-> 138 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
+Expected: 400
+Received: 429
+
   139 |       data: { username: 'weakpwd2', password: 'abcde', email: 'w2@nook.local', name: 'W2' },
   140 |     });
-  141 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:138:39
-```
-
-### Échec 50 — `Mot de passe 7 chars → 400`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Mot de passe faible → rejeté`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
+> 141 |     expect(res.status()).toBe(400);
+      |                          ^
+  142 |   });
   143 |
   144 |   test('Mot de passe 7 chars → 400', async ({ request }) => {
-> 145 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  146 |       data: { username: 'weakpwd3', password: 'abcdefg', email: 'w3@nook.local', name: 'W3' },
-  147 |     });
-  148 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:145:39
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:141:26
 ```
 
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  143 |
-  144 |   test('Mot de passe 7 chars → 400', async ({ request }) => {
-> 145 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  146 |       data: { username: 'weakpwd3', password: 'abcdefg', email: 'w3@nook.local', name: 'W3' },
-  147 |     });
-  148 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:145:39
-```
-
-### Échec 51 — `Mot de passe 8 chars → accepte`
+### Échec 2 — `Mot de passe 7 chars → 400`
 
 **Suite :** `api-sanity.spec.ts > Sécurité — Mot de passe faible → rejeté`
-**Durée :** 0.0s
+**Durée :** 0.1s
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toBe(expected) // Object.is equality
 
+Expected: 400
+Received: 429
+
+  146 |       data: { username: 'weakpwd3', password: 'abcdefg', email: 'w3@nook.local', name: 'W3' },
+  147 |     });
+> 148 |     expect(res.status()).toBe(400);
+      |                          ^
+  149 |   });
   150 |
   151 |   test('Mot de passe 8 chars → accepte', async ({ request }) => {
-> 152 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  153 |       data: { username: 'okpwd1', password: 'Test1234', email: 'ok1@nook.local', name: 'OK1' },
-  154 |     });
-  155 |     // 200 = créé, 409 = déjà existe — les deux sont OK
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:152:39
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:148:26
 ```
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toBe(expected) // Object.is equality
 
+Expected: 400
+Received: 429
+
+  146 |       data: { username: 'weakpwd3', password: 'abcdefg', email: 'w3@nook.local', name: 'W3' },
+  147 |     });
+> 148 |     expect(res.status()).toBe(400);
+      |                          ^
+  149 |   });
   150 |
   151 |   test('Mot de passe 8 chars → accepte', async ({ request }) => {
-> 152 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  153 |       data: { username: 'okpwd1', password: 'Test1234', email: 'ok1@nook.local', name: 'OK1' },
-  154 |     });
-  155 |     // 200 = créé, 409 = déjà existe — les deux sont OK
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:152:39
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:148:26
 ```
 
-### Échec 52 — `User normal change pwd autre user → 403`
+### Échec 3 — `Mot de passe 8 chars → accepte`
+
+**Suite :** `api-sanity.spec.ts > Sécurité — Mot de passe faible → rejeté`
+**Durée :** 0.1s
+
+**Message :**
+```
+Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 409]
+
+  154 |     });
+  155 |     // 200 = créé, 409 = déjà existe — les deux sont OK
+> 156 |     expect([200, 409]).toContain(res.status());
+      |                        ^
+  157 |   });
+  158 | });
+  159 |
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:156:24
+```
+
+**Message :**
+```
+Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 409]
+
+  154 |     });
+  155 |     // 200 = créé, 409 = déjà existe — les deux sont OK
+> 156 |     expect([200, 409]).toContain(res.status());
+      |                        ^
+  157 |   });
+  158 | });
+  159 |
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:156:24
+```
+
+### Échec 4 — `User normal change pwd autre user → 403`
 
 **Suite :** `api-sanity.spec.ts > Sécurité — Change password autre user → 403`
-**Durée :** 0.0s
+**Durée :** 0.1s
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toContain(expected) // indexOf
 
-  161 |   test('User normal change pwd autre user → 403', async ({ request }) => {
-  162 |     // Login e2e_ci
-> 163 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
+Expected value: 429
+Received array: [200, 401]
+
   164 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
   165 |     });
-  166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:163:41
+> 166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
+      |                        ^
+  167 |     if (login.status() === 200) {
+  168 |       const res = await request.post(`${BASE}/auth/change-password`, {
+  169 |         data: { new_password: 'Hacked123!', user_id: 'admin-initial-id-0000-0000-000000000001' },
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:166:24
 ```
 
 **Message :**
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toContain(expected) // indexOf
 
-  161 |   test('User normal change pwd autre user → 403', async ({ request }) => {
-  162 |     // Login e2e_ci
-> 163 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
+Expected value: 429
+Received array: [200, 401]
+
   164 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
   165 |     });
-  166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:163:41
-```
-
-### Échec 53 — `Upload fichier vide → 400`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload validation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  176 | test.describe('Sécurité — Upload validation', () => {
-  177 |   test('Upload fichier vide → 400', async ({ request }) => {
-> 178 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  179 |       data: { username: 'admin', password: 'changeme2026' },
-  180 |     });
-  181 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:178:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  176 | test.describe('Sécurité — Upload validation', () => {
-  177 |   test('Upload fichier vide → 400', async ({ request }) => {
-> 178 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  179 |       data: { username: 'admin', password: 'changeme2026' },
-  180 |     });
-  181 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:178:41
-```
-
-### Échec 54 — `Upload fichier texte → file_id, puis download OK`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload/Download end-to-end`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  194 | test.describe('Sécurité — Upload/Download end-to-end', () => {
-  195 |   test('Upload fichier texte → file_id, puis download OK', async ({ request }) => {
-> 196 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  197 |       data: { username: 'admin', password: 'changeme2026' },
-  198 |     });
-  199 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:196:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  194 | test.describe('Sécurité — Upload/Download end-to-end', () => {
-  195 |   test('Upload fichier texte → file_id, puis download OK', async ({ request }) => {
-> 196 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  197 |       data: { username: 'admin', password: 'changeme2026' },
-  198 |     });
-  199 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:196:41
-```
-
-### Échec 55 — `Download fichier inexistant → 404`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload/Download end-to-end`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  217 |
-  218 |   test('Download fichier inexistant → 404', async ({ request }) => {
-> 219 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  220 |       data: { username: 'admin', password: 'changeme2026' },
-  221 |     });
-  222 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:219:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  217 |
-  218 |   test('Download fichier inexistant → 404', async ({ request }) => {
-> 219 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  220 |       data: { username: 'admin', password: 'changeme2026' },
-  221 |     });
-  222 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:219:41
-```
-
-### Échec 56 — `Envoyer message → 200, récupérer → contient message`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Message conversation CRUD`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  229 | test.describe('Sécurité — Message conversation CRUD', () => {
-  230 |   test('Envoyer message → 200, récupérer → contient message', async ({ request }) => {
-> 231 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  232 |       data: { username: 'admin', password: 'changeme2026' },
-  233 |     });
-  234 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:231:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  229 | test.describe('Sécurité — Message conversation CRUD', () => {
-  230 |   test('Envoyer message → 200, récupérer → contient message', async ({ request }) => {
-> 231 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  232 |       data: { username: 'admin', password: 'changeme2026' },
-  233 |     });
-  234 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:231:41
-```
-
-### Échec 57 — `Rename conversation → 200`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Message conversation CRUD`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  263 |
-  264 |   test('Rename conversation → 200', async ({ request }) => {
-> 265 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  266 |       data: { username: 'admin', password: 'changeme2026' },
-  267 |     });
-  268 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:265:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  263 |
-  264 |   test('Rename conversation → 200', async ({ request }) => {
-> 265 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  266 |       data: { username: 'admin', password: 'changeme2026' },
-  267 |     });
-  268 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:265:41
-```
-
-### Échec 58 — `/call/fake-id avec auth → page charge`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Call page access`
-**Durée :** 21.2s
-
-**Message :**
-```
-TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
-=========================== logs ===========================
-waiting for navigation until "load"
-============================================================
-
-  290 |     await page.fill('input[name="password"], input[type="password"]', 'E2eTest123!');
-  291 |     await page.click('button[type="submit"]');
-> 292 |     await page.waitForURL(/chat|change-password/, { timeout: 10000 });
-      |                ^
-  293 |
-  294 |     await page.goto('http://localhost:6300/call/default_global');
-  295 |     await page.waitForLoadState('networkidle', { timeout: 10000 });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:292:16
-```
-
-**Message :**
-```
-TimeoutError: page.waitForURL: Timeout 10000ms exceeded.
-=========================== logs ===========================
-waiting for navigation until "load"
-============================================================
-
-  290 |     await page.fill('input[name="password"], input[type="password"]', 'E2eTest123!');
-  291 |     await page.click('button[type="submit"]');
-> 292 |     await page.waitForURL(/chat|change-password/, { timeout: 10000 });
-      |                ^
-  293 |
-  294 |     await page.goto('http://localhost:6300/call/default_global');
-  295 |     await page.waitForLoadState('networkidle', { timeout: 10000 });
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:292:16
-```
-
-### Échec 59 — `Créer partie → jouer e2→e4 → IA répond`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Chess spécial`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  304 |   test('Créer partie → jouer e2→e4 → IA répond', async ({ request }) => {
-  305 |     // Create game
-> 306 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  307 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
-  308 |     });
-  309 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:306:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  304 |   test('Créer partie → jouer e2→e4 → IA répond', async ({ request }) => {
-  305 |     // Create game
-> 306 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  307 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
-  308 |     });
-  309 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:306:41
-```
-
-### Échec 60 — `1 char → 400`
-
-**Suite :** `api-sanity.spec.ts > Sécurité renforcée — Mot de passe faible`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  361 | test.describe('Sécurité renforcée — Mot de passe faible', () => {
-  362 |   test('1 char → 400', async ({ request }) => {
-> 363 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  364 |       data: { username: 'weak1', password: 'a', email: 'w1@nook.local', name: 'W1' },
-  365 |     });
-  366 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:363:39
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  361 | test.describe('Sécurité renforcée — Mot de passe faible', () => {
-  362 |   test('1 char → 400', async ({ request }) => {
-> 363 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  364 |       data: { username: 'weak1', password: 'a', email: 'w1@nook.local', name: 'W1' },
-  365 |     });
-  366 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:363:39
-```
-
-### Échec 61 — `5 chars → 400`
-
-**Suite :** `api-sanity.spec.ts > Sécurité renforcée — Mot de passe faible`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  368 |
-  369 |   test('5 chars → 400', async ({ request }) => {
-> 370 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  371 |       data: { username: 'weak2', password: 'abcde', email: 'w2@nook.local', name: 'W2' },
-  372 |     });
-  373 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:370:39
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  368 |
-  369 |   test('5 chars → 400', async ({ request }) => {
-> 370 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  371 |       data: { username: 'weak2', password: 'abcde', email: 'w2@nook.local', name: 'W2' },
-  372 |     });
-  373 |     expect(res.status()).toBe(400);
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:370:39
-```
-
-### Échec 62 — `8 chars → accepte`
-
-**Suite :** `api-sanity.spec.ts > Sécurité renforcée — Mot de passe faible`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  375 |
-  376 |   test('8 chars → accepte', async ({ request }) => {
-> 377 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  378 |       data: { username: 'okpwd', password: 'Test1234', email: 'ok@nook.local', name: 'OK' },
-  379 |     });
-  380 |     expect([200, 409]).toContain(res.status());
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:377:39
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  375 |
-  376 |   test('8 chars → accepte', async ({ request }) => {
-> 377 |     const res = await request.post(`${BASE}/auth/register`, {
-      |                                       ^
-  378 |       data: { username: 'okpwd', password: 'Test1234', email: 'ok@nook.local', name: 'OK' },
-  379 |     });
-  380 |     expect([200, 409]).toContain(res.status());
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:377:39
-```
-
-### Échec 63 — `User change pwd autre user → 403 (integration)`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Change password autre user → 403 (fix C1)`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  384 | test.describe('Sécurité — Change password autre user → 403 (fix C1)', () => {
-  385 |   test('User change pwd autre user → 403 (integration)', async ({ request }) => {
-> 386 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  387 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
-  388 |     });
-  389 |     if (login.status() === 200) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:386:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  384 | test.describe('Sécurité — Change password autre user → 403 (fix C1)', () => {
-  385 |   test('User change pwd autre user → 403 (integration)', async ({ request }) => {
-> 386 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  387 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
-  388 |     });
-  389 |     if (login.status() === 200) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:386:41
-```
-
-### Échec 64 — `Upload sec -- fichier vide refuse → 400 (second block)`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload validation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  398 | test.describe('Sécurité — Upload validation', () => {
-  399 |   test('Upload sec -- fichier vide refuse → 400 (second block)', async ({ request }) => {
-> 400 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  401 |       data: { username: 'admin', password: 'changeme2026' },
-  402 |     });
-  403 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:400:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  398 | test.describe('Sécurité — Upload validation', () => {
-  399 |   test('Upload sec -- fichier vide refuse → 400 (second block)', async ({ request }) => {
-> 400 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  401 |       data: { username: 'admin', password: 'changeme2026' },
-  402 |     });
-  403 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:400:41
-```
-
-### Échec 65 — `Upload fichier texte → 200`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload validation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  414 |
-  415 |   test('Upload fichier texte → 200', async ({ request }) => {
-> 416 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  417 |       data: { username: 'admin', password: 'changeme2026' },
-  418 |     });
-  419 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:416:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  414 |
-  415 |   test('Upload fichier texte → 200', async ({ request }) => {
-> 416 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  417 |       data: { username: 'admin', password: 'changeme2026' },
-  418 |     });
-  419 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:416:41
-```
-
-### Échec 66 — `Upload → Download end-to-end`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload validation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  432 |
-  433 |   test('Upload → Download end-to-end', async ({ request }) => {
-> 434 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  435 |       data: { username: 'admin', password: 'changeme2026' },
-  436 |     });
-  437 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:434:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  432 |
-  433 |   test('Upload → Download end-to-end', async ({ request }) => {
-> 434 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  435 |       data: { username: 'admin', password: 'changeme2026' },
-  436 |     });
-  437 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:434:41
-```
-
-### Échec 67 — `Download inexistant → 404`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Upload validation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  453 |
-  454 |   test('Download inexistant → 404', async ({ request }) => {
-> 455 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  456 |       data: { username: 'admin', password: 'changeme2026' },
-  457 |     });
-  458 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:455:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  453 |
-  454 |   test('Download inexistant → 404', async ({ request }) => {
-> 455 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  456 |       data: { username: 'admin', password: 'changeme2026' },
-  457 |     });
-  458 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:455:41
-```
-
-### Échec 68 — `Envoyer message → 200`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Message CRUD conversation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  467 |
-  468 |   test('Envoyer message → 200', async ({ request }) => {
-> 469 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  470 |       data: { username: 'admin', password: 'changeme2026' },
-  471 |     });
-  472 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:469:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  467 |
-  468 |   test('Envoyer message → 200', async ({ request }) => {
-> 469 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  470 |       data: { username: 'admin', password: 'changeme2026' },
-  471 |     });
-  472 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:469:41
-```
-
-### Échec 69 — `Rename conversation → 200 (second block)`
-
-**Suite :** `api-sanity.spec.ts > Sécurité — Message CRUD conversation`
-**Durée :** 0.0s
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  521 |
-  522 |   test('Rename conversation → 200 (second block)', async ({ request }) => {
-> 523 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  524 |       data: { username: 'admin', password: 'changeme2026' },
-  525 |     });
-  526 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:523:41
-```
-
-**Message :**
-```
-ReferenceError: BASE is not defined
-
-  521 |
-  522 |   test('Rename conversation → 200 (second block)', async ({ request }) => {
-> 523 |     const login = await request.post(`${BASE}/auth/login`, {
-      |                                         ^
-  524 |       data: { username: 'admin', password: 'changeme2026' },
-  525 |     });
-  526 |     if (login.ok()) {
-    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:523:41
+> 166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
+      |                        ^
+  167 |     if (login.status() === 200) {
+  168 |       const res = await request.post(`${BASE}/auth/change-password`, {
+  169 |         data: { new_password: 'Hacked123!', user_id: 'admin-initial-id-0000-0000-000000000001' },
+    at /home/runner/work/Nook/Nook/frontend/tests/api-sanity.spec.ts:166:24
 ```
 
 ---
@@ -2590,6 +462,29 @@ ReferenceError: BASE is not defined
 
 ```
 WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administrateur initial
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/register
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
+WARN nook_backend: Auth rate limit exceeded (429) — too many login attempts ip=172.18.0.1 path=/auth/login
 ```
 
 ---
@@ -2599,11 +494,11 @@ WARN nook_backend: ⚠️  Aucun utilisateur trouvé - création de l'administra
 > Le rapport HTML complet est disponible en artifact GitHub Actions.
 >
 > - **Nom de l'artifact :** `playwright-report`
-> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/27185591768](https://github.com/MX10-AC2N/Nook/actions/runs/27185591768)
+> - **URL du run :** [https://github.com/MX10-AC2N/Nook/actions/runs/27566613057](https://github.com/MX10-AC2N/Nook/actions/runs/27566613057)
 > - **Chemin local (CI) :** `frontend/playwright-report/`
 
 Pour examiner visuellement les échecs :
-1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/27185591768)
+1. Télécharger l'artifact `playwright-report` depuis le [run CI](https://github.com/MX10-AC2N/Nook/actions/runs/27566613057)
 2. Ouvrir `index.html` dans un navigateur
 3. Utiliser l'interface pour explorer les traces et screenshots
 
@@ -2629,4 +524,4 @@ Pour examiner visuellement les échecs :
 
 ---
 
-*Rapport généré par `scripts/generate-test-report.py` — 2026-06-09 05:37 UTC*
+*Rapport généré par `scripts/generate-test-report.py` — 2026-06-15 18:28 UTC*
