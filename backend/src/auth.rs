@@ -366,7 +366,7 @@ pub async fn change_password(
 
 // ====================== MIDDLEWARE AUTH ======================
 pub async fn require_auth(
-    state: Arc<SharedState>,
+    AxumState(state): AxumState<Arc<SharedState>>,
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
@@ -392,6 +392,7 @@ pub async fn require_auth(
                         .unwrap_or(None);
 
                         if let Some(user) = user {
+                            req.extensions_mut().insert(state.clone());
                             req.extensions_mut().insert(CurrentUser(user));
                             return next.run(req).await;
                         }
