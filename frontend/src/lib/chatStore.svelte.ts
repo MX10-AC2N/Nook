@@ -77,17 +77,6 @@ const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en é
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 let _wasCryptoReady = false; // Track crypto ready state for reactive effect
 
-// Reactive effect: trigger decryption immediately when cryptoStore.ready becomes true
-$effect(() => {
-  if (cryptoStore.ready && !_wasCryptoReady) {
-    _wasCryptoReady = true;
-    console.log('[Chat] cryptoStore became ready, triggering decrypt');
-    _decryptAllIfReady();
-  } else if (!cryptoStore.ready) {
-    _wasCryptoReady = false;
-  }
-});
-
 async function _decryptAllIfReady(): Promise<void> {
   console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, 'hasKeys=', hasKeys(), '_messagesReloaded=', _messagesReloaded);
   if (!cryptoStore.ready || !hasKeys()) { console.log('[Chat] cryptoStore not ready or no keys, returning'); return; }
@@ -162,8 +151,11 @@ function _setupCryptoReadyListener(): void {
   console.log('[Chat] Listener crypto ready démarré');
 }
 
-// Démarrer le listener au chargement du module
-_setupCryptoReadyListener();
+// Exporté pour initialisation côté composant (chat/+page.svelte) — évite les $effect orphelins
+// au chargement du module lors de l'import dynamique dans le root layout.
+export function initCryptoListener(): void {
+  _setupCryptoReadyListener();
+}
 
 // Other state as $state (less critical for cross-file reactivity)
 export const chatStore = $state<Omit<ChatState, 'messages'>>({
