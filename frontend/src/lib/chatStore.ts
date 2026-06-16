@@ -60,4 +60,5 @@ export {
   MAX_BYTES_SERVER,
   cancelTransfer,
   triggerDecryptAllIfReady,
+  initCryptoListener,
 } from './chatStore.svelte';
