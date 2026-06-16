@@ -21,6 +21,7 @@
     MAX_BYTES_SERVER,
     cancelTransfer,
     triggerDecryptAllIfReady,
+    initCryptoListener,
   } from '$lib/chatStore';
   import type { ChatMessage } from '$lib/chatStore';
   import { sanitizeHtml, highlightMentions } from '$lib/sanitize';
@@ -1139,6 +1140,8 @@
 
     await loadMessages(activeConvId);
     await loadReactionsForMessages(activeConvId);
+    // Démarrer le listener crypto pour le déchiffrement automatique des messages existants
+    initCryptoListener();
     setActiveConv(activeConvId);
     // Scroll to top after initial load — newest messages are at top
     requestAnimationFrame(() => {
