@@ -7,7 +7,7 @@
 
 use axum::{
     body::Body,
-    extract::{ConnectInfo, DefaultBodyLimit},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, Query},
     http::{
         header::CONTENT_TYPE,
         Request,
@@ -24,6 +24,7 @@ use governor::{
     Quota, RateLimiter,
 };
 use std::num::NonZeroU32;
+use bytes::Bytes;
 use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
@@ -439,6 +440,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/invite/validate", get(invites::validate_invite))
         .route("/invite/accept", axum::routing::post(invites::accept_invite))
         .route("/health", get(|| async { "OK" }))
+        .route("/avatar/{style}/svg", get(avatar_proxy))
         .nest("/push", push::public_router())
         .route_layer(middleware::from_fn(move |
             ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -614,7 +616,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
             headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
             headers.insert("Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
             // HSTS uniquement sur HTTPS (nginx termine TLS et forward x-forwarded-proto: https)
             if is_https {
                 headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
@@ -631,7 +633,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(shared_state)
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    tracing::info!("✓ Application Axum construite (base_inject supprimé, rate limit IP actif)");
+// --- Avatar Proxy Handler ---
+async fn avatar_proxy(
+    Path(style): Path<String>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::{HeaderMap, HeaderValue, StatusCode};
+    use reqwest::Client;
+
+    let valid_styles = [
+        "adventurer", "avataaars", "open-peeps", "notionists", "fun-emoji",
+        "big-smile", "lorelei", "personas", "bottts", "initials",
+    ];
+
+    let style = if valid_styles.contains(&style.as_str()) {
+        style
+    } else {
+        "adventurer".to_string()
+    };
+
+    let seed = params.get("seed").cloned().unwrap_or_else(|| "nook".to_string());
+    let size = params.get("size").and_then(|s| s.parse::<u32>().ok()).unwrap_or(32).min(512);
+
+    let dicebear_url = if style == "initials" {
+        format!("https://api.dicebear.com/9.x/initials/svg?seed={}&size={}", urlencoding::encode(&seed), size)
+    } else {
+        format!("https://api.dicebear.com/9.x/{}/svg?seed={}&size={}", style, urlencoding::encode(&seed), size)
+    };
+
+    let client = Client::new();
+    match client.get(&dicebear_url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let content_type = resp.headers().get("content-type").cloned().unwrap_or_else(|| HeaderValue::from_static("image/svg+xml"));
+            let bytes = resp.bytes().await.unwrap_or_default();
+            let mut headers = HeaderMap::new();
+            headers.insert("content-type", content_type);
+            headers.insert("cache-control", HeaderValue::from_static("public, max-age=31536000"));
+            (StatusCode::OK, headers, bytes)
+        }
+        Ok(resp) => {
+            tracing::warn!(status = %resp.status(), "DiceBear proxy error");
+            (StatusCode::BAD_GATEWAY, HeaderMap::new(), Bytes::new())
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "DiceBear proxy request failed");
+            (StatusCode::BAD_GATEWAY, HeaderMap::new(), Bytes::new())
+        }
+    }
+}
+// ---
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
 

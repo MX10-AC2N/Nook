@@ -24,7 +24,7 @@
   let imgFailed = $state(false);
   let imgLoading = $state(true);
 
-  const CDN_BASE = 'https://api.dicebear.com/9.x';
+  const CDN_BASE = '/api/avatar';
 
   // Timeout fallback: si l'image ne charge pas en 3s, on passe au fallback
   $effect(() => {
@@ -46,12 +46,12 @@
     return seed || username || userId || 'nook';
   }
 
-  function getDicebearUrl(): string {
+  function getAvatarUrl(): string {
     const s = getAvatarStyle();
-    if (s === 'initials') {
-      return `${CDN_BASE}/initials/svg?seed=${encodeURIComponent(getSeed())}&size=${size}`;
-    }
-    return `${CDN_BASE}/${s}/svg?seed=${encodeURIComponent(getSeed())}&size=${size}`;
+    const params = new URLSearchParams();
+    params.set('seed', getSeed());
+    params.set('size', String(size));
+    return `${CDN_BASE}/${s}/svg?${params.toString()}`;
   }
 
   function getInitials(): string {
@@ -85,7 +85,7 @@
 {#if !imgFailed && !imgLoading && getAvatarStyle() !== 'initials'}
   <img
     class="avatar-img"
-    src={getDicebearUrl()}
+    src={getAvatarUrl()}
     alt={name || username}
     width={size}
     height={size}
