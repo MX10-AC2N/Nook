@@ -612,7 +612,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
             headers.insert("Content-Security-Policy",
                 "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
-            headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
+            // HSTS uniquement sur HTTPS (nginx termine TLS et forward x-forwarded-proto: https)
+            if req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https") {
+                headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
+            }
             response
         }))
         // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
