@@ -603,6 +603,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // 🛡️ Security headers middleware
         .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
+            // HSTS check must happen BEFORE consuming req
+            let is_https = req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
+            
             let mut response = next.run(req).await;
             let headers = response.headers_mut();
             headers.insert("X-Frame-Options", "DENY".parse().unwrap());
@@ -613,7 +616,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             headers.insert("Content-Security-Policy",
                 "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.dicebear.com; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
             // HSTS uniquement sur HTTPS (nginx termine TLS et forward x-forwarded-proto: https)
-            if req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https") {
+            if is_https {
                 headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
             }
             response
