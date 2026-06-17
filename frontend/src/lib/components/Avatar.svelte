@@ -22,8 +22,20 @@
   } = $props();
 
   let imgFailed = $state(false);
+  let imgLoading = $state(true);
 
   const CDN_BASE = 'https://api.dicebear.com/9.x';
+
+  // Timeout fallback: si l'image ne charge pas en 3s, on passe au fallback
+  $effect(() => {
+    if (imgLoading) {
+      const timeout = setTimeout(() => {
+        imgFailed = true;
+        imgLoading = false;
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  });
 
   function getAvatarStyle(): string {
     // Use explicit style prop, or fallback to default
@@ -62,10 +74,15 @@
 
   function handleError() {
     imgFailed = true;
+    imgLoading = false;
+  }
+
+  function handleLoad() {
+    imgLoading = false;
   }
 </script>
 
-{#if !imgFailed && getAvatarStyle() !== 'initials'}
+{#if !imgFailed && !imgLoading && getAvatarStyle() !== 'initials'}
   <img
     class="avatar-img"
     src={getDicebearUrl()}
@@ -75,7 +92,16 @@
     title={name || username}
     loading="lazy"
     onerror={handleError}
+    onload={handleLoad}
   />
+{:else if imgLoading}
+  <div
+    class="avatar-fallback"
+    style="width: {size}px; height: {size}px; background-color: {getColor()}; font-size: {size * 0.4}px;"
+    title={name || username}
+  >
+    {getInitials()}
+  </div>
 {:else}
   <div
     class="avatar-fallback"

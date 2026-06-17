@@ -330,6 +330,8 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--bg-primary, #f5f7fa);
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   .loading-screen {
@@ -471,14 +473,14 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-        .app-main { padding: 0; background: var(--bg-primary, #f5f7fa); }
+        .app-main { flex: 1; padding: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
-    text-align: center; padding: 1.25rem; color: var(--text-secondary, #64748b);
-    font-size: 0.85rem; border-top: 1px solid var(--border, #e2e8f0); background: var(--bg-secondary, white);
-    flex-shrink: 0;
+    text-align: center; padding: 0.5rem; color: var(--text-secondary, #64748b);
+    font-size: 0.7rem; border-top: 1px solid var(--border, #e2e8f0); background: var(--bg-secondary, white);
+    flex-shrink: 0; opacity: 0.6;
   }
-
+  .app-footer:hover { opacity: 1; }
   .app-footer p { margin: 0; }
 
   @media (max-width: 640px) {
