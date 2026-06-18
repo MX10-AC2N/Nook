@@ -22,23 +22,10 @@
   } = $props();
 
   let imgFailed = $state(false);
-  let imgLoading = $state(true);
 
   const CDN_BASE = '/api/avatar';
 
-  // Timeout fallback: si l'image ne charge pas en 3s, on passe au fallback
-  $effect(() => {
-    if (imgLoading) {
-      const timeout = setTimeout(() => {
-        imgFailed = true;
-        imgLoading = false;
-      }, 3000);
-      return () => clearTimeout(timeout);
-    }
-  });
-
   function getAvatarStyle(): string {
-    // Use explicit style prop, or fallback to default
     return style || 'adventurer';
   }
 
@@ -74,15 +61,22 @@
 
   function handleError() {
     imgFailed = true;
-    imgLoading = false;
   }
 
   function handleLoad() {
-    imgLoading = false;
+    // Image loaded successfully
   }
 </script>
 
-{#if !imgFailed && !imgLoading && getAvatarStyle() !== 'initials'}
+{#if getAvatarStyle() === 'initials' || imgFailed}
+  <div
+    class="avatar-fallback"
+    style="width: {size}px; height: {size}px; background-color: {getColor()}; font-size: {size * 0.4}px;"
+    title={name || username}
+  >
+    {getInitials()}
+  </div>
+{:else}
   <img
     class="avatar-img"
     src={getAvatarUrl()}
@@ -94,22 +88,6 @@
     onerror={handleError}
     onload={handleLoad}
   />
-{:else if imgLoading}
-  <div
-    class="avatar-fallback"
-    style="width: {size}px; height: {size}px; background-color: {getColor()}; font-size: {size * 0.4}px;"
-    title={name || username}
-  >
-    {getInitials()}
-  </div>
-{:else}
-  <div
-    class="avatar-fallback"
-    style="width: {size}px; height: {size}px; background-color: {getColor()}; font-size: {size * 0.4}px;"
-    title={name || username}
-  >
-    {getInitials()}
-  </div>
 {/if}
 
 <style>
