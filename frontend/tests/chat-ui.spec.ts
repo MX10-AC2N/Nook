@@ -1,11 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
-
 test.describe('Chat UI — Améliorations', () => {
   
   test('Login + navigate to chat', async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.screenshot({ path: '/tmp/nook-01-login.png' });
     
     // Fill login form
@@ -21,7 +19,7 @@ test.describe('Chat UI — Améliorations', () => {
 
   test('Header is compact (< 60px)', async ({ page }) => {
     // Login first
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -37,7 +35,7 @@ test.describe('Chat UI — Améliorations', () => {
   });
 
   test('Send emoji-only message (should be large)', async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -59,7 +57,7 @@ test.describe('Chat UI — Améliorations', () => {
   });
 
   test('Reaction picker opens on hover + click', async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -95,7 +93,7 @@ test.describe('Chat UI — Améliorations', () => {
   });
 
   test('Input stays enabled while sending', async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');

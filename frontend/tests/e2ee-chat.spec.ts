@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
 
 test.describe('E2EE Chat — Encryption + Decryption', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');

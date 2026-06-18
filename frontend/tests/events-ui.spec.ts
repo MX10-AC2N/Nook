@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
 
 test.describe('Events UI — Calendar + Creation', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -15,7 +14,7 @@ test.describe('Events UI — Calendar + Creation', () => {
 
   test('Events UI: Navigate to calendar', async ({ page }) => {
     // Try to navigate to calendar/events page
-    await page.goto(BASE + '/events');
+    await page.goto('/events');
     await page.waitForTimeout(2000);
 
     const url = page.url();
@@ -33,7 +32,7 @@ test.describe('Events UI — Calendar + Creation', () => {
   });
 
   test('Events UI: Create event button', async ({ page }) => {
-    await page.goto(BASE + '/events');
+    await page.goto('/events');
     await page.waitForTimeout(2000);
 
     // Look for create event button
@@ -69,7 +68,7 @@ test.describe('Events UI — Calendar + Creation', () => {
   });
 
   test('Events UI: List events', async ({ page }) => {
-    await page.goto(BASE + '/events');
+    await page.goto('/events');
     await page.waitForTimeout(2000);
 
     // Check for event list

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
 
 test.describe('Push Notifications — VAPID + Subscription', () => {
 
@@ -21,7 +20,7 @@ test.describe('Push Notifications — VAPID + Subscription', () => {
 
   test('Push subscription flow (mocked)', async ({ page }) => {
     // Login first
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');

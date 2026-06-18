@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
 
 test.describe('Call Page UI — Audio/Video', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -87,7 +86,7 @@ test.describe('Call Page UI — Audio/Video', () => {
   test('Call banner appears on chat page when call active', async ({ page, context }) => {
     // This test simulates receiving a call
     // Open chat page first
-    await page.goto(BASE + '/chat');
+    await page.goto('/chat');
     await page.waitForTimeout(2000);
 
     // Check if call banner exists (might be hidden initially)

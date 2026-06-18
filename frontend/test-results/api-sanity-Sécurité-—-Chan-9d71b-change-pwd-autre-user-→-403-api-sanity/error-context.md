@@ -6,83 +6,21 @@
 
 # Test info
 
-- Name: api-sanity.spec.ts >> Sécurité — Routes non-auth → 401 >> POST /conversations/default_global/participants → 401
-- Location: tests/api-sanity.spec.ts:81:5
+- Name: api-sanity.spec.ts >> Sécurité — Change password autre user → 403 >> User normal change pwd autre user → 403
+- Location: tests/api-sanity.spec.ts:161:3
 
 # Error details
 
 ```
-ReferenceError: BASE is not defined
+Error: expect(received).toContain(expected) // indexOf
+
+Expected value: 429
+Received array: [200, 401]
 ```
 
 # Test source
 
 ```ts
-  1   | // frontend/tests/api-sanity.spec.ts
-  2   | // Tests de sécurité et sanité API — AUCUN login requis.
-  3   | // Vérifie que chaque route protégée rejette les requêtes non authentifiées (401)
-  4   | // et que les routes admin rejettent les utilisateurs normaux (403).
-  5   | // Ces tests sont rapides (~30s) et ne consomment aucun quota de rate limit.
-  6   | 
-  7   | import { test, expect } from '@playwright/test';
-  8   | 
-  9   | test.describe('Sanité — Serveur', () => {
-  10  | 
-  11  |   test('GET /api/health → "OK"', async ({ request }) => {
-  12  |     const res = await request.get(`${BASE}/health`);
-  13  |     expect(res.status()).toBe(200);
-  14  |     expect((await res.text()).trim()).toBe('OK');
-  15  |   });
-  16  | 
-  17  |   test('GET /push/vapid-public-key → 200 (route publique, pas d\'auth requise)', async ({ request }) => {
-  18  |     // La clé VAPID publique doit être accessible sans cookie :
-  19  |     // le browser en a besoin pour créer un PushSubscription avant même le login.
-  20  |     const res = await request.get(`${BASE}/push/vapid-public-key`);
-  21  |     expect(res.status()).toBe(200);
-  22  |     const body = await res.json();
-  23  |     expect(typeof body.public_key).toBe('string');
-  24  |   });
-  25  | 
-  26  | });
-  27  | 
-  28  | test.describe('Sécurité — Routes non-auth → 401', () => {
-  29  | 
-  30  |   const routes: Array<{ method: 'GET' | 'POST' | 'DELETE' | 'PATCH'; path: string; body?: object }> = [
-  31  |     // Auth
-  32  |     { method: 'GET',    path: '/auth/me' },
-  33  |     { method: 'POST',   path: '/auth/logout' },
-  34  |     { method: 'POST',   path: '/auth/change-password', body: { new_password: 'x' } },
-  35  |     { method: 'POST',   path: '/auth/public-key', body: { public_key: 'x' } },
-  36  |     { method: 'GET',    path: '/auth/public-keys?conversation_id=default_global' },
-  37  |     // Conversations
-  38  |     { method: 'GET',    path: '/conversations' },
-  39  |     { method: 'POST',   path: '/conversations', body: { name: 'x' } },
-  40  |     { method: 'GET',    path: '/conversations/default_global' },
-  41  |     { method: 'GET',    path: '/conversations/default_global/messages' },
-  42  |     { method: 'POST',   path: '/conversations/default_global/messages', body: { content: 'x' } },
-  43  |     { method: 'GET',    path: '/conversations/default_global/participants' },
-  44  |     { method: 'POST',   path: '/conversations/default_global/participants', body: { user_id: 'x' } },
-  45  |     { method: 'POST',   path: '/conversations/default_global/leave' },
-  46  |     { method: 'PATCH',  path: '/conversations/default_global/rename', body: { name: 'x' } },
-  47  |     // Upload/Download
-  48  |     { method: 'GET',    path: '/download/fake-id-000' },
-  49  |     // Events
-  50  |     { method: 'GET',    path: '/events' },
-  51  |     { method: 'POST',   path: '/events', body: { title: 'x', date: '2026-01-01' } },
-  52  |     { method: 'DELETE', path: '/events/fake-id' },
-  53  |     // Polls
-  54  |     { method: 'GET',    path: '/polls' },
-  55  |     { method: 'POST',   path: '/polls', body: { question: 'x', options: ['a', 'b'] } },
-  56  |     { method: 'GET',    path: '/polls/fake-id' },
-  57  |     { method: 'POST',   path: '/polls/fake-id/vote', body: { option_id: 'x' } },
-  58  |     { method: 'POST',   path: '/polls/fake-id/close' },
-  59  |     { method: 'DELETE', path: '/polls/fake-id' },
-  60  |     // Chess
-  61  |     { method: 'GET',    path: '/chess/list' },
-  62  |     { method: 'POST',   path: '/chess/create', body: { color: 'white' } },
-  63  |     { method: 'GET',    path: '/chess/invitations' },
-  64  |     { method: 'GET',    path: '/chess/fake-id' },
-  65  |     { method: 'POST',   path: '/chess/fake-id/move', body: { from: 'e2', to: 'e4' } },
   66  |     { method: 'GET',    path: '/chess/fake-id/moves?from=e2' },
   67  |     { method: 'POST',   path: '/chess/fake-id/ai-move' },
   68  |     { method: 'POST',   path: '/chess/fake-id/resign' },
@@ -103,14 +41,13 @@ ReferenceError: BASE is not defined
   83  |       if (route.method === 'GET')    res = await request.get(`${BASE}${route.path}`);
   84  |       else if (route.method === 'DELETE') res = await request.delete(`${BASE}${route.path}`);
   85  |       else if (route.method === 'PATCH')  res = await request.patch(`${BASE}${route.path}`, { data: route.body });
-> 86  |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
-      |                                        ^ ReferenceError: BASE is not defined
+  86  |       else res = await request.post(`${BASE}${route.path}`, { data: route.body });
   87  |       expect(res.status()).toBe(401);
   88  |     });
   89  |   }
   90  | 
   91  |   test('POST /api/upload/chat sans auth → 401', async ({ request }) => {
-  92  |     const res = await request.post('/api/upload/chat', {
+  92  |     const res = await request.post(`${BASE}/upload/chat`, {
   93  |       multipart: {
   94  |         file: { name: 'x.txt', mimeType: 'text/plain', buffer: Buffer.from('x') },
   95  |         conversation_id: 'default_global',
@@ -184,7 +121,8 @@ ReferenceError: BASE is not defined
   163 |     const login = await request.post(`${BASE}/auth/login`, {
   164 |       data: { username: 'e2e_ci', password: 'E2eTest123!' },
   165 |     });
-  166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
+> 166 |     expect([200, 401]).toContain(login.status()); // 401 if not approved yet
+      |                        ^ Error: expect(received).toContain(expected) // indexOf
   167 |     if (login.status() === 200) {
   168 |       const res = await request.post(`${BASE}/auth/change-password`, {
   169 |         data: { new_password: 'Hacked123!', user_id: 'admin-initial-id-0000-0000-000000000001' },
@@ -205,4 +143,84 @@ ReferenceError: BASE is not defined
   184 |           file: { name: 'empty.txt', mimeType: 'text/plain', buffer: Buffer.from('') },
   185 |           conversation_id: 'default_global',
   186 |           from_user_id: 'admin-initial-id-0000-0000-000000000001',
+  187 |         },
+  188 |       });
+  189 |       expect(res.status()).toBe(400);
+  190 |     }
+  191 |   });
+  192 | });
+  193 | 
+  194 | test.describe('Sécurité — Upload/Download end-to-end', () => {
+  195 |   test('Upload fichier texte → file_id, puis download OK', async ({ request }) => {
+  196 |     const login = await request.post(`${BASE}/auth/login`, {
+  197 |       data: { username: 'admin', password: 'changeme2026' },
+  198 |     });
+  199 |     if (login.ok()) {
+  200 |       const upload = await request.post(`${BASE}/upload/chat`, {
+  201 |         multipart: {
+  202 |           file: { name: 'test.txt', mimeType: 'text/plain', buffer: Buffer.from('Test content for CI download') },
+  203 |           conversation_id: 'default_global',
+  204 |           from_user_id: 'admin-initial-id-0000-0000-000000000001',
+  205 |         },
+  206 |       });
+  207 |       expect(upload.status()).toBe(200);
+  208 |       const body = await upload.json();
+  209 |       expect(body.file_id).toBeTruthy();
+  210 |       const fileId = body.file_id;
+  211 | 
+  212 |       // Download the uploaded file
+  213 |       const dl = await request.get(`${BASE}/download/${fileId}`);
+  214 |       expect(dl.status()).toBe(200);
+  215 |     }
+  216 |   });
+  217 | 
+  218 |   test('Download fichier inexistant → 404', async ({ request }) => {
+  219 |     const login = await request.post(`${BASE}/auth/login`, {
+  220 |       data: { username: 'admin', password: 'changeme2026' },
+  221 |     });
+  222 |     if (login.ok()) {
+  223 |       const res = await request.get(`${BASE}/download/nonexistent-id-12345`);
+  224 |       expect(res.status()).toBe(404);
+  225 |     }
+  226 |   });
+  227 | });
+  228 | 
+  229 | test.describe('Sécurité — Message conversation CRUD', () => {
+  230 |   test('Envoyer message → 200, récupérer → contient message', async ({ request }) => {
+  231 |     const login = await request.post(`${BASE}/auth/login`, {
+  232 |       data: { username: 'admin', password: 'changeme2026' },
+  233 |     });
+  234 |     if (login.ok()) {
+  235 |       // Send
+  236 |       const send = await request.post(`${BASE}/conversations/default_global/messages`, {
+  237 |         data: { content: 'Message test CI API', encrypted: false },
+  238 |       });
+  239 |       expect(send.status()).toBe(200);
+  240 |       const sendBody = await send.json();
+  241 |       expect(sendBody.content).toContain('Message test CI API');
+  242 |       const msgId = sendBody.id;
+  243 | 
+  244 |       // Edit
+  245 |       const edit = await request.patch(`${BASE}/conversations/default_global/messages/${msgId}`, {
+  246 |         data: { content: 'Message modifié CI' },
+  247 |       });
+  248 |       expect(edit.status()).toBe(200);
+  249 | 
+  250 |       // List
+  251 |       const list = await request.get(`${BASE}/conversations/default_global/messages`);
+  252 |       expect(list.status()).toBe(200);
+  253 |       const listBody = await list.json();
+  254 |       expect(Array.isArray(listBody)).toBe(true);
+  255 |       const found = listBody.find((m: any) => m.content?.includes('modifié'));
+  256 |       expect(found).toBeTruthy();
+  257 | 
+  258 |       // Delete
+  259 |       const del = await request.delete(`${BASE}/conversations/default_global/messages/${msgId}`);
+  260 |       expect([200, 204]).toContain(del.status());
+  261 |     }
+  262 |   });
+  263 | 
+  264 |   test('Rename conversation → 200', async ({ request }) => {
+  265 |     const login = await request.post(`${BASE}/auth/login`, {
+  266 |       data: { username: 'admin', password: 'changeme2026' },
 ```

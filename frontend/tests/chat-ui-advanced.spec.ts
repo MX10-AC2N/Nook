@@ -1,11 +1,9 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
-
 test.describe('Chat UI — @Mentions + Features', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
     await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
     await page.click('button[type="submit"]');
@@ -174,7 +172,7 @@ test.describe('Chat UI — @Mentions + Features', () => {
   test('Typing indicator appears', async ({ page, context }) => {
     // Open second browser context to simulate other user typing
     const page2 = await context.newPage();
-    await page2.goto(BASE + '/login');
+    await page2.goto('/login');
     await page2.fill('input[name="username"], input[placeholder*="utilisateur"]', 'admin');
     await page2.fill('input[name="password"], input[type="password"]', 'AdminCI2026!');
     await page2.click('button[type="submit"]');

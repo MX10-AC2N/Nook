@@ -1,11 +1,10 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = 'http://localhost:6300';
 
 test.describe('Admin UI — Users + Invites', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE + '/login');
+    await page.goto('/login');
     await page.fill('input[name="username"], input[type="text"]', 'admin');
     await page.fill('input[name="password"], input[type="password"]', 'AdminCI2026!');
     await page.click('button[type="submit"]');
@@ -21,7 +20,7 @@ test.describe('Admin UI — Users + Invites', () => {
 
   test('Admin panel accessible', async ({ page }) => {
     // Navigate to admin panel (usually /admin or similar)
-    await page.goto(BASE + '/admin');
+    await page.goto('/admin');
     await page.waitForTimeout(2000);
 
     const url = page.url();
@@ -40,7 +39,7 @@ test.describe('Admin UI — Users + Invites', () => {
 
   test('Pending users list (if any)', async ({ page }) => {
     // Go to admin section for pending users
-    await page.goto(BASE + '/admin/users');
+    await page.goto('/admin/users');
     await page.waitForTimeout(2000);
 
     // Check for pending users section
@@ -61,7 +60,7 @@ test.describe('Admin UI — Users + Invites', () => {
   });
 
   test('Invite management', async ({ page }) => {
-    await page.goto(BASE + '/admin/invites');
+    await page.goto('/admin/invites');
     await page.waitForTimeout(2000);
 
     // Check for invite creation
@@ -83,7 +82,7 @@ test.describe('Admin UI — Users + Invites', () => {
   });
 
   test('User list and search', async ({ page }) => {
-    await page.goto(BASE + '/admin/users');
+    await page.goto('/admin/users');
     await page.waitForTimeout(2000);
 
     // Check for user list
