@@ -3,7 +3,7 @@ use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json, Router, routing::{get, post, patch, delete},
+    Json, Router, routing::{get, post},
 };
 use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,7 @@ pub struct Event {
 }
 
 fn timestamp_to_date_time(ts: i64) -> (String, String) {
-    let dt = Utc.timestamp_opt(ts, 0).single().unwrap_or_else(|| Utc::now());
+    let dt = Utc.timestamp_opt(ts, 0).single().unwrap_or_else(Utc::now);
     let date = dt.format("%Y-%m-%d").to_string();
     let time = dt.format("%H:%M").to_string();
     (date, time)
@@ -237,9 +237,7 @@ pub async fn get_event(
 // Résultat interne pour update_event
 enum UpdateResult {
     Updated(Event),
-    NotFound,
     Error(String),
-    NoFields,
 }
 
 // Mettre à jour un événement
@@ -301,8 +299,8 @@ pub async fn update_event(
     let new_end_time = new_start_time + (event.end_time - event.start_time);
 
     // Extract values from payload BEFORE binding (to avoid partial moves)
-    let title_val = payload.title.as_ref().map(|s| s.as_str());
-    let desc_val = payload.description.as_ref().map(|opt| opt.as_ref().map(|s| s.as_str()));
+    let title_val = payload.title.as_deref();
+    let desc_val = payload.description.as_ref().and_then(|opt| opt.as_deref());
     let has_date_time = payload.date.is_some() || payload.time.as_ref().is_some_and(|o| o.is_some());
     let now = Utc::now().timestamp();
 

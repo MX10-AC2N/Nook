@@ -24,7 +24,6 @@ use tracing::{info, warn};
 /// Une track recue d un participant, relayee aux autres.
 pub struct TrackInfo {
     pub relay: MediaRelay,
-    pub remote_track: Arc<dyn MediaStreamTrack>,
     pub user_id: String,
     pub peer_id: u64,
     pub kind: MediaKind,
@@ -362,7 +361,6 @@ impl SfuState {
 
                         let track_info = Arc::new(TrackInfo {
                             relay,
-                            remote_track: track.clone(),
                             user_id: uid.clone(),
                             peer_id,
                             kind,
