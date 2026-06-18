@@ -413,9 +413,7 @@ pub async fn update_event(
 
     match update_result {
         UpdateResult::Updated(event) => (StatusCode::OK, Json(event)).into_response(),
-        UpdateResult::NotFound => (StatusCode::NOT_FOUND, Json(ErrorResponse { error: "Event not found".to_string() })).into_response(),
         UpdateResult::Error(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: e })).into_response(),
-        UpdateResult::NoFields => (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "No fields to update".to_string() })).into_response(),
     }
 }
 
