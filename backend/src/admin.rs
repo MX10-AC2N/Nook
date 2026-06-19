@@ -55,6 +55,11 @@ pub struct DeleteInvitePayload {
     pub id: String,
 }
 
+#[derive(Deserialize)]
+pub struct RejectPayload {
+    pub user_id: String,
+}
+
 // ====================== HANDLERS (avec CurrentUser) ======================
 
 
@@ -217,6 +222,40 @@ pub async fn approve_user(
         _ => Err((
             StatusCode::BAD_REQUEST,
             Json(json!({"success": false, "message": "Utilisateur non trouvé"})),
+        )),
+    }
+}
+
+pub async fn reject_user(
+    State(state): State<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Json(payload): Json<RejectPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if user.role != "admin" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"success": false, "message": "Accès admin requis"})),
+        ));
+    }
+
+    // Supprimer l'utilisateur en attente (approved = 0)
+    let result = sqlx::query("DELETE FROM users WHERE id = ? AND approved = 0")
+        .bind(&payload.user_id)
+        .execute(&state.db)
+        .await;
+
+    match result {
+        Ok(res) if res.rows_affected() == 1 => {
+            tracing::info!(
+                user_id = %payload.user_id,
+                "✗ Utilisateur en attente refusé et supprimé"
+            );
+
+            Ok(Json(json!({"success": true})))
+        }
+        _ => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"success": false, "message": "Utilisateur non trouvé ou déjà traité"})),
         )),
     }
 }

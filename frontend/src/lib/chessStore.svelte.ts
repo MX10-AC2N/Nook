@@ -252,7 +252,9 @@ class ChessStore {
         clearTimeout(timeout);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        this.gameList = data.games ?? [];
+        const now = Math.floor(Date.now() / 1000);
+        // Filtrer les parties de plus de 7 jours (604800 secondes)
+        this.gameList = (data.games ?? []).filter((g: any) => now - g.updated_at < 604800);
       } catch (e: any) {
         this.error = e?.message ?? 'Impossible de charger les parties';
       } finally {
