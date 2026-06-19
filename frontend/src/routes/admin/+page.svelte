@@ -94,6 +94,18 @@
     } catch (e) { alert('Erreur réseau'); }
   }
 
+  async function rejectUser(userId: string) {
+    if (!confirm('Refuser cet utilisateur ? Il sera supprimé définitivement.')) return;
+    try {
+      const response = await fetch('/api/users/reject', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify({ user_id: userId }),
+      });
+      if (response.ok) { await loadUsers(); }
+      else alert('Erreur lors du refus');
+    } catch (e) { alert('Erreur réseau'); }
+  }
+
   async function generateInvite() {
     generatingInvite = true; inviteLink = null;
     try {
@@ -239,7 +251,10 @@
                     <span class="user-name">{user.name || 'Sans nom'}</span>
                     <span class="user-meta">@{user.username} · Inscrit le {formatDate(user.created_at)}</span>
                   </div>
-                  <button class="btn-approve" onclick={() => approveUser(user.id)}>Approuver</button>
+                  <div class="user-actions">
+                    <button class="btn-approve" onclick={() => approveUser(user.id)}>Approuver</button>
+                    <button class="btn-reject" onclick={() => rejectUser(user.id)}>Refuser</button>
+                  </div>
                 </div>
               {/each}
             </div>
@@ -553,6 +568,25 @@
     white-space: nowrap;
   }
   .btn-approve:hover { opacity: 0.9; }
+
+  .user-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .btn-reject {
+    padding: 0.4rem 1rem;
+    background: transparent;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-reject:hover { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
 
   .btn-delete {
     width: 32px;

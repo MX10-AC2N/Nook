@@ -53,7 +53,11 @@
     const diff = Math.floor(Date.now() / 1000 - ts);
     if (diff < 60)   return "à l'instant";
     if (diff < 3600) return `il y a ${Math.floor(diff / 60)} min`;
-    return `il y a ${Math.floor(diff / 3600)} h`;
+    if (diff < 86400) return `il y a ${Math.floor(diff / 3600)} h`;
+    if (diff < 604800) return `il y a ${Math.floor(diff / 86400)} j`;
+    if (diff < 2592000) return `il y a ${Math.floor(diff / 604800)} sem`;
+    if (diff < 31536000) return `il y a ${Math.floor(diff / 2592000)} mois`;
+    return `il y a ${Math.floor(diff / 31536000)} an`;
   }
 
   const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'godlike'];
