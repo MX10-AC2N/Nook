@@ -477,6 +477,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/users/pending", get(admin::pending_users))
         .route("/users", get(admin::all_users))
         .route("/users/approve", post(admin::approve_user))
+        .route("/users/reject", post(admin::reject_user))
         .route("/invites", get(admin::list_invites))
         .route("/invites", post(invites::generate_invite))
         .route("/invites/delete", post(admin::delete_invite))
