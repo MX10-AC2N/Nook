@@ -479,6 +479,6 @@ pub async fn delete_event(
 // Router pour les événements
 pub fn events_routes() -> Router<Arc<SharedState>> {
     Router::new()
-        .route("/", post(create_event).get(list_events))
-        .route("/{id}", get(get_event).patch(update_event).delete(delete_event))
+        .route("/events", post(create_event).get(list_events))
+        .route("/events/{id}", get(get_event).patch(update_event).delete(delete_event))
 }
