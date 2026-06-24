@@ -14,9 +14,9 @@ use uuid::Uuid;
 use crate::auth::CurrentUser;
 use crate::SharedState;
 
-// Structure d'un événement
+// Structure d'un événement (API publique avec champs calculés)
 // Note: Utilise i64 (Unix timestamps) pour compatibilité sqlx, comme le reste de Nook
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub id: String,
     pub creator_id: String,
@@ -27,10 +27,39 @@ pub struct Event {
     pub created_at: i64,
     pub updated_at: i64,
     // Champs calculés pour le frontend (non stockés en DB)
-    #[serde(skip_deserializing)]
     pub date: String,      // YYYY-MM-DD (dérivé de start_time)
-    #[serde(skip_deserializing)]
     pub time: String,      // HH:MM (dérivé de start_time)
+}
+
+/// Ligne brute de la DB — correspond exactement au schéma SQL events
+#[derive(sqlx::FromRow)]
+struct EventRow {
+    pub id: String,
+    pub creator_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub start_time: i64,
+    pub end_time: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+impl From<EventRow> for Event {
+    fn from(row: EventRow) -> Self {
+        let (date_str, time_str) = timestamp_to_date_time(row.start_time);
+        Self {
+            id: row.id,
+            creator_id: row.creator_id,
+            title: row.title,
+            description: row.description,
+            start_time: row.start_time,
+            end_time: row.end_time,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            date: date_str,
+            time: time_str,
+        }
+    }
 }
 
 fn timestamp_to_date_time(ts: i64) -> (String, String) {
@@ -153,7 +182,7 @@ pub async fn list_events(
 ) -> impl IntoResponse {
     let events = match (query.start, query.end) {
         (Some(start), Some(end)) => {
-            sqlx::query_as::<_, Event>(
+            sqlx::query_as::<_, EventRow>(
                 "SELECT * FROM events WHERE creator_id = ? AND start_time >= ? AND start_time <= ? ORDER BY start_time ASC"
             )
             .bind(&user.id)
@@ -163,7 +192,7 @@ pub async fn list_events(
             .await
         }
         (Some(start), None) => {
-            sqlx::query_as::<_, Event>(
+            sqlx::query_as::<_, EventRow>(
                 "SELECT * FROM events WHERE creator_id = ? AND start_time >= ? ORDER BY start_time ASC"
             )
             .bind(&user.id)
@@ -172,7 +201,7 @@ pub async fn list_events(
             .await
         }
         (None, Some(end)) => {
-            sqlx::query_as::<_, Event>(
+            sqlx::query_as::<_, EventRow>(
                 "SELECT * FROM events WHERE creator_id = ? AND start_time <= ? ORDER BY start_time ASC"
             )
             .bind(&user.id)
@@ -181,7 +210,7 @@ pub async fn list_events(
             .await
         }
         (None, None) => {
-            sqlx::query_as::<_, Event>(
+            sqlx::query_as::<_, EventRow>(
                 "SELECT * FROM events WHERE creator_id = ? ORDER BY start_time ASC"
             )
             .bind(&user.id)
@@ -190,14 +219,7 @@ pub async fn list_events(
         }
     };
 
-    let mut events = events.unwrap_or_default();
-
-    // Add computed date/time fields
-    for event in &mut events {
-        let (date_str, time_str) = timestamp_to_date_time(event.start_time);
-        event.date = date_str;
-        event.time = time_str;
-    }
+    let events: Vec<Event> = events.unwrap_or_default().into_iter().map(Into::into).collect();
 
     (StatusCode::OK, Json(ListEventsResponse { events })).into_response()
 }
@@ -208,7 +230,7 @@ pub async fn get_event(
     Extension(CurrentUser(user)): Extension<CurrentUser>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let event = sqlx::query_as::<_, Event>(
+    let event = sqlx::query_as::<_, EventRow>(
         "SELECT * FROM events WHERE id = ? AND creator_id = ?"
     )
     .bind(&id)
@@ -217,11 +239,9 @@ pub async fn get_event(
     .await;
 
     match event {
-        Ok(Some(mut e)) => {
-            let (date_str, time_str) = timestamp_to_date_time(e.start_time);
-            e.date = date_str;
-            e.time = time_str;
-            (StatusCode::OK, Json(e)).into_response()
+        Ok(Some(row)) => {
+            let event: Event = row.into();
+            (StatusCode::OK, Json(event)).into_response()
         }
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -248,7 +268,7 @@ pub async fn update_event(
     Json(payload): Json<UpdateEventPayload>,
 ) -> impl IntoResponse {
     // Vérifier que l'événement existe et appartient à l'utilisateur
-    let event = sqlx::query_as::<_, Event>(
+    let event = sqlx::query_as::<_, EventRow>(
         "SELECT * FROM events WHERE id = ? AND creator_id = ?"
     )
     .bind(&id)
@@ -257,7 +277,7 @@ pub async fn update_event(
     .await;
 
     let event = match event {
-        Ok(Some(e)) => e,
+        Ok(Some(row)) => row.into(),
         Ok(None) => return (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse { error: "Event not found".to_string() }),
@@ -425,7 +445,7 @@ async fn handle_update_result(
     match result {
         Ok(_) => {
             // Fetch updated event
-            let updated = sqlx::query_as::<_, Event>(
+            let updated = sqlx::query_as::<_, EventRow>(
                 "SELECT * FROM events WHERE id = ?"
             )
             .bind(&id)
@@ -433,12 +453,7 @@ async fn handle_update_result(
             .await;
 
             match updated {
-                Ok(mut e) => {
-                    let (date_str, time_str) = timestamp_to_date_time(e.start_time);
-                    e.date = date_str;
-                    e.time = time_str;
-                    UpdateResult::Updated(e)
-                }
+                Ok(row) => UpdateResult::Updated(row.into()),
                 Err(e) => UpdateResult::Error(format!("Failed to fetch updated event: {}", e)),
             }
         }
