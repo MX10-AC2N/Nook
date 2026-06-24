@@ -7,7 +7,6 @@ use axum::{
 };
 use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -276,7 +275,7 @@ pub async fn update_event(
     .fetch_optional(&state.db)
     .await;
 
-    let event = match event {
+    let event: Event = match event {
         Ok(Some(row)) => row.into(),
         Ok(None) => return (
             StatusCode::NOT_FOUND,
