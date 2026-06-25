@@ -2191,6 +2191,11 @@
   .load-more-btn:hover { background: var(--bg-secondary, #f8fafc); }
   .load-more-indicator { text-align: center; font-size: .8rem; color: var(--text-secondary, #94a3b8); padding: .5rem; }
 
+  /* Sidebar backdrop — hidden on desktop, shown on mobile when sidebar open */
+  .sidebar-backdrop {
+    display: none;
+  }
+
   /* Menu contextuel message */
   .mine-actions { right: auto; left: .2rem; }
   .msg-action-btn {
@@ -2619,7 +2624,7 @@
   /* ── Layout: sidebar hidden by default, overlay mode ── */
   .chat-page {
     position: relative;
-    height: 100dvh; /* Use dynamic viewport height for mobile */
+    height: 100%; /* Fill app-main flex container, not viewport */
   }
 
   .conversations-sidebar {
