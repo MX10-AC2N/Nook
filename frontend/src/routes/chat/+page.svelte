@@ -1317,6 +1317,9 @@
     </div>
   </aside>
 
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sidebar-backdrop" class:visible={sidebarOpen} onclick={() => sidebarOpen = false} aria-hidden="true"></div>
+
   <!-- ─── ZONE CHAT ─── -->
   <main class="chat-area">
 
@@ -1393,13 +1396,6 @@
         {/if}
       {/if}
     </header>
-
-  <!-- DEBUG: Decryption status -->
-  <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 8px 12px; font-family: monospace; font-size: 11px; margin: 8px 16px; border-radius: 4px;">
-    <strong>🔍 DEBUG Decryption:</strong>
-    <span id="debug-decrypt-status">Waiting...</span>
-    <button onclick={() => { if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('debug-retry-decrypt')); }} style="margin-left: 8px; padding: 2px 8px; font-size: 11px;">🔄 Retry Decrypt</button>
-  </div>
 
   <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
       {#if localMessages.length === 0}
@@ -2623,6 +2619,7 @@
   /* ── Layout: sidebar hidden by default, overlay mode ── */
   .chat-page {
     position: relative;
+    height: 100dvh; /* Use dynamic viewport height for mobile */
   }
 
   .conversations-sidebar {
@@ -2659,6 +2656,7 @@
   .chat-area {
     width: 100% !important;
     flex: 1 !important;
+    min-height: 0; /* Allow flex child to shrink */
   }
 
   /* ── Chat header: hamburger + compact ── */
