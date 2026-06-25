@@ -323,6 +323,7 @@
     background: var(--bg-primary, #f5f7fa);
     height: 100%;
     min-height: 100vh;
+    min-height: 100dvh; /* dynamic viewport height for mobile address bar */
     display: flex;
     flex-direction: column;
   }
