@@ -6,7 +6,7 @@
 
   interface CalEvent {
     id: string; title: string; date: string; time: string;
-    description: string; created_by: string;
+    description: string; creator_id: string;
   }
 
   let currentDate  = $state(new Date());
@@ -97,7 +97,7 @@
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ title: editData.title.trim(), date: editData.date,
-                               time: editData.time, description: editData.description }),
+                               time: editData.time || null, description: editData.description || null }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await loadEvents(); closeDetail();
@@ -145,7 +145,7 @@
   }
   function closeDetail() { detailEvent = null; selectedDay = null; editMode = false; }
 
-  function canManage(evt: CalEvent) { return evt.created_by === authStore.user?.id || authStore.isAdmin; }
+  function canManage(evt: CalEvent) { return evt.creator_id === authStore.user?.id || authStore.isAdmin; }
   function fmtDate(ds: string) {
     if (!ds) return '';
     return new Date(ds+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -186,9 +186,10 @@
     if (newDate === dragEvent.date) return; // No change
 
     try {
-      const res = await fetch(`/api/calendar/${dragEvent.id}`, {
+      const res = await fetch(`/api/events/${dragEvent.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ...dragEvent, date: newDate }),
       });
       if (res.ok) {

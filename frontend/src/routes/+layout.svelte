@@ -250,14 +250,6 @@
     {/if}
   </header>
 
-  <!-- DEBUG: cryptoStore state visibility -->
-  {#if authStore.isAuthenticated}
-    <div style="background: #fff3cd; color: #856404; padding: 8px 16px; font-family: monospace; font-size: 12px; border-bottom: 1px solid #ffeeba; z-index: 1000;">
-      🔐 DEBUG: cryptoStore.ready={cryptoStore.ready} cryptoError={cryptoStore.error || 'none'} hasKeyPair={hasKeys()}
-      <button onclick={() => { console.log('DEBUG: Manual unlockCrypto'); import('$lib/cryptoStore.svelte').then(m => m.unlockCrypto(authStore.user.id, sessionStorage.getItem('nook_crypto_key') || '')).then(r => console.log('DEBUG: unlock result:', r)); }} style="margin-left: 16px; padding: 2px 8px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;">🔓 Test Unlock</button>
-    </div>
-  {/if}
-
   {#if showMenu}
     <button
       class="menu-overlay"
