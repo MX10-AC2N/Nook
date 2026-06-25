@@ -2624,7 +2624,7 @@
   /* ── Layout: sidebar hidden by default, overlay mode ── */
   .chat-page {
     position: relative;
-    height: 100dvh; /* Use dynamic viewport height for mobile (handles address bar) */
+    height: 100%; /* Fill app-main (which is viewport-height - header - footer) */
   }
 
   .conversations-sidebar {
