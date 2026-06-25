@@ -2624,8 +2624,7 @@
   /* ── Layout: sidebar hidden by default, overlay mode ── */
   .chat-page {
     position: relative;
-    height: 100vh; /* fallback for older browsers */
-    height: 100dvh; /* dynamic viewport height - excludes browser UI */
+    height: 100dvh; /* Use dynamic viewport height for mobile (handles address bar) */
   }
 
   .conversations-sidebar {
