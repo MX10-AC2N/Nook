@@ -329,8 +329,13 @@
     // Calculer la position du picker par rapport au target (fixed → coordonnées viewport)
     if (targetEl) {
       const rect = targetEl.getBoundingClientRect();
+      const pickerHeight = 360; // max-height from CSS
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const openBelow = spaceBelow >= pickerHeight + 10; // 10px margin
+      
       emojiPickerPos = {
-        top: rect.bottom + 6,
+        top: openBelow ? rect.bottom + 6 : rect.top - pickerHeight - 6,
         left: rect.left,
         right: window.innerWidth - rect.right,
       };
@@ -702,6 +707,13 @@
     newMessage = '';
     chatStore.showEmojiPicker = false;
     
+    // Reset textarea height
+    const textarea = document.querySelector('.message-input') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = '44px';
+    }
+
     try {
       await sendMessage(content, activeConvId);
       // Scroller vers le haut pour voir le nouveau message
@@ -714,10 +726,16 @@
   }
 
   function handleTyping() {
+    // Auto-resize textarea
+    const textarea = document.querySelector('.message-input') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+    }
     // Mention autocomplete: detect @ in the message
-    const cursor = (document.querySelector('.message-input') as HTMLInputElement)?.selectionStart ?? newMessage.length;
+    const cursor = (document.querySelector('.message-input') as HTMLTextAreaElement)?.selectionStart ?? newMessage.length;
     const beforeCursor = newMessage.slice(0, cursor);
-    const atMatch = beforeCursor.match(/@(w*)$/);
+    const atMatch = beforeCursor.match(/@(\w*)$/);
     if (atMatch) {
       mentionStart = cursor - atMatch[0].length;
       mentionQuery = atMatch[1];
@@ -756,8 +774,13 @@
     mentionStart = -1;
     mentionQuery = '';
     // Focus back on input
-    const input = document.querySelector('.message-input') as HTMLInputElement;
+    const input = document.querySelector('.message-input') as HTMLTextAreaElement;
     input?.focus();
+    // Trigger resize after mention insertion
+    if (input) {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    }
   }
 
   function handleMessageKeydown(e: KeyboardEvent) {
@@ -768,8 +791,14 @@
 
   function handleSelectEmoji(emoji: string) {
     // Toujours ajouter l'emoji au champ de saisie
-    // L'utilisateur peut empiler plusieurs emojis puis envoyer
+    // L'utilisateur peut empiler plusieurs emojis d'affilée puis envoyer
     newMessage = newMessage + emoji;
+    // Trigger textarea resize
+    const textarea = document.querySelector('.message-input') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+    }
     // Ne pas fermer le picker → permet de sélectionner plusieurs emojis d'affilée
   }
 
@@ -1669,15 +1698,16 @@
         aria-label={recordingState.isRecording ? 'Arrêter et envoyer le message vocal' : 'Démarrer un message vocal'}
         disabled={recordingState.isRecording && recordingState.mediaType === 'video'}
       >🎙️</button>
-      <input
-        type="text"
+      <textarea
         class="message-input"
         placeholder="Envoyer un message..."
         bind:value={newMessage}
         onkeydown={handleMessageKeydown}
         oninput={handleTyping}
         disabled={false}
-      />
+        rows={2}
+        aria-label="Message"
+      ></textarea>
       <button
         type="button"
         class="send-btn"
@@ -2420,9 +2450,15 @@
     flex: 1; min-width: 0;
     padding: .6rem 1rem;
     border: 1.5px solid var(--border, #e2e8f0);
-    border-radius: 9999px; font-size: .9rem; outline: none;
-    transition: border-color .15s;
+    border-radius: .75rem; font-size: .9rem; outline: none;
+    transition: border-color .15s, height .1s;
     background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
+    resize: none;
+    min-height: 72px;
+    max-height: 160px;
+    line-height: 1.4;
+    overflow-y: auto;
+    font-family: inherit;
   }
   .message-input:focus { border-color: var(--accent, #4ade80); }
   .message-input:disabled { opacity: .6; }
@@ -2722,6 +2758,12 @@
   .message-input {
     font-size: 16px; /* Prevent iOS zoom */
     padding: .5rem .7rem;
+    min-height: 72px;
+    max-height: 160px;
+    border-radius: .75rem;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.4;
   }
 
   .input-actions {
