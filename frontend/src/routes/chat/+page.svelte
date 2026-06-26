@@ -328,16 +328,21 @@
     emojiPickerMsgId = null;
     // Calculer la position du picker par rapport au target (fixed → coordonnées viewport)
     if (targetEl) {
-      const rect = targetEl.getBoundingClientRect();
+      const btnRect = targetEl.getBoundingClientRect();
+      // Trouver le conteneur du message pour positionner "au-dessus" correctement
+      const msgEl = targetEl.closest('.message') as HTMLElement | null;
+      const msgRect = msgEl?.getBoundingClientRect();
       const pickerHeight = 360; // max-height from CSS
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const spaceAbove = rect.top;
+      const spaceBelow = window.innerHeight - btnRect.bottom;
+      const spaceAbove = msgRect ? msgRect.top : btnRect.top;
       const openBelow = spaceBelow >= pickerHeight + 10; // 10px margin
       
       emojiPickerPos = {
-        top: openBelow ? rect.bottom + 6 : rect.top - pickerHeight - 6,
-        left: rect.left,
-        right: window.innerWidth - rect.right,
+        top: openBelow 
+          ? btnRect.bottom + 6 
+          : (msgRect ? msgRect.top - pickerHeight - 6 : btnRect.top - pickerHeight - 6),
+        left: btnRect.left,
+        right: window.innerWidth - btnRect.right,
       };
     }
   }
