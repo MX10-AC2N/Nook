@@ -520,8 +520,10 @@ pub async fn send_message(
         let guard = state.webrtc_state.user_senders.lock().await;
         for (user_id,) in participant_ids {
             // L'expe?iteur recoit aussi sa confirmation via le WS
-            if let Some(tx) = guard.get(&user_id) {
-                let _ = tx.send(ws_payload.to_string());
+            if let Some(txs) = guard.get(&user_id) {
+                for tx in txs.values() {
+                    let _ = tx.send(ws_payload.to_string());
+                }
             }
         }
     }
@@ -581,8 +583,10 @@ pub async fn edit_message(
         ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
         let guard = state.webrtc_state.user_senders.lock().await;
         for (user_id,) in &participant_ids {
-            if let Some(tx) = guard.get(user_id) {
-                let _ = tx.send(ws.to_string());
+            if let Some(txs) = guard.get(user_id) {
+                for tx in txs.values() {
+                    let _ = tx.send(ws.to_string());
+                }
             }
         }
     }
@@ -630,8 +634,10 @@ pub async fn delete_message(
         ).bind(&conv_id).fetch_all(&state.db).await.unwrap_or_default();
         let guard = state.webrtc_state.user_senders.lock().await;
         for (user_id,) in &participant_ids {
-            if let Some(tx) = guard.get(user_id) {
-                let _ = tx.send(ws.to_string());
+            if let Some(txs) = guard.get(user_id) {
+                for tx in txs.values() {
+                    let _ = tx.send(ws.to_string());
+                }
             }
         }
     }

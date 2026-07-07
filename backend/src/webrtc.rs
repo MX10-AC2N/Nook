@@ -95,8 +95,10 @@ pub fn from_base64(encoded: &str) -> Result<Vec<u8>, &'static str> {
 
 pub type BroadcastSender = broadcast::Sender<String>;
 pub type SharedCallState = Arc<Mutex<HashMap<Uuid, BroadcastSender>>>;
-/// Mapping user_id → sender pour router les signaux WebRTC vers le bon destinataire.
-pub type UserSenderMap = Arc<Mutex<HashMap<String, BroadcastSender>>>;
+/// Mapping user_id → HashMap<ws_id, sender> pour router signaux WebRTC vers TOUS les onglets.
+/// Multi-tab: chaque onglet a son propre sender (clé = ws_id), on broadcast à tous les onglets.
+/// Nettoyage précis à la fermeture via ws_id.
+pub type UserSenderMap = Arc<Mutex<HashMap<String, HashMap<Uuid, BroadcastSender>>>>;
 
 #[derive(Clone)]
 pub struct WebRtcState {
@@ -200,7 +202,7 @@ pub fn encrypt_file_for_storage(data: &[u8]) -> (Vec<u8>, String, String) {
 }
 
 #[allow(dead_code)]
-pub fn decrypt_file_from_storage(
+pub async fn decrypt_file_from_storage(
     ciphertext: &[u8],
     _nonce_base64: &str,  // non utilisé : le nonce est déjà intégré dans les premiers bytes du ciphertext
     key_base64: &str,
@@ -402,7 +404,8 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
     }
     {
         let mut guard = state.webrtc_state.user_senders.lock().await;
-        guard.insert(user_id.clone(), broadcast_tx);
+        // Multi-tab support: insert with ws_id as key for precise cleanup
+        guard.entry(user_id.clone()).or_default().insert(id, broadcast_tx);
     }
 
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
@@ -468,15 +471,18 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                         match to_user_id {
                             Some(target) if !target.is_empty() => {
-                                // Routage direct vers le destinataire
+                                // Routage direct vers TOUS les onglets du destinataire (multi-tab)
                                 let guard = state_recv.webrtc_state.user_senders.lock().await;
-                                if let Some(target_tx) = guard.get(target) {
-                                    let _ = target_tx.send(text_str.clone());
+                                if let Some(target_txs) = guard.get(target) {
+                                    for target_tx in target_txs.values() {
+                                        let _ = target_tx.send(text_str.clone());
+                                    }
                                     tracing::debug!(
                                         from = %user_id_recv,
                                         to = %target,
                                         msg_type = %msg_type,
-                                        "WebRTC signal routé"
+                                        tabs = target_txs.len(),
+                                        "WebRTC signal routé vers tous les onglets"
                                     );
                                 } else {
                                     tracing::warn!(
@@ -505,6 +511,16 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                 }
                 Ok(axum::extract::ws::Message::Close(_)) => {
                     tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
+                    // Cleanup: remove this sender from user_senders using ws_id
+                    {
+                        let mut guard = state_recv.webrtc_state.user_senders.lock().await;
+                        if let Some(txs) = guard.get_mut(&user_id_recv) {
+                            txs.remove(&id);
+                            if txs.is_empty() {
+                                guard.remove(&user_id_recv);
+                            }
+                        }
+                    }
                     break;
                 }
                 Ok(axum::extract::ws::Message::Ping(_)) => {
@@ -516,7 +532,6 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                 }
                 Err(e) => {
                     tracing::debug!(ws_id = %id, error = %e, "WebSocket : erreur réception");
-
                 }
             }
         }
