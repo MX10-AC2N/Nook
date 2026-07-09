@@ -54,4 +54,4 @@ fn crypto_secretbox_nonce() -> Vec<u8> {
 }
 
 fn crypto_secretbox_easy(message: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
-    let mut result = Vec::
+    let mut result = Vec::with
