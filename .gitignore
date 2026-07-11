@@ -17,3 +17,15 @@ services/turn-rs/config.toml
 backend/target/
 backend/target/
 frontend/static/lib/
+
+# Playwright browsers (installed locally, not committed)
+frontend/.playwright-browsers/
+
+# Test artifacts
+frontend/test-results/
+frontend/playwright-report/
+
+# Build artifacts
+frontend/build/
+frontend/.svelte-kit/
+
