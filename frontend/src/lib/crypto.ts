@@ -19,6 +19,10 @@
 //   5. Réception        → GET /api/conversations/{id}/my-encrypted-key/{msgId}
 //                       → decryptSessionKey(encKey, senderPubKey, myPrivKey)
 //                       → decryptContent(ciphertext, nonce, sessionKey)
+//
+// DT-05 : Versionnement de clés. Chaque rotation de clé incrémente un compteur.
+//         Le sender_key_version est stocké dans message_keys pour permettre
+//         le déchiffrement des anciens messages après rotation.
 
 // DT-01 : pas d'import statique — dynamic import dans ensureSodium()
 // Le chunk libsodium (938 kB WASM) n'est téléchargé qu'au premier appel crypto.
@@ -76,6 +80,25 @@ export interface EncryptedMessage {
   encryptedKeys: Record<string, string>;
 }
 
+/** Entrée d'archive de clé — une ancienne version après rotation */
+export interface ArchivedKeyEntry {
+  version: number;
+  publicKeyB64: string;
+  encryptedPrivateKeyB64: string; // salt(16) || nonce(24) || ciphertext (chiffré avec mot de passe)
+  createdAt: number;
+}
+
+/** Format V2 du document IndexedDB */
+export interface StoredKeysV2 {
+  userId: string;
+  schemaVersion: 2;
+  currentVersion: number;
+  publicKeyB64: string;
+  encryptedPrivKeyB64: string;
+  keyHistory: ArchivedKeyEntry[];
+  passwordSalt: string; // base64 — salt fixe pour archive key derivation
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Génération de paire de clés
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,7 +134,6 @@ export async function encryptForRecipients(
   for (const [userId, pubKeyB64] of Object.entries(recipientPubkeys)) {
     try {
       const recipientPub = na.from_base64(pubKeyB64, na.base64_variants.ORIGINAL);
-      // console.log('[encryptForRecipients] userId:', userId, 'pubKeyBytes:', recipientPub.length, 'privKeyBytes:', senderKeyPair.privateKey.length);
       const asymNonce    = na.randombytes_buf(na.crypto_box_NONCEBYTES);
       const boxed        = na.crypto_box_easy(
         sessionKey,
@@ -124,13 +146,11 @@ export async function encryptForRecipients(
       combined.set(asymNonce, 0);
       combined.set(boxed, asymNonce.length);
       encryptedKeys[userId] = na.to_base64(combined, na.base64_variants.ORIGINAL);
-      // console.log('[encryptForRecipients] encryptedKeys[' + userId + '] len:', encryptedKeys[userId].length);
     } catch (e) {
       console.warn('[encryptForRecipients] Échec chiffrement pour', userId, e?.message);
     }
   }
 
-  // console.log('[encryptForRecipients] FINAL encryptedKeys count:', Object.keys(encryptedKeys).length);
   return {
     ciphertext: na.to_base64(ciphertext, na.base64_variants.ORIGINAL),
     nonce:      na.to_base64(nonce,      na.base64_variants.ORIGINAL),
@@ -188,7 +208,7 @@ export async function decryptContent(
 
 /**
  * Chiffre la clé privée avec le mot de passe de l'utilisateur.
- * Retourne une chaîne base64 : salt(32) || nonce(24) || ciphertext
+ * Retourne une chaîne base64 : salt(16) || nonce(24) || ciphertext
  */
 export async function encryptPrivateKey(
   privateKey: Uint8Array,
@@ -229,7 +249,7 @@ export async function decryptPrivateKey(
   const nonce      = data.slice(16, 16 + na.crypto_secretbox_NONCEBYTES);
   const ciphertext = data.slice(16 + na.crypto_secretbox_NONCEBYTES);
 
-  // Derive key using BLAKE2b (crypto_pwhash not available in this build)
+  // Derive key using BLAKE2b
   const passwordBytes = new TextEncoder().encode(password);
   const saltedPw = new Uint8Array(passwordBytes.length + salt.length);
   saltedPw.set(passwordBytes);
@@ -240,19 +260,20 @@ export async function decryptPrivateKey(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. IndexedDB — stockage des clés chiffrées
+// 5. IndexedDB — stockage des clés chiffrées (v2: key archive)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const IDB_NAME    = 'NookCrypto';
-const IDB_VERSION = 1;
+const IDB_VERSION = 2;  // v2: key archive support
 const IDB_STORE   = 'keys';
 
 function openCryptoStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-    req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(IDB_STORE)) {
-        req.result.createObjectStore(IDB_STORE, { keyPath: 'userId' });
+    req.onupgradeneeded = (event) => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE, { keyPath: 'userId' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -269,6 +290,7 @@ interface StoredKeys {
 /**
  * Stocke la paire de clés (pubkey en clair, privkey chiffrée) dans IndexedDB.
  * Appelé une seule fois lors du changement de mot de passe initial.
+ * Write V2 format with currentVersion=1.
  */
 export async function storeKeysInIndexedDB(
   userId:              string,
@@ -278,15 +300,24 @@ export async function storeKeysInIndexedDB(
   if (typeof indexedDB === 'undefined') return;
   const na = await ensureSodium();
   const db = await openCryptoStore();
+
+  // Generate a stable password salt for archive key derivation
+  const salt = na.randombytes_buf(16);
+
+  const v2record: StoredKeysV2 = {
+    userId,
+    schemaVersion: 2,
+    currentVersion: 1,
+    publicKeyB64: na.to_base64(publicKey, na.base64_variants.ORIGINAL),
+    encryptedPrivKeyB64,
+    keyHistory: [],
+    passwordSalt: na.to_base64(salt, na.base64_variants.ORIGINAL),
+  };
+
   await new Promise<void>((resolve, reject) => {
     const tx    = db.transaction(IDB_STORE, 'readwrite');
     const store = tx.objectStore(IDB_STORE);
-    const record: StoredKeys = {
-      userId,
-      publicKeyB64:        na.to_base64(publicKey, na.base64_variants.ORIGINAL),
-      encryptedPrivKeyB64,
-    };
-    const req = store.put(record);
+    const req   = store.put(v2record);
     req.onsuccess = () => resolve();
     req.onerror   = () => reject(req.error);
   });
@@ -295,6 +326,7 @@ export async function storeKeysInIndexedDB(
 /**
  * Charge les clés chiffrées depuis IndexedDB et les déchiffre avec le mot de passe.
  * Retourne null si aucune clé n'est stockée pour cet utilisateur.
+ * Supporte V1 et V2.
  */
 export async function loadKeysFromIndexedDB(
   userId:   string,
@@ -304,18 +336,31 @@ export async function loadKeysFromIndexedDB(
   const na = await ensureSodium();
 
   const db = await openCryptoStore();
-  const record = await new Promise<StoredKeys | undefined>((resolve, reject) => {
+  const record = await new Promise<StoredKeys | StoredKeysV2 | undefined>((resolve, reject) => {
     const tx    = db.transaction(IDB_STORE, 'readonly');
     const store = tx.objectStore(IDB_STORE);
     const req   = store.get(userId);
-    req.onsuccess = () => resolve(req.result as StoredKeys | undefined);
+    req.onsuccess = () => resolve(req.result as StoredKeys | StoredKeysV2 | undefined);
     req.onerror   = () => reject(req.error);
   });
 
   if (!record) return null;
 
-  const privateKey = await decryptPrivateKey(record.encryptedPrivKeyB64, password);
-  const publicKey  = na.from_base64(record.publicKeyB64, na.base64_variants.ORIGINAL);
+  let publicKeyB64: string;
+  let encryptedPrivKeyB64: string;
+
+  if ('schemaVersion' in record && record.schemaVersion === 2) {
+    const v2 = record as StoredKeysV2;
+    publicKeyB64 = v2.publicKeyB64;
+    encryptedPrivKeyB64 = v2.encryptedPrivKeyB64;
+  } else {
+    const v1 = record as StoredKeys;
+    publicKeyB64 = v1.publicKeyB64;
+    encryptedPrivKeyB64 = v1.encryptedPrivKeyB64;
+  }
+
+  const privateKey = await decryptPrivateKey(encryptedPrivKeyB64, password);
+  const publicKey  = na.from_base64(publicKeyB64, na.base64_variants.ORIGINAL);
   return { publicKey, privateKey };
 }
 
@@ -348,6 +393,256 @@ export async function clearStoredKeys(userId: string): Promise<void> {
     req.onsuccess = () => resolve();
     req.onerror   = () => reject(req.error);
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5b. V2 — Key version & archive helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Lit la version actuelle de la clé depuis IndexedDB.
+ * Retourne 1 par défaut si le store est en format V1.
+ */
+export async function getCurrentKeyVersion(userId: string): Promise<number> {
+  if (typeof indexedDB === 'undefined') return 1;
+  const db = await openCryptoStore();
+  const record = await new Promise<any | undefined>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.get(userId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+  if (!record) return 1;
+  if ('schemaVersion' in record && record.schemaVersion === 2) {
+    return (record as StoredKeysV2).currentVersion;
+  }
+  return 1; // V1 legacy
+}
+
+/**
+ * Met à jour les clés dans IndexedDB après une rotation.
+ * Archive l'ancienne clé dans keyHistory, stocke la nouvelle.
+ */
+export async function saveKeyRotation(
+  userId:          string,
+  newPublicKey:    Uint8Array,
+  newEncryptedPrivB64: string,
+  oldEncryptedPrivB64: string | null,
+  oldPublicKeyB64: string | null,
+  newVersion:      number
+): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const na = await ensureSodium();
+  const db = await openCryptoStore();
+
+  // Load existing record
+  const existing = await new Promise<StoredKeysV2 | undefined>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.get(userId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+
+  const history: ArchivedKeyEntry[] = existing?.keyHistory ?? [];
+  const passwordSalt = existing?.passwordSalt ?? na.to_base64(na.randombytes_buf(16), na.base64_variants.ORIGINAL);
+
+  // Archive old key if provided
+  if (oldEncryptedPrivB64 && oldPublicKeyB64) {
+    history.push({
+      version: newVersion - 1,
+      publicKeyB64: oldPublicKeyB64,
+      encryptedPrivateKeyB64: oldEncryptedPrivB64,
+      createdAt: Date.now(),
+    });
+  }
+
+  const v2record: StoredKeysV2 = {
+    userId,
+    schemaVersion: 2,
+    currentVersion: newVersion,
+    publicKeyB64: na.to_base64(newPublicKey, na.base64_variants.ORIGINAL),
+    encryptedPrivKeyB64: newEncryptedPrivB64,
+    keyHistory: history,
+    passwordSalt,
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.put(v2record);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/**
+ * Retourne la liste des clés archivées (sans la clé privée déchiffrée).
+ */
+export async function getKeyHistoryFromStore(userId: string): Promise<ArchivedKeyEntry[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  const db = await openCryptoStore();
+  const record = await new Promise<StoredKeysV2 | undefined>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.get(userId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+  if (!record || !('schemaVersion' in record) || record.schemaVersion !== 2) return [];
+  return record.keyHistory ?? [];
+}
+
+/**
+ * Récupère et déchiffre une clé privée archivée par version.
+ * Retourne null si la version n'existe pas dans l'archive locale.
+ */
+export async function getArchivedPrivateKey(
+  userId:   string,
+  version:  number,
+  password: string
+): Promise<Uint8Array | null> {
+  const history = await getKeyHistoryFromStore(userId);
+  const entry = history.find(e => e.version === version);
+  if (!entry) return null;
+  try {
+    return await decryptPrivateKey(entry.encryptedPrivateKeyB64, password);
+  } catch {
+    console.error('[crypto] Échec déchiffrement clé archivée version', version);
+    return null;
+  }
+}
+
+/**
+ * Migre un store V1 vers V2 (ajoute currentVersion=1, keyHistory=[], passwordSalt).
+ */
+export async function migrateKeyStoreToV2(userId: string): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  const na = await ensureSodium();
+  const db = await openCryptoStore();
+
+  const existing = await new Promise<any | undefined>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readonly');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.get(userId);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+
+  if (!existing) return;
+  if ('schemaVersion' in existing && existing.schemaVersion === 2) return; // Already V2
+
+  // V1 → V2 migration
+  const v1 = existing as StoredKeys;
+  const v2: StoredKeysV2 = {
+    userId: v1.userId,
+    schemaVersion: 2,
+    currentVersion: 1,
+    publicKeyB64: v1.publicKeyB64,
+    encryptedPrivKeyB64: v1.encryptedPrivKeyB64,
+    keyHistory: [],
+    passwordSalt: na.to_base64(na.randombytes_buf(16), na.base64_variants.ORIGINAL),
+  };
+
+  await new Promise<void>((resolve, reject) => {
+    const tx    = db.transaction(IDB_STORE, 'readwrite');
+    const store = tx.objectStore(IDB_STORE);
+    const req   = store.put(v2);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+
+  console.info('[crypto] Store V1 migré vers V2 pour', userId);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4b. Archive helpers — chiffrement/déchiffrement avec passphrase dédié
+//     Format identique à encryptPrivateKey: salt(16) || nonce(24) || ciphertext
+//     L'archive B64 est auto-suffisante (le salt est préfixé).
+//     Utile pour backup cross-device (Task 6) et export manuel.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Chiffre la clé privée pour archivage/backup avec un passphrase dédié.
+ * Retourne une chaîne base64 auto-suffisante : salt(16) || nonce(24) || ciphertext
+ * Le salt est généré aléatoirement à chaque appel.
+ */
+export async function encryptPrivateKeyForArchive(
+  privateKey: Uint8Array,
+  archivePassphrase: string
+): Promise<string> {
+  return encryptPrivateKey(privateKey, archivePassphrase);
+}
+
+/**
+ * Déchiffre une clé privée depuis un blob d'archive.
+ * @param archiveB64  Le blob base64 (salt||nonce||ciphertext) produit par encryptPrivateKeyForArchive
+ * @param passphrase  Le passphrase utilisé lors du chiffrement
+ */
+export async function decryptPrivateKeyFromArchive(
+  archiveB64: string,
+  passphrase: string
+): Promise<Uint8Array> {
+  return decryptPrivateKey(archiveB64, passphrase);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4c. decryptSessionKeyV2 — version-aware session key decryption
+//     DT-05: si le déchiffrement avec la clé courante échoue pour cause de
+//     rotation, tente avec la clé archivée correspondante.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DecryptSessionKeyV2Options {
+  /** Version de la clé émettrice (lu depuis message_keys.sender_key_version) */
+  senderKeyVersion?: number;
+  /**
+   * Fonction de rappel pour récupérer une clé privée archivée par version.
+   * Appelée uniquement si le déchiffrement avec myPrivKey échoue
+   * ET que senderKeyVersion est fourni.
+   */
+  archivedKeyLookup?: (version: number) => Promise<Uint8Array | null>;
+}
+
+export interface DecryptSessionKeyV2Result {
+  sessionKey: Uint8Array;
+  usedArchivedKey: boolean;
+}
+
+/**
+ * Déchiffre la clé de session avec support de version de clé.
+ * Stratégie :
+ *   1. Tente le déchiffrement avec myPrivKey (clé courante).
+ *   2. En cas d'échec et si senderKeyVersion + archivedKeyLookup sont fournis,
+ *      tente de récupérer la clé archivée et réessaye.
+ *   3. Si les deux échouent, lève une exception.
+ */
+export async function decryptSessionKeyV2(
+  encKeyB64:    string,
+  senderPubB64: string,
+  myPrivKey:    Uint8Array,
+  options?:     DecryptSessionKeyV2Options
+): Promise<DecryptSessionKeyV2Result> {
+  // 1. Try current key first
+  try {
+    const sessionKey = await decryptSessionKey(encKeyB64, senderPubB64, myPrivKey);
+    return { sessionKey, usedArchivedKey: false };
+  } catch (err) {
+    // If no version info or lookup function, rethrow
+    if (!options?.senderKeyVersion || !options?.archivedKeyLookup) {
+      throw err;
+    }
+    // 2. Try archived key
+    console.info('[crypto] decryptSessionKeyV2: fallback to archived key version', options.senderKeyVersion);
+    const archivedPriv = await options.archivedKeyLookup(options.senderKeyVersion);
+    if (!archivedPriv) {
+      throw new Error(
+        `[crypto] decryptSessionKeyV2: archived key version ${options.senderKeyVersion} not found`
+      );
+    }
+    const sessionKey = await decryptSessionKey(encKeyB64, senderPubB64, archivedPriv);
+    return { sessionKey, usedArchivedKey: true };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -423,4 +718,63 @@ export async function fetchMemberPubkeys(
   if (!res.ok) throw new Error(`[crypto] fetchMemberPubkeys: HTTP ${res.status}`);
   const members: { user_id: string; public_key: string }[] = await res.json();
   return Object.fromEntries(members.map(m => [m.user_id, m.public_key]));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. API helper — rotation de clé côté serveur
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Appelle POST /api/auth/rotate-key pour archiver l'ancienne clé sur le serveur
+ * et enregistrer la nouvelle.
+ */
+export async function rotateKeyOnServer(
+  newPublicKeyB64:     string,
+  newEncryptedPrivB64: string,
+  password:            string
+): Promise<{ success: boolean; version: number }> {
+  const res = await fetch('/api/auth/rotate-key', {
+    method:      'POST',
+    credentials: 'include',
+    headers:     { 'Content-Type': 'application/json' },
+    body:        JSON.stringify({
+      public_key: newPublicKeyB64,
+      encrypted_private_key: newEncryptedPrivB64,
+      password,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`[crypto] rotateKey: HTTP ${res.status} — ${text}`);
+  }
+  return res.json();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. API helpers — key history
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Récupère l'historique des clés depuis le serveur.
+ */
+export async function fetchKeyHistoryFromServer(): Promise<{
+  version: number;
+  public_key: string;
+  created_at: number;
+  revoked_at: number | null;
+}[]> {
+  const res = await fetch('/api/auth/key-history', { credentials: 'include' });
+  if (!res.ok) throw new Error(`[crypto] key-history: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Récupère une clé privée archivée depuis le serveur.
+ */
+export async function fetchArchivedPrivateKeyFromServer(version: number): Promise<string | null> {
+  const res = await fetch(`/api/auth/key-history/${version}`, { credentials: 'include' });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`[crypto] key-history/${version}: HTTP ${res.status}`);
+  const data = await res.json();
+  return (data as { encrypted_private_key: string }).encrypted_private_key;
 }

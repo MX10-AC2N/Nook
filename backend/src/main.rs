@@ -358,7 +358,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file_manager = Arc::new(FileManager::new(uploads_dir.clone()));
 
     let webrtc_state = WebRtcState::new();
-    let sfu_state = SfuState::new();
+    let sfu_state = SfuState::new(config.sfu_relay_capacity);
     tracing::info!("✓ État WebRTC initialisé");
 
     let fm_clone = (*file_manager).clone();

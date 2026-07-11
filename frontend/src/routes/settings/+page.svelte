@@ -294,6 +294,18 @@
       </form>
     </div>
 
+    <!-- ── Clés E2EE ──────────────────────────────────────────── -->
+    <div class="settings-section">
+      <h2>🔐 Clés E2EE</h2>
+      <p class="section-desc">
+        Gérez la rotation de vos clés de chiffrement et sauvegardez-les
+        pour les restaurer sur un autre appareil.
+      </p>
+      <button class="btn btn-primary" onclick={() => goto('/settings/security/key-rotation')}>
+        Gérer les clés E2EE
+      </button>
+    </div>
+
     <!-- ── Notifications push ────────────────────────────────────────── -->
     <div class="settings-section push-section">
       <h2>🔔 Notifications push</h2>

@@ -1,20 +1,2 @@
-# Configuration de compilation musl (Alpine 3.21)
-# x86_64: cible native, musl-gcc fourni par musl-tools
-# aarch64: cross-compilation (non utilise en CI)
-
-[target.x86_64-unknown-linux-musl]
-linker = "musl-gcc"
-
-[target.aarch64-unknown-linux-musl]
-linker = "aarch64-linux-musl-gcc"
-
-# Override for native linux-gnu builds in dev environment
 [target.x86_64-unknown-linux-gnu]
-linker = "cc"
-rustflags = ["-C", "link-arg=-fuse-ld=bfd"]
-
-[profile.release]
-lto = true
-codegen-units = 1
-opt-level = "z"
-strip = true
+linker = "/usr/bin/gcc"

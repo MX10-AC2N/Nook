@@ -46,6 +46,8 @@ export interface ChatState {
   ws: WebSocket | null;
   /** Participants cache per conversation */
   participants: Map<string, Participant[]>;
+  /** WebSocket round-trip latency in ms (null = not measured) */
+  latencyMs: number | null;
 }
 
 export interface Participant {
@@ -168,10 +170,15 @@ export const chatStore = $state<Omit<ChatState, 'messages'>>({
   lastReactionUpdate: null,
   ws: null,
   participants: new Map<string, Participant[]>(),
+  latencyMs: null,
 });
 
 // -----------------------------------------------------------------
 // 3️⃣ WebSocket — temps réel avec reconnexion automatique
+// Heartbeat constants
+const WS_PING_INTERVAL_MS = 25_000; // Send ping if no message for 25s
+const WS_PONG_TIMEOUT_MS = 5_000;   // Wait for pong (browser auto-handles)
+
 // -----------------------------------------------------------------
 
 let _ws: WebSocket | null = null;
@@ -179,6 +186,9 @@ let _wsConvId: string | null = null;
 let _wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _wsRetries = 0;
 const WS_MAX_RETRIES = 8;
+let _wsHeartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+let _wsLastMessageTime = 0;
+let _wsPingSentTime = 0; // timestamp when last app-level ping was sent, for latency calculation
 
 export function connectWs(convId: string): void {
   if (typeof window === 'undefined') return;
@@ -215,9 +225,15 @@ function _openWs(): void {
     chatStore.wsConnected = true;
     _wsRetries = 0;
     if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+    
+    // Initialize heartbeat timer
+    _wsLastMessageTime = Date.now();
+    _startHeartbeat();
   };
 
   ws.onmessage = (ev) => {
+    // Update last message time on any received message
+    _wsLastMessageTime = Date.now();
     try { _handleWsMessage(JSON.parse(ev.data as string)); } catch { /* non-JSON ok */ }
   };
 
@@ -226,6 +242,9 @@ function _openWs(): void {
   ws.onclose = () => {
     chatStore.wsConnected = false;
     chatStore.ws = null;
+    chatStore.latencyMs = null;
+    _wsPingSentTime = 0;
+    _stopHeartbeat();
     if (_wsRetries < WS_MAX_RETRIES) {
       const delay = Math.min(1000 * 2 ** _wsRetries, 30_000);
       _wsRetries++;
@@ -234,8 +253,51 @@ function _openWs(): void {
   };
 }
 
+function _startHeartbeat(): void {
+  _stopHeartbeat();
+  _wsHeartbeatTimer = setInterval(() => {
+    if (!_ws || _ws.readyState !== WebSocket.OPEN) {
+      _stopHeartbeat();
+      return;
+    }
+    const now = Date.now();
+    // Send ping if no message received for WS_PING_INTERVAL_MS
+    if (now - _wsLastMessageTime >= WS_PING_INTERVAL_MS) {
+      console.log('[chatStore] Heartbeat: sending ping');
+      _wsPingSentTime = now;
+      _ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 5000); // Check every 5 seconds
+}
+
+function _stopHeartbeat(): void {
+  if (_wsHeartbeatTimer) {
+    clearInterval(_wsHeartbeatTimer);
+    _wsHeartbeatTimer = null;
+  }
+}
+
 function _handleWsMessage(msg: Record<string, unknown>): void {
   const type = msg.type as string | undefined;
+
+  // Heartbeat: respond to ping with pong
+  if (type === 'ping') {
+    if (_ws && _ws.readyState === WebSocket.OPEN) {
+      _ws.send(JSON.stringify({ type: 'pong' }));
+    }
+    return;
+  }
+
+  if (type === 'pong') {
+    // Pong received - calculate round-trip latency
+    if (_wsPingSentTime > 0) {
+      const rtt = Date.now() - _wsPingSentTime;
+      chatStore.latencyMs = rtt;
+      _wsPingSentTime = 0;
+      console.log(`[chatStore] Pong received, latency: ${rtt}ms`);
+    }
+    return;
+  }
 
   if (type === 'new_message') {
     const convId = msg.conversation_id as string;
@@ -291,35 +353,35 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   }
 
   if (type === 'poll_closed') {
-    notifyPoll('📊 Sondage fermé', 'Un sondage est terminé');
-    return;
+      notifyPoll('📊 Sondage fermé', 'Un sondage est terminé');
+      return;
+    }
+
+    // ── Calendar notifications ──
+            if (type === 'new_event') {
+              const title = msg.title as string || 'Nouvel événement';
+              const creator = msg.creator as string || "Quelqu'un";
+              notifyCalendar('📅 Événement créé', `${creator}: ${title}`);
+              return;
+            }
+
+    // ── Call signaling ──
+    const CALL_TYPES = ['call_request', 'call_accepted', 'call_rejected', 'offer', 'answer', 'ice', 'ice_candidate', 'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate', 'join', 'leave', 'decline'];
+    if (type && CALL_TYPES.includes(type)) {
+      console.log(`[WS] Call signal received: ${type}`, msg);
+      // Forward to webrtc-calls handler via its signal handler
+      callManager.handleSignal?.(msg as any);
+      return;
+    }
+
+    // ── Admin notifications ──
+    if (type === 'user_approved') {
+      notifyAdmin('✅ Utilisateur approuvé', 'Votre compte a été approuvé !');
+      return;
+    }
   }
 
-  // ── Calendar notifications ──
-  if (type === 'new_event') {
-    const title = msg.title as string || 'Nouvel événement';
-    const creator = msg.creator as string || 'Quelqu\'un';
-    notifyCalendar('📅 Événement créé', `${creator}: ${title}`, '/calendar');
-    return;
-  }
-
-  // ── Call signaling ──
-  const CALL_TYPES = ['call_request', 'call_accepted', 'call_rejected', 'offer', 'answer', 'ice', 'ice_candidate', 'webrtc_offer', 'webrtc_answer', 'webrtc_ice_candidate', 'join', 'leave', 'decline'];
-  if (type && CALL_TYPES.includes(type)) {
-    console.log(`[WS] Call signal received: ${type}`, msg);
-    // Forward to webrtc-calls handler via its signal handler
-    callManager.handleSignal?.(msg as any);
-    return;
-  }
-
-  // ── Admin notifications ──
-  if (type === 'user_approved') {
-    notifyAdmin('✅ Utilisateur approuvé', 'Votre compte a été approuvé !', '/chat');
-    return;
-  }
-}
-
-async function _injectMessage(raw: ChatMessage): Promise<void> {
+  async function _injectMessage(raw: ChatMessage): Promise<void> {
   const existing = get(messagesStore).findIndex(m => m.id === raw.id);
   // If existing message is already plaintext, skip encrypted WS update
   if (existing !== -1 && !get(messagesStore)[existing].encrypted && raw.encrypted) {
@@ -358,6 +420,7 @@ async function _injectMessage(raw: ChatMessage): Promise<void> {
 
 export function disconnectWs(): void {
   if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
+  _stopHeartbeat();
   if (_ws) { _ws.onclose = null; _ws.close(); _ws = null; }
   chatStore.ws = null;
   _wsConvId = null;

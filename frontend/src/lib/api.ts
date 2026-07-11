@@ -278,9 +278,9 @@ export async function acceptInvite(
       return { success: false, message: msg };
     }
 
-    return { 
-      success: true, 
-      message: extractMessage(data, 'Compte créé avec succès') 
+    return {
+      success: true,
+      message: extractMessage(data, 'Compte créé avec succès')
     };
   } catch (err: unknown) {
     console.error('Erreur acceptInvite:', err);
@@ -289,4 +289,31 @@ export async function acceptInvite(
       message: err instanceof Error ? err.message : 'Erreur de connexion',
     };
   }
+}
+
+/**
+ * Wrapper fetch générique — préfixe API_BASE, parse JSON, lance une
+ * Erreur si status >= 400.
+ */
+export async function apiFetch<T = unknown>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> ?? {}),
+  };
+  if (options.body && typeof options.body === 'string') {
+    headers['Content-Type'] ??= 'application/json';
+  }
+  const res = await fetch(url, { ...options, headers });
+  const text = await res.text();
+  if (!res.ok) {
+    let detail = text;
+    try { const j = JSON.parse(text); detail = j.message ?? j.error ?? text; }
+    catch { /* body non JSON */ }
+    throw new Error(`API ${res.status} ${detail}`);
+  }
+  if (!text.trim()) return undefined as T;
+  return JSON.parse(text) as T;
 }

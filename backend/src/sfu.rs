@@ -65,6 +65,7 @@ pub struct SfuRenegotiateResponse {
 pub struct SfuState {
     rooms: Arc<RwLock<HashMap<String, Arc<Room>>>>,
     next_peer_id: Arc<AtomicU64>,
+    relay_capacity: u32,
 }
 
 // ================================================================
@@ -72,10 +73,11 @@ pub struct SfuState {
 // ================================================================
 
 impl SfuState {
-    pub fn new() -> Self {
+    pub fn new(relay_capacity: u32) -> Self {
         Self {
             rooms: Arc::new(RwLock::new(HashMap::new())),
             next_peer_id: Arc::new(AtomicU64::new(1)),
+            relay_capacity,
         }
     }
 
@@ -128,7 +130,7 @@ impl SfuState {
         });
 
         // Setup event handlers AVANT le SDP handshake
-        Self::setup_peer_events(pc.clone(), room.clone(), peer.clone());
+        Self::setup_peer_events(pc.clone(), room.clone(), peer.clone(), self.relay_capacity);
 
         // Inserer le peer
         {
@@ -293,7 +295,7 @@ impl SfuState {
     // EVENT HANDLING
     // ============================================================
 
-    fn setup_peer_events(pc: PeerConnection, room: Arc<Room>, peer: Arc<Peer>) {
+    fn setup_peer_events(pc: PeerConnection, room: Arc<Room>, peer: Arc<Peer>, relay_capacity: u32) {
         let user_id = peer.user_id.clone();
         let peer_id = peer.id;
         let room_clone = room.clone();
@@ -334,10 +336,10 @@ impl SfuState {
                         let kind = track.kind();
                         info!(user=%uid, kind=?kind, "SFU track received from peer");
 
-                        // Dedupliquer: une track par (user, kind)
+                        // Dedupliquer: une track par (user, peer_id, kind)
                         {
                             let tracks = room_clone.tracks.read().await;
-                            if tracks.iter().any(|t| t.user_id == uid && t.kind == kind) {
+                            if tracks.iter().any(|t| t.user_id == uid && t.peer_id == peer_id && t.kind == kind) {
                                 info!(user=%uid, kind=?kind, "SFU duplicate track, skipping");
                                 continue;
                             }
@@ -351,7 +353,7 @@ impl SfuState {
                         };
 
                         let (source, local_track, _) = media::sample_track(kind, clock_rate as usize);
-                        let relay = MediaRelay::with_capacity(local_track.clone(), 500);
+                        let relay = MediaRelay::with_capacity(local_track.clone(), relay_capacity as usize);
 
                         let params = RtpCodecParameters {
                             payload_type,

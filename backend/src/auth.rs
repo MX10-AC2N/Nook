@@ -72,7 +72,7 @@ pub fn hash_password(password: &str) -> String {
         .to_string()
 }
 
-fn verify_password(password: &str, hashed: &str) -> bool {
+pub(crate) fn verify_password(password: &str, hashed: &str) -> bool {
     let parsed = match PasswordHash::new(hashed) {
         Ok(p) => p,
         Err(_) => return false,

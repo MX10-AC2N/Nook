@@ -11,6 +11,7 @@ use axum::{
     response::IntoResponse,
 };
 use base64ct::{Base64Unpadded, Encoding};
+use bytes::Bytes;
 use chacha20poly1305::aead::generic_array::GenericArray;
 use chacha20poly1305::aead::Aead;
 use chacha20poly1305::KeyInit;
@@ -22,13 +23,17 @@ use std::{
     collections::HashMap,
     path::PathBuf,
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{Duration, Instant, SystemTime},
 };
 use tokio::sync::broadcast;
 use tokio::sync::Mutex;
 use crate::SharedState;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
+
+// Heartbeat constants
+const PING_INTERVAL_SECS: u64 = 30;
+const PONG_TIMEOUT_SECS: u64 = 90;
 
 // ════════════════════════════════════════════════════════════════
 // CRYPTO — Compatible libsodium (XChaCha20-Poly1305, nonces 24 bytes)
@@ -410,22 +415,84 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
     tracing::info!(ws_id = %id, user_id = %user_id, "WebSocket connecté");
 
-    let _send_task = tokio::spawn(async move {
+    // Heartbeat state — shared between send and receive tasks
+    let last_pong = Arc::new(Mutex::new(Instant::now()));
+    let last_pong_recv = last_pong.clone();
+
+    // Clone state/user_id for receive task BEFORE moving originals into send_task
+    let state_recv = state.clone();
+    let user_id_recv = user_id.clone();
+    let id_recv = id;
+
+    // ── Combined send + heartbeat task: forwards broadcast messages AND sends
+    //    WebSocket Ping frames every 30s to detect zombie connections.
+    //    Closes and cleans up if no Pong received within PONG_TIMEOUT_SECS (90s).
+    // ────────────────────────────────────────────────────────────────────────
+    let mut send_task = tokio::spawn(async move {
         let mut rx = broadcast_tx_for_send.subscribe();
-        while let Ok(msg) = rx.recv().await {
-            if let Err(e) = sender
-                .send(axum::extract::ws::Message::Text(msg.into()))
-                .await
-            {
-                tracing::debug!(error = %e, "WebSocket : erreur d'envoi");
-                break;
+        let mut heartbeat = interval(Duration::from_secs(PING_INTERVAL_SECS));
+
+        loop {
+            tokio::select! {
+                biased;  // prioritize broadcast messages over heartbeat
+
+                result = rx.recv() => {
+                    match result {
+                        Ok(msg) => {
+                            if let Err(e) = sender
+                                .send(axum::extract::ws::Message::Text(msg.into()))
+                                .await
+                            {
+                                tracing::debug!(error = %e, "WebSocket : erreur d'envoi");
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!(skipped = n, "WebSocket broadcast lagged");
+                            continue;
+                        }
+                    }
+                }
+
+                _ = heartbeat.tick() => {
+                    // Check if pong received within timeout
+                    let elapsed = last_pong.lock().await.elapsed();
+
+                    if elapsed > Duration::from_secs(PONG_TIMEOUT_SECS) {
+                        tracing::warn!(ws_id = %id, user_id = %user_id, elapsed_secs = elapsed.as_secs(),
+                            "WebSocket : pas de pong depuis {}s — fermeture", PONG_TIMEOUT_SECS);
+                        let _ = sender.send(axum::extract::ws::Message::Close(None)).await;
+
+                        // Cleanup on timeout
+                        {
+                            let mut guard = state.webrtc_state.broadcasts.lock().await;
+                            guard.remove(&id);
+                        }
+                        {
+                            let mut guard = state.webrtc_state.user_senders.lock().await;
+                            if let Some(txs) = guard.get_mut(&user_id) {
+                                txs.remove(&id);
+                                if txs.is_empty() {
+                                    guard.remove(&user_id);
+                                }
+                            }
+                        }
+                        break;
+                    }
+
+                    // Send WebSocket Ping frame
+                    if let Err(e) = sender.send(axum::extract::ws::Message::Ping(Bytes::new())).await {
+                        tracing::debug!(ws_id = %id, error = %e, "WebSocket : erreur envoi ping");
+                        break;
+                    }
+                }
             }
         }
     });
 
-    let state_recv = state.clone();
-    let user_id_recv = user_id.clone();
-    let _receive_task = tokio::spawn(async move {
+    // ── Receive task: handles incoming messages ────────────────────────────
+    let mut receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(axum::extract::ws::Message::Text(text)) => {
@@ -433,7 +500,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
 
                     // SEC-05 : limite 64 KB
                     if text_str.len() > 65_536 {
-                        tracing::warn!(ws_id = %id, bytes = text_str.len(), "WebSocket : message trop volumineux — ignoré");
+                        tracing::warn!(ws_id = %id_recv, bytes = text_str.len(), "WebSocket : message trop volumineux — ignoré");
                         continue;
                     }
 
@@ -452,7 +519,7 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                         .and_then(|v| v.as_str())
                         .unwrap_or("unknown");
 
-                    tracing::debug!(ws_id = %id, user_id = %user_id_recv, msg_type = %msg_type, "WebSocket : message reçu");
+                    tracing::debug!(ws_id = %id_recv, user_id = %user_id_recv, msg_type = %msg_type, "WebSocket : message reçu");
 
                     // ── Routage des signaux WebRTC par to_user_id ─────────────────
                     // Types d'appel : offer, answer, ice, join, leave, decline,
@@ -510,16 +577,20 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     tracing::debug!(bytes = data.len(), "WebSocket : binaire ignoré (P2P direct)");
                 }
                 Ok(axum::extract::ws::Message::Close(_)) => {
-                    tracing::debug!(ws_id = %id, "WebSocket : fermeture propre");
+                    tracing::debug!(ws_id = %id_recv, "WebSocket : fermeture propre");
                     // Cleanup: remove this sender from user_senders using ws_id
                     {
                         let mut guard = state_recv.webrtc_state.user_senders.lock().await;
                         if let Some(txs) = guard.get_mut(&user_id_recv) {
-                            txs.remove(&id);
+                            txs.remove(&id_recv);
                             if txs.is_empty() {
                                 guard.remove(&user_id_recv);
                             }
                         }
+                    }
+                    {
+                        let mut guard = state_recv.webrtc_state.broadcasts.lock().await;
+                        guard.remove(&id_recv);
                     }
                     break;
                 }
@@ -528,14 +599,26 @@ async fn handle_websocket(socket: WebSocket, state: Arc<crate::SharedState>, use
                     // Axum gère automatiquement les pong, on ignore juste ici
                 }
                 Ok(axum::extract::ws::Message::Pong(_)) => {
-                    // Pong reçu, connexion toujours active
+                    // Pong reçu, mise à jour du timestamp
+                    let mut guard = last_pong_recv.lock().await;
+                    *guard = Instant::now();
                 }
                 Err(e) => {
-                    tracing::debug!(ws_id = %id, error = %e, "WebSocket : erreur réception");
+                    tracing::debug!(ws_id = %id_recv, error = %e, "WebSocket : erreur réception");
                 }
             }
         }
     });
+
+    // Wait for either task to complete, then abort the other
+    tokio::select! {
+        _ = (&mut send_task) => {
+            receive_task.abort();
+        }
+        _ = (&mut receive_task) => {
+            send_task.abort();
+        }
+    }
 }
 
 // ────────────────────────────────────────────────────────

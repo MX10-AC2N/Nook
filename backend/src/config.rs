@@ -18,6 +18,8 @@ pub struct Config {
     pub turn_host: String,
     pub turn_port: u16,
     pub turn_secret: String,
+    /// Capacité maximale d'abonnés par relay SFU (défaut: 500)
+    pub sfu_relay_capacity: u32,
 }
 
 impl Config {
@@ -72,6 +74,11 @@ impl Config {
         let turn_secret = env::var("TURN_SECRET")
             .unwrap_or_else(|_| String::new());
 
+        let sfu_relay_capacity: u32 = env::var("SFU_RELAY_CAPACITY")
+            .unwrap_or_else(|_| "500".to_string())
+            .parse()
+            .unwrap_or(500);
+
         Self {
             port: env::var("PORT")
                 .unwrap_or_else(|_| "3000".to_string())
@@ -95,6 +102,7 @@ impl Config {
             turn_host,
             turn_port,
             turn_secret,
+            sfu_relay_capacity,
         }
     }
 }
@@ -109,6 +117,7 @@ mod tests {
             "PORT", "DATABASE_URL", "STATIC_FILES_DIR", "UPLOADS_DIR",
             "GIFS_DIR", "PUBLIC_SITE_URL", "ALLOWED_ORIGINS",
             "TURN_HOST", "TURN_PORT", "TURN_SECRET",
+            "SFU_RELAY_CAPACITY",
         ] {
             std::env::remove_var(key);
         }
@@ -125,6 +134,7 @@ mod tests {
         assert_eq!(config.uploads_dir, "/app/data/uploads");
         assert_eq!(config.gifs_dir, "/app/data/gifs");
         assert_eq!(config.turn_port, 3478);
+        assert_eq!(config.sfu_relay_capacity, 500);
     }
 
     #[test]
@@ -211,5 +221,28 @@ mod tests {
         std::env::set_var("TURN_PORT", "not_a_number");
         let config = Config::load();
         assert_eq!(config.turn_port, 3478, "Should fallback to 3478 on invalid");
+    }
+
+    #[test]
+    fn test_sfu_relay_capacity_default() {
+        clear_env();
+        let config = Config::load();
+        assert_eq!(config.sfu_relay_capacity, 500);
+    }
+
+    #[test]
+    fn test_sfu_relay_capacity_custom() {
+        clear_env();
+        std::env::set_var("SFU_RELAY_CAPACITY", "1000");
+        let config = Config::load();
+        assert_eq!(config.sfu_relay_capacity, 1000);
+    }
+
+    #[test]
+    fn test_sfu_relay_capacity_invalid_fallback() {
+        clear_env();
+        std::env::set_var("SFU_RELAY_CAPACITY", "not_a_number");
+        let config = Config::load();
+        assert_eq!(config.sfu_relay_capacity, 500, "Should fallback to 500 on invalid");
     }
 }
