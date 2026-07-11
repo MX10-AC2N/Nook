@@ -119,6 +119,13 @@ pub struct SendMessageRequest {
     /// Clé de session chiffrée pour chaque destinataire : user_id → base64
     #[serde(default)]
     pub encrypted_keys: std::collections::HashMap<String, String>,
+    /// Version de la clé de l'expéditeur (DT-05), défaut 1
+    #[serde(default = "default_key_version")]
+    pub sender_key_version: i32,
+}
+
+fn default_key_version() -> i32 {
+    1
 }
 
 #[derive(Debug, Deserialize)]
@@ -454,7 +461,7 @@ pub async fn send_message(
 
     // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
     if req.encrypted && !req.encrypted_keys.is_empty() {
-        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys).await {
+        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await {
             tracing::warn!(error = %e, msg_id = %id, "E2EE: échec store_message_keys (non bloquant)");
         }
     }
