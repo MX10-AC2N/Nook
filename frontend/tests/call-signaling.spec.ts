@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Call signaling test — verify signal routing', async ({ browser }) => {
@@ -18,7 +20,7 @@ test('Call signaling test — verify signal routing', async ({ browser }) => {
   page2.on('console', msg => logs2.push(msg.text()));
   
   // Login as hermes-bot (appelant)
-  await page1.goto('https://192.168.1.192:6443/login');
+  await page1.goto(`${BASE_URL}/login`);
   await page1.waitForTimeout(2000);
   await page1.fill('input[type="text"], input[name="username"]', 'hermes-bot');
   await page1.fill('input[type="password"]', 'Hermes2026!');
@@ -27,7 +29,7 @@ test('Call signaling test — verify signal routing', async ({ browser }) => {
   console.log('✅ hermes-bot logged in');
   
   // Login as admin (appelé)
-  await page2.goto('https://192.168.1.192:6443/login');
+  await page2.goto(`${BASE_URL}/login`);
   await page2.waitForTimeout(2000);
   await page2.fill('input[type="text"], input[name="username"]', 'admin');
   await page2.fill('input[type="password"]', 'admin123');
@@ -36,9 +38,9 @@ test('Call signaling test — verify signal routing', async ({ browser }) => {
   console.log('✅ admin logged in');
   
   // Both navigate to chat to establish WebSocket connections
-  await page1.goto('https://192.168.1.192:6443/chat');
+  await page1.goto(`${BASE_URL}/chat`);
   await page1.waitForTimeout(2000);
-  await page2.goto('https://192.168.1.192:6443/chat');
+  await page2.goto(`${BASE_URL}/chat`);
   await page2.waitForTimeout(2000);
   
   // Get conversation ID
@@ -68,7 +70,7 @@ test('Call signaling test — verify signal routing', async ({ browser }) => {
   console.log('Page2 WS connected:', ws2Connected);
   
   // Appelant navigue vers la page d'appel
-  await page1.goto(`https://192.168.1.192:6443/call/${convId}?type=audio`);
+  await page1.goto(`${BASE_URL}/call/${convId}?type=audio`);
   await page1.waitForTimeout(3000);
   
   // Vérifier si la page d'appel se charge

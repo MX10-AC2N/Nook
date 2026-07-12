@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Debug conversations and call notifications', async ({ browser }) => {
@@ -32,7 +34,7 @@ test('Debug conversations and call notifications', async ({ browser }) => {
   });
   
   // Login as hermes-bot
-  await page.goto('https://192.168.1.192:6443/login');
+  await page.goto(`${BASE_URL}/login`);
   await page.waitForTimeout(2000);
   await page.fill('input[type="text"], input[name="username"]', 'hermes-bot');
   await page.fill('input[type="password"]', 'Hermes2026!');
@@ -46,7 +48,7 @@ test('Debug conversations and call notifications', async ({ browser }) => {
   console.log('✅ Logged in as hermes-bot');
   
   // Navigate to chat
-  await page.goto('https://192.168.1.192:6443/chat');
+  await page.goto(`${BASE_URL}/chat`);
   await page.waitForTimeout(3000);
   
   // Check conversations

@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Call signaling test — check WebSocket and call notifications', async ({ browser }) => {
@@ -20,7 +22,7 @@ test('Call signaling test — check WebSocket and call notifications', async ({ 
   page2.on('console', msg => { if (msg.type() === 'error') errors2.push(`CONSOLE_ERROR: ${msg.text()}`); });
   
   // Login as julien
-  await page1.goto('https://192.168.1.192:6443/login');
+  await page1.goto(`${BASE_URL}/login`);
   await page1.waitForTimeout(2000);
   await page1.fill('input[type="text"], input[name="username"]', 'julien');
   await page1.fill('input[type="password"]', 'julien123');
@@ -41,7 +43,7 @@ test('Call signaling test — check WebSocket and call notifications', async ({ 
   console.log('✅ julien logged in');
   
   // Login as geraldine
-  await page2.goto('https://192.168.1.192:6443/login');
+  await page2.goto(`${BASE_URL}/login`);
   await page2.waitForTimeout(2000);
   await page2.fill('input[type="text"], input[name="username"]', 'geraldine');
   await page2.fill('input[type="password"]', 'geraldine123');
@@ -78,7 +80,7 @@ test('Call signaling test — check WebSocket and call notifications', async ({ 
   }
   
   // Julien navigates to call page
-  await page1.goto(`https://192.168.1.192:6443/call/${convId}?type=audio`);
+  await page1.goto(`${BASE_URL}/call/${convId}?type=audio`);
   await page1.waitForTimeout(3000);
   
   // Check if call page loads

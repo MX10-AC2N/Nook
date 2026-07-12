@@ -20,6 +20,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs, loginViaAPI, waitForAppReady, clearSession, BASE, E2E_USER, E2E_PASS } from './helpers';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.describe.serial('User — Flux complet', () => {
 
   let page: Page;
@@ -764,7 +766,7 @@ test.describe.serial('User — Flux complet', () => {
   
   // ── Avatar ────────────────────────────────────────────────────────
   test('Avatar — composant visible avec initiales dans le chat', async ({ page }) => {
-    await page.goto('http://localhost:6300/chat');
+    await page.goto(`${BASE_URL}/chat`);
     await waitForAppReady(page);
     await page.waitForTimeout(2000);
     
@@ -780,7 +782,7 @@ test.describe.serial('User — Flux complet', () => {
   });
 
   test('Settings — section avatar visible avec grille d\'options', async ({ page }) => {
-    await page.goto('http://localhost:6300/settings');
+    await page.goto(`${BASE_URL}/settings`);
     await waitForAppReady(page);
     await page.waitForTimeout(1000);
     
@@ -805,7 +807,7 @@ test.describe.serial('User — Flux complet', () => {
 
   // ── Calendar Views ────────────────────────────────────────────────
   test('Calendar — switcher vue Mois/Semaine/Jour visible', async ({ page }) => {
-    await page.goto('http://localhost:6300/calendar');
+    await page.goto(`${BASE_URL}/calendar`);
     await waitForAppReady(page);
     await page.waitForTimeout(1000);
     
@@ -999,7 +1001,7 @@ test.describe('Call page', () => {
     await loginAs(page, E2E_USER, E2E_PASS);
     await page.waitForURL(/chat/);
 
-    await page.goto(`http://localhost:6300/call/default_global`);
+    await page.goto(`${BASE_URL}/call/default_global`);
     await page.waitForLoadState('networkidle');
     const title = await page.title();
     expect(title.toLowerCase()).toContain('appel');
@@ -1017,7 +1019,7 @@ test.describe('Call page', () => {
   test('/call/[id] session → page appel chargee (sans auth first)', async ({ browser }) => {
     const page = await browser.newPage();
     await clearSession(page);
-    await page.goto(`http://localhost:6300/call/some-id`);
+    await page.goto(`${BASE_URL}/call/some-id`);
     await page.waitForURL(/login/, { timeout: 10000 });
     expect(page.url()).toContain('login');
   });
@@ -1050,7 +1052,7 @@ test.describe('Chess — Coups spéciaux et timer', () => {
 
   test('Chess — UI plateau 8x8 (64 cases)', async ({ page }) => {
     if (!chessGameIdForSpecial) return;
-    await page.goto(`http://localhost:6300/chess/${chessGameIdForSpecial}`);
+    await page.goto(`${BASE_URL}/chess/${chessGameIdForSpecial}`);
     await page.waitForSelector('.cell', { state: 'visible', timeout: 10000 });
 
     const cells = await page.locator('.cell').count();

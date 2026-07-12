@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { BASE } from './helpers';
 
 
 test.describe('E2EE Chat — Encryption + Decryption', () => {

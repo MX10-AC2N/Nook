@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Diagnostic Service Worker', async ({ page }) => {
@@ -8,7 +10,7 @@ test('Diagnostic Service Worker', async ({ page }) => {
   page.on('console', msg => logs.push(msg.text()));
   
   // Aller sur la page
-  await page.goto('https://192.168.1.192:6443/settings');
+  await page.goto(`${BASE_URL}/settings`);
   await page.waitForTimeout(3000);
   
   // Vérifier le Service Worker

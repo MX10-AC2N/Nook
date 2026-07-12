@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Diagnostic complet — login, conversations, messages, appels', async ({ browser }) => {
@@ -17,7 +19,7 @@ test('Diagnostic complet — login, conversations, messages, appels', async ({ b
   
   // ── 1. Login ──────────────────────────────────────────────────────
   console.log('=== 1. LOGIN ===');
-  await page1.goto('https://192.168.1.192:6443/login');
+  await page1.goto(`${BASE_URL}/login`);
   await page1.waitForTimeout(2000);
   await page1.fill('input[type="text"], input[name="username"]', 'hermes-bot');
   await page1.fill('input[type="password"]', 'Hermes2026!');
@@ -35,7 +37,7 @@ test('Diagnostic complet — login, conversations, messages, appels', async ({ b
   
   // ── 2. Conversations ──────────────────────────────────────────────
   console.log('\n=== 2. CONVERSATIONS ===');
-  await page1.goto('https://192.168.1.192:6443/chat');
+  await page1.goto(`${BASE_URL}/chat`);
   await page1.waitForTimeout(3000);
   
   const convCount = await page1.locator('.conversation-item').count();

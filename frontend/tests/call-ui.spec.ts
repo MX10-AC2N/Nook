@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { BASE } from './helpers';
+
+const WS_BASE = BASE.replace(/^http/, 'ws').replace('/api', '');
 
 
 test.describe('Call Page UI — Audio/Video', () => {
@@ -114,7 +117,7 @@ test.describe('Call Page UI — Audio/Video', () => {
       // Check if WebSocket is connecting or connected
       return new Promise((resolve) => {
         try {
-          const ws = new WebSocket(`ws://localhost:6300/ws/call/${window.location.pathname.split('/')[2]}`);
+          const ws = new WebSocket(`${WS_BASE}/ws/call/${window.location.pathname.split('/')[2]}`);
           ws.onopen = () => { ws.close(); resolve(true); };
           ws.onerror = () => resolve(false);
           setTimeout(() => resolve(false), 3000);

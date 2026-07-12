@@ -1,5 +1,7 @@
 import { test } from '@playwright/test';
 
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+
 test.use({ ignoreHTTPSErrors: true });
 
 test('Test Service Worker et Push Notifications', async ({ page }) => {
@@ -12,7 +14,7 @@ test('Test Service Worker et Push Notifications', async ({ page }) => {
   });
   
   // Login
-  await page.goto('http://localhost:6300/login');
+  await page.goto(`${BASE_URL}/login`);
   await page.waitForTimeout(2000);
   await page.fill('input[type="text"], input[name="username"]', 'hermes-bot');
   await page.fill('input[type="password"]', 'Hermes2026!');
@@ -22,7 +24,7 @@ test('Test Service Worker et Push Notifications', async ({ page }) => {
   console.log('URL après login:', page.url());
 
   // Aller aux paramètres
-  await page.goto('http://localhost:6300/settings');
+  await page.goto(`${BASE_URL}/settings`);
   await page.waitForTimeout(3000);
   
   // Vérifier Service Worker
