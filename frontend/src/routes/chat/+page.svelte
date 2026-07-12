@@ -1475,7 +1475,7 @@
               {:else if isEmojiOnly(msg.content)}
                 <div class="emoji-only">{@html msg.content}</div>
               {:else}
-                {@html msg.content}
+                <div class="message-content">{@html msg.content}</div>
               {/if}
             <!-- Message editing UI (when this message is being edited) -->
             {#if editingMsgId === msg.id}
