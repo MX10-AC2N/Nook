@@ -467,7 +467,7 @@
 
   .logout-link:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-        .app-main { flex: 1; padding: 0; background: var(--bg-primary, #f5f7fa); }
+        .app-main { flex: 1 1 auto; min-height: 0; padding: 0; background: var(--bg-primary, #f5f7fa); }
 
   .app-footer {
     text-align: center; padding: 0.5rem; color: var(--text-secondary, #64748b);

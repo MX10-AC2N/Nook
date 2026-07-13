@@ -365,10 +365,11 @@ pub async fn download_file(
         encrypted: bool,
         nonce: Option<String>,
         key_text: Option<String>,
+        download_count: i64,
     }
 
     let row = match sqlx::query_as::<_, FileRow>(
-        "SELECT file_name, file_path, content_type, encrypted, nonce, key_text FROM uploads WHERE id = ?",
+        "SELECT file_name, file_path, content_type, encrypted, nonce, key_text, COALESCE(download_count, 0) AS download_count FROM uploads WHERE id = ?",
     )
     .bind(&file_id)
     .fetch_optional(&state.db)
@@ -412,6 +413,12 @@ pub async fn download_file(
         raw_bytes
     };
 
+    // Incrémenter le compteur de téléchargements (non bloquant)
+    let _ = sqlx::query("UPDATE uploads SET download_count = COALESCE(download_count, 0) + 1 WHERE id = ?")
+        .bind(&file_id)
+        .execute(&state.db)
+        .await;
+
     let content_type = if row.content_type.is_empty()
         || row.content_type == "application/octet-stream"
     {
@@ -433,6 +440,7 @@ pub async fn download_file(
         .header(header::CONTENT_DISPOSITION, disposition)
         .header(header::CONTENT_LENGTH, plaintext.len())
         .header(header::CACHE_CONTROL, "private, max-age=3600")
+        .header("X-Download-Count", row.download_count.to_string())
         .body(Body::from(plaintext))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }

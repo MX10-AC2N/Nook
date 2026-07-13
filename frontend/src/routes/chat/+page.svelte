@@ -333,9 +333,9 @@
       const msgEl = targetEl.closest('.message') as HTMLElement | null;
       const msgRect = msgEl?.getBoundingClientRect();
       const pickerHeight = 360; // max-height from CSS
-      const spaceBelow = window.innerHeight - btnRect.bottom;
+      const spaceBelow = msgRect ? window.innerHeight - msgRect.bottom : window.innerHeight - btnRect.bottom;
       const spaceAbove = msgRect ? msgRect.top : btnRect.top;
-      const openBelow = spaceBelow >= pickerHeight + 10; // 10px margin
+      const openBelow = spaceBelow >= 200; // lower threshold to prefer opening below
       
       emojiPickerPos = {
         top: openBelow 
@@ -626,7 +626,7 @@
         );
         if (res.ok) {
           const data = await res.json();
-          reactions[msg.id] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+          reactions = { ...reactions, [msg.id]: { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null } };
         }
       } catch { /* non-bloquant */ }
     }));
@@ -866,7 +866,7 @@
       const isVideo = data.is_video ?? file.type.startsWith('video/');
       let uploadContent: string;
       if (isImage) {
-        uploadContent = `<div class="file-preview"><img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" /><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
+        uploadContent = `<div class="file-preview"><img src="/api/download/${data.file_id}" alt="${data.file_name}" class="uploaded-image" decoding="async" loading="lazy" /><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️<span class="download-count">0</span></a></div>`;
       } else if (isAudio) {
         uploadContent = `<div class="file-audio"><audio src="/api/download/${data.file_id}" controls preload="none" class="chat-audio"></audio><a href="/api/download/${data.file_id}" download="${data.file_name}" class="file-download" title="Télécharger">⬇️</a></div>`;
       } else if (isVideo) {
@@ -1275,7 +1275,7 @@
     fetch(`/api/conversations/${conversationId}/messages/${messageId}/reactions`, {
       credentials: 'include',
     }).then(r => r.ok ? r.json() : null).then(data => {
-      if (data) reactions[messageId] = { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null };
+      if (data) reactions = { ...reactions, [messageId]: { counts: data.counts ?? {}, myEmoji: data.my_emoji ?? null } };
     }).catch(() => {});
   });
 </script>
@@ -1458,11 +1458,12 @@
               <Avatar
                 username={msg.sender_name}
                 name={msg.sender_name}
-                size={28}
+                size={36}
                 userId={msg.sender_id}
                 style={msg.sender_avatar_style ?? ''}
                 seed={msg.sender_avatar_seed ?? ''}
               />
+              <span class="message-sender-name">{msg.sender_name}</span>
             </div>
           {/if}
 
@@ -2108,6 +2109,7 @@
     gap: .5rem;
     scroll-behavior: smooth;
     overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .empty-state {
     flex: 1;
@@ -2166,10 +2168,10 @@
   }
   .message-content :global(img.uploaded-image),
   .message-content :global(img.chat-gif) {
-    max-width: 100%; height: auto; border-radius: 8px; margin-top: .3rem; display: block;
+    max-width: 100%; height: auto; border-radius: 8px; margin-top: .3rem; display: block; object-fit: cover;
   }
   .message-content :global(.file-preview) {
-    position: relative; display: inline-block; max-width: 100%;
+    position: relative; display: block; max-width: 100%;
   }
   .message-content :global(.file-preview img) {
     max-width: 100%; height: auto; border-radius: 8px; display: block;
@@ -2180,7 +2182,7 @@
     border-radius: 50%; width: 28px; height: 28px;
     display: flex; align-items: center; justify-content: center;
     text-decoration: none; font-size: .8rem;
-    opacity: .7; transition: opacity .2s;
+    opacity: .9; transition: opacity .2s;
   }
   .message-content :global(.file-preview:hover .file-download),
   .message-content :global(.file-audio:hover .file-download),
@@ -2396,6 +2398,7 @@
     border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
     width: 100%;
+    padding-bottom: env(safe-area-inset-bottom);
   }
   .icon-btn {
     padding: .45rem; background: none; border: none;
@@ -2735,6 +2738,10 @@
     max-width: 92% !important;
   }
 
+  .message-column {
+    max-width: 85% !important;
+  }
+
   .message-content {
     font-size: .92rem;
     padding: .45rem .7rem;
@@ -2830,6 +2837,14 @@
     font-size: .72rem;
   }
   } /* end @media */
+
+  /* ── Tablet breakpoint ── */
+  @media (max-width: 1024px) {
+    .conversations-sidebar {
+      width: 200px;
+    }
+  }
+
   .typing-indicator {
     display: flex;
     align-items: center;
@@ -2878,6 +2893,12 @@
     flex-shrink: 0;
     margin-bottom: .1rem;
   }
+  .message-sender-name {
+    font-size: 0.7rem;
+    color: var(--text-secondary, #666);
+    display: block;
+    text-align: center;
+  }
 
   /* Message column: stacks message bubble + reactions vertically */
   .message-column {
@@ -2901,16 +2922,36 @@
     font-size: .92rem;
     width: fit-content;
     max-width: 100%;
+    animation: bubbleIn 0.3s ease-out;
+    position: relative;
   }
   .message.mine {
     background: var(--accent, #4ade80);
     color: #fff;
     border-bottom-right-radius: .2rem;
   }
+  .message.mine::before {
+    content: '';
+    position: absolute;
+    right: -8px;
+    top: 12px;
+    border: 8px solid transparent;
+    border-left-color: var(--accent, #4ade80);
+    border-right: 0;
+  }
   .message.theirs {
     background: var(--bg-secondary, #f1f5f9);
     color: var(--text-primary, #1e293b);
     border-bottom-left-radius: .2rem;
+  }
+  .message.theirs::before {
+    content: '';
+    position: absolute;
+    left: -8px;
+    top: 12px;
+    border: 8px solid transparent;
+    border-right-color: var(--bg-secondary, #f1f5f9);
+    border-left: 0;
   }
 
   /* Message actions (visible on hover) */
@@ -3127,6 +3168,18 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes bubbleIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .download-count {
+    font-size: 0.65rem;
+    margin-left: 2px;
+    vertical-align: middle;
   }
 
   .encrypted-placeholder {
