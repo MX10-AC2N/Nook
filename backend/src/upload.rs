@@ -395,7 +395,7 @@ pub async fn download_file(
     let plaintext = if row.encrypted {
         match (row.nonce.as_deref(), row.key_text.as_deref()) {
             (Some(nonce), Some(key)) => {
-                match decrypt_file_from_storage(&raw_bytes, nonce, key).await {
+                match decrypt_file_from_storage(&raw_bytes, nonce, key) {
                     Ok(data) => data,
                     Err(e) => {
                         tracing::error!(file_id = %file_id, err = %e, "Déchiffrement échoué");
