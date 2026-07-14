@@ -485,6 +485,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/analytics", get(admin::get_analytics))
         .route("/users/{id}", axum::routing::delete(admin::delete_user))
         .route("/metrics", get(admin::get_system_metrics))
+        .merge(analytics::analytics_routes())
         .layer(middleware::from_fn(auth::require_admin));
 
     // ============================================================
@@ -525,7 +526,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(missed_calls::missed_calls_routes())
         .merge(search::search_routes())
         .merge(presence::presence_routes())
-        .merge(analytics::analytics_routes())
         .layer(middleware::from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
