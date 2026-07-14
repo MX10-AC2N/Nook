@@ -326,21 +326,16 @@
   function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
-    // Calculer la position du picker par rapport au target (fixed → coordonnées viewport)
     if (targetEl) {
-      const btnRect = targetEl.getBoundingClientRect();
-      // Trouver le conteneur du message pour positionner "au-dessus" correctement
-      const msgEl = targetEl.closest('.message') as HTMLElement | null;
+      const msgEl = targetEl.closest('.message-wrapper') as HTMLElement | null;
       const msgRect = msgEl?.getBoundingClientRect();
-      const pickerHeight = 360; // max-height from CSS
-      const spaceBelow = msgRect ? window.innerHeight - msgRect.bottom : window.innerHeight - btnRect.bottom;
-      const spaceAbove = msgRect ? msgRect.top : btnRect.top;
-      const openBelow = spaceBelow >= 200; // lower threshold to prefer opening below
+      const btnRect = targetEl.getBoundingClientRect();
+      
+      // Toujours ouvrir SOUS le message — jamais au-dessus
+      const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
       
       emojiPickerPos = {
-        top: openBelow 
-          ? btnRect.bottom + 6 
-          : (msgRect ? msgRect.top - pickerHeight - 6 : btnRect.top - pickerHeight - 6),
+        top: referenceBottom + 6,          // 6px de marge
         left: btnRect.left,
         right: window.innerWidth - btnRect.right,
       };
@@ -1463,7 +1458,9 @@
                 style={msg.sender_avatar_style ?? ''}
                 seed={msg.sender_avatar_seed ?? ''}
               />
-              <span class="message-sender-name">{msg.sender_name}</span>
+              {#if msg.sender_name}
+                <div class="message-sender">{msg.sender_name}</div>
+              {/if}
             </div>
           {/if}
 
@@ -2135,8 +2132,15 @@
     align-self: flex-end;
   }
   .message-sender {
-    font-size: .75rem; font-weight: 700;
-    color: var(--accent, #4ade80); margin-bottom: .15rem;
+    font-size: .7rem;
+    font-weight: 600;
+    color: var(--text-secondary, #64748b);
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.1;
   }
   .message-header {
     display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
@@ -2878,7 +2882,7 @@
     margin-bottom: .5rem;
     display: flex;
     flex-direction: row;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: .5rem;
   }
   .message-wrapper.mine {
@@ -2891,15 +2895,12 @@
   }
   .message-avatar {
     flex-shrink: 0;
-    margin-bottom: .1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 44px;
   }
-  .message-sender-name {
-    font-size: 0.7rem;
-    color: var(--text-secondary, #666);
-    display: block;
-    text-align: center;
-  }
-
   /* Message column: stacks message bubble + reactions vertically */
   .message-column {
     display: flex;

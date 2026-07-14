@@ -71,7 +71,7 @@ test.describe('Chat UI — Améliorations', () => {
     await page.screenshot({ path: '/tmp/nook-06-hover.png' });
     
     // Click reaction button
-    const reactionBtn = page.locator('[data-testid="reaction-trigger"]').first();
+    const reactionBtn = page.locator('.action-btn.react-more').first();
     if (await reactionBtn.isVisible()) {
       await reactionBtn.click();
       await page.waitForTimeout(300);

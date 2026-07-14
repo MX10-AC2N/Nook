@@ -113,7 +113,7 @@ test.describe('Chat UI — @Mentions + Features', () => {
     await page.waitForTimeout(500);
 
     // Click reaction trigger
-    const reactionBtn = page.locator('[data-testid="reaction-trigger"]').first();
+    const reactionBtn = page.locator('.action-btn.react-more').first();
     if (await reactionBtn.isVisible()) {
       await reactionBtn.click();
       await page.waitForTimeout(500);
