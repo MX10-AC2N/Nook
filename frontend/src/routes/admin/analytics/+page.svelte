@@ -218,7 +218,8 @@
       data: {
         labels: points.map(p => dayLabel(p.day)),
         datasets: [
-          { label: 'Messages', data: points.map(p => p.messages), borderColor: '#60a5fa', backgroundColor: 'rgba(96,16          { label: 'Appels', data: points.map(p => p.calls), borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)' },
+          { label: 'Messages', data: points.map(p => p.messages), borderColor: '#60a5fa', backgroundColor: 'rgba(96,165,250,0.1)' },
+          { label: 'Appels', data: points.map(p => p.calls), borderColor: '#f472b6', backgroundColor: 'rgba(244,114,182,0.1)' },
           { label: 'Uploads', data: points.map(p => p.uploads), borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)' },
           { label: 'Utilisateurs actifs', data: points.map(p => p.active_users), borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)' },
         ],
@@ -350,10 +351,12 @@
   });
 
   // ===== Range Change =====
-  $: if (activeRange) {
-    loadActivity();
-    setTimeout(renderCharts, 0);
-  }
+  $effect(() => {
+    if (activeRange) {
+      loadActivity();
+      setTimeout(renderCharts, 0);
+    }
+  });
 </script>
 
 <div class="admin-analytics">
@@ -364,7 +367,7 @@
       <div class="ws-status" title={wsConnected ? 'Connecté (temps réel)' : 'Déconnecté'}>
         <span class={`status-dot ${wsConnected ? 'connected' : 'disconnected'}`}></span>
         <span class="status-text">{wsConnected ? 'Temps réel' : 'Hors ligne'}</span>
-        {lastUpdate && <span class="last-update">MAJ: {lastUpdate.toLocaleTimeString('fr-FR')}</span>}
+        {#if lastUpdate}<span class="last-update">MAJ: {lastUpdate.toLocaleTimeString('fr-FR')}</span>{/if}
       </div>
     </div>
   </header>
@@ -777,7 +780,7 @@
       <div class="ws-status" title={wsConnected ? 'Connecté (temps réel)' : 'Déconnecté'}>
         <span class={`status-dot ${wsConnected ? 'connected' : 'disconnected'}`}></span>
         <span class="status-text">{wsConnected ? 'Temps réel' : 'Hors ligne'}</span>
-        {lastUpdate && <span class="last-update">MAJ: {lastUpdate.toLocaleTimeString('fr-FR')}</span>}
+        {#if lastUpdate}<span class="last-update">MAJ: {lastUpdate.toLocaleTimeString('fr-FR')}</span>{/if}
       </div>
     </div>
   </header>
