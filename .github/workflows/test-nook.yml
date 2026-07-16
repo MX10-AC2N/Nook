@@ -11,6 +11,7 @@ on:
     branches:
       - develop
       - main
+  workflow_dispatch:
 
 concurrency:
   group: ci-test-nook-${{ github.head_ref || github.ref }}
