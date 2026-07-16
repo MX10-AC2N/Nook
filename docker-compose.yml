@@ -91,7 +91,7 @@ services:
       - "${TURN_PORT:-3478}:3478/tcp"
 
     volumes:
-      - "${TURN_CONFIG_DIR:-./turn-config}:/etc/turn-server"
+      - "${TURN_CONFIG_DIR:-./turn-config}:/etc/turn-server:rw"
 
     environment:
       - TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set}

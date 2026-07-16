@@ -409,9 +409,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(rate_limit).unwrap()))
     );
 
-    // 🔐 Auth rate limiter: stricter limits for auth endpoints (5 attempts/min per IP)
+    // 🔐 Auth rate limiter: stricter limits for auth endpoints (configurable via AUTH_RATE_LIMIT_PER_MIN)
+    let auth_rate_limit: u32 = std::env::var("AUTH_RATE_LIMIT_PER_MIN")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(5);
     let auth_limiter: Arc<IpRateLimiter> = Arc::new(
-        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(5).unwrap()))
+        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(auth_rate_limit).unwrap()))
     );
 
     let auth_limiter_clone = auth_limiter.clone();
@@ -465,8 +467,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }));
 
     tracing::info!("Routes publiques configurées (rate limit: {}/min par IP):", rate_limit);
-    tracing::info!("  • POST   /auth/register (auth rate limit: 5/min)");
-    tracing::info!("  • POST   /auth/login (auth rate limit: 5/min)");
+    tracing::info!("  • POST   /auth/register (auth rate limit: {}/min)", auth_rate_limit);
+    tracing::info!("  • POST   /auth/login (auth rate limit: {}/min)", auth_rate_limit);
     tracing::info!("  • POST   /join");
     tracing::info!("  • GET    /invite/validate");
     tracing::info!("  • POST   /invite/accept");
@@ -604,26 +606,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/ca/help", get(ca::ca_help))
         .fallback_service(static_service)
 
-        // 🛡️ Security headers middleware
-        .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
-            // HSTS check must happen BEFORE consuming req
-            let is_https = req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
-            
-            let mut response = next.run(req).await;
-            let headers = response.headers_mut();
-            headers.insert("X-Frame-Options", "DENY".parse().unwrap());
-            headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
-            headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
-            headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
-            headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
-            headers.insert("Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; frame-ancestors 'none'".parse().unwrap());
-            // HSTS uniquement sur HTTPS (nginx termine TLS et forward x-forwarded-proto: https)
-            if is_https {
-                headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
-            }
-            response
-        }))
+        // 🛡️ Security headers middleware (HSTS, frame options, etc.) + CSP nonce middleware
+                .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
+                    // HSTS check must happen BEFORE consuming req
+                    let is_https = req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
+
+                    let mut response = next.run(req).await;
+                    let headers = response.headers_mut();
+                    headers.insert("X-Frame-Options", "DENY".parse().unwrap());
+                    headers.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+                    headers.insert("X-XSS-Protection", "1; mode=block".parse().unwrap());
+                    headers.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
+                    headers.insert("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=()".parse().unwrap());
+                    // HSTS only on HTTPS (nginx terminates TLS and forwards x-forwarded-proto: https)
+                    if is_https {
+                        headers.insert("Strict-Transport-Security", "max-age=31536000; includeSubDomains".parse().unwrap());
+                    }
+                    response
+                }))
+                .layer(middleware::from_fn(middleware::csp::csp_nonce_middleware))
         // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::header::CACHE_CONTROL,
