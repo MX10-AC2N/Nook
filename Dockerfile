@@ -12,15 +12,21 @@ RUN apk add --no-cache \
     gcc \
     g++ \
     musl-dev \
+    musl-tools \
     build-base \
     sqlite-dev \
     libsodium-dev \
     pkgconfig
 
+# Ensure musl-gcc is available for ring crate (fallback symlink)
+RUN ln -sf /usr/bin/gcc /usr/bin/musl-gcc
+
 # Nightly rust via rustup (edition2024 deps comme home-0.5.12 exigent Cargo >= 1.85)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
     | sh -s -- -y --default-toolchain nightly --profile minimal
 ENV PATH="/root/.cargo/bin:$PATH"
+ENV CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc
+ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=gcc
 
 WORKDIR /usr/src/nook
 
