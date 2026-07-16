@@ -1,17 +1,20 @@
 # Note: this file is the MAIN CI pipeline.
-# It builds Docker image, runs backend checks, E2E tests, and security tests.
+# It uses pre-built backend artifacts from Backend.yml, runs E2E tests, and security tests.
 
 name: 4 ==> Test Nook
 
 on:
-  workflow_dispatch:
+  workflow_run:
+    workflows: ["1==>🏗️ Backend Build & Artifact"]
+    types:
+      - completed
+    branches:
+      - develop
+      - main
 
 concurrency:
   group: ci-test-nook-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
-
-# Note: les jobs sont SÉQUENTIELS (aucun needs parallèle)
-# pour éviter les conflits git sur .hermes/TEST_REPORT.md
 
 jobs:
   # - Build Frontend (Artefact pour les jobs suivants)
@@ -49,7 +52,7 @@ jobs:
           path: frontend/build
           retention-days: 1
 
-  # - Build Backend + Integration + E2E (tout en un)
+  # - Download backend artifacts + Integration + E2E
   integration-tests:
     name: 🧪 Integration Tests
     runs-on: ubuntu-latest
@@ -77,12 +80,29 @@ jobs:
           test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
           echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
 
-      - name: Check Backend
-        working-directory: ./backend
+      # Download pre-built backend artifacts from Backend.yml
+      - name: Download backend artifact (amd64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-backend-x86_64-unknown-linux-musl
+          path: backend/artifacts/amd64
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Download backend artifact (arm64)
+        uses: actions/download-artifact@v4
+        with:
+          name: nook-backend-aarch64-unknown-linux-musl
+          path: backend/artifacts/arm64
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Prepare backend binaries
         run: |
-          sudo apt-get update && sudo apt-get install -y musl-tools
-          rustup target add x86_64-unknown-linux-musl
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc cargo check --all-targets --target x86_64-unknown-linux-musl
+          ls -la backend/artifacts/
+          chmod +x backend/artifacts/amd64/nook-backend-amd64
+          chmod +x backend/artifacts/arm64/nook-backend-arm64
+          echo "✅ Backend binaries ready"
 
       - name: Create .env file for Docker Compose
         run: |
@@ -117,15 +137,17 @@ jobs:
           mkdir -p nook-data nook-logs turn-config nginx-ssl
           chmod 0777 nook-data nook-logs turn-config
 
-      - name: Build Docker image (with cache)
+      - name: Build Docker image (using pre-built backend binary)
         run: |
+          # Use Dockerfile.release pattern - copy pre-built binary
           docker build \
             --tag nook-ci:local \
-            --file Dockerfile \
+            --file Dockerfile.release \
+            --build-arg TARGETARCH=amd64 \
             --cache-from type=gha \
             --cache-to type=gha,mode=max \
             .
-          echo "✅ Image nook-ci:local construite"
+          echo "✅ Image nook-ci:local construite avec binaire pré-compilé"
 
       - name: Start stack
         run: |
@@ -196,18 +218,18 @@ jobs:
           curl -s -c /tmp/admin-cookies.txt -o /tmp/admin-body.txt -X POST \
             http://localhost:6300/api/auth/login \
             -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"'"${ADMIN_INITIAL_PASSWORD:-AdminCI2026!}"'""}'
-          
+            -d '{"username":"admin","password":"'"${ADMIN_INITIAL_PASSWORD:-AdminCI2026!}"'"}'
+
           ADMIN_ID=$(jq -r '.user.id // empty' /tmp/admin-body.txt 2>/dev/null || echo "")
           if [ -n "$ADMIN_ID" ]; then
             echo "✅ Login admin: OK"
-            
+
             echo "=== Change password ==="
             curl -s -X POST http://localhost:6300/api/auth/change-password \
               -H "Content-Type: application/json" \
               -b /tmp/admin-cookies.txt \
               -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}'
-            
+
             # Re-login with new password
             curl -s -c /tmp/admin-cookies2.txt -X POST \
               http://localhost:6300/api/auth/login \
@@ -233,12 +255,12 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "✅ Register e2e_ci: $REG2"
-          
+
           sleep 2
-          
+
           PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
           E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
-          
+
           if [ -n "$E2E_ID" ]; then
             curl -s -X POST http://localhost:6300/api/users/approve \
               -H "Content-Type: application/json" \
@@ -278,7 +300,6 @@ jobs:
           npx playwright test 2>&1 | tee /tmp/playwright-output.txt
           EXIT_CODE=${PIPESTATUS[0]}
           echo "playwright_exit=$EXIT_CODE" >> $GITHUB_OUTPUT
-
           if [ $EXIT_CODE -eq 0 ]; then
             echo "✅ Tous les tests E2E ont passé"
             grep -E "passed|failed|skipped" /tmp/playwright-output.txt || true
