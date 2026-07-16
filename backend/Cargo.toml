@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 dotenv = "0.15"
 hostname = "0.4"
-sysinfo = "0.32"
 rustrtc = "0.3.52"
 axum = { version = "0.8", features = ["ws", "multipart", "tokio"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }

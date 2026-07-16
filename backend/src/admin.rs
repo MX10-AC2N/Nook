@@ -2,9 +2,7 @@
 // Session 15 — FIX: approve_user insère aussi le user dans conversation_participants
 //               Cause : un user inscrit via /api/auth/register n'était jamais ajouté
 //               à default_global → GET /api/conversations retournait [] après approbation
-
 use crate::{auth::CurrentUser, SharedState};
-use sysinfo::System;
 use axum::{extract::State, extract::Path, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -62,41 +60,6 @@ pub struct RejectPayload {
 
 // ====================== HANDLERS (avec CurrentUser) ======================
 
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GET /api/admin/metrics
-// ─────────────────────────────────────────────────────────────────────────────
-
-pub async fn get_system_metrics(
-    State(_state): State<Arc<SharedState>>,
-    Extension(CurrentUser(user)): Extension<CurrentUser>,
-) -> impl IntoResponse {
-    if user.role != "admin" {
-        return (StatusCode::FORBIDDEN, Json(json!({ "error": "Admin uniquement" }))).into_response();
-    }
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    let cpu = sys.global_cpu_usage();
-    let mem_used = sys.used_memory();
-    let mem_total = sys.total_memory();
-    let uptime = System::uptime();
-    let la = System::load_average();
-    let disks: Vec<serde_json::Value> = Vec::new();
-    // NOTE: In sysinfo 0.32, disk access requires specific refresh calls
-    // For now, skip disk info (can be added back with correct 0.32 API later)
-    sys.refresh_memory();
-    Json(json!({
-        "cpu_usage_percent": cpu,
-        "memory_used_mb": mem_used / 1_048_576,
-        "memory_total_mb": mem_total / 1_048_576,
-        "uptime_seconds": uptime,
-        "load_avg_one": la.one,
-        "load_avg_five": la.five,
-        "disks": disks,
-        "process_count": sys.processes().len(),
-    })).into_response()
-}
 
 #[allow(clippy::type_complexity)]
 pub async fn pending_users(
