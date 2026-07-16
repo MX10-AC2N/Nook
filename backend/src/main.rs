@@ -12,7 +12,7 @@ use axum::{
         header::CONTENT_TYPE,
         Request,
     },
-    middleware::{self, Next},
+    middleware::{from_fn, from_fn_with_state, Next},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -44,7 +44,7 @@ mod config;
 mod db;
 mod e2ee;
 mod invites;
-mod middleware;
+mod my_middleware;
 mod missed_calls;
 mod polls;
 mod reactions;
@@ -421,7 +421,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth_routes = Router::new()
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
-        .route_layer(middleware::from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req: Request<Body>, next: Next| {
+        .route_layer(from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req: Request<Body>, next: Next| {
             let lim = auth_limiter_clone.clone();
             async move {
                 match lim.check_key(&addr.ip()) {
@@ -446,7 +446,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(|| async { "OK" }))
         .route("/avatar/{style}/svg", get(avatar_proxy))
         .nest("/push", push::public_router())
-        .route_layer(middleware::from_fn(move |
+        .route_layer(from_fn(move |
             ConnectInfo(addr): ConnectInfo<SocketAddr>,
             req: Request<Body>,
             next: Next,
@@ -487,7 +487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .route("/analytics", get(admin::get_analytics))
                 .route("/users/{id}", axum::routing::delete(admin::delete_user))
                 .merge(analytics::analytics_routes())
-        .layer(middleware::from_fn(auth::require_admin));
+        .layer(from_fn(auth::require_admin));
 
     // ============================================================
     // 🔐 Routes protégées (tous les utilisateurs authentifiés)
@@ -527,7 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(missed_calls::missed_calls_routes())
         .merge(search::search_routes())
         .merge(presence::presence_routes())
-        .layer(middleware::from_fn_with_state(
+        .layer(from_fn_with_state(
             shared_state.clone(),
             auth::require_auth,
         ));
@@ -608,7 +608,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .fallback_service(static_service)
 
         // 🛡️ Security headers middleware (HSTS, frame options, etc.) + CSP nonce middleware
-                .layer(middleware::from_fn(|req: Request<Body>, next: Next| async move {
+                .layer(from_fn(|req: Request<Body>, next: Next| async move {
                     // HSTS check must happen BEFORE consuming req
                     let is_https = req.headers().get("x-forwarded-proto").and_then(|v| v.to_str().ok()) == Some("https");
 
@@ -625,7 +625,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     response
                 }))
-                .layer(middleware::from_fn(middleware::csp::csp_nonce_middleware))
+                .layer(from_fn(my_middleware::csp::csp_nonce_middleware))
         // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::header::CACHE_CONTROL,
