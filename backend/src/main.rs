@@ -58,6 +58,7 @@ mod webrtc;
 mod sfu;
 mod events;
 mod ca;
+mod middleware;
 mod analytics;
 
 use crate::config::Config;
