@@ -44,6 +44,7 @@ mod config;
 mod db;
 mod e2ee;
 mod invites;
+mod middleware;
 mod missed_calls;
 mod polls;
 mod reactions;
@@ -58,7 +59,6 @@ mod webrtc;
 mod sfu;
 mod events;
 mod ca;
-mod middleware;
 mod analytics;
 
 use crate::config::Config;
