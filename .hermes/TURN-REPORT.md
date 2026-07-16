@@ -1,7 +1,7 @@
 # 🧪 Turn-Server Test Report — amd64
 
-> Généré par `test-turn.yml` · **2026-06-09 05:25 UTC**
-> Architecture: **amd64** | Run: [27185597706](https://github.com/MX10-AC2N/Nook/actions/runs/27185597706)
+> Généré par `test-turn.yml` · **2026-07-16 06:19 UTC**
+> Architecture: **amd64** | Run: [29476187909](https://github.com/MX10-AC2N/Nook/actions/runs/29476187909)
 
 ---
 
@@ -24,7 +24,7 @@
 ```
 Image: nook-turn:test
 Status: running
-Started: 2026-06-09T05:25:07.0809019Z
+Started: 2026-07-16T06:19:07.258937316Z
 Ports: {"3478/tcp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}],"3478/udp":[{"HostIp":"0.0.0.0","HostPort":"3478"},{"HostIp":"::","HostPort":"3478"}]}
 ```
 
@@ -56,16 +56,16 @@ external = "0.0.0.0:3478"
 ## 🌐 Network
 
 ```
-udp   UNCONN 0      0              0.0.0.0:3478      0.0.0.0:*          
-udp   UNCONN 0      0                 [::]:3478         [::]:*          
-tcp   LISTEN 0      4096           0.0.0.0:3478      0.0.0.0:*          
-tcp   LISTEN 0      4096              [::]:3478         [::]:*          
+udp   UNCONN 0      0             0.0.0.0:3478      0.0.0.0:*          
+udp   UNCONN 0      0                [::]:3478         [::]:*          
+tcp   LISTEN 0      4096          0.0.0.0:3478      0.0.0.0:*          
+tcp   LISTEN 0      4096             [::]:3478         [::]:*          
 ```
 
 ## 🖥️ System Info
 
 ```
-Linux runnervm3jyl0 6.17.0-1015-azure #15~24.04.1-Ubuntu SMP Wed May  6 22:37:49 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Linux runnervm3jd5f 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:09:14 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 Docker: Docker version 28.0.4, build b8034c0
 ```
 
