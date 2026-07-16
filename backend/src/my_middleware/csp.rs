@@ -11,8 +11,6 @@ use axum::{
 };
 use base64ct::{Base64UrlUnpadded, Encoding};
 use rand::{rng, Rng};
-use std::task::{Context, Poll};
-use tower::{Layer, Service};
 
 // -----------------------------------------------------------------------------
 // CSP Configuration
@@ -67,97 +65,6 @@ impl CspNonce {
 impl Default for CspNonce {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-// -----------------------------------------------------------------------------
-// CSP Middleware Layer
-// -----------------------------------------------------------------------------
-
-/// Layer that adds CSP nonce middleware to the router
-#[derive(Clone)]
-pub struct CspLayer;
-
-impl<S> Layer<S> for CspLayer {
-    type Service = CspMiddleware<S>;
-
-    fn layer(&self, inner: S) -> Self::Service {
-        CspMiddleware { inner }
-    }
-}
-
-/// Middleware that generates CSP nonce per request and adds CSP header to HTML responses
-#[derive(Clone)]
-pub struct CspMiddleware<S> {
-    inner: S,
-}
-
-impl<S> Service<Request<Body>> for CspMiddleware<S>
-where
-    S: Service<Request<Body>, Response = Response<Body>> + Clone + Send + 'static,
-    S::Future: Send + 'static,
-{
-    type Response = Response<Body>;
-    type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
-        // Generate nonce for this request
-        let nonce = CspNonce::new();
-        let csp_header_value = nonce.csp_header_value();
-        let nonce_value = nonce.value().to_string();
-
-        // Store nonce in request extensions for handlers/templates to access
-        req.extensions_mut().insert(nonce);
-
-        let inner = self.inner.clone();
-        Box::pin(async move {
-            let mut response = inner.call(req).await?;
-
-            // Only add CSP header and inject nonce for HTML responses
-            let content_type = response
-                .headers()
-                .get(CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-
-            if content_type.starts_with("text/html") {
-                // Add CSP header
-                response.headers_mut().insert(
-                    axum::http::header::CONTENT_SECURITY_POLICY,
-                    csp_header_value,
-                );
-
-                // Inject nonce into HTML body by replacing placeholder
-                // We need to read the body, replace the placeholder, and create a new response
-                let (parts, body) = response.into_parts();
-                let bytes = to_bytes(body, usize::MAX).await.unwrap_or_default();
-                
-                let html = String::from_utf8_lossy(&bytes);
-                // Replace the CSP nonce placeholder with script nonce attribute
-                let modified_html = html.replace(
-                    "<!-- CSP_NONCE_PLACEHOLDER -->",
-                    &format!("<script nonce=\"{}\"></script>", nonce_value),
-                );
-                
-                let new_body = Body::from(modified_html);
-                let mut new_response = Response::from_parts(parts, new_body);
-                
-                // Update content-length header
-                new_response.headers_mut().insert(
-                    CONTENT_TYPE,
-                    HeaderValue::from_static("text/html; charset=utf-8"),
-                );
-                
-                Ok(new_response)
-            } else {
-                Ok(response)
-            }
-        })
     }
 }
 
@@ -237,66 +144,5 @@ where
             .get::<CspNonce>()
             .cloned()
             .ok_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Layer for adding CSP header to all responses (alternative simpler approach)
-// -----------------------------------------------------------------------------
-
-/// Simple layer that adds CSP header to all HTML responses without nonce
-/// Use this as fallback if nonce middleware is not used
-#[derive(Clone)]
-pub struct CspHeaderLayer;
-
-impl<S> Layer<S> for CspHeaderLayer {
-    type Service = CspHeaderService<S>;
-    fn layer(&self, inner: S) -> Self::Service {
-        CspHeaderService { inner }
-    }
-}
-
-#[derive(Clone)]
-pub struct CspHeaderService<S> {
-    inner: S,
-}
-
-impl<S> Service<Request<Body>> for CspHeaderService<S>
-where
-    S: Service<Request<Body>, Response = Response<Body>> + Clone + Send + 'static,
-    S::Future: Send + 'static,
-{
-    type Response = Response<Body>;
-    type Error = S::Error;
-    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        let inner = self.inner.clone();
-        Box::pin(async move {
-            let mut response = inner.call(req).await?;
-
-            let content_type = response
-                .headers()
-                .get(CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-
-            if content_type.starts_with("text/html") {
-                response.headers_mut().insert(
-                    axum::http::header::CONTENT_SECURITY_POLICY,
-                    HeaderValue::from_static(
-                        CSP_POLICY_TEMPLATE
-                            .replace("{nonce}", "")
-                            .replace("'nonce-' 'strict-dynamic'; ", ""),
-                    ),
-                );
-            }
-
-            Ok(response)
-        })
     }
 }
