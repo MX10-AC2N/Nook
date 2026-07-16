@@ -382,4 +382,6 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker compose down -v --remove-orphans
+        run: |
+          export TURN_SECRET=turn_test_secret_2026_nook_ci
+          docker compose down -v --remove-orphans
