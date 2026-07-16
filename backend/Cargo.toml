@@ -58,6 +58,9 @@ governor = "0.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
-# Compatibilité
+# Tower (required for CSP middleware Layer/Service traits)
+tower = "0.4"
+
+# Rate limiting
 home = "0.5"
 # CI trigger: zigbuild test
