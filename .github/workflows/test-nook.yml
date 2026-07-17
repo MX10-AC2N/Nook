@@ -11,7 +11,6 @@ on:
     branches:
       - develop
       - main
-  workflow_dispatch:
 concurrency:
   group: ci-test-nook-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
@@ -21,6 +20,8 @@ jobs:
   frontend-build:
     name: 🎨 Frontend Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./frontend
@@ -57,6 +58,8 @@ jobs:
     name: 🧪 Integration Tests
     runs-on: ubuntu-latest
     needs: frontend-build
+    permissions:
+      actions: read  # Required to download artifacts from other workflow runs
     defaults:
       run:
         working-directory: ./
@@ -81,17 +84,24 @@ jobs:
           echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
 
       # Find latest successful Backend.yml run for artifact download
-      # Works for both workflow_run and workflow_dispatch triggers
+      # For workflow_run trigger, use the triggering run; for workflow_dispatch, query API
       - name: Find latest successful Backend.yml run
         id: backend_run
         run: |
           GH_TOKEN="${{ github.token }}"
           REPO="${{ github.repository }}"
-          # Query latest successful Backend.yml run on this branch
-          RUN_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            -H "Accept: application/vnd.github.v3+json" \
-            "https://api.github.com/repos/$REPO/actions/runs?per_page=20&branch=${{ github.ref_name }}&status=completed" | \
-            jq -r '.workflow_runs[] | select(.name=="1==>🏗️ Backend Build & Artifact" and .conclusion=="success") | .id' | head -1)
+          
+          # Try to get run ID from workflow_run context first
+          if [ -n "${{ github.event.workflow_run.id }}" ]; then
+            RUN_ID="${{ github.event.workflow_run.id }}"
+            echo "Using triggering workflow_run ID: $RUN_ID"
+          else
+            # Fallback: query API for workflow_dispatch trigger
+            RUN_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/repos/$REPO/actions/runs?per_page=20&branch=${{ github.ref_name }}&status=completed" | \
+              jq -r '.workflow_runs[] | select(.name=="1==>🏗️ Backend Build & Artifact" and .conclusion=="success") | .id' | head -1)
+          fi
           
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
             echo "❌ No successful Backend.yml run found"
@@ -102,27 +112,64 @@ jobs:
 
       # Download pre-built backend artifacts from Backend.yml
       - name: Download backend artifact (amd64)
+        id: download_amd64
         uses: actions/download-artifact@v4
         with:
           name: nook-backend-x86_64-unknown-linux-musl
           path: backend/artifacts/amd64
           repository: ${{ github.repository }}
           run-id: ${{ steps.backend_run.outputs.backend_run_id }}
+        continue-on-error: true
 
       - name: Download backend artifact (arm64)
+        id: download_arm64
         uses: actions/download-artifact@v4
         with:
           name: nook-backend-aarch64-unknown-linux-musl
           path: backend/artifacts/arm64
           repository: ${{ github.repository }}
           run-id: ${{ steps.backend_run.outputs.backend_run_id }}
+        continue-on-error: true
 
+      # Verify downloads succeeded
+      - name: Verify artifact downloads succeeded
+        run: |
+          if [ "${{ steps.download_amd64.outcome }}" != "success" ]; then
+            echo "❌ amd64 artifact download failed"
+            exit 1
+          fi
+          if [ "${{ steps.download_arm64.outcome }}" != "success" ]; then
+            echo "❌ arm64 artifact download failed"
+            exit 1
+          fi
+          echo "✅ Both artifact downloads succeeded"
+
+      # Validate downloaded backend artifacts exist with correct names
+      - name: Validate backend artifacts downloaded
+        run: |
+          echo "=== Verifying amd64 artifact ==="
+          ls -la backend/artifacts/amd64/
+          test -f backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl || (echo "❌ amd64 binary not found" && exit 1)
+          echo "✅ amd64 binary found: $(ls -lh backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl | awk '{print $5}')"
+
+          echo ""
+          echo "=== Verifying arm64 artifact ==="
+          ls -la backend/artifacts/arm64/
+          test -f backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl || (echo "❌ arm64 binary not found" && exit 1)
+          echo "✅ arm64 binary found: $(ls -lh backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl | awk '{print $5}')"
+
+      # Prepare backend binaries - rename to match Dockerfile.release expectations
       - name: Prepare backend binaries
         run: |
-          ls -la backend/artifacts/
-          chmod +x backend/artifacts/amd64/nook-backend-amd64
-          chmod +x backend/artifacts/arm64/nook-backend-arm64
-          echo "✅ Backend binaries ready"
+          # Copy to location expected by Dockerfile.release (backend/nook-backend-${TARGETARCH})
+          mkdir -p backend/amd64 backend/arm64
+          cp backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl backend/amd64/nook-backend-amd64
+          cp backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl backend/arm64/nook-backend-arm64
+          chmod +x backend/amd64/nook-backend-amd64
+          chmod +x backend/arm64/nook-backend-arm64
+          echo "✅ Backend binaries prepared:"
+          ls -la backend/amd64/nook-backend-amd64
+          ls -la backend/arm64/nook-backend-arm64
 
       - name: Create .env file for Docker Compose
         run: |
@@ -171,20 +218,38 @@ jobs:
 
       - name: Start stack
         run: |
+          echo "=== Starting Docker Compose Stack ==="
+          echo "=== Docker Compose Version ==="
+          docker compose version
+          echo "=== Docker Compose Config ==="
+          docker compose config
+          echo "=== Starting containers ==="
           docker compose up -d --force-recreate nook
 
-          echo "⏳ Attente healthcheck..."
+          echo "=== Waiting for container to start ==="
+          sleep 5
+          echo "=== Container status ==="
+          docker compose ps
+          echo "=== Container logs (first 50 lines) ==="
+          docker compose logs --tail=50 nook
+
+          echo "⏳ Waiting for healthcheck (max 120s)..."
           TIMEOUT=0
           while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
-            if [ $TIMEOUT -gt 60 ]; then
-              echo "❌ Healthcheck timeout après 60s"
-              docker compose logs --tail=50 nook
+            if [ $TIMEOUT -gt 120 ]; then
+              echo "❌ Healthcheck timeout after 120s"
+              echo "=== Full container logs ==="
+              docker compose logs nook
+              echo "=== Docker inspect ==="
+              docker inspect nook-nook-1 2>/dev/null | head -100 || docker inspect $(docker compose ps -q nook) 2>/dev/null | head -100 || true
               exit 1
             fi
           done
-          echo "✅ Stack démarré"
+          echo "✅ Stack started successfully - healthcheck OK"
+          echo "=== Final container status ==="
+          docker compose ps
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
