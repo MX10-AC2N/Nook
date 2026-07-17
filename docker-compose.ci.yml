@@ -1,0 +1,60 @@
+services:
+  nook:
+    image: nook-ci:local
+    container_name: nook
+    restart: unless-stopped
+
+    ports:
+      - "${PORT:-6300}:3000"
+
+    volumes:
+      - "${DATA_DIR:-./nook-data}:/app/data"
+      - "${LOGS_DIR:-./nook-logs}:/app/logs"
+      - "${NGINX_SSL_DIR:-./nginx-ssl}:/app/ssl:ro"
+
+    env_file:
+      - .env
+
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      - PORT=3000
+      - DATABASE_URL=sqlite:/app/data/nook.db
+      - STATIC_FILES_DIR=/app/static
+      - UPLOADS_DIR=/app/data/uploads
+      - GIFS_DIR=/app/data/gifs
+      - PUBLIC_SITE_URL=${PUBLIC_SITE_URL:-http://localhost:${PORT:-6300}}
+      - E2E_SETUP=0
+      - RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-60}
+      - AUTH_RATE_LIMIT_PER_MIN=${AUTH_RATE_LIMIT_PER_MIN:-5}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - GIPHY_API_KEY=${GIPHY_API_KEY:-}
+      - TURN_SECRET=${TURN_SECRET:?TURN_SECRET must be set}
+      - RUST_LOG=${RUST_LOG:-info}
+      - RUST_BACKTRACE=${RUST_BACKTRACE:-0}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@nook.local}
+
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPUS_LIMIT:-1.5}"
+          memory: "${MEMORY_LIMIT:-1028M}"
+        reservations:
+          cpus: "${CPUS_RESERVATION:-0.5}"
+          memory: "${MEMORY_RESERVATION:-256M}"
+
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    networks:
+      - nook-network
+
+networks:
+  nook-network:
+    driver: bridge
