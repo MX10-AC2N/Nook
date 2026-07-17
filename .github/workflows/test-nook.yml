@@ -301,10 +301,19 @@ jobs:
             -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "✅ Register e2e_ci: $REG2"
 
-          sleep 5
-
-          PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
-          E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
+          # Wait for user to appear in pending list, then approve
+          echo "=== Wait for e2e_ci to appear in pending list ==="
+          E2E_ID=""
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 2
+            PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
+            E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
+            if [ -n "$E2E_ID" ]; then
+              echo "✅ Found e2e_ci in pending (attempt $i): $E2E_ID"
+              break
+            fi
+            echo "Attempt $i: e2e_ci not yet in pending, waiting..."
+          done
 
           if [ -n "$E2E_ID" ]; then
             curl -s -X POST http://localhost:6300/api/users/approve \
@@ -312,6 +321,9 @@ jobs:
               -b /tmp/admin-cookies.txt \
               -d '{"user_id":"'"$E2E_ID"'"}'
             echo "✅ User e2e_ci approved"
+          else
+            echo "❌ e2e_ci never appeared in pending list"
+            exit 1
           fi
 
           # Verify approval worked - wait and retry login
