@@ -80,6 +80,26 @@ jobs:
           test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
           echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
 
+      # Find latest successful Backend.yml run for artifact download
+      # Works for both workflow_run and workflow_dispatch triggers
+      - name: Find latest successful Backend.yml run
+        id: backend_run
+        run: |
+          GH_TOKEN="${{ github.token }}"
+          REPO="${{ github.repository }}"
+          # Query latest successful Backend.yml run on this branch
+          RUN_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/$REPO/actions/runs?per_page=20&branch=${{ github.ref_name }}&status=completed" | \
+            jq -r '.workflow_runs[] | select(.name=="1==>🏗️ Backend Build & Artifact" and .conclusion=="success") | .id' | head -1)
+          
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "❌ No successful Backend.yml run found"
+            exit 1
+          fi
+          echo "backend_run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "✅ Found Backend.yml run: $RUN_ID"
+
       # Download pre-built backend artifacts from Backend.yml
       - name: Download backend artifact (amd64)
         uses: actions/download-artifact@v4
@@ -87,7 +107,7 @@ jobs:
           name: nook-backend-x86_64-unknown-linux-musl
           path: backend/artifacts/amd64
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.backend_run.outputs.backend_run_id }}
 
       - name: Download backend artifact (arm64)
         uses: actions/download-artifact@v4
@@ -95,7 +115,7 @@ jobs:
           name: nook-backend-aarch64-unknown-linux-musl
           path: backend/artifacts/arm64
           repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.backend_run.outputs.backend_run_id }}
 
       - name: Prepare backend binaries
         run: |
