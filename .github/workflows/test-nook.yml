@@ -278,7 +278,7 @@ jobs:
             -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}'
 
           # Re-login with new password
-          curl -s -c /tmp/admin-cookies2.txt -X POST \
+          curl -s -c /tmp/admin-cookies.txt -X POST \
             http://localhost:6300/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
