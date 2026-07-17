@@ -138,8 +138,8 @@ jobs:
           PORT=6300
           PUBLIC_SITE_URL=http://localhost:6300
           E2EE_SETUP=0
-          RATE_LIMIT_PER_MIN=60000
-          AUTH_RATE_LIMIT_PER_MIN=60000
+          RATE_LIMIT_PER_MIN=999999
+          AUTH_RATE_LIMIT_PER_MIN=999999
           DATA_DIR=./nook-data
           LOGS_DIR=./nook-logs
           NGINX_SSL_DIR=./nginx-ssl
@@ -301,7 +301,7 @@ jobs:
             -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "✅ Register e2e_ci: $REG2"
 
-          sleep 2
+          sleep 5
 
           PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
           E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
@@ -313,6 +313,24 @@ jobs:
               -d '{"user_id":"'"$E2E_ID"'"}'
             echo "✅ User e2e_ci approved"
           fi
+
+          # Verify approval worked - wait and retry login
+          echo "=== Verify e2e_ci login after approval ==="
+          for i in 1 2 3 4 5; do
+            sleep 2
+            VERIFY_LOGIN=$(curl -s -X POST http://localhost:6300/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"e2e_ci","password":"E2eTest2026!"}')
+            echo "Attempt $i: $VERIFY_LOGIN"
+            if echo "$VERIFY_LOGIN" | grep -q '"success":true'; then
+              echo "✅ e2e_ci login verified"
+              break
+            fi
+            if [ $i -eq 5 ]; then
+              echo "❌ e2e_ci login failed after 5 attempts"
+              exit 1
+            fi
+          done
 
       - name: Test Security endpoints
         continue-on-error: true
