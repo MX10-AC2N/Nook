@@ -108,22 +108,23 @@ jobs:
         run: |
           echo "=== Verifying amd64 artifact ==="
           ls -la backend/artifacts/amd64/
-          test -f backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl || (echo "❌ amd64 binary not found" && exit 1)
-          echo "✅ amd64 binary found: $(ls -lh backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl | awk '{print $5}')"
+          test -f backend/artifacts/amd64/nook-backend-amd64 || (echo "❌ amd64 binary not found" && exit 1)
+          echo "✅ amd64 binary found: $(ls -lh backend/artifacts/amd64/nook-backend-amd64 | awk '{print $5}')"
 
           echo ""
           echo "=== Verifying arm64 artifact ==="
           ls -la backend/artifacts/arm64/
-          test -f backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl || (echo "❌ arm64 binary not found" && exit 1)
-          echo "✅ arm64 binary found: $(ls -lh backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl | awk '{print $5}')"
+          test -f backend/artifacts/arm64/nook-backend-arm64 || (echo "❌ arm64 binary not found" && exit 1)
+          echo "✅ arm64 binary found: $(ls -lh backend/artifacts/arm64/nook-backend-arm64 | awk '{print $5}')"
 
-      # Prepare backend binaries - rename to match Dockerfile.release expectations
+      # Prepare backend binaries - already named correctly by dawidd6 action
       - name: Prepare backend binaries
         run: |
-          # Copy to location expected by Dockerfile.release (backend/nook-backend-${TARGETARCH})
+          # Artifacts already downloaded as nook-backend-amd64 and nook-backend-arm64
+          # Just copy to Dockerfile.release expected location
           mkdir -p backend/amd64 backend/arm64
-          cp backend/artifacts/amd64/nook-backend-x86_64-unknown-linux-musl backend/amd64/nook-backend-amd64
-          cp backend/artifacts/arm64/nook-backend-aarch64-unknown-linux-musl backend/arm64/nook-backend-arm64
+          cp backend/artifacts/amd64/nook-backend-amd64 backend/amd64/nook-backend-amd64
+          cp backend/artifacts/arm64/nook-backend-arm64 backend/arm64/nook-backend-arm64
           chmod +x backend/amd64/nook-backend-amd64
           chmod +x backend/arm64/nook-backend-arm64
           echo "✅ Backend binaries prepared:"
