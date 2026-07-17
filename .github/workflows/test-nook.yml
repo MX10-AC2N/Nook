@@ -138,8 +138,8 @@ jobs:
           PORT=6300
           PUBLIC_SITE_URL=http://localhost:6300
           E2EE_SETUP=0
-          RATE_LIMIT_PER_MIN=6000
-          AUTH_RATE_LIMIT_PER_MIN=6000
+          RATE_LIMIT_PER_MIN=60000
+          AUTH_RATE_LIMIT_PER_MIN=60000
           DATA_DIR=./nook-data
           LOGS_DIR=./nook-logs
           NGINX_SSL_DIR=./nginx-ssl
