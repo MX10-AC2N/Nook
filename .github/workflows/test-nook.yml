@@ -121,15 +121,14 @@ jobs:
       - name: Prepare backend binaries
         run: |
           # Artifacts already downloaded as nook-backend-amd64 and nook-backend-arm64
-          # Just copy to Dockerfile.release expected location
-          mkdir -p backend/amd64 backend/arm64
-          cp backend/artifacts/amd64/nook-backend-amd64 backend/amd64/nook-backend-amd64
-          cp backend/artifacts/arm64/nook-backend-arm64 backend/arm64/nook-backend-arm64
-          chmod +x backend/amd64/nook-backend-amd64
-          chmod +x backend/arm64/nook-backend-arm64
+          # Copy to Dockerfile.release expected location (backend/nook-backend-${TARGETARCH})
+          cp backend/artifacts/amd64/nook-backend-amd64 backend/nook-backend-amd64
+          cp backend/artifacts/arm64/nook-backend-arm64 backend/nook-backend-arm64
+          chmod +x backend/nook-backend-amd64
+          chmod +x backend/nook-backend-arm64
           echo "✅ Backend binaries prepared:"
-          ls -la backend/amd64/nook-backend-amd64
-          ls -la backend/arm64/nook-backend-arm64
+          ls -la backend/nook-backend-amd64
+          ls -la backend/nook-backend-arm64
 
       - name: Create .env file for Docker Compose
         run: |
