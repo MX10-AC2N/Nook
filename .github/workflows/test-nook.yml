@@ -301,12 +301,13 @@ jobs:
             -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "✅ Register e2e_ci: $REG2"
 
-          # Wait for user to appear in pending list, then approve
+          # Wait for DB transaction to commit and user to appear in pending list
           echo "=== Wait for e2e_ci to appear in pending list ==="
           E2E_ID=""
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            sleep 2
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            sleep 3
             PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
+            echo "Debug pending response (attempt $i): $PENDING"
             E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
             if [ -n "$E2E_ID" ]; then
               echo "✅ Found e2e_ci in pending (attempt $i): $E2E_ID"

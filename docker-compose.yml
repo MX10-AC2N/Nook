@@ -12,6 +12,9 @@ services:
       - "${LOGS_DIR:-./nook-logs}:/app/logs"
       - "${NGINX_SSL_DIR:-./nginx-ssl}:/app/ssl:ro"
 
+    env_file:
+      - .env
+
     environment:
       - TZ=${TZ:-Europe/Paris}
       - PORT=3000
