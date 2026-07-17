@@ -250,8 +250,7 @@ jobs:
           echo "✅ GET /auth/me sans cookie -> HTTP $STATUS (attendu 401)"
           [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
 
-      - name: Test Auth flows
-        continue-on-error: true
+      - name: Test Auth flows (admin login REQUIRED for e2e_ci approval)
         run: |
           echo "=== Test registration ==="
           REG=$(curl -s -X POST http://localhost:6300/api/auth/register \
@@ -266,28 +265,24 @@ jobs:
             -d '{"username":"admin","password":"'"${ADMIN_INITIAL_PASSWORD:-AdminCI2026!}"'"}'
 
           ADMIN_ID=$(jq -r '.user.id // empty' /tmp/admin-body.txt 2>/dev/null || echo "")
-          if [ -n "$ADMIN_ID" ]; then
-            echo "✅ Login admin: OK"
-
-            echo "=== Change password ==="
-            curl -s -X POST http://localhost:6300/api/auth/change-password \
-              -H "Content-Type: application/json" \
-              -b /tmp/admin-cookies.txt \
-              -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}'
-
-            # Re-login with new password
-            curl -s -c /tmp/admin-cookies2.txt -X POST \
-              http://localhost:6300/api/auth/login \
-              -H "Content-Type: application/json" \
-              -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
-            echo "✅ Re-login avec nouveau mot de passe"
-          else
-            echo "⚠️ Login admin échoue, test avec AdminCI2026!"
-            curl -s -c /tmp/admin-cookies.txt -X POST \
-              http://localhost:6300/api/auth/login \
-              -H "Content-Type: application/json" \
-              -d '{"username":"admin","password":"AdminCI2026!"}'
+          if [ -z "$ADMIN_ID" ]; then
+            echo "❌ Admin login failed - body: $(cat /tmp/admin-body.txt)"
+            exit 1
           fi
+          echo "✅ Login admin: OK"
+
+          echo "=== Change password ==="
+          curl -s -X POST http://localhost:6300/api/auth/change-password \
+            -H "Content-Type: application/json" \
+            -b /tmp/admin-cookies.txt \
+            -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}'
+
+          # Re-login with new password
+          curl -s -c /tmp/admin-cookies2.txt -X POST \
+            http://localhost:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
+          echo "✅ Re-login avec nouveau mot de passe"
 
           ADMIN_COOKIE=$(grep -o 'auth_token=[^;]*' /tmp/admin-cookies.txt 2>/dev/null | head -1 || echo "")
 
