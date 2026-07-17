@@ -84,66 +84,24 @@ jobs:
           test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
           echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
 
-      # Find latest successful Backend.yml run for artifact download
-      # For workflow_run trigger, use the triggering run; for workflow_dispatch, query API
-      - name: Find latest successful Backend.yml run
-        id: backend_run
-        run: |
-          GH_TOKEN="${{ github.token }}"
-          REPO="${{ github.repository }}"
-          
-          # Try to get run ID from workflow_run context first
-          if [ -n "${{ github.event.workflow_run.id }}" ]; then
-            RUN_ID="${{ github.event.workflow_run.id }}"
-            echo "Using triggering workflow_run ID: $RUN_ID"
-          else
-            # Fallback: query API for workflow_dispatch trigger
-            RUN_ID=$(curl -s -H "Authorization: token $GH_TOKEN" \
-              -H "Accept: application/vnd.github.v3+json" \
-              "https://api.github.com/repos/$REPO/actions/runs?per_page=20&branch=${{ github.ref_name }}&status=completed" | \
-              jq -r '.workflow_runs[] | select(.name=="1==>🏗️ Backend Build & Artifact" and .conclusion=="success") | .id' | head -1)
-          fi
-          
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "❌ No successful Backend.yml run found"
-            exit 1
-          fi
-          echo "backend_run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "✅ Found Backend.yml run: $RUN_ID"
-
-      # Download pre-built backend artifacts from Backend.yml
+      # Download pre-built backend artifacts from Backend.yml using cross-workflow action
       - name: Download backend artifact (amd64)
-        id: download_amd64
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@v6
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ github.ref_name }}
           name: nook-backend-x86_64-unknown-linux-musl
           path: backend/artifacts/amd64
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.backend_run.outputs.backend_run_id }}
-        continue-on-error: true
 
       - name: Download backend artifact (arm64)
-        id: download_arm64
-        uses: actions/download-artifact@v4
+        uses: dawidd6/action-download-artifact@v6
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: Backend.yml
+          branch: ${{ github.ref_name }}
           name: nook-backend-aarch64-unknown-linux-musl
           path: backend/artifacts/arm64
-          repository: ${{ github.repository }}
-          run-id: ${{ steps.backend_run.outputs.backend_run_id }}
-        continue-on-error: true
-
-      # Verify downloads succeeded
-      - name: Verify artifact downloads succeeded
-        run: |
-          if [ "${{ steps.download_amd64.outcome }}" != "success" ]; then
-            echo "❌ amd64 artifact download failed"
-            exit 1
-          fi
-          if [ "${{ steps.download_arm64.outcome }}" != "success" ]; then
-            echo "❌ arm64 artifact download failed"
-            exit 1
-          fi
-          echo "✅ Both artifact downloads succeeded"
 
       # Validate downloaded backend artifacts exist with correct names
       - name: Validate backend artifacts downloaded
@@ -415,58 +373,4 @@ jobs:
           # Generate report
           python3 .github/scripts/generate-test-report.py \
             --json /tmp/playwright-results.json \
-            --docker /tmp/docker.log \
-            --output .hermes/TEST_REPORT.md \
-            2>/dev/null || \
-          python3 .github/scripts/generate-test-report.py \
-            --json /tmp/playwright-results.json \
-            --docker /tmp/docker.log \
-            --output .hermes/TEST_REPORT.md
-
-          echo "✅ Rapport généré"
-          cat .hermes/TEST_REPORT.md
-
-      - name: Commit TEST_REPORT.md
-        if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Save report BEFORE any git operations that might reset it
-          cp .hermes/TEST_REPORT.md /tmp/TEST_REPORT.md 2>/dev/null || true
-
-          # Reset tracked files (node_modules changes, etc.) but NOT .hermes/
-          git checkout -- frontend/ backend/ 2>/dev/null || true
-          git clean -fd --exclude=.hermes/ 2>/dev/null || true
-
-          # Restore report after cleanup
-          cp /tmp/TEST_REPORT.md .hermes/TEST_REPORT.md 2>/dev/null || true
-
-          git add .hermes/TEST_REPORT.md
-
-          if git diff --staged --quiet; then
-            echo "Aucun changement"
-          else
-            git fetch origin ${{ github.ref_name }}
-            git rebase origin/${{ github.ref_name }} || git reset --hard origin/${{ github.ref_name }}
-            # Restore again after rebase
-            cp /tmp/TEST_REPORT.md .hermes/TEST_REPORT.md 2>/dev/null || true
-            git add .hermes/TEST_REPORT.md
-            git commit -m "ci: TEST_REPORT.md [run ${{ github.run_id }}]"
-            git push --force-with-lease origin HEAD:${{ github.ref_name }}
-            echo "✅ Rapport commité"
-          fi
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-          retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: |
-          export TURN_SECRET=turn_test_secret_2026_nook_ci
-          docker compose down -v --remove-orphans
+            --docker /tmp/docker
