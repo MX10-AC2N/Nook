@@ -182,16 +182,16 @@ jobs:
           echo "=== Docker Compose Version ==="
           docker compose version
           echo "=== Docker Compose Config ==="
-          docker compose config
+          docker compose -f docker-compose.ci.yml config
           echo "=== Starting containers ==="
-          docker compose up -d --force-recreate nook
+          docker compose -f docker-compose.ci.yml up -d --force-recreate nook
 
           echo "=== Waiting for container to start ==="
           sleep 5
           echo "=== Container status ==="
-          docker compose ps
+          docker compose -f docker-compose.ci.yml ps
           echo "=== Container logs (first 50 lines) ==="
-          docker compose logs --tail=50 nook
+          docker compose -f docker-compose.ci.yml logs --tail=50 nook
 
           echo "⏳ Waiting for healthcheck (max 120s)..."
           TIMEOUT=0
@@ -201,15 +201,17 @@ jobs:
             if [ $TIMEOUT -gt 120 ]; then
               echo "❌ Healthcheck timeout after 120s"
               echo "=== Full container logs ==="
-              docker compose logs nook
+              docker compose -f docker-compose.ci.yml logs nook
               echo "=== Docker inspect ==="
-              docker inspect nook-nook-1 2>/dev/null | head -100 || docker inspect $(docker compose ps -q nook) 2>/dev/null | head -100 || true
+              docker inspect nook-nook-1 2>/dev/null | head -100 || docker inspect $(docker compose -f docker-compose.ci.yml ps -q nook) 2>/dev/null | head -100 || true
               exit 1
             fi
           done
           echo "✅ Stack started successfully - healthcheck OK"
           echo "=== Final container status ==="
-          docker compose ps
+          docker compose -f docker-compose.ci.yml ps
+          echo "=== Container environment variables ==="
+          docker compose -f docker-compose.ci.yml exec nook env | grep -E "(RATE_LIMIT|AUTH_RATE)" | sort
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
