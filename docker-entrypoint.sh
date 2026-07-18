@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Force critical env vars for CI
+export AUTH_RATE_LIMIT_PER_MIN=${AUTH_RATE_LIMIT_PER_MIN:-999999}
+export RATE_LIMIT_PER_MIN=${RATE_LIMIT_PER_MIN:-999999}
+
 # Fix permissions on ALL writable directories
 for dir in "$DATA_DIR" "$LOG_DIR" "$STATIC_DIR"; do
   if [ -d "$dir" ]; then
@@ -13,5 +17,7 @@ mkdir -p "$DATA_DIR/uploads" 2>/dev/null || true
 chown -R nook:nook "$DATA_DIR/uploads" 2>/dev/null || true
 
 echo "[entrypoint] Permissions fixees, demarrage de nook..."
+echo "[entrypoint] AUTH_RATE_LIMIT_PER_MIN=$AUTH_RATE_LIMIT_PER_MIN"
+echo "[entrypoint] RATE_LIMIT_PER_MIN=$RATE_LIMIT_PER_MIN"
 
 exec /app/nook-backend
