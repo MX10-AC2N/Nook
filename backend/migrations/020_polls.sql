@@ -3,8 +3,7 @@
 -- Timestamps INTEGER (Unix epoch), cohérent avec 001_initial.sql
 -- FIX: Handle existing polls table from deleted 004_polls.sql (missing conversation_id)
 -- Strategy: Ensure base table exists, then ADD COLUMN conversation_id if missing.
--- Note: SQLite ALTER TABLE cannot add NOT NULL + FK in one step; column added as nullable.
--- Application layer enforces NOT NULL for new polls; legacy polls have NULL conversation_id.
+-- Note: SQLite ALTER TABLE cannot add FK constraints. Column added nullable; FK enforced via trigger.
 
 -- ════════════════════════════════════════════════════════════════
 -- TABLE polls
@@ -19,11 +18,12 @@ CREATE TABLE IF NOT EXISTS polls (
 );
 
 -- Add conversation_id column if missing (from deleted 004_polls.sql migration)
--- SQLite: ALTER TABLE ADD COLUMN does not support NOT NULL + FK in same statement.
+-- SQLite: ALTER TABLE ADD COLUMN does NOT support REFERENCES clause.
 -- Column added nullable; FK enforced via trigger on INSERT/UPDATE.
 -- Application layer enforces NOT NULL for new polls; legacy polls have NULL conversation_id.
-ALTER TABLE polls ADD COLUMN conversation_id TEXT REFERENCES conversations(id) ON DELETE CASCADE;
+ALTER TABLE polls ADD COLUMN conversation_id TEXT;
 
+-- Create index for conversation_id
 CREATE INDEX IF NOT EXISTS idx_polls_conversation ON polls(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_polls_created_by   ON polls(created_by);
 CREATE INDEX IF NOT EXISTS idx_polls_created_at   ON polls(created_at DESC);
@@ -37,6 +37,25 @@ FOR EACH ROW
 WHEN NEW.conversation_id IS NULL
 BEGIN
     SELECT RAISE(ABORT, 'conversation_id is required for new polls');
+END;
+
+-- Trigger to enforce FK to conversations(id) on INSERT/UPDATE
+CREATE TRIGGER IF NOT EXISTS polls_fk_conversation_id
+BEFORE INSERT ON polls
+FOR EACH ROW
+WHEN NEW.conversation_id IS NOT NULL AND 
+     (SELECT COUNT(*) FROM conversations WHERE id = NEW.conversation_id) = 0
+BEGIN
+    SELECT RAISE(ABORT, 'conversation_id must reference existing conversations(id)');
+END;
+
+CREATE TRIGGER IF NOT EXISTS polls_fk_conversation_id_update
+BEFORE UPDATE OF conversation_id ON polls
+FOR EACH ROW
+WHEN NEW.conversation_id IS NOT NULL AND 
+     (SELECT COUNT(*) FROM conversations WHERE id = NEW.conversation_id) = 0
+BEGIN
+    SELECT RAISE(ABORT, 'conversation_id must reference existing conversations(id)');
 END;
 
 -- ════════════════════════════════════════════════════════════════
