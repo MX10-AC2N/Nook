@@ -212,6 +212,8 @@ jobs:
           docker compose -f docker-compose.ci.yml ps
           echo "=== Container environment variables ==="
           docker compose -f docker-compose.ci.yml exec nook env | grep -E "(RATE_LIMIT|AUTH_RATE)" | sort
+          echo "=== Container full env (AUTH) ==="
+          docker compose -f docker-compose.ci.yml exec nook env | grep AUTH
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
