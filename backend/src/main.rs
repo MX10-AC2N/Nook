@@ -478,16 +478,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 👑 Routes ADMIN uniquement (auth + rôle admin requis)
     // ============================================================
     let admin_routes = Router::new()
-        .route("/users/pending", get(admin::pending_users))
-        .route("/users", get(admin::all_users))
-        .route("/users/approve", post(admin::approve_user))
-                .route("/users/reject", post(admin::reject_user))
-                .route("/invites", get(admin::list_invites))
-                .route("/invites", post(invites::generate_invite))
-                .route("/analytics", get(admin::get_analytics))
-                .route("/users/{id}", axum::routing::delete(admin::delete_user))
-                .merge(analytics::analytics_routes())
-        .layer(from_fn(auth::require_admin));
+            .route("/users/pending", get(admin::pending_users))
+            .route("/users", get(admin::all_users))
+            .route("/users/approve", post(admin::approve_user))
+                    .route("/users/reject", post(admin::reject_user))
+                    .route("/invites", get(admin::list_invites))
+                    .route("/invites", post(invites::generate_invite))
+                    .route("/invites/delete", post(admin::delete_invite))
+                    .route("/analytics", get(admin::get_analytics))
+                    .route("/users/{id}", axum::routing::delete(admin::delete_user))
+            .merge(analytics::analytics_routes())
+            .layer(from_fn(auth::require_admin));
 
     // ============================================================
     // 🔐 Routes protégées (tous les utilisateurs authentifiés)
