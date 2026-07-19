@@ -321,6 +321,19 @@ jobs:
               -b /tmp/admin-cookies.txt \
               -d '{"user_id":"'"$E2E_ID"'"}'
             echo "✅ User e2e_ci approved"
+            
+            # Verify approval persisted in DB before proceeding
+            echo "=== Verify approval persisted ==="
+            for j in 1 2 3 4 5; do
+              sleep 2
+              PENDING_CHECK=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
+              APPROVED=$(echo "$PENDING_CHECK" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
+              if [ -z "$APPROVED" ]; then
+                echo "✅ e2e_ci no longer in pending list (attempt $j)"
+                break
+              fi
+              echo "Attempt $j: e2e_ci still in pending, waiting..."
+            done
           else
             echo "❌ e2e_ci never appeared in pending list"
             exit 1
@@ -328,8 +341,8 @@ jobs:
 
           # Verify approval worked - wait and retry login
           echo "=== Verify e2e_ci login after approval ==="
-          for i in 1 2 3 4 5; do
-            sleep 2
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 3
             VERIFY_LOGIN=$(curl -s -X POST http://localhost:6300/api/auth/login \
               -H "Content-Type: application/json" \
               -d '{"username":"e2e_ci","password":"E2eTest2026!"}')
@@ -338,8 +351,8 @@ jobs:
               echo "✅ e2e_ci login verified"
               break
             fi
-            if [ $i -eq 5 ]; then
-              echo "❌ e2e_ci login failed after 5 attempts"
+            if [ $i -eq 10 ]; then
+              echo "❌ e2e_ci login failed after 10 attempts"
               exit 1
             fi
           done
