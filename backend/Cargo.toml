@@ -38,8 +38,8 @@ rand_core = { version = "0.6", features = ["std", "getrandom"] }
 argon2 = "0.5"
 chacha20poly1305 = { version = "0.10.1" }
 base64ct = { version = "1.6", features = ["alloc"] }
-hmac = "0.12"
-sha1 = "0.10"
+hmac = "0.13"
+sha1 = "0.11"
 
 # Cryptographie VAPID (notifications push) — ring via rustls transitif
 # Nécessaire pour signer le JWT ES256 sans dépendance web-push (D10)
