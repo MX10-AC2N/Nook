@@ -59,7 +59,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Tower (required for CSP middleware Layer/Service traits)
-tower = "0.4"
+tower = "0.5"
 
 # Rate limiting
 home = "0.5"
