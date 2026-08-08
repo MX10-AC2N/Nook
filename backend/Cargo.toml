@@ -28,8 +28,8 @@ bytes = "1"
 # HTTP client — rustls par défaut dans reqwest 0.13
 reqwest = { version = "0.13", features = ["json"] }
 
-# rand 0.9 pour webrtc.rs
-rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
+# rand 0.10 pour webrtc.rs
+rand = { version = "0.10", features = ["std", "std_rng"] }
 
 # rand_core 0.6 explicitement pour argon2 (diamond dep fix)
 rand_core = { version = "0.6", features = ["std", "getrandom"] }
