@@ -1,0 +1,145 @@
+/* ==========================================================================
+   NOOK Theme - Maison Chaleureuse
+   ========================================================================== */
+
+.theme-maison-chaleureuse {
+
+  /* ═══ Hermes: added variables ═══ */
+  --bg-hover: var(--bg-tertiary);
+  --accent-danger: #dc2626;
+  --text-danger: #dc2626;
+  --bg-danger: #fee2e2;
+  /* --------------------------------------------------------------------------
+     PALETTE DE COULEURS
+     -------------------------------------------------------------------------- */
+  --bg-primary: #fdf2e9;
+  --bg-secondary: #fef3c7;
+  --bg-tertiary: #ffedd5;
+  --accent: #ea580c;
+  --accent-light: #fb923c;
+  --accent-dark: #c2410c;
+  --text-primary: #7c2d12;
+  --text-secondary: #9a3412;
+  --text-muted: #b45309;
+  --border: #fdba74;
+  --border-light: #fed7aa;
+  
+  /* Couleurs RGB pour les effets rgba */
+  --bg-rgb: 253, 242, 233;
+  --accent-rgb: 234, 88, 12;
+  
+  /* Couleurs fonctionnelles */
+  --chat-mine: #ffedd5;
+  --chat-theirs: #fef3c7;
+  --input-bg: #ffffff;
+  --button-hover: #f97316;
+  --status-online: #f97316;
+  --status-online-rgb: 249, 115, 22;
+  --status-away: #ca8a04;
+  --status-away-rgb: 202, 138, 4;
+  --status-offline: #b45309;
+  
+  /* --------------------------------------------------------------------------
+     OMBRES PROFONDEUR
+     -------------------------------------------------------------------------- */
+  --depth: 0 4px 12px rgba(234, 88, 12, 0.2);
+  --depth-lg: 0 8px 24px rgba(234, 88, 12, 0.25);
+  --depth-xl: 0 12px 40px rgba(234, 88, 12, 0.3);
+  
+  /* --------------------------------------------------------------------------
+     ANIMATIONS
+     -------------------------------------------------------------------------- */
+  --animation: cubic-bezier(0.34, 1.56, 0.64, 1);
+  
+  /* --------------------------------------------------------------------------
+     BORDURES SPÉCIALES
+     -------------------------------------------------------------------------- */
+  --border-gradient: linear-gradient(135deg, #ea580c, #f97316);
+  
+  /* --------------------------------------------------------------------------
+     COULEURS NOTIFICATIONS
+     -------------------------------------------------------------------------- */
+  --notification-bg: #ffedd5;
+  --notification-text: #7c2d12;
+  
+  /* --------------------------------------------------------------------------
+     COULEURS ERREURS ET SUCCÈS
+     -------------------------------------------------------------------------- */
+  --success: #22c55e;
+  --success-light: #dcfce7;
+  --warning: #eab308;
+  --warning-light: #fef9c3;
+  --error: #ef4444;
+  --error-light: #fee2e2;
+  --info: #3b82f6;
+  --info-light: #dbeafe;
+}
+
+/* Overrides spécifiques pour le thème Maison */
+.theme-maison-chaleureuse .btn-primary {
+  background: linear-gradient(135deg, #ea580c, #f97316);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+}
+
+.theme-maison-chaleureuse .btn-primary:hover {
+  background: linear-gradient(135deg, #f97316, #fb923c);
+  box-shadow: 0 6px 20px rgba(234, 88, 12, 0.5);
+  transform: translateY(-2px);
+}
+
+.theme-maison-chaleureuse .card {
+  background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
+  border: 1px solid #fed7aa;
+  border-radius: var(--radius-xl);
+}
+
+.theme-maison-chaleureuse .chat-mine {
+  background: linear-gradient(135deg, #ffedd5, #fed7aa);
+  border-bottom-right-radius: 20px;
+}
+
+.theme-maison-chaleureuse .chat-theirs {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border-bottom-left-radius: 20px;
+}
+
+.theme-maison-chaleureuse .status-online {
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.6);
+}
+
+.theme-maison-chaleureuse .header {
+  background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
+  border-bottom: 1px solid #fed7aa;
+}
+
+.theme-maison-chaleureuse .nav-bar {
+  background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
+  border-top: 1px solid #fed7aa;
+}
+
+.theme-maison-chaleureuse .modal {
+  background: linear-gradient(180deg, #ffffff 0%, #fdf2e9 100%);
+  border: 1px solid #fed7aa;
+}
+
+.theme-maison-chaleureuse .input:focus {
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.2);
+}
+
+.theme-maison-chaleureuse .list-item:hover {
+  background-color: #ffedd5;
+}
+
+.theme-maison-chaleureuse .badge {
+  background: linear-gradient(135deg, #ea580c, #f97316);
+}
+
+/* Effet chaleureux subtil */
+.theme-maison-chaleureuse::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(253, 237, 232, 0.5) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: -1;
+}

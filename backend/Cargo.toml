@@ -4,14 +4,14 @@ version = "0.5.0-beta.1"
 edition = "2021"
 
 [dependencies]
-dotenv = "0.15"
+dotenvy = "0.15"
 hostname = "0.4"
 rustrtc = "0.3.52"
 axum = { version = "0.8", features = ["ws", "multipart", "tokio"] }
 axum-extra = { version = "0.10", features = ["typed-header"] }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1"
-tower-http = { version = "0.6.8", features = ["fs", "cors", "compression-br", "compression-gzip", "set-header"] }
+tower-http = { version = "0.7", features = ["fs", "cors", "compression-br", "compression-gzip", "set-header"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"] }
@@ -28,8 +28,8 @@ bytes = "1"
 # HTTP client — rustls par défaut dans reqwest 0.13
 reqwest = { version = "0.13", features = ["json"] }
 
-# rand 0.9 pour webrtc.rs
-rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
+# rand 0.10 pour webrtc.rs
+rand = { version = "0.10", features = ["std", "std_rng"] }
 
 # rand_core 0.6 explicitement pour argon2 (diamond dep fix)
 rand_core = { version = "0.6", features = ["std", "getrandom"] }
@@ -59,7 +59,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Tower (required for CSP middleware Layer/Service traits)
-tower = "0.4"
+tower = "0.5"
 
 # Rate limiting
 home = "0.5"

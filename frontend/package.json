@@ -18,7 +18,7 @@
     "copy-themes": "mkdir -p static/lib/ui && cp -r src/lib/ui/themes static/lib/ui/"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0",
+    "@playwright/test": "^1.61.0",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "2.59.0",
     "@sveltejs/vite-plugin-svelte": "7.0.0",

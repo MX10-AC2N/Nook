@@ -1,5 +1,6 @@
 // backend/src/config.rs
 use std::env;
+use dotenvy;
 
 #[derive(Clone)]
 pub struct Config {
@@ -24,7 +25,7 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Self {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         let public_site_url =
             env::var("PUBLIC_SITE_URL").unwrap_or_else(|_| "http://localhost:6300".to_string());
@@ -222,8 +223,7 @@ mod tests {
         let config = Config::load();
         assert_eq!(config.turn_port, 3478, "Should fallback to 3478 on invalid");
     }
-
-    #[test]
+#[test]
     fn test_sfu_relay_capacity_default() {
         clear_env();
         let config = Config::load();

@@ -17,7 +17,7 @@ use chacha20poly1305::aead::Aead;
 use chacha20poly1305::KeyInit;
 use chacha20poly1305::XChaCha20Poly1305;
 use futures_util::{SinkExt, StreamExt};
-use rand::RngCore;
+use rand::Rng;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
