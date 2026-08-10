@@ -1,0 +1,665 @@
+{
+  "version": 1,
+  "generated": "2026-03-20T18:18:58Z",
+  "total": 80,
+  "categories": [
+    [
+      "reactions",
+      "Réactions"
+    ],
+    [
+      "fete",
+      "Fête 🎉"
+    ],
+    [
+      "animaux",
+      "Animaux 🐾"
+    ],
+    [
+      "salutations",
+      "Salutations"
+    ]
+  ],
+  "gifs": [
+    {
+      "id": "thumbs-up-1",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-thumbs-up-1.gif",
+      "title": "No Problem Yes GIF by Vevo",
+      "size_kb": 361
+    },
+    {
+      "id": "thumbs-up-2",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-thumbs-up-2.gif",
+      "title": "Happy I Like It GIF",
+      "size_kb": 86
+    },
+    {
+      "id": "thumbs-down",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-thumbs-down.gif",
+      "title": "New York Yankees Thumbs Down GIF by MLB",
+      "size_kb": 199
+    },
+    {
+      "id": "lol-1",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-lol-1.gif",
+      "title": "Mothers Day Lol GIF by reactionseditor",
+      "size_kb": 145
+    },
+    {
+      "id": "lol-2",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-lol-2.gif",
+      "title": "Despicable Me Lol GIF",
+      "size_kb": 177
+    },
+    {
+      "id": "lol-3",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-lol-3.gif",
+      "title": "Meme Lol GIF by ALL SEEING EYES",
+      "size_kb": 75
+    },
+    {
+      "id": "love-1",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-love-1.gif",
+      "title": "heart love GIF",
+      "size_kb": 17
+    },
+    {
+      "id": "love-2",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-love-2.gif",
+      "title": "I Love You GIF",
+      "size_kb": 4
+    },
+    {
+      "id": "love-3",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-love-3.gif",
+      "title": "orange caramel disney GIF",
+      "size_kb": 45
+    },
+    {
+      "id": "thinking",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-thinking.gif",
+      "title": "Think About It GIF by Identity",
+      "size_kb": 81
+    },
+    {
+      "id": "mind-blown",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-mind-blown.gif",
+      "title": "Blow Your Mind Wow GIF by Product Hunt",
+      "size_kb": 294
+    },
+    {
+      "id": "wow",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-wow.gif",
+      "title": "Cat Wow GIF",
+      "size_kb": 181
+    },
+    {
+      "id": "no-way",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-no-way.gif",
+      "title": "No Way Funny Meme GIF",
+      "size_kb": 42
+    },
+    {
+      "id": "yes",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-yes.gif",
+      "title": "Jack Nicholson Yes GIF",
+      "size_kb": 346
+    },
+    {
+      "id": "no",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-no.gif",
+      "title": "Cat No GIF",
+      "size_kb": 16
+    },
+    {
+      "id": "angry",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-angry.gif",
+      "title": "Angry Shih Tzu GIF",
+      "size_kb": 145
+    },
+    {
+      "id": "sad",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-sad.gif",
+      "title": "Sad Anthony Anderson GIF",
+      "size_kb": 40
+    },
+    {
+      "id": "crying-laughing",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-crying-laughing.gif",
+      "title": "happy show GIF",
+      "size_kb": 148
+    },
+    {
+      "id": "clapping",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-clapping.gif",
+      "title": "Clap Applause GIF",
+      "size_kb": 84
+    },
+    {
+      "id": "facepalm",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-facepalm.gif",
+      "title": "facepalm GIF",
+      "size_kb": 145
+    },
+    {
+      "id": "ok",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-ok.gif",
+      "title": "Full House Ok GIF",
+      "size_kb": 44
+    },
+    {
+      "id": "perfect",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-perfect.gif",
+      "title": "I Love It Chefs Kiss GIF by Magic: The Gathering",
+      "size_kb": 46
+    },
+    {
+      "id": "fire",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-fire.gif",
+      "title": "On Fire GIF by NETFLIX",
+      "size_kb": 259
+    },
+    {
+      "id": "100",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-100.gif",
+      "title": "Working Work In Progress GIF by Chinesport",
+      "size_kb": 78
+    },
+    {
+      "id": "eyeroll",
+      "category": "reactions",
+      "cat_label": "Réactions",
+      "file": "reactions-eyeroll.gif",
+      "title": "Girl Eye Roll GIF",
+      "size_kb": 58
+    },
+    {
+      "id": "happy-birthday-1",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-happy-birthday-1.gif",
+      "title": "Happy Birthday Party GIF",
+      "size_kb": 242
+    },
+    {
+      "id": "happy-birthday-2",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-happy-birthday-2.gif",
+      "title": "Happy Birthday GIF by Lucas and Friends by RV AppStudios",
+      "size_kb": 323
+    },
+    {
+      "id": "happy-birthday-3",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-happy-birthday-3.gif",
+      "title": "Happy Birthday GIF",
+      "size_kb": 359
+    },
+    {
+      "id": "congratulations-1",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-congratulations-1.gif",
+      "title": "Happy Well Done GIF by GreetPool",
+      "size_kb": 407
+    },
+    {
+      "id": "congratulations-2",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-congratulations-2.gif",
+      "title": "Congrats Applause GIF by Zypto",
+      "size_kb": 175
+    },
+    {
+      "id": "party-1",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-party-1.gif",
+      "title": "Happy Birthday GIF",
+      "size_kb": 385
+    },
+    {
+      "id": "party-2",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-party-2.gif",
+      "title": "Im Ready To Party Kristen Wiig GIF",
+      "size_kb": 44
+    },
+    {
+      "id": "champagne",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-champagne.gif",
+      "title": "Drunk Happy New Year GIF",
+      "size_kb": 75
+    },
+    {
+      "id": "fireworks",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-fireworks.gif",
+      "title": "Happy Birthday GIF by Lucas and Friends by RV AppStudios",
+      "size_kb": 446
+    },
+    {
+      "id": "confetti",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-confetti.gif",
+      "title": "Confetti GIF",
+      "size_kb": 328
+    },
+    {
+      "id": "cheers",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-cheers.gif",
+      "title": "Cheers Toast To That GIF by Gordon's Gin",
+      "size_kb": 83
+    },
+    {
+      "id": "woohoo",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-woohoo.gif",
+      "title": "Happy Congratulations GIF by OneSquigglyLine",
+      "size_kb": 4
+    },
+    {
+      "id": "victory",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-victory.gif",
+      "title": "winner success GIF",
+      "size_kb": 61
+    },
+    {
+      "id": "success",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-success.gif",
+      "title": "Happy Dance GIF by Pudgy Penguins",
+      "size_kb": 79
+    },
+    {
+      "id": "dancing-1",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-dancing-1.gif",
+      "title": "Hip Hop Happy Dance GIF",
+      "size_kb": 266
+    },
+    {
+      "id": "dancing-2",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-dancing-2.gif",
+      "title": "Lets Go Omg GIF by Zypto",
+      "size_kb": 175
+    },
+    {
+      "id": "yay",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-yay.gif",
+      "title": "Excited George Costanza GIF",
+      "size_kb": 229
+    },
+    {
+      "id": "great",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-great.gif",
+      "title": "Be Quiet Tim And Eric GIF",
+      "size_kb": 110
+    },
+    {
+      "id": "amazing",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-amazing.gif",
+      "title": "Speed Wow GIF by STRAPPED!",
+      "size_kb": 727
+    },
+    {
+      "id": "new-year",
+      "category": "fete",
+      "cat_label": "Fête 🎉",
+      "file": "fete-new-year.gif",
+      "title": "Drunk Happy New Year GIF",
+      "size_kb": 75
+    },
+    {
+      "id": "dog-happy-1",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-dog-happy-1.gif",
+      "title": "Friends Dogs GIF by MOODMAN",
+      "size_kb": 424
+    },
+    {
+      "id": "dog-happy-2",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-dog-happy-2.gif",
+      "title": "Friends Dogs GIF by MOODMAN",
+      "size_kb": 424
+    },
+    {
+      "id": "dog-wave",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-dog-wave.gif",
+      "title": "Wave Hie GIF",
+      "size_kb": 11
+    },
+    {
+      "id": "cat-happy-1",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-cat-happy-1.gif",
+      "title": "Happy Cat GIF",
+      "size_kb": 90
+    },
+    {
+      "id": "cat-happy-2",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-cat-happy-2.gif",
+      "title": "Cat Love GIF",
+      "size_kb": 15
+    },
+    {
+      "id": "cat-no",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-cat-no.gif",
+      "title": "Cat No GIF",
+      "size_kb": 16
+    },
+    {
+      "id": "frog-cute",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-frog-cute.gif",
+      "title": "Bored Spin GIF by LINE FRIENDS",
+      "size_kb": 14
+    },
+    {
+      "id": "frog-wave",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-frog-wave.gif",
+      "title": "Pepe Le Pew Love GIF by Disney",
+      "size_kb": 32
+    },
+    {
+      "id": "bunny",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-bunny.gif",
+      "title": "bunny GIF",
+      "size_kb": 38
+    },
+    {
+      "id": "panda",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-panda.gif",
+      "title": "pandas GIF",
+      "size_kb": 8
+    },
+    {
+      "id": "hamster",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-hamster.gif",
+      "title": "Chinchilla GIF",
+      "size_kb": 840
+    },
+    {
+      "id": "duck",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-duck.gif",
+      "title": "Say It Again Game Over GIF",
+      "size_kb": 11
+    },
+    {
+      "id": "bear-wave",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-bear-wave.gif",
+      "title": "Greeting Good Day GIF by MOODMAN",
+      "size_kb": 49
+    },
+    {
+      "id": "dog-love",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-dog-love.gif",
+      "title": "Love You Hearts GIF by MyMorningDog",
+      "size_kb": 123
+    },
+    {
+      "id": "cat-love",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-cat-love.gif",
+      "title": "GIF by BOXYCHARM",
+      "size_kb": 102
+    },
+    {
+      "id": "puppy-eyes",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-puppy-eyes.gif",
+      "title": "Sad Big Eyes GIF",
+      "size_kb": 6
+    },
+    {
+      "id": "cat-vibing",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-cat-vibing.gif",
+      "title": "Stay Strong Cheer Up GIF by Felini Rocks",
+      "size_kb": 596
+    },
+    {
+      "id": "dog-yes",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-dog-yes.gif",
+      "title": "Yep Yes GIF",
+      "size_kb": 123
+    },
+    {
+      "id": "penguin",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-penguin.gif",
+      "title": "Happy I Love You GIF by Finch Care",
+      "size_kb": 37
+    },
+    {
+      "id": "fox",
+      "category": "animaux",
+      "cat_label": "Animaux 🐾",
+      "file": "animaux-fox.gif",
+      "title": "dc comics fox GIF",
+      "size_kb": 515
+    },
+    {
+      "id": "hello-wave-1",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-hello-wave-1.gif",
+      "title": "Lizard Hello GIF",
+      "size_kb": 435
+    },
+    {
+      "id": "hello-wave-2",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-hello-wave-2.gif",
+      "title": "Forrest Gump Flirting GIF by MOODMAN",
+      "size_kb": 57
+    },
+    {
+      "id": "bye-1",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-bye-1.gif",
+      "title": "bye bye bye justin timberlake gif GIF",
+      "size_kb": 31
+    },
+    {
+      "id": "bye-2",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-bye-2.gif",
+      "title": "See Ya Goodbye GIF by Pudgy Penguins",
+      "size_kb": 63
+    },
+    {
+      "id": "good-morning",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-good-morning.gif",
+      "title": "Happy Good Morning GIF",
+      "size_kb": 381
+    },
+    {
+      "id": "good-night",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-good-night.gif",
+      "title": "Good Night Space GIF",
+      "size_kb": 402
+    },
+    {
+      "id": "welcome",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-welcome.gif",
+      "title": "Joining Welcome Home GIF",
+      "size_kb": 124
+    },
+    {
+      "id": "handshake",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-handshake.gif",
+      "title": "Arnold Schwarzenegger Handshake GIF",
+      "size_kb": 40
+    },
+    {
+      "id": "hug-1",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-hug-1.gif",
+      "title": "Monsters Inc Hug GIF",
+      "size_kb": 134
+    },
+    {
+      "id": "hug-2",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-hug-2.gif",
+      "title": "Share Love GIF",
+      "size_kb": 29
+    },
+    {
+      "id": "high-five",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-high-five.gif",
+      "title": "High Five The Office GIF",
+      "size_kb": 224
+    },
+    {
+      "id": "fist-bump",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-fist-bump.gif",
+      "title": "new girl fist bump GIF",
+      "size_kb": 78
+    },
+    {
+      "id": "thank-you",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-thank-you.gif",
+      "title": "Good Night Love GIF by Likee US",
+      "size_kb": 9
+    },
+    {
+      "id": "please",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-please.gif",
+      "title": "Hungry Dinner GIF",
+      "size_kb": 87
+    },
+    {
+      "id": "good-luck",
+      "category": "salutations",
+      "cat_label": "Salutations",
+      "file": "salutations-good-luck.gif",
+      "title": "Spongebob Squarepants Good Luck GIF",
+      "size_kb": 65
+    }
+  ]
+}

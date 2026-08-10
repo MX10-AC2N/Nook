@@ -34,7 +34,7 @@ use tower_http::{
     services::{ServeDir, ServeFile},
 };
 use chrono::Utc;
-use rand::{rng, distr::Alphanumeric, Rng};
+use rand::{rng, distr::Alphanumeric, RngExt};
 
 mod admin;
 mod auth;

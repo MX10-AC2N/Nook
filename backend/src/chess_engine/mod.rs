@@ -9,7 +9,7 @@
 //!
 //! Changements vs source originale :
 //! - `thiserror` supprimé → Display + Error implémentés manuellement
-//! - `rand::Rng::random_range` (rand 0.9) au lieu de `SliceRandom::choose`
+//! - `rand::RngExt::random_range` (rand 0.10) au lieu de `SliceRandom::choose`
 //! - let-chains edition 2024 → edition 2021 compatible
 //! - Chemins de modules adaptés (crate::chess_engine::*)
 
