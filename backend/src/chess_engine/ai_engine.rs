@@ -9,7 +9,7 @@
 
 use std::time::{Duration, Instant};
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::chess_engine::board::Position;
 use crate::chess_engine::game::Game;

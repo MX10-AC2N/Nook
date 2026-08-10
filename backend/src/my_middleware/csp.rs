@@ -10,7 +10,7 @@ use axum::{
     response::IntoResponse,
 };
 use base64ct::{Base64UrlUnpadded, Encoding};
-use rand::{rng, Rng};
+use rand::{rng, RngExt};
 
 // -----------------------------------------------------------------------------
 // CSP Configuration
