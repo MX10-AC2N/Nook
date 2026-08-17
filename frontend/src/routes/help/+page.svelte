@@ -256,6 +256,10 @@
     flex: 1; border: none; background: transparent;
     padding: .75rem .65rem; font-size: .95rem; color: var(--text-primary); outline: none;
   }
+  .search-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .search-input::placeholder { color: var(--text-muted); }
   .search-clear { background: none; border: none; cursor: pointer; font-size: .9rem; color: var(--text-muted); padding: 0 .2rem; }
   .search-clear:hover { color: var(--text-primary); }

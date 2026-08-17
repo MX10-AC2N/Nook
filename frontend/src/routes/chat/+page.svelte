@@ -2084,6 +2084,10 @@
     border: none; border-bottom: 2px solid var(--accent, #4ade80);
     background: transparent; outline: none; padding: 0 .25rem;
   }
+  .rename-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .rename-ok, .rename-cancel {
     background: none; border: none; cursor: pointer;
     font-size: 1rem; padding: .2rem .35rem; border-radius: .35rem;
@@ -2334,6 +2338,10 @@
     background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
     resize: vertical; outline: none; font-family: inherit;
   }
+  textarea:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .edit-actions { display: flex; gap: .4rem; }
   .edit-ok, .edit-cancel {
     padding: .25rem .6rem; border: none; border-radius: .35rem;
@@ -2472,6 +2480,10 @@
     overflow-y: auto;
     font-family: inherit;
   }
+  .message-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .message-input:focus { border-color: var(--accent, #4ade80); }
   .message-input:disabled { opacity: .6; }
   .send-btn {
@@ -2534,9 +2546,13 @@
     padding: .55rem .85rem;
     border: 1.5px solid var(--border, #e2e8f0);
     border-radius: .5rem; font-size: .9rem; outline: none;
+    transition: border-color .15s;
     background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
     box-sizing: border-box;
-    transition: border-color .15s;
+  }
+  .form-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
   }
   .form-input:focus { border-color: var(--accent, #4ade80); }
   .form-error {

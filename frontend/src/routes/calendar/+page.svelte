@@ -466,6 +466,11 @@
   .modal-ftr { display: flex; gap: .5rem; justify-content: flex-end; padding: .85rem 1.25rem; border-top: 1px solid var(--border, #e2e8f0); }
   .field { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; font-weight: 600; color: var(--text-secondary, #64748b); }
   .field input, .field textarea { padding: .55rem .85rem; border: 1.5px solid var(--border, #e2e8f0); border-radius: .5rem; font-size: .9rem; background: var(--bg-secondary, #f8fafc); color: var(--text-primary, #1e293b); outline: none; transition: border-color .15s; font-family: inherit; }
+  .field input:focus-visible,
+  .field textarea:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .field input:focus, .field textarea:focus { border-color: var(--accent, #4ade80); background: var(--bg-primary, #fff); }
   .field textarea { resize: vertical; }
   .field-error { font-size: .8rem; color: var(--error, #ef4444); margin: 0; }

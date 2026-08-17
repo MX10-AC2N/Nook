@@ -362,6 +362,10 @@
     box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.2);
     outline: none;
   }
+  input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
 
   input:disabled { 
     opacity: 0.6; 

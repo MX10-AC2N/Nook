@@ -233,6 +233,10 @@
     border-color: var(--primary, #6366f1);
     box-shadow: 0 0 0 2px var(--primary-light, #eef2ff);
   }
+  .search-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   
   .search-input::placeholder {
     color: var(--text-muted, #94a3b8);

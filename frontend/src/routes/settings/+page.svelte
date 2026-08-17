@@ -479,6 +479,10 @@
     border-radius: var(--radius-lg); font-size: 1rem; background: var(--input-bg);
     color: var(--text-primary); transition: border-color 0.2s, box-shadow 0.2s; outline: none;
   }
+  .form-group input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .form-group input[type='text']:focus,
   .form-group input[type='password']:focus {
     border-color: var(--accent); box-shadow: var(--glow-sm);

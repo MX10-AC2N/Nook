@@ -198,6 +198,11 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #2d5a27) 20%, transparent);
     outline: none;
   }
+
+  input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   input:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .btn-primary {
