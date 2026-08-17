@@ -1,6 +1,5 @@
 // backend/src/config.rs
 use std::env;
-use dotenvy;
 
 #[derive(Clone)]
 pub struct Config {

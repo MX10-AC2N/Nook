@@ -4,8 +4,8 @@
 // Le nonce est aussi injecté dans le HTML via remplacement de placeholder <!-- CSP_NONCE_PLACEHOLDER -->
 
 use axum::{
-    body::{Body, Bytes, to_bytes},
-    http::{header::CONTENT_TYPE, HeaderValue, Request, Response, StatusCode},
+    body::{Body, to_bytes},
+    http::{header::CONTENT_TYPE, HeaderValue, Request, Response},
     middleware::Next,
     response::IntoResponse,
 };
