@@ -16,6 +16,7 @@
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   // Badge non-lu : somme de tous les compteurs de conversations
   const totalUnread = $derived(
@@ -226,6 +227,8 @@
   </div>
 
 {:else}
+  <a href="#main-content" class="skip-link">Aller au contenu</a>
+
   {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
@@ -266,6 +269,7 @@
       aria-modal="true"
       aria-label="Menu de navigation"
       tabindex="0"
+      use:focusTrap
       onkeydown={handleMenuKeydown}
       onclick={(e) => e.stopPropagation()}
     >
@@ -304,7 +308,7 @@
     </div>
   {/if}
 
-  <main class="app-main">
+  <main class="app-main" id="main-content">
     {@render children()}
   </main>
 

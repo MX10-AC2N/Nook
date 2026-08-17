@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   interface CalEvent {
     id: string; title: string; date: string; time: string;
@@ -336,7 +337,7 @@
 
 <!-- MODAL AJOUT -->
   {#if showAddModal}
-    <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
+    <div class="modal-bg" use:focusTrap onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
       <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
         <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
       <div class="modal-body">
@@ -356,7 +357,7 @@
 
 <!-- MODAL DÉTAIL/ÉDITION -->
 {#if detailEvent}
-  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
+  <div class="modal-bg" use:focusTrap onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
     <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr">
         <h3>{editMode ? '✏️ Modifier' : '📌 '+detailEvent.title}</h3>
@@ -392,7 +393,7 @@
 
 <!-- MODAL JOUR MULTI-ÉVÉNEMENTS -->
 {#if selectedDay && !detailEvent && eventsForDay(selectedDay).length > 1}
-  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
+  <div class="modal-bg" use:focusTrap onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
     <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr"><h3>📅 {selectedDay} {monthNames[currentDate.getMonth()]}</h3><button class="modal-close" onclick={() => selectedDay=null}>✕</button></div>
       <div class="modal-body">

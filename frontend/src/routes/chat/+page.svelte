@@ -4,6 +4,7 @@
     import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { focusTrap } from '$lib/actions/focusTrap';
   import {
     chatStore,
     messagesStore,
@@ -1540,6 +1541,7 @@
               use:emojiPickerAction={msg.id}
               class="msg-emoji-picker"
               data-emojis-per-row="8"
+              data-testid="emoji-picker"
               style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
             ></emoji-picker>
             <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
@@ -1732,6 +1734,7 @@
     tabindex="0"
     aria-modal="true"
     aria-label="Nouvelle conversation"
+    use:focusTrap
     onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}
     onkeydown={(e) => { if (e.key === 'Escape') showNewConv = false; }}
   >

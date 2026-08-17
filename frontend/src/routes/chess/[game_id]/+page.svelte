@@ -11,6 +11,7 @@
     PIECE_NAMES,
     statusLabel,
   } from '$lib/chessStore.svelte.ts';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   const gameId = $derived($page.params.game_id);
 
@@ -438,7 +439,7 @@
     <!-- ══ MODAL PROMOTION ══ -->
     {#if chessStore.pendingPromotion}
       <div class="modal-backdrop">
-        <div class="modal-promo" role="dialog" aria-modal="true">
+        <div class="modal-promo" role="dialog" aria-modal="true" use:focusTrap>
           <h3>Promouvoir le pion</h3>
           <div class="promo-grid">
             {#each PROMO_PIECES as p}
@@ -464,7 +465,7 @@
     {@const g = chessStore.currentGame}
     {@const isWinner = g?.winner_id === authStore.user?.id}
     {@const isDraw   = !g?.winner_id}
-    <div class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" role="dialog" aria-modal="true" use:focusTrap>
       <div class="modal-result">
         <div class="result-icon">
           {#if isDraw}🤝{:else if isWinner}🏆{:else}👑{/if}
