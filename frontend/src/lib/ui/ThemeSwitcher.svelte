@@ -57,7 +57,7 @@
   // `$currentTheme` contient l’identifiant du thème actif.
   // On le transforme en l’objet complet présent dans `availableThemes`.
   let currentThemeInfo = $derived(
-    () => availableThemes.find(t => t.id === getCcurrentTheme)
+    () => availableThemes.find(t => t.id === getCurrentTheme())
   );
 
   // -----------------------------------------------------------------
@@ -127,10 +127,10 @@
         {#each availableThemes as theme (theme.id)}
           <button
             class="theme-option"
-            class:active={getCurrentTheme === theme.id}
+            class:active={getCurrentTheme() === theme.id}
             onclick={() => selectTheme(theme.id)}
             role="option"
-            aria-selected={getCurrentTheme === theme.id}
+            aria-selected={getCurrentTheme() === theme.id}
           >
             <!-- Aperçu colorimétrique du thème -->
             <div class="theme-preview" data-theme={theme.id}>
@@ -146,7 +146,7 @@
             </div>
 
             <!-- Icône de validation si ce thème est sélectionné -->
-            {#if getCurrentTheme === theme.id}
+            {#if getCurrentTheme() === theme.id}
               <svg
                 class="check-icon"
                 width="16"
