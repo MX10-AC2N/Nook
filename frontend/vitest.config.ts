@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [svelte()],
   test: {
     environment: 'jsdom',
+    // Pure crypto unit tests (no DOM needed) run in the node environment so
+    // they don't require jsdom, which is not installed in this workspace.
+    environmentMatchGlobs: [['**/crypto.*.test.ts', 'node']],
     globals: true,
     include: ['src/**/*.{test,spec}.{js,ts}'],
     coverage: {

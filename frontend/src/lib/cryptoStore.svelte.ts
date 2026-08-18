@@ -39,6 +39,8 @@ import {
   fetchMemberPubkeys,
   getCurrentKeyVersion,
   migrateKeyStoreToV2,
+  getArchivedPrivateKey,
+  decryptPrivateKey,
   type KeyPair,
   type EncryptedMessage,
   type DecryptSessionKeyV2Options,
@@ -325,16 +327,49 @@ export async function decryptMessage(params: {
   if (!res.ok) throw new Error(`[cryptoStore] get encrypted key: HTTP ${res.status}`);
   const { encrypted_key } = await res.json();
 
-  // Archived key lookup — uses IndexedDB local key history
+  // Archived key lookup — DT-05-bis: forward secrecy after X25519 rotation.
+  // The current private key (_keyPair.privateKey) only decrypts messages that
+  // were encrypted with the *current* public key. After a rotation, messages
+  // encrypted under an older key version must be decrypted with that older
+  // private key. We retrieve it from (1) the local IndexedDB archive
+  // (populated by saveKeyRotation, works offline / same-device) and
+  // (2) the server API GET /api/auth/key-history/{version} (cross-device),
+  // decrypting the returned blob with the session password.
+  const sessionPwd = (typeof sessionStorage !== 'undefined')
+    ? sessionStorage.getItem('nook_crypto_key')
+    : null;
+
   const archivedKeyLookup = params.senderKeyVersion
     ? async (version: number): Promise<Uint8Array | null> => {
-        // Fetch the archived encrypted key from server, decrypt with session key
-        // Falls back to local IndexedDB cache for keys we've archived ourselves
-        const { getArchivedPrivateKey } = await import('$lib/crypto');
-        // We don't have the password readily available here — the caller
-        // should pre-warm cached private keys via the crypto store.
-        // For now, server-side archive is attempted when local cache fails.
-        return null;
+        // 1. Local IndexedDB archive (fast, offline, covers genesis version
+        //    whose server-side encrypted_priv may be empty after first rotate).
+        if (cryptoStore.userId && sessionPwd) {
+          try {
+            const local = await getArchivedPrivateKey(cryptoStore.userId, version, sessionPwd);
+            if (local) return local;
+          } catch (e) {
+            console.warn('[cryptoStore] archivedKeyLookup local archive miss:', e);
+          }
+        }
+        // 2. Server fallback: GET /api/auth/key-history/{version}
+        try {
+          const res = await fetch(`/api/auth/key-history/${version}`, { credentials: 'include' });
+          if (!res.ok) {
+            console.warn('[cryptoStore] archivedKeyLookup: HTTP', res.status, 'for version', version);
+            return null;
+          }
+          const data = await res.json() as { encrypted_private_key?: string };
+          const encryptedPriv = data.encrypted_private_key;
+          if (!encryptedPriv) return null;
+          if (!sessionPwd) {
+            console.warn('[cryptoStore] archivedKeyLookup: session password unavailable — cannot decrypt');
+            return null;
+          }
+          return await decryptPrivateKey(encryptedPriv, sessionPwd);
+        } catch (e) {
+          console.error('[cryptoStore] archivedKeyLookup failed:', e);
+          return null;
+        }
       }
     : undefined;
 
