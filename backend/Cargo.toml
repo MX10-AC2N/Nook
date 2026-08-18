@@ -54,6 +54,14 @@ headers = "0.4"
 # governor directement suffit pour implémenter le rate limiting dans Axum
 governor = "0.10"
 
+# DT-04 — partage de l'état du rate limiter entre instances via Redis.
+# governor 0.10 n'expose PAS de store Redis (pas de RedisKeyedStateStore) ;
+# on implémente un StateStore custom (src/redis_rate_limiter.rs) persisté dans
+# Redis. r2d2 = pool de connexions synchrones partagé par le store.
+redis = { version = "0.27", features = ["r2d2"] }
+# Pool r2d2 public (redis ré-exporte ManageConnection pour Client mais garde
+# son module r2d2 privé) — on utilise le crate r2d2 directement.
+r2d2 = "0.8"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

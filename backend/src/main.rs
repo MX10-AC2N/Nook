@@ -17,16 +17,9 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use governor::{
-    clock::DefaultClock,
-    middleware::NoOpMiddleware,
-    state::keyed::DefaultKeyedStateStore,
-    Quota, RateLimiter,
-};
-use std::num::NonZeroU32;
 use bytes::Bytes;
 use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
-use std::{net::SocketAddr, net::IpAddr, path::PathBuf, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
     set_header::SetResponseHeaderLayer,
@@ -60,6 +53,7 @@ mod sfu;
 mod events;
 mod ca;
 mod analytics;
+mod redis_rate_limiter;
 
 use crate::config::Config;
 use crate::prune::prune_old_data;
@@ -67,11 +61,13 @@ use sfu::SfuState;
 use webrtc::{FileManager, WebRtcState};
 
 // ---------------------------------------------------------------------
-// SEC-02 : Rate limiter KEYED par IP (30 req / 60s par adresse)
+// SEC-02 : Rate limiter KEYED par IP (RATE_LIMIT_PER_MIN req / 60s par adresse)
 // Remplace le NotKeyed global qui causait des faux-positifs en CI
 // et ne protégeait pas correctement contre le brute-force par IP unique.
+// DT-04 : l'état du limiter est partagé via Redis quand REDIS_URL est défini
+// (multi-instance), sinon fallback mémoire (dev / single-instance).
+// Voir src/redis_rate_limiter.rs.
 // ---------------------------------------------------------------------
-type IpRateLimiter = RateLimiter<IpAddr, DefaultKeyedStateStore<IpAddr>, DefaultClock, NoOpMiddleware>;
 
 #[derive(Clone)]
 pub struct SharedState {
@@ -406,16 +402,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(60);
-    let ip_limiter: Arc<IpRateLimiter> = Arc::new(
-        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(rate_limit).unwrap()))
-    );
+    // DT-04 : si REDIS_URL défini → état partagé entre instances via Redis,
+    // sinon fallback mémoire (dev / single-instance).
+    let redis_url = std::env::var("REDIS_URL").ok();
+    let ip_limiter: Arc<redis_rate_limiter::IpRateLimiter> =
+        redis_rate_limiter::IpRateLimiter::build(redis_url.as_deref(), rate_limit);
 
     // 🔐 Auth rate limiter: stricter limits for auth endpoints (configurable via AUTH_RATE_LIMIT_PER_MIN)
     let auth_rate_limit: u32 = std::env::var("AUTH_RATE_LIMIT_PER_MIN")
         .ok().and_then(|v| v.parse().ok()).unwrap_or(5);
-    let auth_limiter: Arc<IpRateLimiter> = Arc::new(
-        RateLimiter::keyed(Quota::per_minute(NonZeroU32::new(auth_rate_limit).unwrap()))
-    );
+    let auth_limiter: Arc<redis_rate_limiter::IpRateLimiter> =
+        redis_rate_limiter::IpRateLimiter::build(redis_url.as_deref(), auth_rate_limit);
 
     let auth_limiter_clone = auth_limiter.clone();
     let auth_routes = Router::new()
@@ -424,16 +421,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route_layer(from_fn(move |ConnectInfo(addr): ConnectInfo<SocketAddr>, req: Request<Body>, next: Next| {
             let lim = auth_limiter_clone.clone();
             async move {
-                match lim.check_key(&addr.ip()) {
-                    Ok(_) => next.run(req).await,
-                    Err(_) => {
-                        tracing::warn!(
-                            ip = %addr.ip(),
-                            path = %req.uri().path(),
-                            "Auth rate limit exceeded (429) — too many login attempts"
-                        );
-                        axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
-                    }
+                if lim.check(&addr.ip()) {
+                    next.run(req).await
+                } else {
+                    tracing::warn!(
+                        ip = %addr.ip(),
+                        path = %req.uri().path(),
+                        "Auth rate limit exceeded (429) — too many login attempts"
+                    );
+                    axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
                 }
             }
         }));
@@ -453,16 +449,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         | {
             let lim = limiter_clone.clone();
             async move {
-                match lim.check_key(&addr.ip()) {
-                    Ok(_) => next.run(req).await,
-                    Err(_) => {
-                        tracing::warn!(
-                            ip = %addr.ip(),
-                            path = %req.uri().path(),
-                            "Rate limit dépassé (429) — IP bloquée temporairement"
-                        );
-                        axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
-                    }
+                if lim.check(&addr.ip()) {
+                    next.run(req).await
+                } else {
+                    tracing::warn!(
+                        ip = %addr.ip(),
+                        path = %req.uri().path(),
+                        "Rate limit dépassé (429) — IP bloquée temporairement"
+                    );
+                    axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
                 }
             }
         }));
