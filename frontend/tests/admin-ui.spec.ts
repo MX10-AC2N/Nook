@@ -1,22 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { BASE } from './helpers';
-
+import { BASE, loginAsAdmin } from './helpers';
 
 test.describe('Admin UI — Users + Invites', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="username"], input[type="text"]', 'admin');
-    await page.fill('input[name="password"], input[type="password"]', 'AdminCI2026!');
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(3000);
-    
-    // May redirect to change password if first login
-    if (page.url().includes('change-password')) {
-      await page.fill('input[type="password"]', 'AdminCI2026!');
-      await page.click('button[type="submit"]');
-      await page.waitForTimeout(2000);
-    }
+    await loginAsAdmin(page);
   });
 
   test('Admin panel accessible', async ({ page }) => {
