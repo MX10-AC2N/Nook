@@ -46,8 +46,14 @@
         console.warn('[login] E2EE non activé :', cryptoStore.error);
       }
 
-      // Persister le mot de passe en sessionStorage pour le déverrouillage E2EE au reload
-      // Volatile: effacé à la fermeture du navigateur (sécurité acceptable)
+      // Persister le mot de passe en localStorage pour le déverrouillage E2EE au reload
+      // Utilise localStorage (pas sessionStorage) pour survivre à la fermeture du navigateur
+      // sur mobile. Le mot de passe est utilisé pour déchiffrer la clé privée stockée
+      // dans IndexedDB — sans la clé privée en clair nulle part, c'est acceptable.
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('nook_crypto_key', password);
+      }
+      // Double écriture en sessionStorage comme cache rapide (optionnel)
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem('nook_crypto_key', password);
       }

@@ -336,7 +336,7 @@ export async function decryptMessage(params: {
   // (2) the server API GET /api/auth/key-history/{version} (cross-device),
   // decrypting the returned blob with the session password.
   const sessionPwd = (typeof sessionStorage !== 'undefined')
-    ? sessionStorage.getItem('nook_crypto_key')
+    ? (sessionStorage.getItem('nook_crypto_key') || localStorage.getItem('nook_crypto_key'))
     : null;
 
   const archivedKeyLookup = params.senderKeyVersion

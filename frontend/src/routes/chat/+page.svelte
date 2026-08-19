@@ -1537,19 +1537,20 @@
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if emojiPickerMsgId === msg.id}
-            <emoji-picker
-              use:emojiPickerAction={msg.id}
-              class="msg-emoji-picker"
-              data-emojis-per-row="8"
-              data-testid="emoji-picker"
-              style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
-            ></emoji-picker>
-            <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
+            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
+              <emoji-picker
+                use:emojiPickerAction={msg.id}
+                class="msg-emoji-picker-inner"
+                data-emojis-per-row="8"
+                data-testid="emoji-picker"
+              ></emoji-picker>
+              <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
+            </div>
           {/if}
 
           <!-- Extended emoji picker (ALL_EMOJIS grid) -->
           {#if extendedEmojiMsgId === msg.id}
-            <div class="extended-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
+            <div class="extended-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
               <div class="extended-emoji-header">
                 <span>Plus d'emojis</span>
                 <button class="ep-close-sm" onclick={() => extendedEmojiMsgId = null}>✕</button>
@@ -3074,7 +3075,7 @@
   .msg-menu-item.delete:hover { background: #fef2f2; }
 
   /* Extended emoji picker for messages (emoji-picker-element) */
-  /* position: relative pour que le conteneur parent fixe les limites */
+  /* position: fixed pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
     position: fixed;
     z-index: 50;
@@ -3085,8 +3086,12 @@
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     background: var(--bg-primary, #fff);
   }
+  .msg-emoji-picker-inner {
+    width: 100%;
+    height: 100%;
+  }
   /* Override emoji-picker-element default styles to match Nook theme */
-  .msg-emoji-picker emoji-picker {
+  .msg-emoji-picker-inner {
     --emoji-picker-background: var(--bg-primary, #fff);
     --emoji-picker-border-color: var(--border, #e2e8f0);
     --emoji-picker-input-background: var(--bg-secondary, #f1f5f9);

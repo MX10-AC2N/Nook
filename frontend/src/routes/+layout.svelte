@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore, unlockCrypto, hasKeys } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, unlockCrypto, hasKeys, restoreFromSessionStorage } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -46,9 +46,12 @@
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    // Effacer le mot de passe crypto en sessionStorage au logout
+    // Effacer le mot de passe crypto en sessionStorage et localStorage au logout
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.removeItem('nook_crypto_key');
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('nook_crypto_key');
     }
     authStore.logout();
     closeMenu();
@@ -161,17 +164,19 @@
       await authStore.init();
 
       // Au reload: si authentifié, débloquer E2EE avec le mot de passe (sessionStorage)
-      // On ne fait PLUS confiance à restoreFromSessionStorage() qui restaurait
+      // Stratégie : essayer d'abord restoreFromSessionStorage (rapide, clés en sessionStorage),
+      // puis unlockCrypto (charge depuis IndexedDB, source de vérité).
+      // On ne fait PLUS confiance à restoreFromSessionStorage() seul qui restaurait
       // des clés brutes potentiellement obsolètes (problème "clé indisponible" au refresh).
-      // unlockCrypto charge depuis IndexedDB + déchiffre avec le mot de passe → source de vérité.
+      // Maintenant on l'utilise comme fallback rapide pendant qu'unlockCrypto s'exécute.
       if (authStore.isAuthenticated) {
         try {
           console.log('[layout] authStore.user.id:', authStore.user?.id);
           const sessionKey = typeof sessionStorage !== 'undefined'
-            ? sessionStorage.getItem('nook_crypto_key')
+            ? (sessionStorage.getItem('nook_crypto_key') || localStorage.getItem('nook_crypto_key'))
             : null;
           console.log('[layout] sessionKey:', sessionKey ? 'SET' : 'NULL');
-          if (sessionKey) {
+          if (sessionKey && authStore.user?.id) {
             // Attendre que libsodium soit prêt AVANT unlockCrypto
             const { waitForSodium } = await import('$lib/sodium.svelte.js');
             console.log('[layout] sodium module imported');
@@ -179,11 +184,24 @@
             console.log('[layout] waitForSodium done, calling unlockCrypto...');
             const result = await unlockCrypto(authStore.user.id, sessionKey);
             console.log('[layout] unlockCrypto result:', result);
+            if (!result) {
+              // unlockCrypto a échoué — essayer restoreFromSessionStorage comme fallback
+              console.warn('[layout] unlockCrypto failed, trying restoreFromSessionStorage fallback');
+              const restored = restoreFromSessionStorage();
+              console.log('[layout] restoreFromSessionStorage result:', restored);
+            }
           } else {
-            console.warn('[layout] nook_crypto_key not in sessionStorage');
+            console.warn('[layout] nook_crypto_key not in sessionStorage or user.id missing');
           }
         } catch (e) {
           console.warn('[layout] Crypto unlock au reload échoué:', e);
+          // Fallback : essayer restoreFromSessionStorage
+          try {
+            const restored = restoreFromSessionStorage();
+            console.log('[layout] restoreFromSessionStorage fallback result:', restored);
+          } catch (e2) {
+            console.warn('[layout] restoreFromSessionStorage fallback also failed:', e2);
+          }
         }
       }
     } catch (err) {
