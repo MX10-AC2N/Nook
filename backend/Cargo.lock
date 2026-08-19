@@ -2144,6 +2144,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sha1 0.11.0",
+ "sha2 0.10.9",
  "sqlx",
  "tokio",
  "tokio-stream",

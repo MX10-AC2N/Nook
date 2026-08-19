@@ -326,6 +326,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Chargement de la configuration depuis les variables d'environnement...");
     let config = Config::load();
 
+    // CSP-01 : calcule dynamiquement le(s) hash(es) sha256 du/des <script> inline
+    // d'hydratation SvelteKit à partir du build réellement servi (static_dir/index.html).
+    // Garantit que le CSP autorise toujours le script d'hydratation du build déployé
+    // (le hash hardcodé précédent devenait faux à chaque rebuild → page blanche).
+    my_middleware::csp::load_svelte_inline_hashes(&config.static_dir);
+
     tracing::info!(
         port = config.port,
         static_dir = %config.static_dir,
