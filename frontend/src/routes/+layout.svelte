@@ -196,7 +196,15 @@
               }
             }
           } else {
-            console.warn('[layout] nook_crypto_key not in localStorage/sessionStorage or user.id missing');
+            // sessionKey ou user.id manquant — essayer restoreFromLocalStorage quand même
+            // (les clés peuvent être en localStorage même sans sessionKey/password)
+            console.warn('[layout] nook_crypto_key not in localStorage/sessionStorage or user.id missing — trying restoreFromLocalStorage fallback');
+            const restored = restoreFromLocalStorage();
+            console.log('[layout] restoreFromLocalStorage result:', restored);
+            if (!restored) {
+              const restored2 = restoreFromSessionStorage();
+              console.log('[layout] restoreFromSessionStorage result:', restored2);
+            }
           }
         } catch (e) {
           console.warn('[layout] Crypto unlock au reload échoué:', e);

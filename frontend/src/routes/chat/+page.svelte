@@ -328,7 +328,8 @@
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
     if (targetEl) {
-      const msgEl = targetEl.closest('.message-wrapper') as HTMLElement | null;
+      const msgEl = (targetEl.closest('.message-wrapper') as HTMLElement | null)
+        ?? (document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null);
       const msgRect = msgEl?.getBoundingClientRect();
       const btnRect = targetEl.getBoundingClientRect();
       
@@ -1463,6 +1464,7 @@
 
       {#each reversedMessages as msg (msg.id)}
         <div class="message-wrapper" role="presentation"
+             data-msg-id={msg.id}
              onmouseenter={() => { hoveredMsgId = msg.id; }}
              onmouseleave={() => { if (emojiPickerMsgId !== msg.id && extendedEmojiMsgId !== msg.id) hoveredMsgId = null; }}
              class:is-emoji-only={isEmojiOnly(msg.content)}
