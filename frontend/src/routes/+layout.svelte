@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore, unlockCrypto, hasKeys } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, unlockCrypto, hasKeys, restoreFromLocalStorage, restoreFromSessionStorage } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -16,6 +16,7 @@
   let cryptoInitialized = $state(false);
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   // Badge non-lu : somme de tous les compteurs de conversations
   const totalUnread = $derived(
@@ -45,9 +46,12 @@
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    // Effacer le mot de passe crypto en sessionStorage au logout
+    // Effacer le mot de passe crypto en sessionStorage et localStorage au logout
     if (typeof sessionStorage !== 'undefined') {
       sessionStorage.removeItem('nook_crypto_key');
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('nook_crypto_key');
     }
     authStore.logout();
     closeMenu();
@@ -159,18 +163,20 @@
     try {
       await authStore.init();
 
-      // Au reload: si authentifié, débloquer E2EE avec le mot de passe (sessionStorage)
-      // On ne fait PLUS confiance à restoreFromSessionStorage() qui restaurait
+      // Au reload: si authentifié, débloquer E2EE avec le mot de passe (localStorage)
+      // Stratégie : essayer d'abord restoreFromLocalStorage (rapide, clés en localStorage),
+      // puis unlockCrypto (charge depuis IndexedDB, source de vérité).
+      // On ne fait PLUS confiance à restoreFromSessionStorage() seul qui restaurait
       // des clés brutes potentiellement obsolètes (problème "clé indisponible" au refresh).
-      // unlockCrypto charge depuis IndexedDB + déchiffre avec le mot de passe → source de vérité.
+      // Maintenant on l'utilise comme fallback rapide pendant qu'unlockCrypto s'exécute.
       if (authStore.isAuthenticated) {
         try {
           console.log('[layout] authStore.user.id:', authStore.user?.id);
-          const sessionKey = typeof sessionStorage !== 'undefined'
-            ? sessionStorage.getItem('nook_crypto_key')
+          const sessionKey = typeof localStorage !== 'undefined'
+            ? (localStorage.getItem('nook_crypto_key') || sessionStorage.getItem('nook_crypto_key'))
             : null;
           console.log('[layout] sessionKey:', sessionKey ? 'SET' : 'NULL');
-          if (sessionKey) {
+          if (sessionKey && authStore.user?.id) {
             // Attendre que libsodium soit prêt AVANT unlockCrypto
             const { waitForSodium } = await import('$lib/sodium.svelte.js');
             console.log('[layout] sodium module imported');
@@ -178,11 +184,41 @@
             console.log('[layout] waitForSodium done, calling unlockCrypto...');
             const result = await unlockCrypto(authStore.user.id, sessionKey);
             console.log('[layout] unlockCrypto result:', result);
+            if (!result) {
+              // unlockCrypto a échoué — essayer restoreFromLocalStorage puis sessionStorage comme fallback
+              console.warn('[layout] unlockCrypto failed, trying restoreFromLocalStorage fallback');
+              const restored = restoreFromLocalStorage();
+              console.log('[layout] restoreFromLocalStorage result:', restored);
+              if (!restored) {
+                console.warn('[layout] restoreFromLocalStorage also failed, trying sessionStorage');
+                const restored2 = restoreFromSessionStorage();
+                console.log('[layout] restoreFromSessionStorage result:', restored2);
+              }
+            }
           } else {
-            console.warn('[layout] nook_crypto_key not in sessionStorage');
+            // sessionKey ou user.id manquant — essayer restoreFromLocalStorage quand même
+            // (les clés peuvent être en localStorage même sans sessionKey/password)
+            console.warn('[layout] nook_crypto_key not in localStorage/sessionStorage or user.id missing — trying restoreFromLocalStorage fallback');
+            const restored = restoreFromLocalStorage();
+            console.log('[layout] restoreFromLocalStorage result:', restored);
+            if (!restored) {
+              const restored2 = restoreFromSessionStorage();
+              console.log('[layout] restoreFromSessionStorage result:', restored2);
+            }
           }
         } catch (e) {
           console.warn('[layout] Crypto unlock au reload échoué:', e);
+          // Fallback : essayer restoreFromLocalStorage puis sessionStorage
+          try {
+            const restored = restoreFromLocalStorage();
+            console.log('[layout] restoreFromLocalStorage fallback result:', restored);
+            if (!restored) {
+              const restored2 = restoreFromSessionStorage();
+              console.log('[layout] restoreFromSessionStorage fallback result:', restored2);
+            }
+          } catch (e2) {
+            console.warn('[layout] restoreFromSessionStorage fallback also failed:', e2);
+          }
         }
       }
     } catch (err) {
@@ -226,6 +262,8 @@
   </div>
 
 {:else}
+  <a href="#main-content" class="skip-link">Aller au contenu</a>
+
   {#if cryptoError && authStore.isAuthenticated && !cryptoStore.ready && !$page.url.pathname.startsWith('/login') && !$page.url.pathname.startsWith('/invite') && !$page.url.pathname.startsWith('/register')}
     <div class="crypto-warning-banner" role="alert">
       ⚠️ Chiffrement de bout en bout indisponible — messages envoyés en clair.
@@ -266,6 +304,7 @@
       aria-modal="true"
       aria-label="Menu de navigation"
       tabindex="0"
+      use:focusTrap
       onkeydown={handleMenuKeydown}
       onclick={(e) => e.stopPropagation()}
     >
@@ -304,7 +343,7 @@
     </div>
   {/if}
 
-  <main class="app-main">
+  <main class="app-main" id="main-content">
     {@render children()}
   </main>
 

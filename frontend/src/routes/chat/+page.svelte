@@ -4,6 +4,7 @@
     import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { focusTrap } from '$lib/actions/focusTrap';
   import {
     chatStore,
     messagesStore,
@@ -327,15 +328,36 @@
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
     if (targetEl) {
-      const msgEl = targetEl.closest('.message-wrapper') as HTMLElement | null;
+      const msgEl = (targetEl.closest('.message-wrapper') as HTMLElement | null)
+        ?? (document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null);
       const msgRect = msgEl?.getBoundingClientRect();
       const btnRect = targetEl.getBoundingClientRect();
       
-      // Toujours ouvrir SOUS le message — jamais au-dessus
+      // Calculate position: below the message by default, above if overflow
       const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
+      const referenceTop = msgRect ? msgRect.top : btnRect.top;
+      const pickerHeight = 400; // max-height of picker
+      const margin = 6;
+      const spaceBelow = window.innerHeight - referenceBottom;
+      const spaceAbove = referenceTop;
+      
+      let top: number;
+      if (spaceBelow >= pickerHeight + margin) {
+        // Enough space below — open below
+        top = referenceBottom + margin;
+      } else if (spaceAbove >= pickerHeight + margin) {
+        // Enough space above — open above
+        top = referenceTop - pickerHeight - margin;
+      } else {
+        // Not enough space either way — prefer below, clamp to viewport
+        top = Math.max(margin, referenceBottom + margin);
+        if (top + pickerHeight > window.innerHeight - margin) {
+          top = window.innerHeight - pickerHeight - margin;
+        }
+      }
       
       emojiPickerPos = {
-        top: referenceBottom + 6,          // 6px de marge
+        top,
         left: btnRect.left,
         right: window.innerWidth - btnRect.right,
       };
@@ -1426,7 +1448,7 @@
       {/if}
     </header>
 
-  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
+  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }}}>
       {#if localMessages.length === 0}
         {#if loadingConvs}
           <div class="empty-state">
@@ -1442,6 +1464,7 @@
 
       {#each reversedMessages as msg (msg.id)}
         <div class="message-wrapper" role="presentation"
+             data-msg-id={msg.id}
              onmouseenter={() => { hoveredMsgId = msg.id; }}
              onmouseleave={() => { if (emojiPickerMsgId !== msg.id && extendedEmojiMsgId !== msg.id) hoveredMsgId = null; }}
              class:is-emoji-only={isEmojiOnly(msg.content)}
@@ -1536,18 +1559,20 @@
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if emojiPickerMsgId === msg.id}
-            <emoji-picker
-              use:emojiPickerAction={msg.id}
-              class="msg-emoji-picker"
-              data-emojis-per-row="8"
-              style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;"
-            ></emoji-picker>
-            <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
+            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
+              <emoji-picker
+                use:emojiPickerAction={msg.id}
+                class="msg-emoji-picker-inner"
+                data-emojis-per-row="8"
+                data-testid="emoji-picker"
+              ></emoji-picker>
+              <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
+            </div>
           {/if}
 
           <!-- Extended emoji picker (ALL_EMOJIS grid) -->
           {#if extendedEmojiMsgId === msg.id}
-            <div class="extended-emoji-picker" style="top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px;">
+            <div class="extended-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
               <div class="extended-emoji-header">
                 <span>Plus d'emojis</span>
                 <button class="ep-close-sm" onclick={() => extendedEmojiMsgId = null}>✕</button>
@@ -1732,6 +1757,7 @@
     tabindex="0"
     aria-modal="true"
     aria-label="Nouvelle conversation"
+    use:focusTrap
     onclick={(e) => { if ((e.target as HTMLElement).classList.contains('modal-overlay')) showNewConv = false; }}
     onkeydown={(e) => { if (e.key === 'Escape') showNewConv = false; }}
   >
@@ -2084,6 +2110,10 @@
     border: none; border-bottom: 2px solid var(--accent, #4ade80);
     background: transparent; outline: none; padding: 0 .25rem;
   }
+  .rename-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .rename-ok, .rename-cancel {
     background: none; border: none; cursor: pointer;
     font-size: 1rem; padding: .2rem .35rem; border-radius: .35rem;
@@ -2334,6 +2364,10 @@
     background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
     resize: vertical; outline: none; font-family: inherit;
   }
+  textarea:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .edit-actions { display: flex; gap: .4rem; }
   .edit-ok, .edit-cancel {
     padding: .25rem .6rem; border: none; border-radius: .35rem;
@@ -2472,6 +2506,10 @@
     overflow-y: auto;
     font-family: inherit;
   }
+  .message-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .message-input:focus { border-color: var(--accent, #4ade80); }
   .message-input:disabled { opacity: .6; }
   .send-btn {
@@ -2534,9 +2572,13 @@
     padding: .55rem .85rem;
     border: 1.5px solid var(--border, #e2e8f0);
     border-radius: .5rem; font-size: .9rem; outline: none;
+    transition: border-color .15s;
     background: var(--bg-primary, #fff); color: var(--text-primary, #1e293b);
     box-sizing: border-box;
-    transition: border-color .15s;
+  }
+  .form-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
   }
   .form-input:focus { border-color: var(--accent, #4ade80); }
   .form-error {
@@ -3055,7 +3097,7 @@
   .msg-menu-item.delete:hover { background: #fef2f2; }
 
   /* Extended emoji picker for messages (emoji-picker-element) */
-  /* position: relative pour que le conteneur parent fixe les limites */
+  /* position: fixed pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
     position: fixed;
     z-index: 50;
@@ -3066,8 +3108,12 @@
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     background: var(--bg-primary, #fff);
   }
+  .msg-emoji-picker-inner {
+    width: 100%;
+    height: 100%;
+  }
   /* Override emoji-picker-element default styles to match Nook theme */
-  .msg-emoji-picker emoji-picker {
+  .msg-emoji-picker-inner {
     --emoji-picker-background: var(--bg-primary, #fff);
     --emoji-picker-border-color: var(--border, #e2e8f0);
     --emoji-picker-input-background: var(--bg-secondary, #f1f5f9);
