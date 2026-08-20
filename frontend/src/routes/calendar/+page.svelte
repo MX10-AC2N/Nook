@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { focusTrap } from '$lib/actions/focusTrap';
 
   interface CalEvent {
     id: string; title: string; date: string; time: string;
@@ -336,7 +337,7 @@
 
 <!-- MODAL AJOUT -->
   {#if showAddModal}
-    <div class="modal-bg" onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
+    <div class="modal-bg" use:focusTrap onclick={() => showAddModal=false} role="dialog" aria-modal="true" aria-label="Ajouter un événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') showAddModal=false; }}>
       <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
         <div class="modal-hdr"><h3>Nouvel événement</h3><button class="modal-close" onclick={() => showAddModal=false}>✕</button></div>
       <div class="modal-body">
@@ -356,7 +357,7 @@
 
 <!-- MODAL DÉTAIL/ÉDITION -->
 {#if detailEvent}
-  <div class="modal-bg" onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
+  <div class="modal-bg" use:focusTrap onclick={closeDetail} role="dialog" aria-modal="true" aria-label="Détail événement" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') closeDetail(); }}>
     <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr">
         <h3>{editMode ? '✏️ Modifier' : '📌 '+detailEvent.title}</h3>
@@ -392,7 +393,7 @@
 
 <!-- MODAL JOUR MULTI-ÉVÉNEMENTS -->
 {#if selectedDay && !detailEvent && eventsForDay(selectedDay).length > 1}
-  <div class="modal-bg" onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
+  <div class="modal-bg" use:focusTrap onclick={() => selectedDay=null} role="dialog" aria-modal="true" aria-label="Événements du jour" tabindex="0" onkeydown={(e) => { if (e.key === 'Escape') selectedDay=null; }}>
     <div class="modal" onclick={(e) => e.stopPropagation()} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}>
       <div class="modal-hdr"><h3>📅 {selectedDay} {monthNames[currentDate.getMonth()]}</h3><button class="modal-close" onclick={() => selectedDay=null}>✕</button></div>
       <div class="modal-body">
@@ -466,6 +467,11 @@
   .modal-ftr { display: flex; gap: .5rem; justify-content: flex-end; padding: .85rem 1.25rem; border-top: 1px solid var(--border, #e2e8f0); }
   .field { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; font-weight: 600; color: var(--text-secondary, #64748b); }
   .field input, .field textarea { padding: .55rem .85rem; border: 1.5px solid var(--border, #e2e8f0); border-radius: .5rem; font-size: .9rem; background: var(--bg-secondary, #f8fafc); color: var(--text-primary, #1e293b); outline: none; transition: border-color .15s; font-family: inherit; }
+  .field input:focus-visible,
+  .field textarea:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .field input:focus, .field textarea:focus { border-color: var(--accent, #4ade80); background: var(--bg-primary, #fff); }
   .field textarea { resize: vertical; }
   .field-error { font-size: .8rem; color: var(--error, #ef4444); margin: 0; }

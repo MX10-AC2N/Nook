@@ -88,3 +88,22 @@
 - Web Push nécessite HTTPS — non disponible en LAN HTTP
 - notificationStore.svelte.ts : store central, NotificationToast.svelte : composant
 - Chaque module importe ses helpers: notifyMessage, notifyChess, notifyPoll, etc.
+
+## 🔄 Redéploiement
+- ⚠️ **Seul Mo Ju peut redéployer** — pas d'auto-redéploiement ni de scripts de déploiement non supervisés
+- Le redéploiement doit toujours passer par Mo Ju pour éviter les incohérences de version et les pertes de données
+
+## 🏗️ Orchestrator vs Front-end
+- ⚠️ **L'orchestrateur ne code pas de front-end** — les interfaces Svelte 5 requièrent une connaissance approfondie des runes `$state`, `$derived.by`, `$props()` et de la syntaxe Svelte 5 spécifique
+- Les tentatives d'orchestrator pour modifier le frontabout aboutissent souvent à une syntaxe Svelte 4 invalide ou à des `$state` mal placés
+
+## 🎭 Playwright & Symlinks
+- ⚠️ **Playwright + chmod+symlinks** : Lorsque Playwright teste des fichiers via des symlinks, les permissions `chmod` peuvent ne pas se propager correctement
+- Vérifier que les chemins de test pointent vers des réels ou utiliser `test.fixme()` pour contourner les problèmes de permissions
+- Toujours valider `npx playwright test --list` avant push (règle #1)
+
+## 🔗 PLUR symlink
+- ⚠️ **PLUR symlink ~/.plur** : Le répertoire `~/.plur` doit être en symlink vers le repo Nook `.herms/plur/` pour que les engrammes soient partagés entre sessions
+- Sans ce symlink, chaque session PLUR a sa propre copie locale, causant des incohérences de mémoire partagée
+
+# Svelte 5 Syntax

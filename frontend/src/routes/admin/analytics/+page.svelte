@@ -376,7 +376,7 @@
     <div class="error-banner">
       <Icon name="alert-circle" />
       <span>{error}</span>
-      <button on:click={loadAll}><Icon name="refresh-cw" class="spin" /></button>
+      <button onclick={loadAll}><Icon name="refresh-cw" class="spin" /></button>
     </div>
   {/if}
 
@@ -423,11 +423,11 @@
           <div class="range-selector">
             <button 
               class={activeRange === '7d' ? 'active' : ''} 
-              on:click={() => activeRange = '7d'}
+              onclick={() => activeRange = '7d'}
             >7j</button>
             <button 
               class={activeRange === '30d' ? 'active' : ''} 
-              on:click={() => activeRange = '30d'}
+              onclick={() => activeRange = '30d'}
             >30j</button>
           </div>
         </div>
@@ -789,7 +789,7 @@
     <div class="error-banner">
       <Icon name="alert-circle" />
       <span>{error}</span>
-      <button on:click={loadAll}><Icon name="refresh-cw" class="spin" /></button>
+      <button onclick={loadAll}><Icon name="refresh-cw" class="spin" /></button>
     </div>
   {/if}
 
@@ -842,11 +842,11 @@
           <div class="range-selector">
             <button 
               class={activeRange === '7d' ? 'active' : ''} 
-              on:click={() => { activeRange = '7d'; loadActivity().then(() => setTimeout(renderCharts, 0)); }}
+              onclick={() => { activeRange = '7d'; loadActivity().then(() => setTimeout(renderCharts, 0)); }}
             >7j</button>
             <button 
               class={activeRange === '30d' ? 'active' : ''} 
-              on:click={() => { activeRange = '30d'; loadActivity().then(() => setTimeout(renderCharts, 0)); }}
+              onclick={() => { activeRange = '30d'; loadActivity().then(() => setTimeout(renderCharts, 0)); }}
             >30j</button>
           </div>
         </div>

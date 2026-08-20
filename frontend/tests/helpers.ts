@@ -50,19 +50,6 @@ export async function loginAs(page: Page, username: string, password: string): P
 }
 
 // ─────────────────────────────────────────────────────────────────
-// loginViaAPI — login API-first (pas de browser, pas de rate limit)
-// Pose le cookie auth_token directement dans le context.
-// À utiliser pour tous les tests API qui n'ont pas besoin de l'UI.
-// ─────────────────────────────────────────────────────────────────
-export async function loginViaAPI(page: Page, username: string, password: string): Promise<void> {
-  await clearSession(page);
-  const res = await page.request.post(`${BASE}/auth/login`, {
-    data: { username, password },
-  });
-  if (!res.ok()) throw new Error(`loginViaAPI(${username}) échoué : HTTP ${res.status()}`);
-}
-
-// ─────────────────────────────────────────────────────────────────
 // loginAsAdmin — flux complet admin (change-password si nécessaire)
 // API-first pour éviter le rate limit sur /auth/login.
 // ─────────────────────────────────────────────────────────────────

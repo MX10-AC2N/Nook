@@ -1,6 +1,6 @@
 # 🧠 Nook Context — Hermes Extended Memory
 
-> Mis à jour : 2026-06-13 | Commit stable : `c3c15f1e`
+> Mis à jour : 2026-08-16 | Commit stable : `c3c15f1e`
 
 ## 📊 État Actuel
 | Composant | Statut | Détail |
@@ -9,6 +9,7 @@
 | Frontend CI | ⚠️ PENDING | package-lock drift / npm ci issues |
 | Turn CI | ✅ GREEN | |
 | Docker CI | ⚠️ PENDING | Backend build requis avant |
+| Swarm Monitor | ✅ TERMINÉ | Config/Agents/Graph OK |
 | E2EE nouveaux messages | ✅ OK | `encrypted_keys` non vide, try/catch par destinataire |
 | E2EE anciens messages | ⚠️ STRUCTUREL | Indéchiffrables après rotation clé X25519 |
 
@@ -90,9 +91,15 @@ docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
 ### CI orchestré
+## 📦 Modèles 2026-08-12
+- Rust 1.78 + Axum 0.8 + SQLx 0.8.6
+- SvelteKit 5 Runes + Tailwind CSS
+- Docker single-container deployment
+- TURN server: ghcr.io/mx10-ac2n/turn-server:dev
+
 ```bash
 cd /opt/data/Nook
-# Check state d'abord
+# Check state d
 gh run list --limit 5
 
 # Puis dans l'ordre (attendre chacun avant le suivant)

@@ -25,6 +25,17 @@ struct Claims {
 - Middleware Axum pour vérifier le token
 - Refresh token mechanism (à vérifier si implémenté)
 
+## 🔧 GITHUB_TOKEN - Règle Critique
+- ⚠️ **Problème** : `GITHUB_TOKEN` dans le terminal terminal est **strippé/censuré** par l'environnement
+- ✅ **Solution** : Utiliser toujours la `gh CLI` via `mcp__github__*` pour les opérations git
+- ✅ **Pattern** : `gh repo clone`, `gh pr create`, `gh pr merge`, `gh run workflow`
+- ✅ **Token** : `GITHUB_TOKEN` dispose seulement de permissions minimales sur le repo (pas de déploiement externe)
+- ❌ **Interdit** : Utiliser `GITHUB_TOKEN` en ligne de commande terminal pour `git push`, `git clone`, etc.
+- ✅ **Alternative** : PAT avec scopes `repo` stocké sécurément dans secrets GitHub, utilisée via `gh auth login`
+
+### Pourquoi cette règle ?
+Le `GITHUB_TOKEN` automatique GitHub Actions a des permissions limitées par défaut. Pour les opérations nécessitant plus de droits (comme le push vers des registres ou la gestion de releases), il faut utiliser une `PAT` personnelle avec les scopes appropriés, ou les actions `mcp__github__*` qui gèrent le token correctement via la CLI `gh`. Utiliser le token automatique en terminal peut entraîner des erreurs "403 Permission denied" silencieuses ou des poussées involontaires vers des cibles non prévues.
+
 ## 🔐 Chiffrement E2EE (End-to-End Encryption)
 
 ### Argon2 (Password Hashing)

@@ -4,14 +4,14 @@ version = "0.5.0-beta.1"
 edition = "2021"
 
 [dependencies]
-dotenv = "0.15"
+dotenvy = "0.15"
 hostname = "0.4"
 rustrtc = "0.3.52"
 axum = { version = "0.8", features = ["ws", "multipart", "tokio"] }
-axum-extra = { version = "0.10", features = ["typed-header"] }
+axum-extra = { version = "0.12", features = ["typed-header"] }
 tokio = { version = "1.0", features = ["full"] }
 tokio-stream = "0.1"
-tower-http = { version = "0.6.8", features = ["fs", "cors", "compression-br", "compression-gzip", "set-header"] }
+tower-http = { version = "0.7", features = ["fs", "cors", "compression-br", "compression-gzip", "set-header"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "sqlite", "macros", "migrate"] }
@@ -28,8 +28,8 @@ bytes = "1"
 # HTTP client — rustls par défaut dans reqwest 0.13
 reqwest = { version = "0.13", features = ["json"] }
 
-# rand 0.9 pour webrtc.rs
-rand = { version = "0.9", features = ["std", "std_rng", "os_rng"] }
+# rand 0.10 pour webrtc.rs
+rand = { version = "0.10", features = ["std", "std_rng"] }
 
 # rand_core 0.6 explicitement pour argon2 (diamond dep fix)
 rand_core = { version = "0.6", features = ["std", "getrandom"] }
@@ -38,8 +38,9 @@ rand_core = { version = "0.6", features = ["std", "getrandom"] }
 argon2 = "0.5"
 chacha20poly1305 = { version = "0.10.1" }
 base64ct = { version = "1.6", features = ["alloc"] }
-hmac = "0.12"
-sha1 = "0.10"
+sha2 = "0.10"
+hmac = "0.13"
+sha1 = "0.11"
 
 # Cryptographie VAPID (notifications push) — ring via rustls transitif
 # Nécessaire pour signer le JWT ES256 sans dépendance web-push (D10)
@@ -54,12 +55,20 @@ headers = "0.4"
 # governor directement suffit pour implémenter le rate limiting dans Axum
 governor = "0.10"
 
+# DT-04 — partage de l'état du rate limiter entre instances via Redis.
+# governor 0.10 n'expose PAS de store Redis (pas de RedisKeyedStateStore) ;
+# on implémente un StateStore custom (src/redis_rate_limiter.rs) persisté dans
+# Redis. r2d2 = pool de connexions synchrones partagé par le store.
+redis = { version = "0.27", features = ["r2d2"] }
+# Pool r2d2 public (redis ré-exporte ManageConnection pour Client mais garde
+# son module r2d2 privé) — on utilise le crate r2d2 directement.
+r2d2 = "0.8"
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
 # Tower (required for CSP middleware Layer/Service traits)
-tower = "0.4"
+tower = "0.5"
 
 # Rate limiting
 home = "0.5"

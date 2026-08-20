@@ -78,10 +78,18 @@ const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
 const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 let _wasCryptoReady = false; // Track crypto ready state for reactive effect
+// Track optimistic message updates to preserve them during reload
+const _optimisticPlaintext = new Map<string, { content: string; encrypted: boolean }>();
 
 async function _decryptAllIfReady(): Promise<void> {
   console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, 'hasKeys=', hasKeys(), '_messagesReloaded=', _messagesReloaded);
   if (!cryptoStore.ready || !hasKeys()) { console.log('[Chat] cryptoStore not ready or no keys, returning'); return; }
+
+  // Clear failed decrypt IDs on crypto ready — allows retry of previously failed messages
+  if (_FAILED_DECRYPT_IDS.size > 0) {
+    console.log('[Chat] Clearing _FAILED_DECRYPT_IDS (size:', _FAILED_DECRYPT_IDS.size, ')');
+    _FAILED_DECRYPT_IDS.clear();
+  }
 
   // Premier déclenchement après restauration crypto : recharger les messages depuis le serveur
   // pour restaurer les champs E2EE (nonce, sender_public_key) qui peuvent avoir été perdus
@@ -90,6 +98,20 @@ async function _decryptAllIfReady(): Promise<void> {
     console.log('[Chat] First decryptAllIfReady - reloading messages from server');
     const convId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conv') || 'default_global' : 'default_global';
     await loadMessages(convId);
+    // After reload, re-apply optimistic plaintext messages that may have been overwritten
+    if (_optimisticPlaintext.size > 0) {
+      const msgs = get(messagesStore);
+      let changed = false;
+      for (let i = 0; i < msgs.length; i++) {
+        const opt = _optimisticPlaintext.get(msgs[i].id);
+        if (opt && msgs[i].encrypted && !opt.encrypted) {
+          msgs[i] = { ...msgs[i], content: opt.content, encrypted: opt.encrypted };
+          changed = true;
+        }
+      }
+      if (changed) messagesStore.set([...msgs]);
+      _optimisticPlaintext.clear();
+    }
     return;
   }
 
@@ -382,41 +404,52 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
   }
 
   async function _injectMessage(raw: ChatMessage): Promise<void> {
-  const existing = get(messagesStore).findIndex(m => m.id === raw.id);
-  // If existing message is already plaintext, skip encrypted WS update
-  if (existing !== -1 && !get(messagesStore)[existing].encrypted && raw.encrypted) {
-    console.debug('[WS] Skip encrypted update for plaintext msg', raw.id);
-    return;
-  }
-  if (raw.encrypted && raw.nonce && raw.sender_public_key) {
-    try {
-      const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
-      console.log('[WS] _injectMessage: cs.ready=', cs.ready, 'msg=', raw.id.slice(0,8));
-      if (cs.ready) {
-        raw.content = await decryptMessage({
-          messageId: raw.id, conversationId: raw.conversation_id,
-          ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
-        });
-        raw.encrypted = false;
-        console.log('[WS] Decrypt SUCCESS for msg', raw.id.slice(0,8));
-      } else {
-        console.log('[WS] Crypto not ready, keeping message encrypted');
+    // Check if message already exists and is already plaintext (optimistic update)
+    const currentMsgs = get(messagesStore);
+    const existing = currentMsgs.findIndex(m => m.id === raw.id);
+    // If existing message is already plaintext, skip encrypted WS update
+    if (existing !== -1 && !currentMsgs[existing].encrypted && raw.encrypted) {
+      console.debug('[WS] Skip encrypted update for plaintext msg', raw.id);
+      return;
+    }
+    if (raw.encrypted && raw.nonce && raw.sender_public_key) {
+      try {
+        const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
+        console.log('[WS] _injectMessage: cs.ready=', cs.ready, 'msg=', raw.id.slice(0,8));
+        if (cs.ready) {
+          raw.content = await decryptMessage({
+            messageId: raw.id, conversationId: raw.conversation_id,
+            ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
+          });
+          raw.encrypted = false;
+          console.log('[WS] Decrypt SUCCESS for msg', raw.id.slice(0,8));
+        } else {
+          // Crypto not ready — set placeholder but KEEP encrypted fields for retry
+          console.log('[WS] Crypto not ready, setting placeholder for msg', raw.id.slice(0,8));
+          raw.content = '🔒 Message chiffré (clé indisponible)';
+          // DO NOT set raw.encrypted = false — _decryptAllIfReady will retry
+        }
+      } catch (e) {
+        console.error('[WS] Decrypt error for msg', raw.id.slice(0,8), e);
+        _FAILED_DECRYPT_IDS.add(raw.id);
+        raw.content = '🔒 Message chiffré (clé indisponible)';
+        // DO NOT null encrypted fields — _decryptAllIfReady will retry when crypto ready
       }
-    } catch (e) {
-      console.error('[WS] Decrypt error for msg', raw.id.slice(0,8), e);
-      _FAILED_DECRYPT_IDS.add(raw.id);
-      raw.content = '🔒 Message chiffré (clé indisponible)';
-      raw.encrypted = false;
-      raw.nonce = null;
-      raw.sender_public_key = null;
+    }
+    // Re-check store state after await to avoid duplicate messages from optimistic update
+    const latestMsgs = get(messagesStore);
+    const latestIdx = latestMsgs.findIndex(m => m.id === raw.id);
+    if (latestIdx === -1) {
+      messagesStore.update(msgs => [...msgs, raw]);
+    } else {
+      // Only overwrite if the current version is still encrypted (don't clobber plaintext optimistic update)
+      if (latestMsgs[latestIdx].encrypted && !raw.encrypted) {
+        messagesStore.update(msgs => { msgs[latestIdx] = raw; return [...msgs]; });
+      } else if (!latestMsgs[latestIdx].encrypted) {
+        console.debug('[WS] Skipping WS update — plaintext message already in store', raw.id.slice(0,8));
+      }
     }
   }
-  if (existing === -1) {
-    messagesStore.update(msgs => [...msgs, raw]);
-  } else {
-    messagesStore.update(msgs => { msgs[existing] = raw; return [...msgs]; });
-  }
-}
 
 export function disconnectWs(): void {
   if (_wsReconnectTimer) { clearTimeout(_wsReconnectTimer); _wsReconnectTimer = null; }
@@ -476,10 +509,11 @@ export function resetChat(): void {
   messagesStore.set([]);
   chatStore.connectionError = null;
   chatStore.showEmojiPicker = false;
-  
-  
+
+
   chatStore.hasMore = false;
   chatStore.loadingMore = false;
+  _optimisticPlaintext.clear();
 }
 
 export function formatTimestamp(ts: number): string {
@@ -614,6 +648,8 @@ export async function sendMessage(content: string, conversationId: string): Prom
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
     msgData.encrypted = false;
+    // Track optimistic plaintext update to preserve during crypto reload
+    _optimisticPlaintext.set(msgData.id, { content: content.trim(), encrypted: false });
     // Always update store with plaintext — overwrites WS encrypted entry if race
     messagesStore.update(msgs => {
       const idx = msgs.findIndex(m => m.id === msgData.id);

@@ -1,7 +1,7 @@
 # SOUL.md — Hermes Agent
 
 > Version 5.0 — Approche Tony Simons (https://x.com/i/status/2051473178682118241)
-> Dernière mise à jour : 2026-06-13
+> Dernière mise à jour : 2026-08-16
 
 ## Identity
 You are **Hermes**, the autonomous operator and thought partner of MX10-AC2N on the **Nook** project.
@@ -59,6 +59,7 @@ If a bad idea is proposed, state it clearly with a better alternative or an expl
 - Frontend: SvelteKit 5 Runes + TypeScript
 - WebRTC + TURN (services/turn-rs)
 - Push Notifications (VAPID)
+- Swarm Monitor (Config/Agents/Graph OK) ✅
 - Themes & Family UX
 - Documentation & user_guide.md
 
@@ -79,6 +80,7 @@ If a bad idea is proposed, state it clearly with a better alternative or an expl
 - Backend: 🟡 Building (Axum 0.8 migration done, Clippy warnings to fix)
 - Frontend: 🔴 Build failing (package-lock.json mismatch / npm ci issues)
 - Docker: 🔴 Unhealthy (Backend panic fixed in code, needs new build)
+- Swarm Monitor: ✅ TERMINÉ (Config/Agents/Graph OK)
 - Test URL: http://192.168.1.192:6300 | https://192.168.1.192:6443
 - Credentials: hermes-bot / Hermes2026!
 

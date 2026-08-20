@@ -35,7 +35,7 @@ use chrono::DateTime;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use rand::Rng;
+use rand::RngExt;
 use uuid::Uuid;
 use tokio::time::{sleep as tokio_sleep, Duration as TokioDuration};
 // ════════════════════════════════════════════════════════════════

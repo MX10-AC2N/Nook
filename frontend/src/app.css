@@ -31,3 +31,31 @@ main {
   flex: 1;
   min-height: 0;
 }
+
+/* ─── Skip-link (a11y WCAG 2.4.1) ─── */
+/* Visually hidden until focused, then jumps to #main-content. */
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+}
+.skip-link:focus {
+  left: 0;
+  z-index: 9999;
+  background: var(--bg-primary, #fff);
+  color: var(--text-primary, #1e293b);
+  padding: 0.5rem 1rem;
+  border-radius: 0 0 0.5rem 0;
+  text-decoration: none;
+}
+
+/* ─── Global prefers-reduced-motion (a11y) ─── */
+/* Neutralise animations/transitions/scroll for users who request it. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

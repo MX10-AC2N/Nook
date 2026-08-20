@@ -241,6 +241,10 @@
     outline: none;
     border-color: #2d5a27;
   }
+  input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
 
   .error-message {
     background: #ffebee;

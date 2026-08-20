@@ -39,6 +39,8 @@ import {
   fetchMemberPubkeys,
   getCurrentKeyVersion,
   migrateKeyStoreToV2,
+  getArchivedPrivateKey,
+  decryptPrivateKey,
   type KeyPair,
   type EncryptedMessage,
   type DecryptSessionKeyV2Options,
@@ -66,7 +68,48 @@ export const cryptoStore = $state<CryptoStoreState>({
 let _keyPair: KeyPair | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Restauration depuis sessionStorage (appelée explicitement côté client)
+// Restauration depuis localStorage (appelée explicitement côté client)
+// ─────────────────────────────────────────────────────────────────────────────
+export function restoreFromLocalStorage(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  // Garde anti état fantôme : ready=true mais _keyPair=null → on nettoie
+  if (cryptoStore.ready && !_keyPair) {
+    console.warn('[cryptoStore] Ghost ready state detected — resetting');
+    cryptoStore.ready = false;
+    localStorage.removeItem('nook_privkey');
+    localStorage.removeItem('nook_pubkey');
+    localStorage.removeItem('nook_userid');
+  }
+  if (cryptoStore.ready && _keyPair) {
+    console.log('[cryptoStore] restoreFromLocalStorage skip — déjà ready');
+    return true;
+  }
+  try {
+    const encPriv = localStorage.getItem('nook_privkey');
+    const encPub = localStorage.getItem('nook_pubkey');
+    const uid = localStorage.getItem('nook_userid');
+    if (encPriv && encPub && uid) {
+      const priv = Uint8Array.from(atob(encPriv), c => c.charCodeAt(0));
+      const pub = Uint8Array.from(atob(encPub), c => c.charCodeAt(0));
+      // X25519 clés font 32 bytes — rejeter données corrompues
+      if (priv.length !== 32 || pub.length !== 32) throw new Error('Clés de taille invalide');
+      _keyPair = { privateKey: priv, publicKey: pub };
+      cryptoStore.userId = uid;
+      cryptoStore.ready = true;
+      console.log('[cryptoStore] Clés restaurées depuis localStorage');
+      return true;
+    }
+  } catch (e) {
+    console.warn('[cryptoStore] Échec restauration localStorage:', e);
+    localStorage.removeItem('nook_privkey');
+    localStorage.removeItem('nook_pubkey');
+    localStorage.removeItem('nook_userid');
+  }
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Restauration depuis sessionStorage (fallback, rapide si disponible)
 // ─────────────────────────────────────────────────────────────────────────────
 export function restoreFromSessionStorage(): boolean {
   if (typeof sessionStorage === 'undefined') return false;
@@ -172,13 +215,21 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       cryptoStore.userId = userId;
       cryptoStore.ready  = true;
 
-      // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+      // Persister les clés E2EE en sessionStorage (cache rapide)
       try {
-        sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
-        sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
+        sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...newKeyPair.privateKey)));
+        sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...newKeyPair.publicKey)));
         sessionStorage.setItem('nook_userid', userId);
       } catch (e) {
         console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
+      }
+      // Persister aussi en localStorage (survit fermeture navigateur)
+      try {
+        localStorage.setItem('nook_privkey', btoa(String.fromCharCode(...newKeyPair.privateKey)));
+        localStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...newKeyPair.publicKey)));
+        localStorage.setItem('nook_userid', userId);
+      } catch (e) {
+        console.warn('[cryptoStore] Impossible de stocker les clés en localStorage:', e);
       }
 
       console.info('[cryptoStore] Première paire de clés générée et activée ✓');
@@ -187,13 +238,21 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
 
     // kp est garanti non-null ici (chargé depuis IndexedDB)
 
-    // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+    // Persister les clés E2EE en sessionStorage (cache rapide)
     try {
       sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
       sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
       sessionStorage.setItem('nook_userid', userId);
     } catch (e) {
       console.warn('[cryptoStore] sessionStorage:', e);
+    }
+    // Persister aussi en localStorage (survit fermeture navigateur)
+    try {
+      localStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
+      localStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
+      localStorage.setItem('nook_userid', userId);
+    } catch (e) {
+      console.warn('[cryptoStore] localStorage:', e);
     }
 
     // Await public key registration BEFORE activating the store
@@ -325,16 +384,49 @@ export async function decryptMessage(params: {
   if (!res.ok) throw new Error(`[cryptoStore] get encrypted key: HTTP ${res.status}`);
   const { encrypted_key } = await res.json();
 
-  // Archived key lookup — uses IndexedDB local key history
+  // Archived key lookup — DT-05-bis: forward secrecy after X25519 rotation.
+  // The current private key (_keyPair.privateKey) only decrypts messages that
+  // were encrypted with the *current* public key. After a rotation, messages
+  // encrypted under an older key version must be decrypted with that older
+  // private key. We retrieve it from (1) the local IndexedDB archive
+  // (populated by saveKeyRotation, works offline / same-device) and
+  // (2) the server API GET /api/auth/key-history/{version} (cross-device),
+  // decrypting the returned blob with the session password.
+  const sessionPwd = (typeof sessionStorage !== 'undefined')
+    ? (sessionStorage.getItem('nook_crypto_key') || localStorage.getItem('nook_crypto_key'))
+    : null;
+
   const archivedKeyLookup = params.senderKeyVersion
     ? async (version: number): Promise<Uint8Array | null> => {
-        // Fetch the archived encrypted key from server, decrypt with session key
-        // Falls back to local IndexedDB cache for keys we've archived ourselves
-        const { getArchivedPrivateKey } = await import('$lib/crypto');
-        // We don't have the password readily available here — the caller
-        // should pre-warm cached private keys via the crypto store.
-        // For now, server-side archive is attempted when local cache fails.
-        return null;
+        // 1. Local IndexedDB archive (fast, offline, covers genesis version
+        //    whose server-side encrypted_priv may be empty after first rotate).
+        if (cryptoStore.userId && sessionPwd) {
+          try {
+            const local = await getArchivedPrivateKey(cryptoStore.userId, version, sessionPwd);
+            if (local) return local;
+          } catch (e) {
+            console.warn('[cryptoStore] archivedKeyLookup local archive miss:', e);
+          }
+        }
+        // 2. Server fallback: GET /api/auth/key-history/{version}
+        try {
+          const res = await fetch(`/api/auth/key-history/${version}`, { credentials: 'include' });
+          if (!res.ok) {
+            console.warn('[cryptoStore] archivedKeyLookup: HTTP', res.status, 'for version', version);
+            return null;
+          }
+          const data = await res.json() as { encrypted_private_key?: string };
+          const encryptedPriv = data.encrypted_private_key;
+          if (!encryptedPriv) return null;
+          if (!sessionPwd) {
+            console.warn('[cryptoStore] archivedKeyLookup: session password unavailable — cannot decrypt');
+            return null;
+          }
+          return await decryptPrivateKey(encryptedPriv, sessionPwd);
+        } catch (e) {
+          console.error('[cryptoStore] archivedKeyLookup failed:', e);
+          return null;
+        }
       }
     : undefined;
 

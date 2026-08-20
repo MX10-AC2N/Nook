@@ -7,7 +7,7 @@ on:
 
 jobs:
   update-lock:
-    name: Generate & Commit Cargo.lock
+    name: Verify & Commit Cargo.lock
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,13 +17,24 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Generate Cargo.lock
+      - name: Verify Cargo.lock
         working-directory: backend
         run: |
-          # Generate lock file without updating all deps
-          cargo generate-lockfile
-          # Verify it works
-          cargo check
+          # If a Cargo.lock was committed use it as-is (it is the source of truth,
+          # e.g. redis 0.27.6 pinned). Regenerating from scratch with
+          # `cargo generate-lockfile` ignores it and may resolve newer transitive
+          # deps that do not compile on the current stable toolchain.
+          if [ ! -f Cargo.lock ]; then
+            echo "Cargo.lock missing — generating one."
+            cargo generate-lockfile
+          fi
+
+          # Defensively pin redis to the known-good version so the lock stays
+          # reproducible even if run on a fresher registry index.
+          cargo update -p redis --precise 0.27.6 || true
+
+          # Validate the lock actually compiles (uses the committed Cargo.lock).
+          cargo check --locked
 
       - name: Commit & Push
         run: |

@@ -387,6 +387,10 @@
   .create-card h2 { margin: 0 0 1rem; font-size: 1rem; color: var(--text-primary); }
   .form-label { display: block; font-size: .82rem; font-weight: 600; color: var(--text-secondary); margin-bottom: .75rem; }
   .form-input { display: block; width: 100%; margin-top: .3rem; padding: .6rem .85rem; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-size: .9rem; outline: none; transition: border-color .15s; box-sizing: border-box; background: var(--input-bg, var(--bg-primary)); color: var(--text-primary); }
+  .form-input:focus-visible {
+    outline: 2px solid #4f9cf9;
+    outline-offset: 2px;
+  }
   .form-input:focus { border-color: var(--accent); }
   .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .75rem; }
   .form-error { color: #dc2626; font-size: .83rem; margin: .4rem 0; }
