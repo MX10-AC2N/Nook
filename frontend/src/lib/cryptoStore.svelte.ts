@@ -68,7 +68,48 @@ export const cryptoStore = $state<CryptoStoreState>({
 let _keyPair: KeyPair | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Restauration depuis sessionStorage (appelée explicitement côté client)
+// Restauration depuis localStorage (appelée explicitement côté client)
+// ─────────────────────────────────────────────────────────────────────────────
+export function restoreFromLocalStorage(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  // Garde anti état fantôme : ready=true mais _keyPair=null → on nettoie
+  if (cryptoStore.ready && !_keyPair) {
+    console.warn('[cryptoStore] Ghost ready state detected — resetting');
+    cryptoStore.ready = false;
+    localStorage.removeItem('nook_privkey');
+    localStorage.removeItem('nook_pubkey');
+    localStorage.removeItem('nook_userid');
+  }
+  if (cryptoStore.ready && _keyPair) {
+    console.log('[cryptoStore] restoreFromLocalStorage skip — déjà ready');
+    return true;
+  }
+  try {
+    const encPriv = localStorage.getItem('nook_privkey');
+    const encPub = localStorage.getItem('nook_pubkey');
+    const uid = localStorage.getItem('nook_userid');
+    if (encPriv && encPub && uid) {
+      const priv = Uint8Array.from(atob(encPriv), c => c.charCodeAt(0));
+      const pub = Uint8Array.from(atob(encPub), c => c.charCodeAt(0));
+      // X25519 clés font 32 bytes — rejeter données corrompues
+      if (priv.length !== 32 || pub.length !== 32) throw new Error('Clés de taille invalide');
+      _keyPair = { privateKey: priv, publicKey: pub };
+      cryptoStore.userId = uid;
+      cryptoStore.ready = true;
+      console.log('[cryptoStore] Clés restaurées depuis localStorage');
+      return true;
+    }
+  } catch (e) {
+    console.warn('[cryptoStore] Échec restauration localStorage:', e);
+    localStorage.removeItem('nook_privkey');
+    localStorage.removeItem('nook_pubkey');
+    localStorage.removeItem('nook_userid');
+  }
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Restauration depuis sessionStorage (fallback, rapide si disponible)
 // ─────────────────────────────────────────────────────────────────────────────
 export function restoreFromSessionStorage(): boolean {
   if (typeof sessionStorage === 'undefined') return false;
@@ -174,13 +215,21 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
       cryptoStore.userId = userId;
       cryptoStore.ready  = true;
 
-      // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+      // Persister les clés E2EE en sessionStorage (cache rapide)
       try {
-        sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(..._keyPair.privateKey)));
-        sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(..._keyPair.publicKey)));
+        sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...newKeyPair.privateKey)));
+        sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...newKeyPair.publicKey)));
         sessionStorage.setItem('nook_userid', userId);
       } catch (e) {
         console.warn('[cryptoStore] Impossible de stocker les clés en sessionStorage:', e);
+      }
+      // Persister aussi en localStorage (survit fermeture navigateur)
+      try {
+        localStorage.setItem('nook_privkey', btoa(String.fromCharCode(...newKeyPair.privateKey)));
+        localStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...newKeyPair.publicKey)));
+        localStorage.setItem('nook_userid', userId);
+      } catch (e) {
+        console.warn('[cryptoStore] Impossible de stocker les clés en localStorage:', e);
       }
 
       console.info('[cryptoStore] Première paire de clés générée et activée ✓');
@@ -189,13 +238,21 @@ export async function unlockCrypto(userId: string, password: string): Promise<bo
 
     // kp est garanti non-null ici (chargé depuis IndexedDB)
 
-    // Persister les clés E2EE en sessionStorage (volatile) pour restauration sans mot de passe
+    // Persister les clés E2EE en sessionStorage (cache rapide)
     try {
       sessionStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
       sessionStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
       sessionStorage.setItem('nook_userid', userId);
     } catch (e) {
       console.warn('[cryptoStore] sessionStorage:', e);
+    }
+    // Persister aussi en localStorage (survit fermeture navigateur)
+    try {
+      localStorage.setItem('nook_privkey', btoa(String.fromCharCode(...kp.privateKey)));
+      localStorage.setItem('nook_pubkey', btoa(String.fromCharCode(...kp.publicKey)));
+      localStorage.setItem('nook_userid', userId);
+    } catch (e) {
+      console.warn('[cryptoStore] localStorage:', e);
     }
 
     // Await public key registration BEFORE activating the store

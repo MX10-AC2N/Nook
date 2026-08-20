@@ -78,6 +78,8 @@ const _CRYPTO_READY_MAX_ATTEMPTS = 600; // 10 minutes à 1s d'intervalle
 const _FAILED_DECRYPT_IDS = new Set<string>(); // Messages définitivement en échec
 let _messagesReloaded = false; // Indique si on a rechargé les messages serveur après restauration crypto
 let _wasCryptoReady = false; // Track crypto ready state for reactive effect
+// Track optimistic message updates to preserve them during reload
+const _optimisticPlaintext = new Map<string, { content: string; encrypted: boolean }>();
 
 async function _decryptAllIfReady(): Promise<void> {
   console.log('[Chat] _decryptAllIfReady called, cryptoStore.ready=', cryptoStore.ready, 'hasKeys=', hasKeys(), '_messagesReloaded=', _messagesReloaded);
@@ -96,6 +98,20 @@ async function _decryptAllIfReady(): Promise<void> {
     console.log('[Chat] First decryptAllIfReady - reloading messages from server');
     const convId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('conv') || 'default_global' : 'default_global';
     await loadMessages(convId);
+    // After reload, re-apply optimistic plaintext messages that may have been overwritten
+    if (_optimisticPlaintext.size > 0) {
+      const msgs = get(messagesStore);
+      let changed = false;
+      for (let i = 0; i < msgs.length; i++) {
+        const opt = _optimisticPlaintext.get(msgs[i].id);
+        if (opt && msgs[i].encrypted && !opt.encrypted) {
+          msgs[i] = { ...msgs[i], content: opt.content, encrypted: opt.encrypted };
+          changed = true;
+        }
+      }
+      if (changed) messagesStore.set([...msgs]);
+      _optimisticPlaintext.clear();
+    }
     return;
   }
 
@@ -493,10 +509,11 @@ export function resetChat(): void {
   messagesStore.set([]);
   chatStore.connectionError = null;
   chatStore.showEmojiPicker = false;
-  
-  
+
+
   chatStore.hasMore = false;
   chatStore.loadingMore = false;
+  _optimisticPlaintext.clear();
 }
 
 export function formatTimestamp(ts: number): string {
@@ -631,6 +648,8 @@ export async function sendMessage(content: string, conversationId: string): Prom
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
     msgData.encrypted = false;
+    // Track optimistic plaintext update to preserve during crypto reload
+    _optimisticPlaintext.set(msgData.id, { content: content.trim(), encrypted: false });
     // Always update store with plaintext — overwrites WS encrypted entry if race
     messagesStore.update(msgs => {
       const idx = msgs.findIndex(m => m.id === msgData.id);

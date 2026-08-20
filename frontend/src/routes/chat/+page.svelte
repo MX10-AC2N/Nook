@@ -332,11 +332,31 @@
       const msgRect = msgEl?.getBoundingClientRect();
       const btnRect = targetEl.getBoundingClientRect();
       
-      // Toujours ouvrir SOUS le message — jamais au-dessus
+      // Calculate position: below the message by default, above if overflow
       const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
+      const referenceTop = msgRect ? msgRect.top : btnRect.top;
+      const pickerHeight = 400; // max-height of picker
+      const margin = 6;
+      const spaceBelow = window.innerHeight - referenceBottom;
+      const spaceAbove = referenceTop;
+      
+      let top: number;
+      if (spaceBelow >= pickerHeight + margin) {
+        // Enough space below — open below
+        top = referenceBottom + margin;
+      } else if (spaceAbove >= pickerHeight + margin) {
+        // Enough space above — open above
+        top = referenceTop - pickerHeight - margin;
+      } else {
+        // Not enough space either way — prefer below, clamp to viewport
+        top = Math.max(margin, referenceBottom + margin);
+        if (top + pickerHeight > window.innerHeight - margin) {
+          top = window.innerHeight - pickerHeight - margin;
+        }
+      }
       
       emojiPickerPos = {
-        top: referenceBottom + 6,          // 6px de marge
+        top,
         left: btnRect.left,
         right: window.innerWidth - btnRect.right,
       };
@@ -1427,7 +1447,7 @@
       {/if}
     </header>
 
-  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; }}}>
+  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }}}>
       {#if localMessages.length === 0}
         {#if loadingConvs}
           <div class="empty-state">

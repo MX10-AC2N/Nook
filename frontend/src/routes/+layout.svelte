@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { initCryptoSystem } from '$lib/crypto';
   import { sodiumState, waitForSodium } from '$lib/sodium.svelte.js';
-  import { cryptoStore, unlockCrypto, hasKeys, restoreFromSessionStorage } from '$lib/cryptoStore.svelte';
+  import { cryptoStore, unlockCrypto, hasKeys, restoreFromLocalStorage, restoreFromSessionStorage } from '$lib/cryptoStore.svelte';
   import { chatStore } from '$lib/chatStore.svelte.ts';
 
   let { children } = $props();
@@ -163,8 +163,8 @@
     try {
       await authStore.init();
 
-      // Au reload: si authentifié, débloquer E2EE avec le mot de passe (sessionStorage)
-      // Stratégie : essayer d'abord restoreFromSessionStorage (rapide, clés en sessionStorage),
+      // Au reload: si authentifié, débloquer E2EE avec le mot de passe (localStorage)
+      // Stratégie : essayer d'abord restoreFromLocalStorage (rapide, clés en localStorage),
       // puis unlockCrypto (charge depuis IndexedDB, source de vérité).
       // On ne fait PLUS confiance à restoreFromSessionStorage() seul qui restaurait
       // des clés brutes potentiellement obsolètes (problème "clé indisponible" au refresh).
@@ -172,8 +172,8 @@
       if (authStore.isAuthenticated) {
         try {
           console.log('[layout] authStore.user.id:', authStore.user?.id);
-          const sessionKey = typeof sessionStorage !== 'undefined'
-            ? (sessionStorage.getItem('nook_crypto_key') || localStorage.getItem('nook_crypto_key'))
+          const sessionKey = typeof localStorage !== 'undefined'
+            ? (localStorage.getItem('nook_crypto_key') || sessionStorage.getItem('nook_crypto_key'))
             : null;
           console.log('[layout] sessionKey:', sessionKey ? 'SET' : 'NULL');
           if (sessionKey && authStore.user?.id) {
@@ -185,20 +185,29 @@
             const result = await unlockCrypto(authStore.user.id, sessionKey);
             console.log('[layout] unlockCrypto result:', result);
             if (!result) {
-              // unlockCrypto a échoué — essayer restoreFromSessionStorage comme fallback
-              console.warn('[layout] unlockCrypto failed, trying restoreFromSessionStorage fallback');
-              const restored = restoreFromSessionStorage();
-              console.log('[layout] restoreFromSessionStorage result:', restored);
+              // unlockCrypto a échoué — essayer restoreFromLocalStorage puis sessionStorage comme fallback
+              console.warn('[layout] unlockCrypto failed, trying restoreFromLocalStorage fallback');
+              const restored = restoreFromLocalStorage();
+              console.log('[layout] restoreFromLocalStorage result:', restored);
+              if (!restored) {
+                console.warn('[layout] restoreFromLocalStorage also failed, trying sessionStorage');
+                const restored2 = restoreFromSessionStorage();
+                console.log('[layout] restoreFromSessionStorage result:', restored2);
+              }
             }
           } else {
-            console.warn('[layout] nook_crypto_key not in sessionStorage or user.id missing');
+            console.warn('[layout] nook_crypto_key not in localStorage/sessionStorage or user.id missing');
           }
         } catch (e) {
           console.warn('[layout] Crypto unlock au reload échoué:', e);
-          // Fallback : essayer restoreFromSessionStorage
+          // Fallback : essayer restoreFromLocalStorage puis sessionStorage
           try {
-            const restored = restoreFromSessionStorage();
-            console.log('[layout] restoreFromSessionStorage fallback result:', restored);
+            const restored = restoreFromLocalStorage();
+            console.log('[layout] restoreFromLocalStorage fallback result:', restored);
+            if (!restored) {
+              const restored2 = restoreFromSessionStorage();
+              console.log('[layout] restoreFromSessionStorage fallback result:', restored2);
+            }
           } catch (e2) {
             console.warn('[layout] restoreFromSessionStorage fallback also failed:', e2);
           }
