@@ -1541,7 +1541,7 @@
                 </button>
               {/each}
               <!-- More reactions button -->
-              <button class="action-btn react-more" onclick={(e: MouseEvent) => openMsgEmojiPicker(msg.id, e.currentTarget as HTMLElement)} title="Plus d'emojis">
+              <button class="action-btn react-more" onclick={(e: MouseEvent) => { e.stopPropagation(); openMsgEmojiPicker(msg.id, e.currentTarget as HTMLElement); }} title="Plus d'emojis">
                 😊+
               </button>
               <!-- Message menu (...) — only for own messages -->
