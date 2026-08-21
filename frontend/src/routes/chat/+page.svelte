@@ -68,7 +68,7 @@
     function handler(e: Event) {
       const emoji = (e as CustomEvent).detail.unicode;
       toggleReaction(msgId, emoji);
-      emojiPickerMsgId = null;
+      extendedEmojiMsgId = null;
     }
     element.addEventListener('emoji-click', handler as EventListener);
     return {
@@ -1558,7 +1558,7 @@
           {/if}
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
-          {#if emojiPickerMsgId === msg.id}
+          {#if extendedEmojiMsgId === msg.id}
             <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
               <emoji-picker
                 use:emojiPickerAction={msg.id}
@@ -1566,22 +1566,7 @@
                 data-emojis-per-row="8"
                 data-testid="emoji-picker"
               ></emoji-picker>
-              <button class="ep-close-sm" onclick={() => emojiPickerMsgId = null}>✕</button>
-            </div>
-          {/if}
-
-          <!-- Extended emoji picker (ALL_EMOJIS grid) -->
-          {#if extendedEmojiMsgId === msg.id}
-            <div class="extended-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
-              <div class="extended-emoji-header">
-                <span>Plus d'emojis</span>
-                <button class="ep-close-sm" onclick={() => extendedEmojiMsgId = null}>✕</button>
-              </div>
-              <div class="extended-emoji-grid">
-                {#each ALL_EMOJIS as emoji}
-                  <button class="extended-emoji-btn" onclick={() => { toggleReaction(msg.id, emoji); extendedEmojiMsgId = null; }} title="{emoji}">{emoji}</button>
-                {/each}
-              </div>
+              <button class="ep-close-sm" onclick={() => extendedEmojiMsgId = null}>✕</button>
             </div>
           {/if}
         </div>
