@@ -460,10 +460,12 @@ pub async fn send_message(
     }
 
     // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
+    // BLOQUANT : si ca echoue, le message ne doit pas etre envoye (destinataires ne pourront jamais dechiffrer)
     if req.encrypted && !req.encrypted_keys.is_empty() {
-        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await {
-            tracing::warn!(error = %e, msg_id = %id, "E2EE: échec store_message_keys (non bloquant)");
-        }
+        crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await.map_err(|e| {
+            tracing::error!(error = %e, msg_id = %id, recipient_count = %req.encrypted_keys.len(), "E2EE: echec store_message_keys — message non envoye");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     }
 
     // Retourner le message enrichi (avec sender_name) pour cohérence frontend
