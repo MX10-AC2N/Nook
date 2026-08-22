@@ -462,6 +462,27 @@ pub async fn send_message(
     // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
     // BLOQUANT : si ca echoue, le message ne doit pas etre envoye (destinataires ne pourront jamais dechiffrer)
     if req.encrypted && !req.encrypted_keys.is_empty() {
+        // Defense verifie que TOUS les participants ont une enveloppe
+        let all_participants: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ? AND user_id != ?",
+        )
+        .bind(&conversation_id)
+        .bind(&user.id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let missing: Vec<&str> = all_participants
+            .iter()
+            .filter(|(uid,)| !req.encrypted_keys.contains_key(uid.as_str()))
+            .map(|(uid,)| uid.as_str())
+            .collect();
+
+        if !missing.is_empty() {
+            tracing::error!(msg_id = %id, missing_recipients = ?missing, "E2EE: enveloppes manquantes pour destinataires");
+            return Err(StatusCode::BAD_REQUEST);
+        }
+
         crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await.map_err(|e| {
             tracing::error!(error = %e, msg_id = %id, recipient_count = %req.encrypted_keys.len(), "E2EE: echec store_message_keys — message non envoye");
             StatusCode::INTERNAL_SERVER_ERROR
