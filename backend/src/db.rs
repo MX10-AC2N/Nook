@@ -479,8 +479,7 @@ pub async fn send_message(
             .collect();
 
         if !missing.is_empty() {
-            tracing::error!(msg_id = %id, missing_recipients = ?missing, "E2EE: enveloppes manquantes pour destinataires");
-            return Err(StatusCode::BAD_REQUEST);
+            tracing::warn!(msg_id = %id, missing_recipients = ?missing, "E2EE: enveloppes manquantes pour certains destinataires — stockage des enveloppes disponibles uniquement (les destinataires sans clé devront re-demander leur enveloppe)");
         }
 
         crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await.map_err(|e| {
