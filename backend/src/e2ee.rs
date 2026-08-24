@@ -549,6 +549,29 @@ pub async fn distribute_group_keys(
     })?;
 
     // Insérer les clés chiffrées pour chaque destinataire
+    // SEC-FIX-1: Valider que chaque destinataire est membre de la conversation
+    // avant d'insérer dans conversation_key_recipients (prévient injection user_id arbitraire → MITM)
+    for recipient_id in body.distributions.keys() {
+        let is_member: Option<(i64,)> = sqlx::query_as(
+            "SELECT COUNT(*) FROM conversation_participants
+             WHERE conversation_id = ? AND user_id = ?",
+        )
+        .bind(&conv_id)
+        .bind(recipient_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+            tracing::warn!(
+                conv = %conv_id,
+                recipient = %recipient_id,
+                "e2ee: distribute_group_keys — destinataire non membre rejeté"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
     for (recipient_id, encrypted_key) in &body.distributions {
         sqlx::query(
             "INSERT OR REPLACE INTO conversation_key_recipients
@@ -664,6 +687,26 @@ pub async fn add_member_key(
     }
 
     // Insérer la clé pour le nouveau membre
+    // SEC-FIX-1: Valider que le nouveau membre est participant de la conversation
+    let is_member: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversation_participants
+         WHERE conversation_id = ? AND user_id = ?",
+    )
+    .bind(&conv_id)
+    .bind(&body.userId)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+        tracing::warn!(
+            conv = %conv_id,
+            new_member = %body.userId,
+            "e2ee: add_member_key — utilisateur cible non membre rejeté"
+        );
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     sqlx::query(
         "INSERT OR REPLACE INTO conversation_key_recipients
             (conversation_id, version, user_id, encrypted_key, user_key_version)
