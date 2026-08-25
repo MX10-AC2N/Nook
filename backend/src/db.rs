@@ -740,7 +740,7 @@ pub async fn get_conversation_messages(
                 u.public_key AS sender_public_key,
                 (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ? AND m.created_at < ?
@@ -766,7 +766,7 @@ pub async fn get_conversation_messages(
                 u.public_key AS sender_public_key,
                 (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
              WHERE m.conversation_id = ?
