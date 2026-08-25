@@ -512,6 +512,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/join", post(db::join_conversation))
         .route("/conversations/{id}/messages", get(db::get_conversation_messages))
         .route("/conversations/{id}/messages", post(db::send_message))
+        .route("/conversations/{id}/group-key-version", get(db::get_group_key_version))
         .route(
             "/conversations/{conv_id}/messages/{msg_id}",
             axum::routing::patch(db::edit_message).delete(db::delete_message),

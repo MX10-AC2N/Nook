@@ -22,11 +22,13 @@ export interface ChatMessage {
   sender_avatar_style: string | null;
   sender_avatar_seed: string | null;
   sender_public_key: string | null;
+  sender_key_version: number | null;
   content: string;
   message_type: string;
   file_id: string | null;
   encrypted: boolean;
   nonce: string | null;
+  group_key_version: number | null;
   timestamp: number;
   created_at: number;
   edited_at: number | null;
@@ -124,7 +126,10 @@ async function _decryptAllIfReady(): Promise<void> {
       try {
         msg.content = await decryptMessage({
           messageId: msg.id, conversationId: msg.conversation_id,
-          ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+          ciphertext: msg.content, nonce: msg.nonce!,
+          senderPubkeyB64: msg.sender_public_key || '',
+          senderKeyVersion: msg.sender_key_version || undefined,
+          groupKeyVersion: msg.group_key_version || undefined,
         });
         msg.encrypted = false;
         console.log('[Chat] Decrypt SUCCESS (2nd pass) for msg', msg.id.slice(0,8));
@@ -412,14 +417,17 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
       console.debug('[WS] Skip encrypted update for plaintext msg', raw.id);
       return;
     }
-    if (raw.encrypted && raw.nonce && raw.sender_public_key) {
+    if (raw.encrypted && raw.nonce) {
       try {
         const { cryptoStore: cs, decryptMessage } = await import('$lib/cryptoStore.svelte');
         console.log('[WS] _injectMessage: cs.ready=', cs.ready, 'msg=', raw.id.slice(0,8));
         if (cs.ready) {
           raw.content = await decryptMessage({
             messageId: raw.id, conversationId: raw.conversation_id,
-            ciphertext: raw.content, nonce: raw.nonce!, senderPubkeyB64: raw.sender_public_key!,
+            ciphertext: raw.content, nonce: raw.nonce!,
+            senderPubkeyB64: raw.sender_public_key || '',
+            senderKeyVersion: raw.sender_key_version || undefined,
+            groupKeyVersion: raw.group_key_version || undefined,
           });
           raw.encrypted = false;
           console.log('[WS] Decrypt SUCCESS for msg', raw.id.slice(0,8));
@@ -536,12 +544,15 @@ async function _decryptBatch(msgs: ChatMessage[]): Promise<ChatMessage[]> {
     console.log('[Chat] _decryptBatch called, cs.ready=', cs.ready, 'messages=', msgs.length);
     if (!cs.ready) { console.log('[Chat] cryptoStore not ready, skipping decrypt'); return msgs; }
     for (const msg of msgs) {
-      if (msg.encrypted && msg.nonce && msg.sender_public_key && !_FAILED_DECRYPT_IDS.has(msg.id)) {
+      if (msg.encrypted && msg.nonce && !_FAILED_DECRYPT_IDS.has(msg.id)) {
         try {
-          console.log('[Chat] Attempting decrypt for msg', msg.id.slice(0,8));
+          console.log('[Chat] Attempting decrypt for msg', msg.id.slice(0,8), 'group_key_version:', msg.group_key_version);
           msg.content = await decryptMessage({
             messageId: msg.id, conversationId: msg.conversation_id,
-            ciphertext: msg.content, nonce: msg.nonce!, senderPubkeyB64: msg.sender_public_key!,
+            ciphertext: msg.content, nonce: msg.nonce!,
+            senderPubkeyB64: msg.sender_public_key || '',
+            senderKeyVersion: msg.sender_key_version || undefined,
+            groupKeyVersion: msg.group_key_version || undefined,
           });
           msg.encrypted = false;
           console.log('[Chat] Decrypt SUCCESS for msg', msg.id.slice(0,8));
@@ -631,7 +642,13 @@ export async function sendMessage(content: string, conversationId: string): Prom
     if (cs.ready) {
       try {
         const enc = await encryptMessage(content.trim(), conversationId);
-        body = { content: enc.ciphertext, encrypted: true, nonce: enc.nonce, encrypted_keys: enc.encryptedKeys };
+        if ('group_key_version' in enc) {
+          // Format nouveau : group key (default_global)
+          body = { content: enc.ciphertext, encrypted: true, nonce: enc.nonce, group_key_version: enc.group_key_version };
+        } else {
+          // Format ancien : encrypted_keys (DMs, groupes normaux)
+          body = { content: enc.ciphertext, encrypted: true, nonce: enc.nonce, encrypted_keys: enc.encryptedKeys };
+        }
       } catch {
         body = { content: content.trim(), encrypted: false };
       }

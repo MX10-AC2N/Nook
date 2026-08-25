@@ -71,11 +71,13 @@ pub struct MessageWithSender {
     pub sender_avatar_style: Option<String>, // DiceBear style of the sender
     pub sender_avatar_seed: Option<String>, // DiceBear seed chosen by the sender
     pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
+    pub sender_key_version: Option<i32>, // Version de la clé de l'expéditeur (DT-05)
     pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
     pub nonce: Option<String>, // Nonce XSalsa20 base64 si encrypted=true
+    pub group_key_version: Option<i32>, // Version de la clé de groupe (pour default_global)
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
@@ -122,6 +124,10 @@ pub struct SendMessageRequest {
     /// Version de la clé de l'expéditeur (DT-05), défaut 1
     #[serde(default = "default_key_version")]
     pub sender_key_version: i32,
+    /// Version de la clé de groupe (pour conversations de groupe comme default_global)
+    /// Si présent, le message utilise la group key au lieu des encrypted_keys
+    #[serde(default)]
+    pub group_key_version: Option<i32>,
 }
 
 fn default_key_version() -> i32 {
@@ -526,7 +532,9 @@ pub async fn send_message(
         "nonce": req.nonce,
         "timestamp": now,
         "created_at": now,
-        "edited_at": null
+        "edited_at": null,
+        "sender_key_version": req.sender_key_version,
+        "group_key_version": req.group_key_version,
     });
 
     // ── C4 FIX : Broadcast WS uniquement aux participants de la conversation ──
@@ -558,6 +566,44 @@ pub async fn send_message(
     }
 
     Ok(Json(msg_json))
+}
+
+// ═════════════════════════════════════════════════════════════════
+// GET /conversations/{conv_id}/group-key-version
+// Retourne la version actuelle de la clé de groupe pour default_global
+// ═════════════════════════════════════════════════════════════════
+
+pub async fn get_group_key_version(
+    State(state): State<Arc<crate::SharedState>>,
+    Path(conv_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Vérifier que c'est bien default_global
+    let conv: Option<(bool,)> = sqlx::query_as(
+        "SELECT is_group FROM conversations WHERE id = ?"
+    )
+        .bind(&conv_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let is_group = conv.map(|(g,)| g).unwrap_or(false);
+    if !is_group {
+        return Ok(Json(serde_json::json!({ "group_key_version": null })));
+    }
+
+    // Récupérer la version la plus récente de la clé de groupe
+    let latest: Option<(i32,)> = sqlx::query_as(
+        "SELECT version FROM conversation_keys WHERE conversation_id = ? ORDER BY version DESC LIMIT 1"
+    )
+        .bind(&conv_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match latest {
+        Some((v,)) => Ok(Json(serde_json::json!({ "group_key_version": v }))),
+        None => Ok(Json(serde_json::json!({ "group_key_version": null }))),
+    }
 }
 
 // ── PATCH /api/conversations/{conv_id}/messages/{msg_id} ────────────────────
@@ -692,6 +738,7 @@ pub async fn get_conversation_messages(
                 u.avatar_style AS sender_avatar_style,
                 u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
+                (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m
@@ -717,6 +764,7 @@ pub async fn get_conversation_messages(
                 u.avatar_style AS sender_avatar_style,
                 u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
+                (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
                 m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
              FROM messages m

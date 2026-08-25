@@ -137,7 +137,8 @@ export class E2EE {
         const sealed = na.crypto_box_seal(groupKey, pub);
         distributions[uid] = na.to_base64(sealed, na.base64_variants.ORIGINAL);
       } catch (e) {
-        console.warn('[e2ee] Échec distribution clé pour', uid, e);
+        // BUG-006 FIX: retourner erreur explicite si membre sans clé invalide
+        throw new Error(`[e2ee] Échec distribution clé pour ${uid} — clé publique invalide ou manquante : ${e instanceof Error ? e.message : String(e)}`);
       }
     }
 
