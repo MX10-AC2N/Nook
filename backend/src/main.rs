@@ -494,7 +494,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .route("/invites/delete", post(admin::delete_invite))
                     .route("/analytics", get(admin::get_analytics))
                     .route("/users/{id}", axum::routing::delete(admin::delete_user))
-            .merge(analytics::analytics_routes())
+            .nest("/analytics", analytics::analytics_routes())
             .layer(from_fn(auth::require_admin));
 
     // ============================================================
