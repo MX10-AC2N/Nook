@@ -306,6 +306,8 @@
   // État édition de message
   let editingMsgId   = $state<string | null>(null);
   let editingContent = $state('');
+  // ADR-017: message auquel on répond (bannière de citation)
+  let replyingToMsg  = $state<ChatMessage | null>(null);
   // Menu contextuel (hover)
   let hoveredMsgId   = $state<string | null>(null);
 
@@ -726,7 +728,9 @@
     if (!newMessage.trim() || sending) return;
     sending = true;
     const content = newMessage;
+    const replyToId = replyingToMsg?.id ?? null;
     newMessage = '';
+    replyingToMsg = null;
     chatStore.showEmojiPicker = false;
     
     // Reset textarea height
@@ -737,13 +741,32 @@
     }
 
     try {
-      await sendMessage(content, activeConvId);
+      await sendMessage(content, activeConvId, replyToId);
       // Scroller vers le haut pour voir le nouveau message
       if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
       console.error('[Chat] send error:', e);
     } finally {
       sending = false;
+    }
+  }
+
+  // ADR-017 — Démarrer une réponse à un message
+  function startReply(msg: ChatMessage) {
+    replyingToMsg = msg;
+    messageMenuMsgId = null;
+    // Focus le champ de saisie
+    const input = document.querySelector('.message-input') as HTMLTextAreaElement | null;
+    input?.focus();
+  }
+
+  // ADR-017 — Scroller vers le message cité et le surligner
+  function scrollToMessage(msgId: string) {
+    const el = document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-msg');
+      setTimeout(() => el.classList.remove('highlight-msg'), 2000);
     }
   }
 
@@ -1489,6 +1512,31 @@
 
           <!-- Message column: bubble + reactions stacked vertically -->
           <div class="message-column">
+            <!-- ADR-017: citation du message répondu -->
+            {#if msg.reply_to}
+              <div class="reply-quote" role="button" tabindex="0"
+                   onclick={() => scrollToMessage(msg.reply_to!.id)}
+                   onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') scrollToMessage(msg.reply_to!.id); }}>
+                <div class="reply-quote-sender">{msg.reply_to.sender_name ?? 'Utilisateur'}</div>
+                <div class="reply-quote-content">
+                  {#if msg.reply_to.encrypted}
+                    🔒 Message chiffré
+                  {:else if msg.reply_to.message_type === 'image'}
+                    📷 Image
+                  {:else if msg.reply_to.message_type === 'audio'}
+                    🎙️ Audio
+                  {:else if msg.reply_to.message_type === 'video'}
+                    🎥 Vidéo
+                  {:else if msg.reply_to.message_type === 'file'}
+                    📎 Fichier
+                  {:else}
+                    {(msg.reply_to.content ?? '').toString().substring(0, 100)}
+                  {/if}
+                </div>
+              </div>
+            {:else if msg.reply_to_id}
+              <div class="reply-quote deleted">🗑️ Message supprimé</div>
+            {/if}
             <!-- Message content -->
             <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
               {#if msg.encrypted}
@@ -1549,6 +1597,7 @@
                 <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
                 {#if messageMenuMsgId === msg.id}
                   <div class="message-menu-dropdown">
+                    <button class="msg-menu-item reply" onclick={() => { startReply(msg); }}>↩️ Répondre</button>
                     <button class="msg-menu-item" onclick={() => { startEdit(msg); messageMenuMsgId = null; }}>✏️ Éditer</button>
                     <button class="msg-menu-item delete" onclick={() => { confirmDelete(msg.id); messageMenuMsgId = null; }}>🗑️ Supprimer</button>
                   </div>
@@ -1676,6 +1725,17 @@
             ❌
           </button>
         </div>
+      </div>
+    {/if}
+
+    <!-- ADR-017: bannière de citation quand on répond à un message -->
+    {#if replyingToMsg}
+      <div class="reply-banner">
+        <div class="reply-banner-text">
+          ↩️ Réponse à <strong>{replyingToMsg.sender_name}</strong> :
+          {replyingToMsg.encrypted ? '🔒 Message chiffré' : (replyingToMsg.content ?? '').toString().substring(0, 60)}{replyingToMsg.content && replyingToMsg.content.length > 60 ? '…' : ''}
+        </div>
+        <button class="reply-banner-cancel" onclick={() => { replyingToMsg = null; }} title="Annuler la réponse" aria-label="Annuler la réponse">✕</button>
       </div>
     {/if}
 
@@ -3080,6 +3140,73 @@
   .msg-menu-item:hover { background: var(--bg-secondary, #f1f5f9); }
   .msg-menu-item.delete { color: var(--danger, #ef4444); }
   .msg-menu-item.delete:hover { background: #fef2f2; }
+  .msg-menu-item.reply { color: var(--accent, #3b82f6); }
+
+  /* ADR-017 — Reply-to UI */
+  .reply-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 0 12px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-left: 3px solid var(--accent, #3b82f6);
+    border-radius: 6px;
+    font-size: .85rem;
+    color: var(--text-secondary, #475569);
+  }
+  .reply-banner-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reply-banner-cancel {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    opacity: .6;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .reply-banner-cancel:hover { opacity: 1; background: var(--bg-tertiary, #e2e8f0); }
+
+  .reply-quote {
+    margin: 0 0 4px 0;
+    padding: 6px 10px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-left: 2px solid var(--accent, #3b82f6);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: .8rem;
+    max-width: 80%;
+  }
+  .reply-quote:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .reply-quote-sender {
+    font-weight: 600;
+    color: var(--accent, #3b82f6);
+    margin-bottom: 2px;
+  }
+  .reply-quote-content {
+    color: var(--text-secondary, #475569);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reply-quote.deleted {
+    font-style: italic;
+    opacity: .6;
+  }
+  .highlight-msg {
+    animation: reply-highlight 2s ease-out;
+  }
+  @keyframes reply-highlight {
+    0%   { background: color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent); }
+    100% { background: transparent; }
+  }
 
   /* Extended emoji picker for messages (emoji-picker-element) */
   /* position: fixed pour que le conteneur parent fixe les limites */

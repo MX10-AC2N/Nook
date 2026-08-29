@@ -32,6 +32,20 @@ export interface ChatMessage {
   timestamp: number;
   created_at: number;
   edited_at: number | null;
+  // ADR-017: reply-to
+  reply_to_id: string | null;
+  reply_to: ReplyToPreview | null;
+}
+
+/** Preview du message cité (ADR-017), reconstruit côté client depuis les champs reply_to_* */
+export interface ReplyToPreview {
+  id: string;
+  sender_name: string | null;
+  content: string | null;
+  message_type: string | null;
+  file_id: string | null;
+  nonce: string | null;
+  encrypted: boolean;
 }
 
 export interface ChatState {
@@ -444,6 +458,11 @@ function _handleWsMessage(msg: Record<string, unknown>): void {
         // DO NOT null encrypted fields — _decryptAllIfReady will retry when crypto ready
       }
     }
+    // ADR-017: reconstruire reply_to depuis les champs plats du serveur
+    const rawAny = raw as unknown as Record<string, unknown>;
+    if (rawAny['reply_to_id'] !== undefined) {
+      raw.reply_to = buildReplyTo(rawAny);
+    }
     // Re-check store state after await to avoid duplicate messages from optimistic update
     const latestMsgs = get(messagesStore);
     const latestIdx = latestMsgs.findIndex(m => m.id === raw.id);
@@ -535,6 +554,44 @@ export function formatTimestamp(ts: number): string {
 }
 
 // -----------------------------------------------------------------
+// 6️⃣bis ADR-017 — Reconstruit reply_to depuis les champs plats du serveur
+// -----------------------------------------------------------------
+
+/**
+ * Le backend sert des champs plats reply_to_* (sqlx-friendly). Cette fonction
+ * reconstitue l'objet ReplyToPreview attendu par l'UI.
+ * Si reply_to_id est présent mais reply_to_sender_name est null → message cité supprimé.
+ */
+export function buildReplyTo(raw: Record<string, unknown>): ReplyToPreview | null {
+  const id = (raw['reply_to_id'] as string | null) ?? null;
+  if (!id) return null;
+  const senderName = (raw['reply_to_sender_name'] as string | null) ?? null;
+  // Message cité supprimé (SET NULL côté serveur) → preview nulle
+  if (senderName === null && (raw['reply_to_content'] as string | null) === null) {
+    return null;
+  }
+  return {
+    id,
+    sender_name: senderName,
+    content: (raw['reply_to_content'] as string | null) ?? null,
+    message_type: (raw['reply_to_message_type'] as string | null) ?? null,
+    file_id: (raw['reply_to_file_id'] as string | null) ?? null,
+    nonce: (raw['reply_to_nonce'] as string | null) ?? null,
+    encrypted: Boolean(raw['reply_to_encrypted']),
+  };
+}
+
+/** Applique buildReplyTo sur une liste de messages récupérés du serveur */
+export function hydrateReplyTo(msgs: ChatMessage[]): void {
+  for (const m of msgs) {
+    const raw = m as unknown as Record<string, unknown>;
+    if (raw['reply_to_id'] !== undefined) {
+      m.reply_to = buildReplyTo(raw);
+    }
+  }
+}
+
+// -----------------------------------------------------------------
 // 6️⃣ Déchiffrement batch
 // -----------------------------------------------------------------
 
@@ -587,6 +644,7 @@ export async function loadMessages(conversationId: string): Promise<ChatMessage[
     const data = await res.json();
     const msgs: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     msgs.sort((a, b) => a.created_at - b.created_at);
+    hydrateReplyTo(msgs);
     await _decryptBatch(msgs);
     messagesStore.set([...msgs]);
     chatStore.hasMore  = msgs.length >= PAGE_SIZE;
@@ -617,6 +675,7 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
     const data = await res.json();
     const older: ChatMessage[] = Array.isArray(data) ? data : (data.messages ?? []);
     older.sort((a, b) => a.created_at - b.created_at);
+    hydrateReplyTo(older);
     await _decryptBatch(older);
     // Append older messages at end (bottom) — display is reversed
     messagesStore.update(msgs => [...msgs, ...older]);
@@ -634,7 +693,11 @@ export async function loadMoreMessages(conversationId: string): Promise<void> {
 // 8️⃣ API — sendMessage
 // -----------------------------------------------------------------
 
-export async function sendMessage(content: string, conversationId: string): Promise<ChatMessage | null> {
+export async function sendMessage(
+  content: string,
+  conversationId: string,
+  replyToId?: string | null
+): Promise<ChatMessage | null> {
   if (!content.trim()) return null;
   try {
     const { cryptoStore: cs, encryptMessage } = await import('$lib/cryptoStore.svelte');
@@ -655,6 +718,9 @@ export async function sendMessage(content: string, conversationId: string): Prom
     } else {
       body = { content: content.trim(), encrypted: false };
     }
+    if (replyToId) {
+      body.reply_to_id = replyToId;
+    }
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(body),
@@ -665,6 +731,10 @@ export async function sendMessage(content: string, conversationId: string): Prom
     // Use plaintext content locally (API returns encrypted)
     msgData.content = content.trim();
     msgData.encrypted = false;
+    // Reconstruire reply_to depuis les champs plats du serveur si présent
+    if (msgData.reply_to_id) {
+      msgData.reply_to = buildReplyTo(msgData as unknown as Record<string, unknown>);
+    }
     // Track optimistic plaintext update to preserve during crypto reload
     _optimisticPlaintext.set(msgData.id, { content: content.trim(), encrypted: false });
     // Always update store with plaintext — overwrites WS encrypted entry if race

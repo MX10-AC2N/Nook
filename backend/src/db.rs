@@ -58,6 +58,8 @@ pub struct Message {
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
+    /// ID du message cité (reply-to, ADR-017). NULL si pas une réponse.
+    pub reply_to_id: Option<String>,
 }
 
 /// Message enrichi avec le nom de l'expéditeur (JOIN users)
@@ -81,6 +83,15 @@ pub struct MessageWithSender {
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
+    /// ID du message cité (reply-to, ADR-017)
+    pub reply_to_id: Option<String>,
+    /// Preview du message cité (champs calculés par LEFT JOIN). NULL si message cité supprimé.
+    pub reply_to_sender_name: Option<String>,
+    pub reply_to_content: Option<String>,
+    pub reply_to_message_type: Option<String>,
+    pub reply_to_file_id: Option<String>,
+    pub reply_to_nonce: Option<String>,
+    pub reply_to_encrypted: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -128,6 +139,10 @@ pub struct SendMessageRequest {
     /// Si présent, le message utilise la group key au lieu des encrypted_keys
     #[serde(default)]
     pub group_key_version: Option<i32>,
+    /// ID du message cité (reply-to, ADR-017). Optionnel.
+    /// Validé applicativement : doit exister et appartenir à la même conversation.
+    #[serde(default)]
+    pub reply_to_id: Option<String>,
 }
 
 fn default_key_version() -> i32 {
@@ -397,6 +412,24 @@ pub async fn send_message(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // ADR-017: valider reply_to_id (doit exister et appartenir à la même conversation)
+    if let Some(ref reply_id) = req.reply_to_id {
+        let valid: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM messages WHERE id = ? AND conversation_id = ?"
+        )
+        .bind(reply_id)
+        .bind(&conversation_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+
+        if valid.map(|(c,)| c).unwrap_or(0) == 0 {
+            // Message cité inexistant OU dans une autre conversation → rejet
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     // FIX M2: limiter la taille du message a 8000 caracteres
     if req.content.len() > 8000 {
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
@@ -404,8 +437,8 @@ pub async fn send_message(
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type, reply_to_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
@@ -416,6 +449,7 @@ pub async fn send_message(
     .bind(now)
     .bind(now)
     .bind("text")
+    .bind(&req.reply_to_id)
     .execute(&state.db)
     .await
     .map_err(|e| {
@@ -517,6 +551,34 @@ pub async fn send_message(
     let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s, _)| s.clone());
     let sender_public_key = avatar_data.as_ref().and_then(|(_, _, k)| k.clone());
 
+    // ADR-017: construire la preview reply_to du message cité (si présent)
+    let reply_to = if let Some(ref reply_id) = req.reply_to_id {
+        let cited: Option<(String, Option<String>, String, String, Option<String>, Option<String>, bool)> =
+            sqlx::query_as(
+                "SELECT rm.id, COALESCE(ru.name, ru.username), rm.content, rm.message_type, rm.file_id, rm.nonce, rm.encrypted
+                 FROM messages rm LEFT JOIN users ru ON rm.sender_id = ru.id
+                 WHERE rm.id = ?"
+            )
+            .bind(reply_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+        cited.map(|(rid, sname, content, mtype, file_id, nonce, encrypted)| {
+            serde_json::json!({
+                "id": rid,
+                "sender_name": sname,
+                "content": content,
+                "message_type": mtype,
+                "file_id": file_id,
+                "nonce": nonce,
+                "encrypted": encrypted,
+            })
+        })
+    } else {
+        None
+    };
+
     let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
@@ -530,6 +592,8 @@ pub async fn send_message(
         "file_id": null,
         "encrypted": req.encrypted,
         "nonce": req.nonce,
+        "reply_to_id": req.reply_to_id,
+        "reply_to": reply_to,
         "timestamp": now,
         "created_at": now,
         "edited_at": null,
@@ -702,6 +766,10 @@ pub async fn delete_message(
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
     }
 
+    // ADR-017: références SET NULL — les messages qui citaient celui-ci perdent leur reply_to_id
+    sqlx::query("UPDATE messages SET reply_to_id = NULL WHERE reply_to_id = ?")
+        .bind(&msg_id).execute(&state.db).await.ok();
+
     {
         let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
         let participant_ids: Vec<(String,)> = sqlx::query_as(
@@ -740,9 +808,18 @@ pub async fn get_conversation_messages(
                 u.public_key AS sender_public_key,
                 (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at,
+                m.reply_to_id,
+                COALESCE(ru.name, ru.username) AS reply_to_sender_name,
+                rm.content AS reply_to_content,
+                rm.message_type AS reply_to_message_type,
+                rm.file_id AS reply_to_file_id,
+                rm.nonce AS reply_to_nonce,
+                rm.encrypted AS reply_to_encrypted
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages rm ON m.reply_to_id = rm.id
+             LEFT JOIN users ru ON rm.sender_id = ru.id
              WHERE m.conversation_id = ? AND m.created_at < ?
              ORDER BY m.created_at ASC
              LIMIT ?",
@@ -766,9 +843,18 @@ pub async fn get_conversation_messages(
                 u.public_key AS sender_public_key,
                 (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at,
+                m.reply_to_id,
+                COALESCE(ru.name, ru.username) AS reply_to_sender_name,
+                rm.content AS reply_to_content,
+                rm.message_type AS reply_to_message_type,
+                rm.file_id AS reply_to_file_id,
+                rm.nonce AS reply_to_nonce,
+                rm.encrypted AS reply_to_encrypted
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages rm ON m.reply_to_id = rm.id
+             LEFT JOIN users ru ON rm.sender_id = ru.id
              WHERE m.conversation_id = ?
              ORDER BY m.created_at DESC
              LIMIT ?",
