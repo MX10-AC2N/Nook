@@ -3,6 +3,7 @@
   import Icon from '$lib/components/Icon.svelte';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { authStore } from '$lib/authStore.svelte.js';
   import { notifyAdmin } from '$lib/notificationStore.svelte';
 
@@ -11,6 +12,20 @@
   let invites          = $state<any[]>([]);
   let loading          = $state(true);
   let activeTab        = $state<'pending' | 'all' | 'invites'>('pending');
+
+  // BUG-5-USERS: honor ?tab= query param so deep links like /admin?tab=membres
+  // (used by the /admin/users redirect) open the right tab. "membres" maps to "all".
+  function tabFromUrl(): 'pending' | 'all' | 'invites' {
+    const t = $page.url.searchParams.get('tab');
+    if (t === 'membres' || t === 'all') return 'all';
+    if (t === 'invites' || t === 'pending') return t;
+    return 'pending';
+  }
+  function setActiveTab(t: 'pending' | 'all' | 'invites') {
+    activeTab = t;
+    const param = t === 'all' ? 'membres' : t;
+    goto(`/admin?tab=${param}`, { keepFocus: true, noScroll: true });
+  }
   let generatingInvite = $state(false);
   let inviteLink       = $state<string | null>(null);
   let authChecked      = $state(false);
@@ -35,6 +50,7 @@
   }
 
   onMount(async () => {
+    activeTab = tabFromUrl();
     const ok = await checkAuthAndRedirect();
     if (ok) {
       authChecked = true;
@@ -224,13 +240,13 @@
 
       <!-- Tabs -->
       <div class="admin-tabs">
-        <button class="tab" class:active={activeTab === 'pending'} onclick={() => (activeTab = 'pending')}>
+        <button class="tab" class:active={activeTab === 'pending'} onclick={() => setActiveTab('pending')}>
           En attente {#if pendingCount > 0}<span class="tab-badge">{pendingCount}</span>{/if}
         </button>
-        <button class="tab" class:active={activeTab === 'all'} onclick={() => (activeTab = 'all')}>
+        <button class="tab" class:active={activeTab === 'all'} onclick={() => setActiveTab('all')}>
           Membres <span class="tab-count">{totalUsers}</span>
         </button>
-        <button class="tab" class:active={activeTab === 'invites'} onclick={() => (activeTab = 'invites')}>
+        <button class="tab" class:active={activeTab === 'invites'} onclick={() => setActiveTab('invites')}>
           Invitations <span class="tab-count">{invites.length}</span>
         </button>
       </div>

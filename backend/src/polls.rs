@@ -30,7 +30,12 @@ use crate::SharedState;
 pub struct CreatePollRequest {
     pub question: String,
     pub options: Vec<String>,
+<<<<<<< Updated upstream
     pub conversation_id: String,
+=======
+    #[serde(default)]
+    pub conversation_id: Option<String>,
+>>>>>>> Stashed changes
 }
 
 #[derive(Debug, Deserialize)]
@@ -339,7 +344,11 @@ pub async fn create_poll(
     if let Err(e) =
         sqlx::query("INSERT INTO polls (id, conversation_id, question, created_by, created_at) VALUES (?, ?, ?, ?, ?)")
             .bind(&poll_id)
+<<<<<<< Updated upstream
             .bind(&conversation_id)
+=======
+            .bind(&req.conversation_id)
+>>>>>>> Stashed changes
             .bind(&question)
             .bind(&user.id)
             .bind(now)
