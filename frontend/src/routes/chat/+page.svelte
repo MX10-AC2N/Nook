@@ -358,10 +358,20 @@
         }
       }
       
+      // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
+      // Without this, for right-edge messages (e.g. "mine") btnRect.left lands near
+      // the right side and the fixed 320px picker overflows ~70% off-screen on mobile
+      // and ~66% on desktop.
+      const pickerWidth = 320;
+      let left = btnRect.left;
+      const maxLeft = window.innerWidth - pickerWidth - margin;
+      if (left > maxLeft) left = maxLeft;
+      if (left < margin) left = margin;
+
       emojiPickerPos = {
         top,
-        left: btnRect.left,
-        right: window.innerWidth - btnRect.right,
+        left,
+        right: window.innerWidth - left - pickerWidth,
       };
     }
   }
