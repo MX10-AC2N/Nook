@@ -8,6 +8,13 @@ on:
         required: true
         default: 'develop'
         type: string
+  # Rebuild & push :dev/:main automatically when the backend builds successfully
+  # on develop/main, so backend fixes actually reach the running container
+  # (previously only manual dispatch rebuilt the image -> stale binaries).
+  workflow_run:
+    workflows: ["1==>🏗️ Backend Build & Artifact"]
+    types:
+      - completed
 
 jobs:
   docker-build:
@@ -19,6 +26,9 @@ jobs:
       (github.event.workflow_run.conclusion == 'success')
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      # Source branch: manual dispatch uses input; workflow_run uses the
+      # branch that triggered the upstream backend build.
+      BRANCH_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.branch_name || github.event.workflow_run.head_branch }}
     permissions:
       contents: read
       packages: write
@@ -31,7 +41,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ env.BRANCH_NAME }}
           name: nook-backend-x86_64-unknown-linux-musl
           path: docker-context/backend
 
@@ -41,7 +51,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Backend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ env.BRANCH_NAME }}
           name: nook-backend-aarch64-unknown-linux-musl
           path: docker-context/backend
 
@@ -51,7 +61,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ env.BRANCH_NAME }}
           name: nook-turn-server-amd64
           path: docker-context/turn
 
@@ -62,7 +72,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: turn.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ env.BRANCH_NAME }}
           name: nook-turn-server-arm64
           path: docker-context/turn
           if_no_artifact_found: ignore
@@ -73,7 +83,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: Frontend.yml
-          branch: ${{ inputs.branch_name }}
+          branch: ${{ env.BRANCH_NAME }}
           name: nook-frontend
           path: docker-context/frontend
 
