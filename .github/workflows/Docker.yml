@@ -8,28 +8,15 @@ on:
         required: true
         default: 'develop'
         type: string
-  # Rebuild & push the :dev/:main images automatically whenever the backend
-  # builds successfully on develop/main, so backend fixes actually reach the
-  # running container (previously the image was only rebuilt on manual dispatch,
-  # leaving deployed servers on stale binaries — e.g. calendar PATCH persistence).
-  workflow_run:
-    workflows: ["1==>🏗️ Backend Build & Artifact"]
-    types:
-      - completed
 
 jobs:
   docker-build:
     name: Build and Push
     runs-on: ubuntu-latest
-    # Only run if triggered manually OR if the upstream backend build succeeded
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success')
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      # Resolve the source branch: manual dispatch uses the input; an automatic
-      # workflow_run uses the branch that triggered the upstream backend build.
-      BRANCH_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.branch_name || github.event.workflow_run.head_branch }}
+      # Branch comes from manual dispatch only (no auto-rebuild on backend push).
+      BRANCH_NAME: ${{ inputs.branch_name }}
     permissions:
       contents: read
       packages: write
