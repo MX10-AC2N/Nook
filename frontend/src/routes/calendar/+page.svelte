@@ -63,7 +63,7 @@
   async function loadEvents() {
     loading = true; error = null;
     try {
-      const res = await fetch('/api/events', { credentials: 'include' });
+      const res = await fetch('/api/events', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const raw = await res.text();
       const data = raw.trim() ? JSON.parse(raw) : { events: [] };
@@ -101,6 +101,11 @@
                                time: editData.time || null, description: editData.description || null }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const updated = await res.json().catch(() => null);
+      // Mise à jour immédiate du store depuis la réponse PATCH (évite tout cache GET)
+      if (updated && updated.id) {
+        events = events.map(e => e.id === updated.id ? { ...e, ...updated } : e);
+      }
       await loadEvents(); closeDetail();
     } catch (e) { alert(e instanceof Error ? e.message : 'Erreur'); }
     finally { editSaving = false; }
