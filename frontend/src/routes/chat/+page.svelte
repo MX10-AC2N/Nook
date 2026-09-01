@@ -344,18 +344,24 @@
       const spaceAbove = referenceTop;
       
       let top: number;
-      if (spaceBelow >= pickerHeight + margin) {
-        // Enough space below — open below
+      // BUG FIX: Always prefer below. Only open above if the message is at
+      // the bottom of the viewport (no space below).
+      if (spaceBelow > margin) {
+        // There's space below — open below
         top = referenceBottom + margin;
       } else if (spaceAbove >= pickerHeight + margin) {
-        // Enough space above — open above
+        // No space below, but enough above — open above
         top = referenceTop - pickerHeight - margin;
       } else {
         // Not enough space either way — prefer below, clamp to viewport
-        top = Math.max(margin, referenceBottom + margin);
+        top = referenceBottom + margin;
         if (top + pickerHeight > window.innerHeight - margin) {
-          top = window.innerHeight - pickerHeight - margin;
+          const clampedTop = window.innerHeight - pickerHeight - margin;
+          if (clampedTop >= referenceBottom) {
+            top = clampedTop;
+          }
         }
+        if (top < margin) top = margin;
       }
       
       // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
