@@ -102,11 +102,10 @@
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const updated = await res.json().catch(() => null);
-      // Mise à jour immédiate du store depuis la réponse PATCH (évite tout cache GET)
       if (updated && updated.id) {
         events = events.map(e => e.id === updated.id ? { ...e, ...updated } : e);
       }
-      await loadEvents(); closeDetail();
+      closeDetail();
     } catch (e) { alert(e instanceof Error ? e.message : 'Erreur'); }
     finally { editSaving = false; }
   }
@@ -137,6 +136,14 @@
   const upcomingEvents = $derived(
     [...events].filter(e => e.date >= todayStr)
       .sort((a,b) => a.date.localeCompare(b.date)).slice(0, 8)
+  );
+
+  // Derived: pre-compute days with their events so the grid re-renders when events change
+  const daysWithEvents = $derived(
+    Array.from({ length: getDaysInMonth(currentDate) }, (_, i) => {
+      const day = i + 1;
+      return { day, evts: eventsForDay(day) };
+    })
   );
 
   function openDay(day: number) {
@@ -245,16 +252,14 @@
       {#each Array(getFirstDayOfMonth(currentDate)) as _}
         <div class="cal-cell empty"></div>
       {/each}
-      {#each Array(getDaysInMonth(currentDate)) as _, i}
-        {@const day = i+1}
-        {@const dayEvts = eventsForDay(day)}
-        <button class="cal-cell" class:today={isToday(day)} class:has-events={dayEvts.length>0}
+      {#each daysWithEvents as { day, evts }}
+        <button class="cal-cell" class:today={isToday(day)} class:has-events={evts.length>0}
           class:selected-day={selectedDay===day} class:drag-over={dragOverDay===day}
           ondragover={(e) => handleDragOver(e, day)} ondragleave={handleDragLeave}
           ondrop={(e) => handleDrop(e, day)} onclick={() => openDay(day)}>
           <span class="day-num" class:today-num={isToday(day)}>{day}</span>
           <div class="cell-events">
-            {#each dayEvts.slice(0,2) as evt}
+            {#each evts.slice(0,2) as evt}
               <span class="evt-pill" draggable="true" 
                     ondragstart={(e) => handleDragStart(e, evt)} 
                     onclick={(e) => { e.stopPropagation(); openDetail(evt); }}
@@ -263,7 +268,7 @@
                     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(evt); } }}
                     title={evt.title}>{evt.title}</span>
             {/each}
-            {#if dayEvts.length > 2}<span class="evt-more">+{dayEvts.length-2}</span>{/if}
+            {#if evts.length > 2}<span class="evt-more">+{evts.length-2}</span>{/if}
           </div>
         </button>
       {/each}
