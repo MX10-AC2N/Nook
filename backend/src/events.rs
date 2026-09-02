@@ -92,7 +92,11 @@ impl<'de> Deserialize<'de> for NullableString {
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(NullableString(Option::<String>::deserialize(deserializer).map(|o| Some(o))?))
+        // Option<Option<String>> correctly distinguishes:
+        //   absent       -> None                    (field not provided, leave unchanged)
+        //   `null`       -> Some(None)              (explicitly cleared by the UI)
+        //   `"value"`    -> Some(Some("value"))     (set to value)
+        Ok(NullableString(Option::<Option<String>>::deserialize(deserializer)?))
     }
 }
 
@@ -313,11 +317,16 @@ pub async fn update_event(
     };
 
     // Compute new start_time if date/time provided
-    let time_provided = payload.time.as_option().is_some_and(|o| o.is_some());
+    // time_provided = true when field is present (Some(None) means "clear to 00:00")
+    let time_provided = payload.time.as_option().is_some();
     let new_start_time = if payload.date.is_some() || time_provided {
         let default_date_time = timestamp_to_date_time(event.start_time);
         let date_str = payload.date.as_deref().unwrap_or(&default_date_time.0);
-        let time_str = payload.time.as_option().and_then(|o| o.as_deref()).unwrap_or(&default_date_time.1);
+        let time_str = match payload.time.as_option() {
+            None => &default_date_time.1,           // not provided, keep existing
+            Some(None) => "00:00",                  // explicitly cleared, use midnight
+            Some(Some(s)) => s,                     // set to value
+        };
 
         let date = match NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
             Ok(d) => d,
