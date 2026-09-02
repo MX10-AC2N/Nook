@@ -1616,16 +1616,16 @@
               {#if isMyMessage(msg.sender_id) && !editingMsgId}
                 <button class="action-btn edit-btn" onclick={(e: MouseEvent) => { e.stopPropagation(); startEdit(msg); }} title="Modifier le message">✏️</button>
               {/if}
-              <!-- Message menu (...) — only for own messages -->
-              {#if isMyMessage(msg.sender_id)}
-                <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
-                {#if messageMenuMsgId === msg.id}
-                  <div class="message-menu-dropdown">
-                    <button class="msg-menu-item reply" onclick={() => { startReply(msg); }}>↩️ Répondre</button>
+              <!-- Message menu (...) — visible for all messages -->
+              <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
+              {#if messageMenuMsgId === msg.id}
+                <div class="message-menu-dropdown">
+                  <button class="msg-menu-item reply" onclick={() => { startReply(msg); messageMenuMsgId = null; }}>↩️ Répondre</button>
+                  {#if isMyMessage(msg.sender_id)}
                     <button class="msg-menu-item" onclick={() => { startEdit(msg); messageMenuMsgId = null; }}>✏️ Éditer</button>
                     <button class="msg-menu-item delete" onclick={() => { confirmDelete(msg.id); messageMenuMsgId = null; }}>🗑️ Supprimer</button>
-                  </div>
-                {/if}
+                  {/if}
+                </div>
               {/if}
             </div>
           {/if}
