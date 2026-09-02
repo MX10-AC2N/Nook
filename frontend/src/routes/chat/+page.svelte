@@ -1228,8 +1228,8 @@
       }
     }
 
-    await loadMessages(activeConvId);
-    await loadReactionsForMessages(activeConvId);
+    const msgs = await loadMessages(activeConvId);
+    await loadReactionsForMessages(activeConvId, msgs);
     // Démarrer le listener crypto pour le déchiffrement automatique des messages existants
     initCryptoListener();
     setActiveConv(activeConvId);
