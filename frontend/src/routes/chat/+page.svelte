@@ -1575,6 +1575,10 @@
                 />
               </div>
             {/if}
+            <!-- Edited indicator -->
+            {:else if msg.edited_at}
+              <div class="edited-label">✏️ modifié</div>
+            {/if}
             </div>
 
             <!-- Message reactions (below the bubble) -->
@@ -1608,6 +1612,10 @@
               <button class="action-btn react-more" onclick={(e: MouseEvent) => { e.stopPropagation(); openMsgEmojiPicker(msg.id, e.currentTarget as HTMLElement); }} title="Plus d'emojis">
                 😊+
               </button>
+              <!-- Edit button (own messages) -->
+              {#if isMyMessage(msg.sender_id) && !editingMsgId}
+                <button class="action-btn edit-btn" onclick={(e: MouseEvent) => { e.stopPropagation(); startEdit(msg); }} title="Modifier le message">✏️</button>
+              {/if}
               <!-- Message menu (...) — only for own messages -->
               {#if isMyMessage(msg.sender_id)}
                 <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
@@ -3108,6 +3116,13 @@
   .action-btn:hover {
     background: var(--bg-secondary, #f1f5f9);
     border-color: var(--accent, #4ade80);
+  }
+  .edit-btn {
+    font-size: .82rem;
+  }
+  .edit-btn:hover {
+    background: #fef3c7;
+    border-color: #f59e0b;
   }
   .react-more {
     font-size: .82rem;
