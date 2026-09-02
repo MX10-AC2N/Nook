@@ -105,7 +105,7 @@
       if (updated && updated.id) {
         events = events.map(e => e.id === updated.id ? { ...e, ...updated } : e);
       }
-      closeDetail();
+      await loadEvents(); closeDetail();
     } catch (e) { alert(e instanceof Error ? e.message : 'Erreur'); }
     finally { editSaving = false; }
   }
