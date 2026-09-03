@@ -1574,7 +1574,6 @@
                   autofocus
                 />
               </div>
-            {/if}
             <!-- Edited indicator -->
             {:else if msg.edited_at}
               <div class="edited-label">✏️ modifié</div>
