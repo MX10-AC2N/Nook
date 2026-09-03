@@ -329,51 +329,51 @@
   function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
-    if (targetEl) {
-      const msgEl = (targetEl.closest('.message-wrapper') as HTMLElement | null)
-        ?? (document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null);
-      const msgRect = msgEl?.getBoundingClientRect();
-      const btnRect = targetEl.getBoundingClientRect();
-      
-      const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
-      const pickerHeight = 400; // max-height of picker
-      const margin = 6;
-
-      // Vertical: ALWAYS open below the message. If not enough space,
-      // reduce the picker height to fit within the viewport (never above).
-      const bottomEdge = referenceBottom + margin;
-      const availableHeight = window.innerHeight - bottomEdge;
-      const finalPickerHeight = availableHeight > pickerHeight ? pickerHeight : Math.max(availableHeight, 50);
-      const top = bottomEdge;
-      
-      // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
-      // Center-ish align: if the button is on the left third of the viewport,
-      // align picker left; otherwise align picker right to keep it on the same
-      // side as the message.
-      const pickerWidth = 320;
-      let left = btnRect.left;
-      const btnCenter = btnRect.left + btnRect.width / 2;
-      const viewportCenter = window.innerWidth / 2;
-      if (btnCenter < viewportCenter) {
-        // Button is on the left side: align picker left
-        left = btnRect.left - (pickerWidth - btnRect.width) / 2;
-        if (left < margin) left = btnRect.left;
-      } else {
-        // Button is on the right side: align picker right
-        left = btnRect.right - pickerWidth;
-        if (left < margin) left = window.innerWidth - pickerWidth - margin;
-      }
-      const maxLeft = window.innerWidth - pickerWidth - margin;
-      if (left > maxLeft) left = maxLeft;
-      if (left < margin) left = margin;
-
-      emojiPickerPos = {
-        top,
-        left,
-        right: window.innerWidth - left - pickerWidth,
-        maxHeight: finalPickerHeight,
-      };
+    
+    // Get the message element
+    const msgEl = targetEl?.closest('.message-wrapper') as HTMLElement | null
+        ?? document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null;
+    
+    if (!msgEl) {
+      console.warn('[openMsgEmojiPicker] Message element not found:', msgId);
+      return;
     }
+    
+    const msgRect = msgEl.getBoundingClientRect();
+    const btnRect = targetEl?.getBoundingClientRect() ?? msgRect;
+    
+    const pickerHeight = 400;
+    const margin = 6;
+    
+    // Always position below the message
+    const bottomEdge = msgRect.bottom + margin;
+    const availableHeight = window.innerHeight - bottomEdge;
+    const finalPickerHeight = Math.min(pickerHeight, Math.max(availableHeight, 50));
+    
+    // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
+    const pickerWidth = 320;
+    let left = btnRect.left;
+    const btnCenter = btnRect.left + btnRect.width / 2;
+    const viewportCenter = window.innerWidth / 2;
+    if (btnCenter < viewportCenter) {
+      // Button is on the left side: align picker left
+      left = btnRect.left - (pickerWidth - btnRect.width) / 2;
+      if (left < margin) left = btnRect.left;
+    } else {
+      // Button is on the right side: align picker right
+      left = btnRect.right - pickerWidth;
+      if (left < margin) left = window.innerWidth - pickerWidth - margin;
+    }
+    const maxLeft = window.innerWidth - pickerWidth - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+
+    emojiPickerPos = {
+      top: bottomEdge,
+      left,
+      right: window.innerWidth - left - pickerWidth,
+      maxHeight: finalPickerHeight,
+    };
   }
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
@@ -3233,9 +3233,7 @@
   }
 
   /* Extended emoji picker for messages (emoji-picker-element) */
-  /* position: fixed pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
-    position: fixed;
     z-index: 50;
     width: 320px;
     max-height: 400px;
