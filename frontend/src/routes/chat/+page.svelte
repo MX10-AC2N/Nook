@@ -324,7 +324,7 @@
   let emojiPickerMsgId = $state<string | null>(null);
   let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
   let messageMenuMsgId = $state<string | null>(null);   // menu contextuel (éditer/supprimer)
-  let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
+  let emojiPickerPos = $state<{ top: number; left: number; right: number; maxHeight: number }>({ top: 0, left: 0, right: 0, maxHeight: 400 });
 
   function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
     extendedEmojiMsgId = msgId;
@@ -335,41 +335,34 @@
       const msgRect = msgEl?.getBoundingClientRect();
       const btnRect = targetEl.getBoundingClientRect();
       
-      // Calculate position: below the message by default, above if overflow
       const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
-      const referenceTop = msgRect ? msgRect.top : btnRect.top;
       const pickerHeight = 400; // max-height of picker
       const margin = 6;
-      const spaceBelow = window.innerHeight - referenceBottom;
-      const spaceAbove = referenceTop;
-      
-      let top: number;
-      // BUG FIX: Always prefer below. Only open above if the message is at
-      // the bottom of the viewport (no space below).
-      if (spaceBelow > margin) {
-        // There's space below — open below
-        top = referenceBottom + margin;
-      } else if (spaceAbove >= pickerHeight + margin) {
-        // No space below, but enough above — open above
-        top = referenceTop - pickerHeight - margin;
-      } else {
-        // Not enough space either way — prefer below, clamp to viewport
-        top = referenceBottom + margin;
-        if (top + pickerHeight > window.innerHeight - margin) {
-          const clampedTop = window.innerHeight - pickerHeight - margin;
-          if (clampedTop >= referenceBottom) {
-            top = clampedTop;
-          }
-        }
-        if (top < margin) top = margin;
-      }
+
+      // Vertical: ALWAYS open below the message. If not enough space,
+      // reduce the picker height to fit within the viewport (never above).
+      const bottomEdge = referenceBottom + margin;
+      const availableHeight = window.innerHeight - bottomEdge;
+      const finalPickerHeight = availableHeight > pickerHeight ? pickerHeight : Math.max(availableHeight, 50);
+      const top = bottomEdge;
       
       // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
-      // Without this, for right-edge messages (e.g. "mine") btnRect.left lands near
-      // the right side and the fixed 320px picker overflows ~70% off-screen on mobile
-      // and ~66% on desktop.
+      // Center-ish align: if the button is on the left third of the viewport,
+      // align picker left; otherwise align picker right to keep it on the same
+      // side as the message.
       const pickerWidth = 320;
       let left = btnRect.left;
+      const btnCenter = btnRect.left + btnRect.width / 2;
+      const viewportCenter = window.innerWidth / 2;
+      if (btnCenter < viewportCenter) {
+        // Button is on the left side: align picker left
+        left = btnRect.left - (pickerWidth - btnRect.width) / 2;
+        if (left < margin) left = btnRect.left;
+      } else {
+        // Button is on the right side: align picker right
+        left = btnRect.right - pickerWidth;
+        if (left < margin) left = window.innerWidth - pickerWidth - margin;
+      }
       const maxLeft = window.innerWidth - pickerWidth - margin;
       if (left > maxLeft) left = maxLeft;
       if (left < margin) left = margin;
@@ -378,6 +371,7 @@
         top,
         left,
         right: window.innerWidth - left - pickerWidth,
+        maxHeight: finalPickerHeight,
       };
     }
   }
@@ -1631,7 +1625,7 @@
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if extendedEmojiMsgId === msg.id}
-            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
+            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; max-height: {emojiPickerPos.maxHeight}px; z-index: 50;">
               <emoji-picker
                 use:emojiPickerAction={msg.id}
                 class="msg-emoji-picker-inner"
@@ -3245,6 +3239,7 @@
     z-index: 50;
     width: 320px;
     max-height: 400px;
+    overflow-y: auto;
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);

@@ -30,7 +30,8 @@ use crate::SharedState;
 pub struct CreatePollRequest {
     pub question: String,
     pub options: Vec<String>,
-    pub conversation_id: String,
+    #[serde(default)]
+    pub conversation_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -304,14 +305,6 @@ pub async fn create_poll(
         )
             .into_response();
     }
-    let conversation_id = req.conversation_id.trim().to_string();
-    if conversation_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "message": "Conversation requise" })),
-        )
-            .into_response();
-    }
     let options: Vec<String> = req
         .options
         .iter()
@@ -339,7 +332,7 @@ pub async fn create_poll(
     if let Err(e) =
         sqlx::query("INSERT INTO polls (id, conversation_id, question, created_by, created_at) VALUES (?, ?, ?, ?, ?)")
             .bind(&poll_id)
-            .bind(&conversation_id)
+            .bind(&req.conversation_id)
             .bind(&question)
             .bind(&user.id)
             .bind(now)
