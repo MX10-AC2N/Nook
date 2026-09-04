@@ -519,11 +519,12 @@ export function resetChat(): void {
 export function formatTimestamp(ts: number): string {
   const date = new Date(ts * 1000);
   const now  = new Date();
+  const timeStr = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   if (date.toDateString() === now.toDateString())
-    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return timeStr;
   if (date.getFullYear() === now.getFullYear())
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} à ${timeStr}`;
+  return `${date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })} à ${timeStr}`;
 }
 
 // -----------------------------------------------------------------

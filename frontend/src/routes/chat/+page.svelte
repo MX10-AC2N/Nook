@@ -332,30 +332,20 @@
         ?? (document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null);
       const msgRect = msgEl?.getBoundingClientRect();
       const btnRect = targetEl.getBoundingClientRect();
-      
-      // Calculate position: below the message by default, above if overflow
+
+      // RÈGLE UX ABSOLUE : toujours ouvrir EN DESSOUS — jamais au-dessus
       const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
-      const referenceTop = msgRect ? msgRect.top : btnRect.top;
       const pickerHeight = 400; // max-height of picker
       const margin = 6;
-      const spaceBelow = window.innerHeight - referenceBottom;
-      const spaceAbove = referenceTop;
-      
-      let top: number;
-      if (spaceBelow >= pickerHeight + margin) {
-        // Enough space below — open below
-        top = referenceBottom + margin;
-      } else if (spaceAbove >= pickerHeight + margin) {
-        // Enough space above — open above
-        top = referenceTop - pickerHeight - margin;
-      } else {
-        // Not enough space either way — prefer below, clamp to viewport
-        top = Math.max(margin, referenceBottom + margin);
-        if (top + pickerHeight > window.innerHeight - margin) {
-          top = window.innerHeight - pickerHeight - margin;
-        }
+
+      let top = referenceBottom + margin;
+      // Clamp en bas du viewport si débordement
+      if (top + pickerHeight > window.innerHeight - margin) {
+        top = window.innerHeight - pickerHeight - margin;
       }
-      
+      // Sécurité : ne pas dépasser en haut
+      top = Math.max(margin, top);
+
       emojiPickerPos = {
         top,
         left: btnRect.left,
@@ -1513,6 +1503,9 @@
             {/if}
             </div>
 
+            <!-- Timestamp sous chaque message -->
+            <div class="message-time">{formatTimestamp(msg.created_at)}</div>
+
             <!-- Message reactions (below the bubble) -->
             {#if countReactions(msg.id).length > 0}
               <div class="message-reactions">
@@ -2223,8 +2216,9 @@
   }
   .message-time {
     font-size: .68rem; color: var(--text-secondary, #94a3b8);
-    margin-top: .25rem; text-align: right;
+    margin-top: .2rem; text-align: left; opacity: .75;
   }
+  .message-wrapper.mine .message-time { text-align: right; }
   .message-meta { display: flex; gap: .4rem; align-items: center; justify-content: flex-end; }
   .edited-label { font-size: .62rem; color: var(--text-secondary, #94a3b8); font-style: italic; }
 
