@@ -306,6 +306,8 @@
   // État édition de message
   let editingMsgId   = $state<string | null>(null);
   let editingContent = $state('');
+  // ADR-017: message auquel on répond (bannière de citation)
+  let replyingToMsg  = $state<ChatMessage | null>(null);
   // Menu contextuel (hover)
   let hoveredMsgId   = $state<string | null>(null);
 
@@ -322,36 +324,56 @@
   let emojiPickerMsgId = $state<string | null>(null);
   let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
   let messageMenuMsgId = $state<string | null>(null);   // menu contextuel (éditer/supprimer)
-  let emojiPickerPos = $state<{ top: number; left: number; right: number }>({ top: 0, left: 0, right: 0 });
+  let emojiPickerPos = $state<{ top: number; left: number; right: number; maxHeight: number }>({ top: 0, left: 0, right: 0, maxHeight: 400 });
 
   function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
-    if (targetEl) {
-      const msgEl = (targetEl.closest('.message-wrapper') as HTMLElement | null)
-        ?? (document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null);
-      const msgRect = msgEl?.getBoundingClientRect();
-      const btnRect = targetEl.getBoundingClientRect();
-
-      // RÈGLE UX ABSOLUE : toujours ouvrir EN DESSOUS — jamais au-dessus
-      const referenceBottom = msgRect ? msgRect.bottom : btnRect.bottom;
-      const pickerHeight = 400; // max-height of picker
-      const margin = 6;
-
-      let top = referenceBottom + margin;
-      // Clamp en bas du viewport si débordement
-      if (top + pickerHeight > window.innerHeight - margin) {
-        top = window.innerHeight - pickerHeight - margin;
-      }
-      // Sécurité : ne pas dépasser en haut
-      top = Math.max(margin, top);
-
-      emojiPickerPos = {
-        top,
-        left: btnRect.left,
-        right: window.innerWidth - btnRect.right,
-      };
+    
+    // Get the message element
+    const msgEl = targetEl?.closest('.message-wrapper') as HTMLElement | null
+        ?? document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null;
+    
+    if (!msgEl) {
+      console.warn('[openMsgEmojiPicker] Message element not found:', msgId);
+      return;
     }
+    
+    const msgRect = msgEl.getBoundingClientRect();
+    const btnRect = targetEl?.getBoundingClientRect() ?? msgRect;
+    
+    const pickerHeight = 400;
+    const margin = 6;
+    
+    // Always position below the message
+    const bottomEdge = msgRect.bottom + margin;
+    const availableHeight = window.innerHeight - bottomEdge;
+    const finalPickerHeight = Math.min(pickerHeight, Math.max(availableHeight, 50));
+    
+    // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
+    const pickerWidth = 320;
+    let left = btnRect.left;
+    const btnCenter = btnRect.left + btnRect.width / 2;
+    const viewportCenter = window.innerWidth / 2;
+    if (btnCenter < viewportCenter) {
+      // Button is on the left side: align picker left
+      left = btnRect.left - (pickerWidth - btnRect.width) / 2;
+      if (left < margin) left = btnRect.left;
+    } else {
+      // Button is on the right side: align picker right
+      left = btnRect.right - pickerWidth;
+      if (left < margin) left = window.innerWidth - pickerWidth - margin;
+    }
+    const maxLeft = window.innerWidth - pickerWidth - margin;
+    if (left > maxLeft) left = maxLeft;
+    if (left < margin) left = margin;
+
+    emojiPickerPos = {
+      top: bottomEdge,
+      left,
+      right: window.innerWidth - left - pickerWidth,
+      maxHeight: finalPickerHeight,
+    };
   }
   let _hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let emojiCat    = $state('😊');   // catégorie active dans le picker emoji
@@ -716,7 +738,9 @@
     if (!newMessage.trim() || sending) return;
     sending = true;
     const content = newMessage;
+    const replyToId = replyingToMsg?.id ?? null;
     newMessage = '';
+    replyingToMsg = null;
     chatStore.showEmojiPicker = false;
     
     // Reset textarea height
@@ -727,13 +751,32 @@
     }
 
     try {
-      await sendMessage(content, activeConvId);
+      await sendMessage(content, activeConvId, replyToId);
       // Scroller vers le haut pour voir le nouveau message
       if (chatContainer) chatContainer.scrollTop = 0;
     } catch (e) {
       console.error('[Chat] send error:', e);
     } finally {
       sending = false;
+    }
+  }
+
+  // ADR-017 — Démarrer une réponse à un message
+  function startReply(msg: ChatMessage) {
+    replyingToMsg = msg;
+    messageMenuMsgId = null;
+    // Focus le champ de saisie
+    const input = document.querySelector('.message-input') as HTMLTextAreaElement | null;
+    input?.focus();
+  }
+
+  // ADR-017 — Scroller vers le message cité et le surligner
+  function scrollToMessage(msgId: string) {
+    const el = document.querySelector(`[data-msg-id="${msgId}"]`) as HTMLElement | null;
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('highlight-msg');
+      setTimeout(() => el.classList.remove('highlight-msg'), 2000);
     }
   }
 
@@ -1179,8 +1222,8 @@
       }
     }
 
-    await loadMessages(activeConvId);
-    await loadReactionsForMessages(activeConvId);
+    const msgs = await loadMessages(activeConvId);
+    await loadReactionsForMessages(activeConvId, msgs);
     // Démarrer le listener crypto pour le déchiffrement automatique des messages existants
     initCryptoListener();
     setActiveConv(activeConvId);
@@ -1479,6 +1522,31 @@
 
           <!-- Message column: bubble + reactions stacked vertically -->
           <div class="message-column">
+            <!-- ADR-017: citation du message répondu -->
+            {#if msg.reply_to}
+              <div class="reply-quote" role="button" tabindex="0"
+                   onclick={() => scrollToMessage(msg.reply_to!.id)}
+                   onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') scrollToMessage(msg.reply_to!.id); }}>
+                <div class="reply-quote-sender">{msg.reply_to.sender_name ?? 'Utilisateur'}</div>
+                <div class="reply-quote-content">
+                  {#if msg.reply_to.encrypted}
+                    🔒 Message chiffré
+                  {:else if msg.reply_to.message_type === 'image'}
+                    📷 Image
+                  {:else if msg.reply_to.message_type === 'audio'}
+                    🎙️ Audio
+                  {:else if msg.reply_to.message_type === 'video'}
+                    🎥 Vidéo
+                  {:else if msg.reply_to.message_type === 'file'}
+                    📎 Fichier
+                  {:else}
+                    {(msg.reply_to.content ?? '').toString().substring(0, 100)}
+                  {/if}
+                </div>
+              </div>
+            {:else if msg.reply_to_id}
+              <div class="reply-quote deleted">🗑️ Message supprimé</div>
+            {/if}
             <!-- Message content -->
             <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
               {#if msg.encrypted}
@@ -1500,6 +1568,9 @@
                   autofocus
                 />
               </div>
+            <!-- Edited indicator -->
+            {:else if msg.edited_at}
+              <div class="edited-label">✏️ modifié</div>
             {/if}
             </div>
 
@@ -1537,22 +1608,27 @@
               <button class="action-btn react-more" onclick={(e: MouseEvent) => { e.stopPropagation(); openMsgEmojiPicker(msg.id, e.currentTarget as HTMLElement); }} title="Plus d'emojis">
                 😊+
               </button>
-              <!-- Message menu (...) — only for own messages -->
-              {#if isMyMessage(msg.sender_id)}
-                <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
-                {#if messageMenuMsgId === msg.id}
-                  <div class="message-menu-dropdown">
+              <!-- Edit button (own messages) -->
+              {#if isMyMessage(msg.sender_id) && !editingMsgId}
+                <button class="action-btn edit-btn" onclick={(e: MouseEvent) => { e.stopPropagation(); startEdit(msg); }} title="Modifier le message">✏️</button>
+              {/if}
+              <!-- Message menu (...) — visible for all messages -->
+              <button class="action-btn msg-menu-toggle" onclick={() => messageMenuMsgId = (messageMenuMsgId === msg.id ? null : msg.id)} title="Message options" class:active={messageMenuMsgId === msg.id}>⋯</button>
+              {#if messageMenuMsgId === msg.id}
+                <div class="message-menu-dropdown">
+                  <button class="msg-menu-item reply" onclick={() => { startReply(msg); messageMenuMsgId = null; }}>↩️ Répondre</button>
+                  {#if isMyMessage(msg.sender_id)}
                     <button class="msg-menu-item" onclick={() => { startEdit(msg); messageMenuMsgId = null; }}>✏️ Éditer</button>
                     <button class="msg-menu-item delete" onclick={() => { confirmDelete(msg.id); messageMenuMsgId = null; }}>🗑️ Supprimer</button>
-                  </div>
-                {/if}
+                  {/if}
+                </div>
               {/if}
             </div>
           {/if}
 
           <!-- Extended emoji picker for this message (uses emoji-picker-element) -->
           {#if extendedEmojiMsgId === msg.id}
-            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; z-index: 50;">
+            <div class="msg-emoji-picker" style="position: fixed; top: {emojiPickerPos.top}px; left: {emojiPickerPos.left}px; max-height: {emojiPickerPos.maxHeight}px; z-index: 50;">
               <emoji-picker
                 use:emojiPickerAction={msg.id}
                 class="msg-emoji-picker-inner"
@@ -1669,6 +1745,17 @@
             ❌
           </button>
         </div>
+      </div>
+    {/if}
+
+    <!-- ADR-017: bannière de citation quand on répond à un message -->
+    {#if replyingToMsg}
+      <div class="reply-banner">
+        <div class="reply-banner-text">
+          ↩️ Réponse à <strong>{replyingToMsg.sender_name}</strong> :
+          {replyingToMsg.encrypted ? '🔒 Message chiffré' : (replyingToMsg.content ?? '').toString().substring(0, 60)}{replyingToMsg.content && replyingToMsg.content.length > 60 ? '…' : ''}
+        </div>
+        <button class="reply-banner-cancel" onclick={() => { replyingToMsg = null; }} title="Annuler la réponse" aria-label="Annuler la réponse">✕</button>
       </div>
     {/if}
 
@@ -3027,6 +3114,13 @@
     background: var(--bg-secondary, #f1f5f9);
     border-color: var(--accent, #4ade80);
   }
+  .edit-btn {
+    font-size: .82rem;
+  }
+  .edit-btn:hover {
+    background: #fef3c7;
+    border-color: #f59e0b;
+  }
   .react-more {
     font-size: .82rem;
     width: auto;
@@ -3074,14 +3168,80 @@
   .msg-menu-item:hover { background: var(--bg-secondary, #f1f5f9); }
   .msg-menu-item.delete { color: var(--danger, #ef4444); }
   .msg-menu-item.delete:hover { background: #fef2f2; }
+  .msg-menu-item.reply { color: var(--accent, #3b82f6); }
+
+  /* ADR-017 — Reply-to UI */
+  .reply-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin: 0 12px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-left: 3px solid var(--accent, #3b82f6);
+    border-radius: 6px;
+    font-size: .85rem;
+    color: var(--text-secondary, #475569);
+  }
+  .reply-banner-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .reply-banner-cancel {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    opacity: .6;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .reply-banner-cancel:hover { opacity: 1; background: var(--bg-tertiary, #e2e8f0); }
+
+  .reply-quote {
+    margin: 0 0 4px 0;
+    padding: 6px 10px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-left: 2px solid var(--accent, #3b82f6);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: .8rem;
+    max-width: 80%;
+  }
+  .reply-quote:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .reply-quote-sender {
+    font-weight: 600;
+    color: var(--accent, #3b82f6);
+    margin-bottom: 2px;
+  }
+  .reply-quote-content {
+    color: var(--text-secondary, #475569);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reply-quote.deleted {
+    font-style: italic;
+    opacity: .6;
+  }
+  .highlight-msg {
+    animation: reply-highlight 2s ease-out;
+  }
+  @keyframes reply-highlight {
+    0%   { background: color-mix(in srgb, var(--accent, #3b82f6) 28%, transparent); }
+    100% { background: transparent; }
+  }
 
   /* Extended emoji picker for messages (emoji-picker-element) */
-  /* position: fixed pour que le conteneur parent fixe les limites */
   .msg-emoji-picker {
-    position: fixed;
     z-index: 50;
     width: 320px;
     max-height: 400px;
+    overflow-y: auto;
     border: 1px solid var(--border, #e2e8f0);
     border-radius: .5rem;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
