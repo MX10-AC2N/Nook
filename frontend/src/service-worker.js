@@ -21,27 +21,47 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Serve from cache, fallback to network
+// Fetch: Network-first for HTML/JS/CSS (always get latest code), cache-first for static assets
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
+  const url = new URL(event.request.url);
+  const isCritical = /\.(html|js|css)$/.test(url.pathname) || url.pathname.endsWith('/');
+  if (isCritical) {
+    // Network-first: always fetch from network, fallback to cache only when offline
+    event.respondWith(
+      fetch(event.request).then((response) => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
         return response;
       }).catch(() => {
-        // Offline fallback for HTML requests
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/offline.html') || new Response('Offline', { status: 503 });
-        }
-        return new Response('Offline', { status: 503 });
-      });
-    })
-  );
+        return caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          if (event.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('/offline.html') || new Response('Offline', { status: 503 });
+          }
+          return new Response('Offline', { status: 503 });
+        });
+      })
+    );
+  } else {
+    // Cache-first for static assets (images, fonts, GIFs)
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        }).catch(() => {
+          return new Response('Offline', { status: 503 });
+        });
+      })
+    );
+  }
 });
 
 // Push notifications
