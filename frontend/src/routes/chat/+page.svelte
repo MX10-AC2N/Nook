@@ -320,6 +320,32 @@
   let reactions = $state<Record<string, { counts: Record<string, string[]>; myEmoji: string | null }>>({});
   const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'] as const;
 
+  let emojiPanelPos = $state<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  /** Position the general emoji/GIF picker near the input area */
+  function updateEmojiPanelPos() {
+    const textarea = document.querySelector('.message-input') as HTMLTextAreaElement;
+    if (textarea) {
+      const rect = textarea.getBoundingClientRect();
+      const panelWidth = 320;
+      const panelHeight = 260;
+      const margin = 10;
+      // Position above the input area
+      let top = rect.top - panelHeight - margin;
+      // If not enough space above, position below
+      if (top < margin) {
+        top = rect.bottom + margin;
+      }
+      let left = rect.left;
+      // Clamp to viewport
+      if (left + panelWidth > window.innerWidth - margin) {
+        left = window.innerWidth - panelWidth - margin;
+      }
+      if (left < margin) left = margin;
+      emojiPanelPos = { top, left };
+    }
+  }
+
   // picker étendu ouvert pour quel message
   let emojiPickerMsgId = $state<string | null>(null);
   let extendedEmojiMsgId = $state<string | null>(null);  // ← NOUVEAU : zone étendue
@@ -407,9 +433,14 @@
   }
 
   function handleToggleEmojiPicker() {
-    toggleEmojiPicker();
-    if (!chatStore.showEmojiPicker) return;
-    if (pickerTab === 'gif') loadLocalGifs();
+    if (!chatStore.showEmojiPicker) {
+      toggleEmojiPicker();
+      if (pickerTab === 'gif') loadLocalGifs();
+      // Update position on next tick to ensure DOM is ready
+      setTimeout(updateEmojiPanelPos, 0);
+    } else {
+      toggleEmojiPicker();
+    }
   }
 
   function handleSelectGif(filename: string) {
@@ -1270,6 +1301,16 @@
     });
   }
 
+  // Keep emoji-panel positioned when window resizes
+  $effect(() => {
+    if (chatStore.showEmojiPicker) {
+      updateEmojiPanelPos();
+      const onResize = () => updateEmojiPanelPos();
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+    }
+  });
+
   let initialScrollDone = $state(false);
 
   $effect(() => {
@@ -1660,7 +1701,8 @@
     {/if}
 
     {#if chatStore.showEmojiPicker}
-      <div class="emoji-panel" role="dialog" aria-label="Picker emoji ou GIF" tabindex="-1">
+      <div class="emoji-panel" role="dialog" aria-label="Picker emoji ou GIF" tabindex="-1"
+        style="position: fixed; top: {emojiPanelPos.top}px; left: {emojiPanelPos.left}px; z-index: 50; width: 320px; max-width: calc(100vw - 20px);">
         <div class="ep-tabs">
           <button class="ep-tab" class:active={pickerTab === 'emoji'}
             onclick={() => { pickerTab = 'emoji'; }}>😊 Emoji</button>
@@ -2451,6 +2493,9 @@
     flex-shrink: 0; border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
     max-height: 260px; display: flex; flex-direction: column;
+    border-radius: .6rem;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    box-sizing: border-box;
   }
   .ep-header {
     display: flex; align-items: center; gap: .3rem;
