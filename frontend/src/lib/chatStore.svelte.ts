@@ -593,44 +593,6 @@ export function hydrateReplyTo(msgs: ChatMessage[]): void {
 }
 
 // -----------------------------------------------------------------
-// 6️⃣bis ADR-017 — Reconstruit reply_to depuis les champs plats du serveur
-// -----------------------------------------------------------------
-
-/**
- * Le backend sert des champs plats reply_to_* (sqlx-friendly). Cette fonction
- * reconstitue l'objet ReplyToPreview attendu par l'UI.
- * Si reply_to_id est présent mais reply_to_sender_name est null → message cité supprimé.
- */
-export function buildReplyTo(raw: Record<string, unknown>): ReplyToPreview | null {
-  const id = (raw['reply_to_id'] as string | null) ?? null;
-  if (!id) return null;
-  const senderName = (raw['reply_to_sender_name'] as string | null) ?? null;
-  // Message cité supprimé (SET NULL côté serveur) → preview nulle
-  if (senderName === null && (raw['reply_to_content'] as string | null) === null) {
-    return null;
-  }
-  return {
-    id,
-    sender_name: senderName,
-    content: (raw['reply_to_content'] as string | null) ?? null,
-    message_type: (raw['reply_to_message_type'] as string | null) ?? null,
-    file_id: (raw['reply_to_file_id'] as string | null) ?? null,
-    nonce: (raw['reply_to_nonce'] as string | null) ?? null,
-    encrypted: Boolean(raw['reply_to_encrypted']),
-  };
-}
-
-/** Applique buildReplyTo sur une liste de messages récupérés du serveur */
-export function hydrateReplyTo(msgs: ChatMessage[]): void {
-  for (const m of msgs) {
-    const raw = m as unknown as Record<string, unknown>;
-    if (raw['reply_to_id'] !== undefined) {
-      m.reply_to = buildReplyTo(raw);
-    }
-  }
-}
-
-// -----------------------------------------------------------------
 // 6️⃣ Déchiffrement batch
 // -----------------------------------------------------------------
 
