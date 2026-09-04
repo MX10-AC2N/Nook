@@ -40,6 +40,13 @@ pub struct ReactionsResponse {
     pub my_emoji: Option<String>,                                // réaction de l'utilisateur courant
 }
 
+/// Emojis autorisés pour les réactions (aligné avec QUICK_EMOJIS côté UI).
+/// Tout emoji hors liste est rejeté avec 400 pour éviter le stockage
+/// d'emojis arbitraires / non supportés.
+pub const ALLOWED_REACTION_EMOJIS: &[&str] = &[
+    "👍", "❤️", "😂", "😮", "😢", "😡",
+];
+
 // ────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ────────────────────────────────────────────────────────────────────────────
@@ -143,6 +150,11 @@ pub async fn add_reaction(
 ) -> Result<Json<Value>, StatusCode> {
     check_conv_membership(&state.db, &conv_id, &user.id).await?;
     check_msg_in_conv(&state.db, &conv_id, &msg_id).await?;
+
+    // Valide que l'emoji est dans la liste autorisée (sinon 400)
+    if !ALLOWED_REACTION_EMOJIS.contains(&req.emoji.as_str()) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
 
     let now = Utc::now().timestamp();
 

@@ -751,8 +751,47 @@ export async function rotateKeyOnServer(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 10. API helpers — key history
+// 11. Déchiffrement avec group key (pour conversations de groupe comme default_global)
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Déchiffre le contenu d'un message avec la clé de groupe.
+ * Utilisé pour les messages chiffrés avec la group key (format nouveau).
+ */
+export async function decryptWithGroupKey(
+  ciphertextB64: string,
+  nonceB64:      string,
+  groupKey:      Uint8Array
+): Promise<string> {
+  const na         = await ensureSodium();
+  const ciphertext = na.from_base64(ciphertextB64, na.base64_variants.ORIGINAL);
+  const nonce      = na.from_base64(nonceB64,      na.base64_variants.ORIGINAL);
+  const decrypted  = na.crypto_secretbox_open_easy(ciphertext, nonce, groupKey);
+  return na.to_string(decrypted);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. Chiffrement avec group key (pour conversations de groupe comme default_global)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Chiffre un message avec la clé de groupe.
+ * Utilisé pour les messages de type default_global (format nouveau).
+ */
+export async function encryptWithGroupKey(
+  plaintext: string,
+  groupKey:  Uint8Array
+): Promise<{ ciphertext: string; nonce: string }> {
+  const na        = await ensureSodium();
+  const nonce     = na.randombytes_buf(na.crypto_secretbox_NONCEBYTES);
+  const msgBytes  = na.from_string(plaintext);
+  const ciphertext = na.crypto_secretbox_easy(msgBytes, nonce, groupKey);
+
+  return {
+    ciphertext: na.to_base64(ciphertext, na.base64_variants.ORIGINAL),
+    nonce:      na.to_base64(nonce,      na.base64_variants.ORIGINAL),
+  };
+}
 
 /**
  * Récupère l'historique des clés depuis le serveur.

@@ -420,6 +420,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth_limiter: Arc<redis_rate_limiter::IpRateLimiter> =
         redis_rate_limiter::IpRateLimiter::build(redis_url.as_deref(), auth_rate_limit);
 
+    // E2EE rate limiter: 60/min/IP (between 20/min public and 100/min authenticated)
+    let e2ee_rate_limit: u32 = std::env::var("E2EE_RATE_LIMIT_PER_MIN")
+        .ok().and_then(|v| v.parse().ok()).unwrap_or(60);
+    let e2ee_limiter: Arc<redis_rate_limiter::IpRateLimiter> =
+        redis_rate_limiter::IpRateLimiter::build(redis_url.as_deref(), e2ee_rate_limit);
+
     let auth_limiter_clone = auth_limiter.clone();
     let auth_routes = Router::new()
         .route("/auth/register", post(auth::register))
@@ -488,7 +494,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .route("/invites/delete", post(admin::delete_invite))
                     .route("/analytics", get(admin::get_analytics))
                     .route("/users/{id}", axum::routing::delete(admin::delete_user))
-            .merge(analytics::analytics_routes())
+            .nest("/analytics", analytics::analytics_routes())
             .layer(from_fn(auth::require_admin));
 
     // ============================================================
@@ -506,6 +512,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/conversations/{id}/join", post(db::join_conversation))
         .route("/conversations/{id}/messages", get(db::get_conversation_messages))
         .route("/conversations/{id}/messages", post(db::send_message))
+        .route("/conversations/{id}/group-key-version", get(db::get_group_key_version))
         .route(
             "/conversations/{conv_id}/messages/{msg_id}",
             axum::routing::patch(db::edit_message).delete(db::delete_message),
@@ -522,7 +529,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .nest("/push", push::router())
         .merge(polls::polls_routes())
         .merge(chess::chess_routes())
-        .merge(e2ee::e2ee_routes())
+        .merge(e2ee::e2ee_routes().route_layer(from_fn(move |
+            ConnectInfo(addr): ConnectInfo<SocketAddr>,
+            req: Request<Body>,
+            next: Next,
+        | {
+            let lim = e2ee_limiter.clone();
+            async move {
+                if lim.check(&addr.ip()) {
+                    next.run(req).await
+                } else {
+                    tracing::warn!(
+                        ip = %addr.ip(),
+                        path = %req.uri().path(),
+                        "E2EE rate limit exceeded (429) — too many key operations"
+                    );
+                    axum::http::StatusCode::TOO_MANY_REQUESTS.into_response()
+                }
+            }
+        })))
         .merge(reactions::reactions_routes())
         .merge(webrtc::webrtc_routes())
         .merge(events::events_routes())
@@ -581,6 +606,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::Method::GET,
             axum::http::Method::POST,
             axum::http::Method::PUT,
+            axum::http::Method::PATCH,
             axum::http::Method::DELETE,
             axum::http::Method::OPTIONS,
         ])

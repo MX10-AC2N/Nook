@@ -517,6 +517,42 @@ pub async fn get_key_version(
     }))
 }
 
+/// Récupère la version actuelle (active) de la clé publique d'un utilisateur.
+/// Retourne la version avec revoked_at IS NULL, ou 1 si clé initiale sans historique,
+/// ou 0 si aucune clé publique.
+async fn get_user_active_key_version(
+    state: &Arc<SharedState>,
+    user_id: &str,
+) -> Result<i32, StatusCode> {
+    // Check if there's an active (non-revoked) entry in history
+    let active: Option<(i32,)> = sqlx::query_as(
+        "SELECT version FROM user_key_history WHERE user_id = ? AND revoked_at IS NULL",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some((v,)) = active {
+        return Ok(v);
+    }
+
+    // No history — check if user has a public_key (initial key = version 1)
+    let has_key: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM users WHERE id = ? AND public_key IS NOT NULL",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if has_key.map(|(c,)| c).unwrap_or(0) > 0 {
+        Ok(1)
+    } else {
+        Ok(0)
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/conversations/{conv_id}/keys
 // Distribue une nouvelle clé de groupe aux membres de la conversation.
@@ -549,17 +585,43 @@ pub async fn distribute_group_keys(
     })?;
 
     // Insérer les clés chiffrées pour chaque destinataire
+    // SEC-FIX-1: Valider que chaque destinataire est membre de la conversation
+    // SEC-FIX-3: Utiliser user_key_version dynamique (version actuelle du destinataire)
+    for recipient_id in body.distributions.keys() {
+        let is_member: Option<(i64,)> = sqlx::query_as(
+            "SELECT COUNT(*) FROM conversation_participants
+             WHERE conversation_id = ? AND user_id = ?",
+        )
+        .bind(&conv_id)
+        .bind(recipient_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+            tracing::warn!(
+                conv = %conv_id,
+                recipient = %recipient_id,
+                "e2ee: distribute_group_keys — destinataire non membre rejeté"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
+
     for (recipient_id, encrypted_key) in &body.distributions {
+        // SEC-FIX-3: Récupérer la version actuelle de clé publique du destinataire
+        let recipient_key_version = get_user_active_key_version(&state, recipient_id).await?;
+
         sqlx::query(
             "INSERT OR REPLACE INTO conversation_key_recipients
-                (conversation_id, version, user_id, encrypted_key, user_key_version)
-             VALUES (?, ?, ?, ?, ?)",
+                (conversation_id, version, user_id, encrypted_key, user_key_version, distribution_status)
+             VALUES (?, ?, ?, ?, ?, 'delivered')",
         )
         .bind(&conv_id)
         .bind(body.keyVersion)
         .bind(recipient_id)
         .bind(encrypted_key)
-        .bind(1) // Default user_key_version — frontend should provide this in future
+        .bind(recipient_key_version)
         .execute(&state.db)
         .await
         .map_err(|e| {
@@ -664,6 +726,26 @@ pub async fn add_member_key(
     }
 
     // Insérer la clé pour le nouveau membre
+    // SEC-FIX-1: Valider que le nouveau membre est participant de la conversation
+    let is_member: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM conversation_participants
+         WHERE conversation_id = ? AND user_id = ?",
+    )
+    .bind(&conv_id)
+    .bind(&body.userId)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if is_member.map(|(c,)| c).unwrap_or(0) == 0 {
+        tracing::warn!(
+            conv = %conv_id,
+            new_member = %body.userId,
+            "e2ee: add_member_key — utilisateur cible non membre rejeté"
+        );
+        return Err(StatusCode::FORBIDDEN);
+    }
+
     sqlx::query(
         "INSERT OR REPLACE INTO conversation_key_recipients
             (conversation_id, version, user_id, encrypted_key, user_key_version)
@@ -692,6 +774,222 @@ pub async fn add_member_key(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SEC-FIX-3: Nouvelles routes pour distribution_status + claim-key + metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct MyKeyStatusResponse {
+    pub user_id: String,
+    pub conversation_id: String,
+    pub distribution_status: String,
+    pub key_version: i32,
+    pub user_key_version: i32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GroupKeyMetadataResponse {
+    pub conversation_id: String,
+    pub version: i32,
+    pub creator_id: String,
+    pub created_at: i64,
+    pub recipient_count: i64,
+    pub delivered_count: i64,
+    pub pending_count: i64,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/conversations/{conv_id}/claim-key
+// Si le membre a un statut 'pending', distribuer la clé courante.
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn claim_key(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    check_membership(&state, &user.id, &conv_id).await?;
+
+    // Vérifier si l'utilisateur a une entrée pending
+    let pending: Option<(String, i32, i32)> = sqlx::query_as(
+        "SELECT encrypted_key, version, user_key_version
+         FROM conversation_key_recipients
+         WHERE conversation_id = ? AND user_id = ? AND distribution_status = 'pending'",
+    )
+    .bind(&conv_id)
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, conv = %conv_id, user = %user.id, "e2ee: échec claim-key query");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if let Some((encrypted_key, version, user_key_version)) = pending {
+        // Marquer comme delivered
+        sqlx::query(
+            "UPDATE conversation_key_recipients
+             SET distribution_status = 'delivered'
+             WHERE conversation_id = ? AND user_id = ? AND version = ?",
+        )
+        .bind(&conv_id)
+        .bind(&user.id)
+        .bind(version)
+        .execute(&state.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, conv = %conv_id, user = %user.id, "e2ee: échec claim-key update");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        tracing::info!(
+            conv = %conv_id,
+            user = %user.id,
+            version = version,
+            "e2ee: clé claimée (pending → delivered)"
+        );
+
+        Ok(Json(serde_json::json!({
+            "success": true,
+            "status": "delivered",
+            "encrypted_key": encrypted_key,
+            "keyVersion": version,
+            "userKeyVersion": user_key_version
+        })))
+    } else {
+        // Vérifier s'il y a une clé delivered
+        let delivered: Option<(i32,)> = sqlx::query_as(
+            "SELECT version FROM conversation_key_recipients
+             WHERE conversation_id = ? AND user_id = ? AND distribution_status = 'delivered'
+             ORDER BY version DESC LIMIT 1",
+        )
+        .bind(&conv_id)
+        .bind(&user.id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        if delivered.is_some() {
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "status": "already_delivered",
+                "message": "Clé déjà distribuée"
+            })))
+        } else {
+            Ok(Json(serde_json::json!({
+                "success": false,
+                "status": "not_found",
+                "message": "Aucune clé en attente pour cette conversation"
+            })))
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/conversations/{conv_id}/my-key-status
+// Retourne le statut de distribution (delivered/pending/failed) pour l'utilisateur courant.
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn get_my_key_status(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+) -> Result<Json<Vec<MyKeyStatusResponse>>, StatusCode> {
+    check_membership(&state, &user.id, &conv_id).await?;
+
+    let rows: Vec<(String, String, i32, i32)> = sqlx::query_as(
+        "SELECT user_id, distribution_status, version, user_key_version
+         FROM conversation_key_recipients
+         WHERE conversation_id = ? AND user_id = ?
+         ORDER BY version DESC",
+    )
+    .bind(&conv_id)
+    .bind(&user.id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, conv = %conv_id, user = %user.id, "e2ee: échec get_my_key_status");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|(user_id, distribution_status, key_version, user_key_version)| {
+                MyKeyStatusResponse {
+                    user_id,
+                    conversation_id: conv_id.clone(),
+                    distribution_status,
+                    key_version,
+                    user_key_version,
+                }
+            })
+            .collect(),
+    ))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/conversations/{conv_id}/group-key-metadata
+// Retourne les métadonnées de la clé de groupe (version, dernière rotation, stats).
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn get_group_key_metadata(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+    Path(conv_id): Path<String>,
+) -> Result<Json<GroupKeyMetadataResponse>, StatusCode> {
+    check_membership(&state, &user.id, &conv_id).await?;
+
+    // Récupérer la dernière version de clé de groupe
+    let meta: Option<(i32, String, i64)> = sqlx::query_as(
+        "SELECT version, creator_id, created_at
+         FROM conversation_keys
+         WHERE conversation_id = ?
+         ORDER BY version DESC LIMIT 1",
+    )
+    .bind(&conv_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, conv = %conv_id, "e2ee: échec get_group_key_metadata");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let (version, creator_id, created_at) = meta.ok_or(StatusCode::NOT_FOUND)?;
+
+    // Compter les statuts de distribution
+    let counts: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT distribution_status, COUNT(*)
+         FROM conversation_key_recipients
+         WHERE conversation_id = ? AND version = ?
+         GROUP BY distribution_status",
+    )
+    .bind(&conv_id)
+    .bind(version)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut delivered_count = 0i64;
+    let mut pending_count = 0i64;
+    let mut recipient_count = 0i64;
+
+    for (status, count) in &counts {
+        recipient_count += count;
+        match status.as_str() {
+            "delivered" => delivered_count = *count,
+            "pending" => pending_count = *count,
+            _ => {}
+        }
+    }
+
+    Ok(Json(GroupKeyMetadataResponse {
+        conversation_id: conv_id,
+        version,
+        creator_id,
+        created_at,
+        recipient_count,
+        delivered_count,
+        pending_count,
+    }))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Routeur — à merger dans protected_routes de main.rs
 // ─────────────────────────────────────────────────────────────────────────────
 pub fn e2ee_routes() -> axum::Router<Arc<SharedState>> {
@@ -709,6 +1007,9 @@ pub fn e2ee_routes() -> axum::Router<Arc<SharedState>> {
         .route("/conversations/{conv_id}/keys", post(distribute_group_keys))
         .route("/conversations/{conv_id}/my-key", get(get_my_group_key))
         .route("/conversations/{conv_id}/add-member-key", post(add_member_key))
+        .route("/conversations/{conv_id}/claim-key", post(claim_key))
+        .route("/conversations/{conv_id}/my-key-status", get(get_my_key_status))
+        .route("/conversations/{conv_id}/group-key-metadata", get(get_group_key_metadata))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1674,7 +1975,7 @@ mod tests {
         let pool = setup_test_db().await;
         let state = make_state(pool.clone());
         let alice = seed_user(&pool, "alice", "pass", None).await;
-        let bob = seed_user(&pool, "bob", "pass", None).await;
+        let bob = seed_user(&pool, "bob", "pass", Some(&valid_public_key())).await;
         let conv_id = seed_conversation(&pool, &alice.id).await;
         add_participant(&pool, &conv_id, &bob.id).await;
 

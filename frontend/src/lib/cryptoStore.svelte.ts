@@ -41,11 +41,14 @@ import {
   migrateKeyStoreToV2,
   getArchivedPrivateKey,
   decryptPrivateKey,
+  decryptWithGroupKey,
+  encryptWithGroupKey,
   type KeyPair,
   type EncryptedMessage,
   type DecryptSessionKeyV2Options,
   type DecryptSessionKeyV2Result,
 } from '$lib/crypto';
+import { e2ee } from '$lib/e2ee';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State réactif (Svelte 5 Runes)
@@ -335,9 +338,9 @@ export async function resetCrypto(userId: string, password: string): Promise<boo
     cryptoStore.ready  = true;
 
     // 6. Enregistrer la nouvelle clé publique sur le serveur
-    registerPublicKeyOnServer(newKeyPair.publicKey)
-      .then(() => console.info('[cryptoStore] Nouvelle clé publique enregistrée sur le serveur ✓'))
-      .catch((e) => console.warn('[cryptoStore] Échec enregistrement clé publique :', e?.message));
+    // BUG-005 FIX: await pour garantir l'enregistrement avant tout envoi de message
+    await registerPublicKeyOnServer(newKeyPair.publicKey);
+    console.info('[cryptoStore] Nouvelle clé publique enregistrée sur le serveur ✓');
 
     console.info('[cryptoStore] Nouvelle clé E2EE générée et activée ✓');
     return true;
@@ -352,12 +355,22 @@ export async function resetCrypto(userId: string, password: string): Promise<boo
 
 // ─────────────────────────────────────────────────────────────────────────────
 // encryptMessage — chiffre un message pour tous les membres d'une conversation
+// Pour default_global (groupe global), utilise la group key
 // ─────────────────────────────────────────────────────────────────────────────
 export async function encryptMessage(
   plaintext:      string,
   conversationId: string
-): Promise<EncryptedMessage> {
+): Promise<EncryptedMessage | { ciphertext: string; nonce: string; group_key_version: number }> {
   if (!_keyPair) throw new Error('[cryptoStore] Clés non chargées — appelez unlockCrypto() d\'abord.');
+
+  // Pour default_global, utiliser la group key
+  if (conversationId === 'default_global') {
+    const groupKey = await e2ee.loadGroupKey(conversationId);
+    const version = e2ee.currentVersion(conversationId);
+    const result = await encryptWithGroupKey(plaintext, groupKey);
+    return { ...result, group_key_version: version };
+  }
+
   const pubkeys = await fetchMemberPubkeys(conversationId);
   console.info('[cryptoStore] encryptMessage conv:', conversationId, 'destinataires:', Object.keys(pubkeys).length, 'mes clés:', !!_keyPair);
   return encryptForRecipients(plaintext, pubkeys, _keyPair);
@@ -365,6 +378,9 @@ export async function encryptMessage(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // decryptMessage — déchiffre un message reçu
+// Supporte 2 formats :
+//   (a) Ancien : nonce + encrypted_keys (HashMap) -> decryptSessionKeyV2
+//   (b) Nouveau : nonce + group_key_version -> déchiffrement avec group key
 // ─────────────────────────────────────────────────────────────────────────────
 export async function decryptMessage(params: {
   messageId:       string;
@@ -373,10 +389,18 @@ export async function decryptMessage(params: {
   nonce:           string;
   senderPubkeyB64: string;
   senderKeyVersion?: number;
+  groupKeyVersion?: number;
 }): Promise<string> {
   if (!_keyPair)           throw new Error('[cryptoStore] Clés non chargées.');
   if (!cryptoStore.userId) throw new Error('[cryptoStore] userId absent.');
 
+  // Format nouveau : group_key_version présent -> déchiffrement avec group key
+  if (params.groupKeyVersion !== undefined && params.groupKeyVersion !== null) {
+    const groupKey = await e2ee.loadGroupKey(params.conversationId);
+    return decryptWithGroupKey(params.ciphertext, params.nonce, groupKey);
+  }
+
+  // Format ancien : encrypted_keys -> déchiffrement par destinataire
   const res = await fetch(
     `/api/conversations/${params.conversationId}/my-encrypted-key/${params.messageId}`,
     { credentials: 'include' }
@@ -385,21 +409,12 @@ export async function decryptMessage(params: {
   const { encrypted_key } = await res.json();
 
   // Archived key lookup — DT-05-bis: forward secrecy after X25519 rotation.
-  // The current private key (_keyPair.privateKey) only decrypts messages that
-  // were encrypted with the *current* public key. After a rotation, messages
-  // encrypted under an older key version must be decrypted with that older
-  // private key. We retrieve it from (1) the local IndexedDB archive
-  // (populated by saveKeyRotation, works offline / same-device) and
-  // (2) the server API GET /api/auth/key-history/{version} (cross-device),
-  // decrypting the returned blob with the session password.
   const sessionPwd = (typeof sessionStorage !== 'undefined')
     ? (sessionStorage.getItem('nook_crypto_key') || localStorage.getItem('nook_crypto_key'))
     : null;
 
   const archivedKeyLookup = params.senderKeyVersion
     ? async (version: number): Promise<Uint8Array | null> => {
-        // 1. Local IndexedDB archive (fast, offline, covers genesis version
-        //    whose server-side encrypted_priv may be empty after first rotate).
         if (cryptoStore.userId && sessionPwd) {
           try {
             const local = await getArchivedPrivateKey(cryptoStore.userId, version, sessionPwd);
@@ -408,7 +423,6 @@ export async function decryptMessage(params: {
             console.warn('[cryptoStore] archivedKeyLookup local archive miss:', e);
           }
         }
-        // 2. Server fallback: GET /api/auth/key-history/{version}
         try {
           const res = await fetch(`/api/auth/key-history/${version}`, { credentials: 'include' });
           if (!res.ok) {

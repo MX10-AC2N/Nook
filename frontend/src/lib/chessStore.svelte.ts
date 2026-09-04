@@ -343,6 +343,14 @@ class ChessStore {
       this.currentGame  = data.game;
       this.selected     = null;
       this.legalTargets = [];
+
+      // Mettre à jour lastMove depuis le dernier coup humain/IA dans l'historique
+      const history: Array<{ from?: string; to?: string }> =
+        data.game?.move_history ?? [];
+      const lastWithCoords = [...history].reverse().find((m) => m.from && m.to);
+      if (lastWithCoords) {
+        this.lastMove = { from: lastWithCoords.from!, to: lastWithCoords.to! };
+      }
     } catch {
       // Silencieux
     }
@@ -623,10 +631,13 @@ class ChessStore {
         if (msg.game_id !== gameId) return; // autre partie ou autre type
         if (msg.type === 'chess_move' || msg.type === 'chess_ai_move') {
           if (msg.type === 'chess_ai_move') notifyChess('Tour de l\'IA', 'L\'IA a joué', gameId);
+          // Update lastMove from WebSocket message immediately for visual feedback
+          if (msg.move?.from && msg.move?.to) {
+            this.lastMove = { from: msg.move.from, to: msg.move.to };
+          }
           // Refresh game state from server (updates board, legal_moves, etc.)
           this.refreshGame(gameId).then(() => {
             // After board update, clear stale selection if it exists
-            // The user can reselect their piece to see updated legal moves
             if (this.selected) {
               this.selected = null;
               this.legalTargets = [];

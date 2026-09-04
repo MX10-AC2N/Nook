@@ -12,7 +12,7 @@ DROP TABLE IF EXISTS polls;
 
 CREATE TABLE polls (
     id              TEXT    PRIMARY KEY,
-    conversation_id TEXT    NOT NULL,
+    conversation_id TEXT,
     question        TEXT    NOT NULL,
     created_by      TEXT    NOT NULL,
     created_at      INTEGER NOT NULL,

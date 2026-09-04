@@ -58,6 +58,8 @@ pub struct Message {
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
+    /// ID du message cité (reply-to, ADR-017). NULL si pas une réponse.
+    pub reply_to_id: Option<String>,
 }
 
 /// Message enrichi avec le nom de l'expéditeur (JOIN users)
@@ -71,14 +73,25 @@ pub struct MessageWithSender {
     pub sender_avatar_style: Option<String>, // DiceBear style of the sender
     pub sender_avatar_seed: Option<String>, // DiceBear seed chosen by the sender
     pub sender_public_key: Option<String>, // Clé publique X25519 de l'expéditeur (base64)
+    pub sender_key_version: Option<i32>, // Version de la clé de l'expéditeur (DT-05)
     pub content: String,
     pub message_type: String,
     pub file_id: Option<String>,
     pub encrypted: bool,
     pub nonce: Option<String>, // Nonce XSalsa20 base64 si encrypted=true
+    pub group_key_version: Option<i32>, // Version de la clé de groupe (pour default_global)
     pub timestamp: i64,
     pub created_at: i64,
     pub edited_at: Option<i64>,
+    /// ID du message cité (reply-to, ADR-017)
+    pub reply_to_id: Option<String>,
+    /// Preview du message cité (champs calculés par LEFT JOIN). NULL si message cité supprimé.
+    pub reply_to_sender_name: Option<String>,
+    pub reply_to_content: Option<String>,
+    pub reply_to_message_type: Option<String>,
+    pub reply_to_file_id: Option<String>,
+    pub reply_to_nonce: Option<String>,
+    pub reply_to_encrypted: Option<bool>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
@@ -122,6 +135,14 @@ pub struct SendMessageRequest {
     /// Version de la clé de l'expéditeur (DT-05), défaut 1
     #[serde(default = "default_key_version")]
     pub sender_key_version: i32,
+    /// Version de la clé de groupe (pour conversations de groupe comme default_global)
+    /// Si présent, le message utilise la group key au lieu des encrypted_keys
+    #[serde(default)]
+    pub group_key_version: Option<i32>,
+    /// ID du message cité (reply-to, ADR-017). Optionnel.
+    /// Validé applicativement : doit exister et appartenir à la même conversation.
+    #[serde(default)]
+    pub reply_to_id: Option<String>,
 }
 
 fn default_key_version() -> i32 {
@@ -391,6 +412,24 @@ pub async fn send_message(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // ADR-017: valider reply_to_id (doit exister et appartenir à la même conversation)
+    if let Some(ref reply_id) = req.reply_to_id {
+        let valid: Option<(i64,)> = sqlx::query_as::<_, (i64,)>(
+            "SELECT COUNT(*) FROM messages WHERE id = ? AND conversation_id = ?"
+        )
+        .bind(reply_id)
+        .bind(&conversation_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten();
+
+        if valid.map(|(c,)| c).unwrap_or(0) == 0 {
+            // Message cité inexistant OU dans une autre conversation → rejet
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    }
+
     // FIX M2: limiter la taille du message a 8000 caracteres
     if req.content.len() > 8000 {
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
@@ -398,8 +437,8 @@ pub async fn send_message(
 
     sqlx::query(
         "INSERT INTO messages
-            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (id, conversation_id, sender_id, content, encrypted, nonce, timestamp, created_at, message_type, reply_to_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&id)
     .bind(&conversation_id)
@@ -410,6 +449,7 @@ pub async fn send_message(
     .bind(now)
     .bind(now)
     .bind("text")
+    .bind(&req.reply_to_id)
     .execute(&state.db)
     .await
     .map_err(|e| {
@@ -460,10 +500,32 @@ pub async fn send_message(
     }
 
     // Stocker les clés de session chiffrées pour chaque destinataire (E2EE)
+    // BLOQUANT : si ca echoue, le message ne doit pas etre envoye (destinataires ne pourront jamais dechiffrer)
     if req.encrypted && !req.encrypted_keys.is_empty() {
-        if let Err(e) = crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await {
-            tracing::warn!(error = %e, msg_id = %id, "E2EE: échec store_message_keys (non bloquant)");
+        // Defense verifie que TOUS les participants ont une enveloppe
+        let all_participants: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ? AND user_id != ?",
+        )
+        .bind(&conversation_id)
+        .bind(&user.id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        let missing: Vec<&str> = all_participants
+            .iter()
+            .filter(|(uid,)| !req.encrypted_keys.contains_key(uid.as_str()))
+            .map(|(uid,)| uid.as_str())
+            .collect();
+
+        if !missing.is_empty() {
+            tracing::warn!(msg_id = %id, missing_recipients = ?missing, "E2EE: enveloppes manquantes pour certains destinataires — stockage des enveloppes disponibles uniquement (les destinataires sans clé devront re-demander leur enveloppe)");
         }
+
+        crate::e2ee::store_message_keys(&state.db, &id, &req.encrypted_keys, req.sender_key_version).await.map_err(|e| {
+            tracing::error!(error = %e, msg_id = %id, recipient_count = %req.encrypted_keys.len(), "E2EE: echec store_message_keys — message non envoye");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     }
 
     // Retourner le message enrichi (avec sender_name) pour cohérence frontend
@@ -489,6 +551,34 @@ pub async fn send_message(
     let sender_avatar_seed = avatar_data.as_ref().and_then(|(_, s, _)| s.clone());
     let sender_public_key = avatar_data.as_ref().and_then(|(_, _, k)| k.clone());
 
+    // ADR-017: construire la preview reply_to du message cité (si présent)
+    let reply_to = if let Some(ref reply_id) = req.reply_to_id {
+        let cited: Option<(String, Option<String>, String, String, Option<String>, Option<String>, bool)> =
+            sqlx::query_as(
+                "SELECT rm.id, COALESCE(ru.name, ru.username), rm.content, rm.message_type, rm.file_id, rm.nonce, rm.encrypted
+                 FROM messages rm LEFT JOIN users ru ON rm.sender_id = ru.id
+                 WHERE rm.id = ?"
+            )
+            .bind(reply_id)
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+        cited.map(|(rid, sname, content, mtype, file_id, nonce, encrypted)| {
+            serde_json::json!({
+                "id": rid,
+                "sender_name": sname,
+                "content": content,
+                "message_type": mtype,
+                "file_id": file_id,
+                "nonce": nonce,
+                "encrypted": encrypted,
+            })
+        })
+    } else {
+        None
+    };
+
     let msg_json = serde_json::json!({
         "id": id,
         "conversation_id": conversation_id,
@@ -502,9 +592,13 @@ pub async fn send_message(
         "file_id": null,
         "encrypted": req.encrypted,
         "nonce": req.nonce,
+        "reply_to_id": req.reply_to_id,
+        "reply_to": reply_to,
         "timestamp": now,
         "created_at": now,
-        "edited_at": null
+        "edited_at": null,
+        "sender_key_version": req.sender_key_version,
+        "group_key_version": req.group_key_version,
     });
 
     // ── C4 FIX : Broadcast WS uniquement aux participants de la conversation ──
@@ -536,6 +630,44 @@ pub async fn send_message(
     }
 
     Ok(Json(msg_json))
+}
+
+// ═════════════════════════════════════════════════════════════════
+// GET /conversations/{conv_id}/group-key-version
+// Retourne la version actuelle de la clé de groupe pour default_global
+// ═════════════════════════════════════════════════════════════════
+
+pub async fn get_group_key_version(
+    State(state): State<Arc<crate::SharedState>>,
+    Path(conv_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Vérifier que c'est bien default_global
+    let conv: Option<(bool,)> = sqlx::query_as(
+        "SELECT is_group FROM conversations WHERE id = ?"
+    )
+        .bind(&conv_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let is_group = conv.map(|(g,)| g).unwrap_or(false);
+    if !is_group {
+        return Ok(Json(serde_json::json!({ "group_key_version": null })));
+    }
+
+    // Récupérer la version la plus récente de la clé de groupe
+    let latest: Option<(i32,)> = sqlx::query_as(
+        "SELECT version FROM conversation_keys WHERE conversation_id = ? ORDER BY version DESC LIMIT 1"
+    )
+        .bind(&conv_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match latest {
+        Some((v,)) => Ok(Json(serde_json::json!({ "group_key_version": v }))),
+        None => Ok(Json(serde_json::json!({ "group_key_version": null }))),
+    }
 }
 
 // ── PATCH /api/conversations/{conv_id}/messages/{msg_id} ────────────────────
@@ -634,6 +766,10 @@ pub async fn delete_message(
         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "Erreur DB"}))).into_response();
     }
 
+    // ADR-017: références SET NULL — les messages qui citaient celui-ci perdent leur reply_to_id
+    sqlx::query("UPDATE messages SET reply_to_id = NULL WHERE reply_to_id = ?")
+        .bind(&msg_id).execute(&state.db).await.ok();
+
     {
         let ws = serde_json::json!({"type": "message_deleted", "conversation_id": conv_id, "message_id": msg_id});
         let participant_ids: Vec<(String,)> = sqlx::query_as(
@@ -670,10 +806,20 @@ pub async fn get_conversation_messages(
                 u.avatar_style AS sender_avatar_style,
                 u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
+                (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at,
+                m.reply_to_id,
+                COALESCE(ru.name, ru.username) AS reply_to_sender_name,
+                rm.content AS reply_to_content,
+                rm.message_type AS reply_to_message_type,
+                rm.file_id AS reply_to_file_id,
+                rm.nonce AS reply_to_nonce,
+                rm.encrypted AS reply_to_encrypted
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages rm ON m.reply_to_id = rm.id
+             LEFT JOIN users ru ON rm.sender_id = ru.id
              WHERE m.conversation_id = ? AND m.created_at < ?
              ORDER BY m.created_at ASC
              LIMIT ?",
@@ -695,10 +841,20 @@ pub async fn get_conversation_messages(
                 u.avatar_style AS sender_avatar_style,
                 u.avatar_seed AS sender_avatar_seed,
                 u.public_key AS sender_public_key,
+                (SELECT mk.sender_key_version FROM message_keys mk WHERE mk.message_id = m.id LIMIT 1) AS sender_key_version,
                 m.content, m.message_type, m.file_id,
-                m.encrypted, m.nonce, m.timestamp, m.created_at, m.edited_at
+                m.encrypted, m.nonce, m.group_key_version, m.timestamp, m.created_at, m.edited_at,
+                m.reply_to_id,
+                COALESCE(ru.name, ru.username) AS reply_to_sender_name,
+                rm.content AS reply_to_content,
+                rm.message_type AS reply_to_message_type,
+                rm.file_id AS reply_to_file_id,
+                rm.nonce AS reply_to_nonce,
+                rm.encrypted AS reply_to_encrypted
              FROM messages m
              LEFT JOIN users u ON u.id = m.sender_id
+             LEFT JOIN messages rm ON m.reply_to_id = rm.id
+             LEFT JOIN users ru ON rm.sender_id = ru.id
              WHERE m.conversation_id = ?
              ORDER BY m.created_at DESC
              LIMIT ?",

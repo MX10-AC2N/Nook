@@ -29,7 +29,7 @@
     const king  = color + 'K';
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
-        if (kingBoard[r]?.[c] === king) return toAlgebraic(r, c);
+        if (board[r]?.[c] === king) return toAlgebraic(r, c);
       }
     }
     return null;
@@ -611,12 +611,18 @@
 
   /* ── Plateau ── */
   .board-wrap { display: flex; justify-content: center; align-items: center; flex: 1; padding: 1rem 0; }
-  .board-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .board-container {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    /* Taille unique partagée par l'échiquier + les coordonnées, plafonnée par
+       la hauteur du viewport pour éviter que le footer ne recouvre les
+       dernières rangées (bug de clic en viewport court). */
+    --board-size: min(85vw, 720px, calc(100vh - 200px));
+  }
   .board-and-ranks { display: flex; align-items: stretch; gap: 2px; }
 
   .coords-top, .coords-bottom {
     display: grid; grid-template-columns: repeat(8, 1fr);
-    width: min(85vw, 720px); padding: 0 2px;
+    width: var(--board-size); padding: 0 2px;
   }
   .coords-top span, .coords-bottom span { text-align: center; font-size: .6rem; font-weight: 700; color: #94a3b8; line-height: 1.6; }
   .coords-left, .coords-right { display: flex; flex-direction: column; }
@@ -626,7 +632,8 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: min(85vw, 720px);
+    width: var(--board-size);
+    height: var(--board-size);
     aspect-ratio: 1;
     border: 2.5px solid #374151;
     border-radius: 3px;

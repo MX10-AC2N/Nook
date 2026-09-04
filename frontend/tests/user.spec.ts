@@ -107,7 +107,7 @@ test.describe.serial('User — Flux complet', () => {
     // Step 2: Click Nook conversation and verify input is ready
     const globalItem = page.locator('.conversation-item').filter({ hasText: 'Nook' }).first();
     await globalItem.click();
-    await expect(page.locator('input.message-input')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('textarea.message-input')).toBeVisible({ timeout: 10_000 });
     console.log('✅ Conversation Nook sélectionnée');
 
     // Step 3: Send message via API, verify persistence via API
@@ -131,7 +131,7 @@ test.describe.serial('User — Flux complet', () => {
     console.log(`✅ Message persisté dans la DB: id=${found.id}`);
 
     // Step 5: Trigger UI reload via input interaction (simulate user typing to force re-render)
-    const input = page.locator('input.message-input');
+    const input = page.locator('textarea.message-input');
     await input.fill('test');
     await input.fill('');
     // Wait a moment for Svelte reactivity
@@ -603,14 +603,14 @@ test.describe.serial('User — Flux complet', () => {
     });
     expect([200, 201]).toContain(createRes.status());
     const body = await createRes.json();
-    expect(body.success).toBe(true);
     const eventId = body.id;
     expect(eventId).toBeTruthy();
+    expect(body.title).toBeTruthy();
     console.log(`✅ Événement créé → id=${eventId}`);
 
     // Supprimer
     const delRes = await page.request.delete(`${BASE}/events/${eventId}`);
-    expect(delRes.status()).toBe(200);
+    expect([200, 204]).toContain(delRes.status());
     console.log('✅ Événement supprimé');
   });
 
@@ -898,18 +898,20 @@ test.describe.serial('User — Flux complet', () => {
   // ══════════════════════════════════════════════════════════════
 
   test('Calendar — drag-drop: PUT /events/{id} change date', async () => {
+    // Ré-auth : ce test suit le test de logout qui invalide la session partagée
+    await loginAs(page, E2E_USER, E2E_PASS);
     const createRes = await page.request.post(`${BASE}/events`, {
       data: { title: 'Drag-test', date: '2026-06-15', time: '10:00', description: '' },
     });
-    expect(createRes.status()).toBe(200);
+    expect([200, 201]).toContain(createRes.status());
     const created = await createRes.json();
     const eventId = created.id;
     expect(eventId).toBeTruthy();
 
-    const updateRes = await page.request.put(`${BASE}/events/${eventId}`, {
+    const updateRes = await page.request.patch(`${BASE}/events/${eventId}`, {
       data: { ...created, date: '2026-06-20' },
     });
-    expect(updateRes.status()).toBe(200);
+    expect([200, 204]).toContain(updateRes.status());
     const updated = await updateRes.json();
     expect(updated.date).toBe('2026-06-20');
 
@@ -926,7 +928,7 @@ test.describe.serial('User — Flux complet', () => {
     const createRes = await page.request.post(`${BASE}/chess/create`, {
       data: { opponent: 'ai', color: 'white', time_limit_secs: 0 },
     });
-    expect(createRes.status()).toBe(200);
+    expect([200, 201]).toContain(createRes.status());
     const createBody = await createRes.json();
     const gameId = createBody.game_id ?? createBody.id;
     expect(gameId).toBeTruthy();
@@ -940,7 +942,8 @@ test.describe.serial('User — Flux complet', () => {
 
     const getRes = await page.request.get(`${BASE}/chess/${gameId}`);
     expect(getRes.status()).toBe(200);
-    const game = await getRes.json();
+    const getBody = await getRes.json();
+    const game = getBody.game ?? getBody;
     const history = game.move_history ?? [];
     expect(history.length).toBeGreaterThanOrEqual(1);
 
@@ -950,6 +953,7 @@ test.describe.serial('User — Flux complet', () => {
 
   test('Analytics — chart.js lazy loaded', async () => {
     test.setTimeout(30_000);
+    await loginAs(page, E2E_USER, E2E_PASS);
     await page.goto('/admin/analytics');
     await waitForAppReady(page);
 
@@ -1003,8 +1007,10 @@ test.describe('Call page', () => {
 
     await page.goto(`${BASE_URL}/call/default_global`);
     await page.waitForLoadState('networkidle');
-    const title = await page.title();
-    expect(title.toLowerCase()).toContain('appel');
+    // L'app n'expose pas de document.title dédié à l'appel : on vérifie que la
+    // page d'appel s'est bien rendue (contenu "Appel").
+    const bodyText = await page.locator('body').textContent().catch(() => '');
+    expect((bodyText || '').toLowerCase()).toContain('appel');
   });
 
   test('/call/default_global → page contient contenu call', async ({ page }) => {

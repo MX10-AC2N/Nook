@@ -82,12 +82,12 @@ test.describe('Admin UI — Users + Invites', () => {
   });
 
   test('API: Get pending users', async ({ request }) => {
-    const login = await request.post(`${BASE}/api/auth/login`, {
+    const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'AdminCI2026!' },
     });
     expect(login.ok()).toBeTruthy();
     // Get pending users
-    const pending = await request.get(`${BASE}/api/users/pending`);
+    const pending = await request.get(`${BASE}/users/pending`);
     expect([200, 401, 403]).toContain(pending.status());
     
     if (pending.ok()) {
@@ -101,12 +101,12 @@ test.describe('Admin UI — Users + Invites', () => {
   });
 
   test('API: Create and delete invite', async ({ request }) => {
-    const login = await request.post(`${BASE}/api/auth/login`, {
+    const login = await request.post(`${BASE}/auth/login`, {
       data: { username: 'admin', password: 'AdminCI2026!' },
     });
     expect(login.ok()).toBeTruthy();
     // Create invite
-    const createRes = await request.post(`${BASE}/api/invites`, {
+    const createRes = await request.post(`${BASE}/invites`, {
       data: { max_uses: 1, expires_in_days: 7 },
     });
     expect([200, 201, 401, 403]).toContain(createRes.status());

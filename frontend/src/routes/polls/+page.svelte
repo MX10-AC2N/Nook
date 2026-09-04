@@ -13,6 +13,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
+  import { getActiveConversationId } from '$lib/conversationStore.svelte.js';
   import { notifyPoll } from '$lib/notificationStore.svelte';
 
   interface PollOption {
@@ -80,7 +81,8 @@
 
     submitting = true; error = null;
     try {
-      const body: Record<string, unknown> = { question, options };
+      const conversationId = getActiveConversationId() ?? 'default_global';
+      const body: Record<string, unknown> = { question, options, conversation_id: conversationId };
       // Date de clôture optionnelle → timestamp unix
       if (closingDate) {
         body.closes_at = Math.floor(new Date(closingDate + 'T23:59:59').getTime() / 1000);

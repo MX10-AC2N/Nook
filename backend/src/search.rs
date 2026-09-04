@@ -79,7 +79,14 @@ async fn search_messages(
                       u.avatar_seed as sender_avatar_seed,
                       u.public_key as sender_public_key,
                       m.content, m.message_type, m.file_id, m.encrypted,
-                      m.timestamp, m.created_at, m.edited_at
+                      m.timestamp, m.created_at, m.edited_at,
+                      m.reply_to_id,
+                      NULL as reply_to_sender_name,
+                      NULL as reply_to_content,
+                      NULL as reply_to_message_type,
+                      NULL as reply_to_file_id,
+                      NULL as reply_to_nonce,
+                      NULL as reply_to_encrypted
                FROM messages m
                JOIN users u ON u.id = m.sender_id
                WHERE m.conversation_id = ?
@@ -106,7 +113,14 @@ async fn search_messages(
                       u.avatar_seed as sender_avatar_seed,
                       u.public_key as sender_public_key,
                       m.content, m.message_type, m.file_id, m.encrypted,
-                      m.timestamp, m.created_at, m.edited_at
+                      m.timestamp, m.created_at, m.edited_at,
+                      m.reply_to_id,
+                      NULL as reply_to_sender_name,
+                      NULL as reply_to_content,
+                      NULL as reply_to_message_type,
+                      NULL as reply_to_file_id,
+                      NULL as reply_to_nonce,
+                      NULL as reply_to_encrypted
                FROM messages m
                JOIN users u ON u.id = m.sender_id
                JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id

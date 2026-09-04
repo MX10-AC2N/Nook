@@ -17,6 +17,20 @@ export interface ChatMessage {
   timestamp: number;
   created_at: number;
   edited_at: number | null;
+  // ADR-017: reply-to
+  reply_to_id: string | null;
+  reply_to: ReplyToPreview | null;
+}
+
+/** Preview du message cité (ADR-017) */
+export interface ReplyToPreview {
+  id: string;
+  sender_name: string | null;
+  content: string | null;
+  message_type: string | null;
+  file_id: string | null;
+  nonce: string | null;
+  encrypted: boolean;
 }
 
 export interface ChatState {
