@@ -330,11 +330,11 @@
       const panelWidth = 320;
       const panelHeight = 260;
       const margin = 10;
-      // Position above the input area
-      let top = rect.top - panelHeight - margin;
-      // If not enough space above, position below
-      if (top < margin) {
-        top = rect.bottom + margin;
+      // Position BELOW the input area (default)
+      let top = rect.bottom + margin;
+      // If not enough space below, position above
+      if (top + panelHeight > window.innerHeight - margin) {
+        top = rect.top - panelHeight - margin;
       }
       let left = rect.left;
       // Clamp to viewport
@@ -1522,7 +1522,7 @@
       {/if}
     </header>
 
-  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }}}>
+  <div class="messages-container" bind:this={chatContainer} onscroll={handleMessagesScroll} onclick={() => { if (emojiPickerMsgId) emojiPickerMsgId = null; if (extendedEmojiMsgId) extendedEmojiMsgId = null; }}>
       {#if localMessages.length === 0}
         {#if loadingConvs}
           <div class="empty-state">
@@ -2490,7 +2490,8 @@
 
   /* ─── Picker emoji natif (remplace GIF Tenor — S39) ─── */
   .emoji-panel {
-    flex-shrink: 0; border-top: 1px solid var(--border, #e2e8f0);
+    position: fixed;
+    border-top: 1px solid var(--border, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
     max-height: 260px; display: flex; flex-direction: column;
     border-radius: .6rem;
