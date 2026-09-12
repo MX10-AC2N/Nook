@@ -371,10 +371,18 @@
     const pickerHeight = 400;
     const margin = 6;
     
-    // Always position below the message
+    // Position: below the message, but flip above if not enough space
     const bottomEdge = msgRect.bottom + margin;
-    const availableHeight = window.innerHeight - bottomEdge;
-    const finalPickerHeight = Math.min(pickerHeight, Math.max(availableHeight, 50));
+    const availableBelow = window.innerHeight - bottomEdge;
+    const finalPickerHeight = Math.min(pickerHeight, Math.max(availableBelow, 50));
+    
+    let top;
+    if (availableBelow >= pickerHeight) {
+      top = bottomEdge;  // enough space below
+    } else {
+      top = msgRect.top - pickerHeight - margin;  // flip above
+      if (top < margin) top = bottomEdge;  // fallback to below if no space above either
+    }
     
     // Horizontal clamp: keep the 320px-wide picker fully inside the viewport.
     const pickerWidth = 320;
@@ -395,7 +403,7 @@
     if (left < margin) left = margin;
 
     emojiPickerPos = {
-      top: bottomEdge,
+      top,
       left,
       right: window.innerWidth - left - pickerWidth,
       maxHeight: finalPickerHeight,
