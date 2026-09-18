@@ -1,7 +1,7 @@
 # 🧪 Rapport E2E ciblé — Nook
 
 Généré automatiquement par `e2e-targeted.yml`
-**Dernière mise à jour : 2026-08-29 08:22 UTC**
+**Dernière mise à jour : 2026-09-18 05:10 UTC**
 
 ---
 
@@ -10,23 +10,23 @@ Généré automatiquement par `e2e-targeted.yml`
 | Champ | Valeur |
 |-------|--------|
 | **Statut** | ❌ ÉCHEC |
-| **Suite lancée** | 🔐 Auth — login, logout, /auth/me |
-| **Filtre Playwright** | `Auth` |
+| **Suite lancée** | 🔑 E2EE — clés publiques |
+| **Filtre Playwright** | `E2EE` |
 | **Tests passés** | 5 |
 | **Tests échoués** | 69 |
 | **Tests flaky** |  |
 | **Traces activées** | false |
 | **Branche** | `develop` |
-| **Commit** | [`3fe3c4e`](https://github.com/MX10-AC2N/Nook/commit/3fe3c4e25a0ec221e8dc81fc1f6fa77e2db6993f) |
-| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/33242677228) |
+| **Commit** | [`1e0c299`](https://github.com/MX10-AC2N/Nook/commit/1e0c299583839eed101823c2bb20514130845dab) |
+| **Run CI** | [Voir le run complet](https://github.com/MX10-AC2N/Nook/actions/runs/35309299985) |
 
 ---
 
 ## Résultats par test
 
 ```
-✘  128 [api-sanity] › tests/api-sanity.spec.ts:392:3 › Sécurité — Change password autre user → 403 (fix C1) › User change pwd autre user → 403 (integration) (621ms)
-  ✘  129 [api-sanity] › tests/api-sanity.spec.ts:392:3 › Sécurité — Change password autre user → 403 (fix C1) › User change pwd autre user → 403 (integration) (retry #1) (639ms)
+✘  128 [api-sanity] › tests/api-sanity.spec.ts:392:3 › Sécurité — Change password autre user → 403 (fix C1) › User change pwd autre user → 403 (integration) (614ms)
+  ✘  129 [api-sanity] › tests/api-sanity.spec.ts:392:3 › Sécurité — Change password autre user → 403 (fix C1) › User change pwd autre user → 403 (integration) (retry #1) (626ms)
         npx playwright show-trace test-results/api-sanity-Sanité-—-Serveur-GET-api-health-→-OK--api-sanity-retry1/trace.zip
         npx playwright show-trace test-results/api-sanity-Sanité-—-Serveu-03c0a-ublique-pas-d-auth-requise--api-sanity-retry1/trace.zip
         npx playwright show-trace test-results/api-sanity-Sécurité-—-Rout-48605-uth-→-401-GET-auth-me-→-401-api-sanity-retry1/trace.zip
@@ -99,7 +99,7 @@ Généré automatiquement par `e2e-targeted.yml`
         npx playwright show-trace test-results/api-sanity-Sécurité-—-Mess-f0449-rsation-→-200-second-block--api-sanity-retry1/trace.zip
   69 failed
     [api-sanity] › tests/api-sanity.spec.ts:392:3 › Sécurité — Change password autre user → 403 (fix C1) › User change pwd autre user → 403 (integration) 
-  5 passed (2.6m)
+  5 passed (2.1m)
 ```
 
 ---
@@ -372,8 +372,8 @@ test-results/api-sanity-Sécurité-—-Uplo-7b520-pload-→-Download-end-to-end-
     [api-sanity] › tests/api-sanity.spec.ts:475:3 › Sécurité — Message CRUD conversation › Envoyer message → 200 
     [api-sanity] › tests/api-sanity.spec.ts:529:3 › Sécurité — Message CRUD conversation › Rename conversation → 200 (second block) 
   1 skipped
-  6 did not run
-  5 passed (2.6m)
+  7 did not run
+  5 passed (2.1m)
 ```
 
 ---
