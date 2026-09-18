@@ -1,0 +1,5 @@
+type: procedural
+scope: global
+domain: nook.github-manager.plur-sync
+tags: [nook, github-manager, 2026-09-16, plur-sync, workaround]
+statement: "github-manager MEMORY.md synchronisé avec PLUR via écriture directe DB SQLite — 5 contextes sync, plur_sdk contourné"

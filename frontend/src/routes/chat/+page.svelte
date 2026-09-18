@@ -377,10 +377,10 @@
     const finalPickerHeight = Math.min(pickerHeight, Math.max(availableBelow, 50));
     
     let top;
-    if (availableBelow >= pickerHeight) {
+    if (availableBelow >= finalPickerHeight) {
       top = bottomEdge;  // enough space below
     } else {
-      top = msgRect.top - pickerHeight - margin;  // flip above
+      top = msgRect.top - finalPickerHeight - margin;  // flip above
       if (top < margin) top = bottomEdge;  // fallback to below if no space above either
     }
     
