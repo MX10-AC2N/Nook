@@ -18,6 +18,7 @@ target/
 # Build artifacts
 dist/
 build/
+!frontend/build/
 .next/
 .cache/
 

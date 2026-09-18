@@ -125,30 +125,10 @@ jobs:
           path: frontend/build
           retention-days: 1
 
-  backend:
-    name: "Build Backend"
-    runs-on: ubuntu-latest
-    needs: resolve
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend
-      - name: Build release
-        env:
-          SQLX_OFFLINE: "true"
-        run: cargo build --manifest-path backend/Cargo.toml --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nook-backend-e2e-targeted
-          path: backend/target/release/nook-backend
-          retention-days: 1
-
   e2e-targeted:
     name: "🧪 ${{ needs.resolve.outputs.label }}"
     runs-on: ubuntu-latest
-    needs: [resolve, frontend, backend]
+    needs: [resolve, frontend]
 
     steps:
       - uses: actions/checkout@v4
@@ -160,31 +140,65 @@ jobs:
           name: nook-frontend-e2e-targeted
           path: frontend/build
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: nook-backend-e2e-targeted
-          path: /tmp/nook-bin/
-
-      - name: Démarrer backend Nook
-        env:
-          DATABASE_URL: sqlite:///tmp/nook-data/nook.db
-          ALLOWED_ORIGINS: http://localhost:6300
-          JWT_SECRET: e2e-targeted-test-secret
-          UPLOAD_DIR: /tmp/nook-uploads
-          BACKEND_PORT: "3000"
-          E2E_SETUP: "1"
+      - name: Create .env file for Docker Compose
         run: |
-          chmod +x /tmp/nook-bin/nook-backend
-          mkdir -p /tmp/nook-data /tmp/nook-uploads
-          /tmp/nook-bin/nook-backend &
-          echo "Attente backend..."
-          for i in $(seq 1 30); do
-            if curl -sf http://localhost:6300/api/health | grep -q "OK"; then
-              echo "Backend pret (tentative $i)"
-              break
-            fi
+          cat > .env << 'EOF'
+          # Nook CI Environment (test values)
+          TZ=Europe/Paris
+          PORT=6300
+          PUBLIC_SITE_URL=http://localhost:6300
+          E2EE_SETUP=0
+          RATE_LIMIT_PER_MIN=999999
+          AUTH_RATE_LIMIT_PER_MIN=999999
+          DATA_DIR=./nook-data
+          LOGS_DIR=./nook-logs
+          NGINX_SSL_DIR=./nginx-ssl
+          TURN_CONFIG_DIR=./turn-config
+          CPUS_LIMIT=1.5
+          MEMORY_LIMIT=1024M
+          CPUS_RESERVATION=0.5
+          MEMORY_RESERVATION=256M
+          NGINX_HTTPS_PORT=6443
+          TURN_PORT=3478
+          # Test secrets (not real - for CI only)
+          TURN_SECRET=turn_test_secret_2026_nook_ci
+          ADMIN_INITIAL_PASSWORD=AdminCI2026!
+          EOF
+          echo "✅ .env file created"
+
+      - name: Clean previous runs
+        run: |
+          docker compose down -v --remove-orphans 2>/dev/null || true
+          rm -rf nook-data nook-logs turn-config nginx-ssl
+          mkdir -p nook-data nook-logs turn-config nginx-ssl
+          chmod 0777 nook-data nook-logs turn-config
+
+      - name: Build Docker image (from source)
+        run: |
+          docker build \
+            --tag nook-ci:local \
+            --file Dockerfile \
+            --build-arg SQLX_OFFLINE=true \
+            .
+          echo "✅ Image nook-ci:local construite"
+
+      - name: Start stack
+        run: |
+          echo "=== Starting Docker Compose Stack ==="
+          docker compose -f docker-compose.ci.yml up -d --force-recreate nook
+
+          echo "⏳ Waiting for healthcheck (max 120s)..."
+          TIMEOUT=0
+          while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
             sleep 2
+            TIMEOUT=$((TIMEOUT + 2))
+            if [ $TIMEOUT -gt 120 ]; then
+              echo "❌ Healthcheck timeout after 120s"
+              docker compose -f docker-compose.ci.yml logs nook
+              exit 1
+            fi
           done
+          echo "✅ Stack started successfully - healthcheck OK"
 
       - uses: actions/setup-node@v4
         with:
@@ -245,7 +259,6 @@ jobs:
         run: |
           RUN_DATE=$(date -u "+%Y-%m-%d %H:%M UTC")
 
-          # Extraire les lignes de résultats et erreurs dans des fichiers temporaires
           grep -E "passed|failed|x |v " /tmp/e2e-targeted-output.txt 2>/dev/null \
             | sed "s/\x1b\[[0-9;]*m//g" | head -100 > /tmp/test_lines.txt || true
           grep -A 5 "Error:" /tmp/e2e-targeted-output.txt 2>/dev/null \
