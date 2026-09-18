@@ -1599,7 +1599,7 @@
             <!-- Message content -->
             <div class="message {msg.sender_id === authStore.user?.id ? 'mine' : 'theirs'}">
               {#if msg.encrypted}
-                <div class="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
+                <div class="encrypted-placeholder" data-testid="encrypted-placeholder">🔒 Message chiffré (clé indisponible)</div>
               {:else if isEmojiOnly(msg.content)}
                 <div class="emoji-only">{@html msg.content}</div>
               {:else}

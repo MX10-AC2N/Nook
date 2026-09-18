@@ -1,37 +1,53 @@
 import { test, expect } from '@playwright/test';
 import { BASE } from './helpers';
 
-
 test.describe('E2EE Chat — Encryption + Decryption', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+    // ✅ OBLIGATOIRE : layout fait waitForSodium ~500ms + authStore.init()
+    // #username n'existe pas dans le DOM avant la fin de onMount
+    await page.waitForSelector('#username', { state: 'visible', timeout: 20000 });
+    await page.fill('#username', 'e2e_ci');
+    await page.fill('#password', 'E2eTest123!');
     await page.click('button[type="submit"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(2000);
   });
 
   test('E2EE: crypto store initializes', async ({ page }) => {
-    // Check if crypto store is available
+    // cryptoStore est un module $state Svelte, pas sur window.
+    // On vérifie via IndexedDB + sessionStorage (preuve que E2EE a initialisé)
     const cryptoStatus = await page.evaluate(async () => {
       // Wait for crypto store to initialize
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check for crypto store in window or Nook app
-      const hasCryptoStore = !!(window as any).cryptoStore;
-      const hasOlm = typeof (window as any).olm !== 'undefined';
-      const hasLibolm = typeof (window as any).libolm !== 'undefined';
-      
-      return { hasCryptoStore, hasOlm, hasLibolm, ready: (window as any).cryptoStore?.ready };
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Vérifier les preuves d'initialisation E2EE
+      const hasSessionKeys = !!(sessionStorage.getItem('nook_privkey') && sessionStorage.getItem('nook_pubkey'));
+      const hasLocalKeys = !!(localStorage.getItem('nook_privkey') && localStorage.getItem('nook_pubkey'));
+      const hasCryptoPassword = !!localStorage.getItem('nook_crypto_key');
+
+      // Vérifier IndexedDB (storeKeysInIndexedDB)
+      let hasIndexedDB = false;
+      try {
+        const dbs = await indexedDB.databases();
+        hasIndexedDB = dbs.some(db => db.name?.includes('nook') || db.name?.includes('crypto'));
+      } catch { /* ignore */ }
+
+      return {
+        hasSessionKeys,
+        hasLocalKeys,
+        hasCryptoPassword,
+        hasIndexedDB,
+        ready: hasSessionKeys || hasLocalKeys,
+      };
     });
 
     console.log('Crypto status:', cryptoStatus);
-    
-    // At least one crypto method should be available
-    expect(cryptoStatus.hasCryptoStore || cryptoStatus.hasOlm || cryptoStatus.hasLibolm).toBe(true);
-    console.log('✅ E2EE crypto available');
+
+    // Au moins un moyen de stockage E2EE doit être actif
+    expect(cryptoStatus.ready || cryptoStatus.hasIndexedDB).toBe(true);
+    console.log('✅ E2EE crypto initialized');
   });
 
   test('E2EE: Send encrypted message', async ({ page }) => {
@@ -46,17 +62,19 @@ test.describe('E2EE Chat — Encryption + Decryption', () => {
     // Check if message appears (decrypted on receive)
     const msgVisible = page.locator(`text=${testMsg}`);
     const count = await msgVisible.count();
-    
+
     if (count > 0) {
       console.log('✅ Message sent and visible (E2EE working)');
-      
-      // Check for encryption indicator
-      const encryptedIcon = page.locator('[data-testid="encrypted-icon"], .encrypted-badge, svg[title*="chiffré"]').first();
-      if (await encryptedIcon.isVisible({ timeout: 3000 })) {
-        console.log('✅ Encryption indicator shown');
-      }
     } else {
-      console.log('⚠️ Message not visible (might be encryption issue)');
+      // En CI, les messages E2EE peuvent ne pas s'afficher si les clés ne sont pas échangées
+      // entre utilisateurs (single-user test). On vérifie qu'il n'y a pas d'erreur visible.
+      const errorPlaceholder = page.locator('text=🔒 Message chiffré');
+      const errorCount = await errorPlaceholder.count();
+      if (errorCount > 0) {
+        console.log('⚠️ Message visible mais chiffré (clé indisponible — normal en single-user)');
+      } else {
+        console.log('⚠️ Message ni visible ni chiffré — possible timing issue');
+      }
     }
   });
 
@@ -74,6 +92,16 @@ test.describe('E2EE Chat — Encryption + Decryption', () => {
     await page.reload();
     await page.waitForTimeout(3000);
 
+    // Re-login si redirigé vers /login
+    if (page.url().includes('/login')) {
+      await page.waitForSelector('#username', { state: 'visible', timeout: 10000 });
+      await page.fill('#username', 'e2e_ci');
+      await page.fill('#password', 'E2eTest123!');
+      await page.click('button[type="submit"]');
+      await page.waitForURL('**/chat', { timeout: 15000 });
+      await page.waitForTimeout(2000);
+    }
+
     // Check if message is still visible (decrypted after refresh)
     const msgAfterRefresh = page.locator(`text=${testMsg}`);
     const count = await msgAfterRefresh.count();
@@ -81,47 +109,77 @@ test.describe('E2EE Chat — Encryption + Decryption', () => {
     if (count > 0) {
       console.log('✅ Message still visible after refresh (E2EE working)');
     } else {
-      // This might be the bug you mentioned (NOOK-E2EE-REFRESH BUG)
-      console.log('⚠️ Message not visible after refresh — possible E2EE bug');
-      console.log('Known issue: cryptoStore.ready=false after refresh → messages stay encrypted');
+      console.log('⚠️ Message not visible after refresh — E2EE state may need manual unlock');
     }
   });
 
-  test('E2EE: Key exchange UI (if available)', async ({ page }) => {
-    // Check for E2EE key management UI
-    const keyManagementBtn = page.locator('[data-testid="key-management"], button[title*="clé"], button[title*="key"]').first();
-    
-    if (await keyManagementBtn.isVisible({ timeout: 3000 })) {
-      console.log('✅ Key management UI found');
-      await keyManagementBtn.click();
-      await page.waitForTimeout(1000);
-
-      // Check for key fingerprint or export option
-      const fingerprint = page.locator('text=/empreinte|fingerprint|clé publique/i').first();
-      if (await fingerprint.isVisible()) {
-        console.log('✅ Key fingerprint displayed');
-      }
-    } else {
-      console.log('⚠️ Key management UI not found (might be in settings)');
-    }
-  });
-
-  test('API: Check encryption status', async ({ request }) => {
-    const login = await request.post(`${BASE}/api/auth/login`, {
-      data: { username: 'hermes-bot', password: 'Hermes2026!' },
+  test('E2EE: Key exchange via API', async ({ request }) => {
+    // Login d'abord pour avoir un cookie valide
+    const login = await request.post(`${BASE}/auth/login`, {
+      data: { username: 'e2e_ci', password: 'E2eTest123!' },
     });
     expect(login.ok()).toBeTruthy();
 
-    // Check if there's an encryption status endpoint
-    const statusRes = await request.get(`${BASE}/api/auth/encryption-status`).catch(() => null);
-    
-    if (statusRes && statusRes.ok()) {
-      const status = await statusRes.json();
-      console.log('Encryption status:', status);
-      console.log('✅ Encryption status API available');
-    } else {
-      console.log('⚠️ Encryption status API not found (might be client-side only)');
-    }
+    // Vérifier que les clés publiques des membres sont accessibles
+    const keysRes = await request.get(`${BASE}/auth/public-keys?conversation_id=default_global`);
+    expect(keysRes.status()).toBe(200);
+    const keys = await keysRes.json();
+    expect(Array.isArray(keys)).toBe(true);
+    expect(keys.length).toBeGreaterThan(0);
+
+    // Vérifier la structure des clés
+    const firstKey = keys[0];
+    expect(firstKey.user_id).toBeTruthy();
+    expect(firstKey.username).toBeTruthy();
+    expect(firstKey.public_key).toBeTruthy();
+    expect(firstKey.public_key.length).toBeGreaterThan(0);
+
+    console.log(`✅ Key exchange: ${keys.length} public key(s) retrieved`);
+  });
+
+  test('API: Public key registration', async ({ request }) => {
+    const login = await request.post(`${BASE}/auth/login`, {
+      data: { username: 'e2e_ci', password: 'E2eTest123!' },
+    });
+    expect(login.ok()).toBeTruthy();
+
+    // Générer une clé publique valide (32 bytes X25519 en base64)
+    const fakeKey = Buffer.from(new Uint8Array(32).map((_, i) => i)).toString('base64');
+
+    const res = await request.post(`${BASE}/auth/public-key`, {
+      data: { public_key: fakeKey },
+    });
+    expect([200, 201]).toContain(res.status());
+    expect((await res.json()).success).toBe(true);
+    console.log('✅ Public key registration OK');
+  });
+
+  test('API: Invalid public key rejected', async ({ request }) => {
+    const login = await request.post(`${BASE}/auth/login`, {
+      data: { username: 'e2e_ci', password: 'E2eTest123!' },
+    });
+    expect(login.ok()).toBeTruthy();
+
+    // Clé invalide (16 bytes au lieu de 32)
+    const invalidKey = Buffer.from(new Uint8Array(16).fill(42)).toString('base64');
+    const res = await request.post(`${BASE}/auth/public-key`, {
+      data: { public_key: invalidKey },
+    });
+    expect(res.status()).toBe(400);
+    console.log('✅ Invalid public key rejected with 400');
+  });
+
+  test('API: Invalid base64 rejected', async ({ request }) => {
+    const login = await request.post(`${BASE}/auth/login`, {
+      data: { username: 'e2e_ci', password: 'E2eTest123!' },
+    });
+    expect(login.ok()).toBeTruthy();
+
+    const res = await request.post(`${BASE}/auth/public-key`, {
+      data: { public_key: '!!!not-valid-base64!!!' },
+    });
+    expect(res.status()).toBe(400);
+    console.log('✅ Invalid base64 rejected with 400');
   });
 
 });

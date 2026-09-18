@@ -132,13 +132,13 @@
         />
       </div>
 
-      <button type="submit" class="btn-primary" disabled={loading}>
+      <button type="submit" class="btn-primary" disabled={loading} data-testid="login-btn">
         {#if loading}
           <span class="spinner"></span>
           Connexion en cours...
         {:else}
           <Icon name="login" size={24} />
-          Se connecter
+          Se connexionner
         {/if}
       </button>
     </form>

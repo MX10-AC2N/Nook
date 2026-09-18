@@ -9,6 +9,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/authStore.svelte.js';
   import { getPushState, subscribeToPush, unsubscribePush, type PushState } from '$lib/push';
+  import { cryptoStore } from '$lib/cryptoStore.svelte';
 
   let userName         = $state('');
   let currentPassword  = $state('');
@@ -295,15 +296,24 @@
     </div>
 
     <!-- ── Clés E2EE ──────────────────────────────────────────── -->
-    <div class="settings-section">
+    <div class="settings-section" data-testid="e2ee-section">
       <h2>🔐 Clés E2EE</h2>
       <p class="section-desc">
         Gérez la rotation de vos clés de chiffrement et sauvegardez-les
         pour les restaurer sur un autre appareil.
       </p>
-      <button class="btn btn-primary" onclick={() => goto('/settings/security/key-rotation')}>
+      <button class="btn btn-primary" onclick={() => goto('/settings/security/key-rotation')} data-testid="e2ee-manage-btn">
         Gérer les clés E2EE
       </button>
+      {#if cryptoStore}
+        <div class="e2ee-status" data-testid="e2ee-status">
+          {#if cryptoStore.ready}
+            <span class="badge badge-success">E2EE Actif</span>
+          {:else}
+            <span class="badge badge-warning">E2EE Inactif</span>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!-- ── Notifications push ────────────────────────────────────────── -->

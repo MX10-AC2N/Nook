@@ -517,6 +517,36 @@ pub async fn get_key_version(
     }))
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/auth/encryption-status
+// Retourne le statut E2EE de l'utilisateur courant (pour tests E2E).
+// ─────────────────────────────────────────────────────────────────────────────
+pub async fn get_encryption_status(
+    AxumState(state): AxumState<Arc<SharedState>>,
+    Extension(CurrentUser(user)): Extension<CurrentUser>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let has_key: Option<(i64,)> = sqlx::query_as(
+        "SELECT COUNT(*) FROM users WHERE id = ? AND public_key IS NOT NULL",
+    )
+    .bind(&user.id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let key_count = has_key.map(|(c,)| c).unwrap_or(0);
+    let active_version = get_user_active_key_version(&state, &user.id).await?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "enabled": key_count > 0,
+        "user_id": user.id,
+        "username": user.username,
+        "public_key_present": key_count > 0,
+        "active_key_version": active_version,
+        "algorithm": "X25519+XSalsa20-Poly1305",
+    })))
+}
+
 /// Récupère la version actuelle (active) de la clé publique d'un utilisateur.
 /// Retourne la version avec revoked_at IS NULL, ou 1 si clé initiale sans historique,
 /// ou 0 si aucune clé publique.
@@ -1000,6 +1030,7 @@ pub fn e2ee_routes() -> axum::Router<Arc<SharedState>> {
         .route("/auth/rotate-key", post(rotate_key))
         .route("/auth/key-history", get(get_key_history))
         .route("/auth/key-history/{version}", get(get_key_version))
+        .route("/auth/encryption-status", get(get_encryption_status))
         .route(
             "/conversations/{conv_id}/my-encrypted-key/{msg_id}",
             get(get_my_encrypted_key),
