@@ -186,11 +186,11 @@ jobs:
       - name: Start stack
         run: |
           echo "=== Starting Docker Compose Stack ==="
-          docker compose -f docker-compose.ci.yml up -d --force-recreate nook
+          docker compose -f docker-compose.ci.yml up -d --force-recreate
 
-          echo "⏳ Waiting for healthcheck (max 120s)..."
+          echo "⏳ Waiting for nook healthcheck (max 120s)..."
           TIMEOUT=0
-          while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
+          while ! docker compose -f docker-compose.ci.yml exec nook wget -qO- http://127.0.0.1:3000/api/health 2>/dev/null | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
             if [ $TIMEOUT -gt 120 ]; then
