@@ -43,8 +43,8 @@ jobs:
           cat > .env << 'EOF'
           TZ=Europe/Paris
           PORT=6300
-          PUBLIC_SITE_URL=http://localhost:6300
-          E2EE_SETUP=0
+          PUBLIC_SITE_URL=http://127.0.0.1:6300
+          E2E_SETUP=1
           RATE_LIMIT_PER_MIN=60
           DATA_DIR=./nook-data
           LOGS_DIR=./nook-logs
@@ -80,7 +80,7 @@ jobs:
 
           echo "⏳ Attente healthcheck nook..."
           TIMEOUT=0
-          while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
+          while ! curl -sf http://127.0.0.1:6300/api/health | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
             if [ $TIMEOUT -gt 90 ]; then
@@ -99,21 +99,21 @@ jobs:
       - name: Smoke tests — Health & Auth
         run: |
           echo "=== Health ==="
-          HEALTH=$(curl -s http://localhost:6300/api/health)
+          HEALTH=$(curl -s http://127.0.0.1:6300/api/health)
           [ "$HEALTH" = "OK" ] || (echo "❌ Health: $HEALTH" && exit 1)
           echo "✅ Health: OK"
 
           echo "=== Auth endpoints ==="
           # 401 sans cookie
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6300/api/auth/me)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:6300/api/auth/me)
           [ "$STATUS" = "401" ] || (echo "❌ GET /auth/me sans cookie -> $STATUS (attendu 401)" && exit 1)
           echo "✅ /auth/me sans cookie -> 401"
 
           # Admin login
-          curl -s -c /tmp/cookies.txt -X POST http://localhost:6300/api/auth/login \
+          curl -s -c /tmp/cookies.txt -X POST http://127.0.0.1:6300/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"AdminCI2026!"}'
-          ADMIN_ID=$(curl -s -b /tmp/cookies.txt http://localhost:6300/api/auth/me | jq -r '.user.id // empty')
+          ADMIN_ID=$(curl -s -b /tmp/cookies.txt http://127.0.0.1:6300/api/auth/me | jq -r '.user.id // empty')
           [ -n "$ADMIN_ID" ] || (echo "❌ Admin login échoué" && exit 1)
           echo "✅ Admin login -> $ADMIN_ID"
 
@@ -128,7 +128,7 @@ jobs:
             -H "Upgrade: websocket" \
             -H "Sec-WebSocket-Version: 13" \
             -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
-            http://localhost:6300/ws)
+            http://127.0.0.1:6300/ws)
           [ "$WS_CHECK" = "101" ] || (echo "⚠️ WS upgrade -> $WS_CHECK (101 attendu)" && exit 0)  # soft fail
           echo "✅ WS upgrade -> 101"
 

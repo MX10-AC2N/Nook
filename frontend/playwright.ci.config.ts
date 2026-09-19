@@ -10,7 +10,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
 
   use: {
-    baseURL: 'http://192.168.1.192:6300',
+    baseURL: 'http://127.0.0.1:6300',
     trace: 'on-first-retry',
   },
 

@@ -275,7 +275,7 @@ test.describe('Sécurité — Message conversation CRUD', () => {
 });
 
 test.describe('Sécurité — Call page access', () => {
-  const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+  const BASE_URL = process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300';
   test('/call/fake-id sans auth → redirige vers /login', async ({ browser }) => {
     const page = await browser.newPage();
     await page.goto(`${BASE_URL}/call/fake-id`);

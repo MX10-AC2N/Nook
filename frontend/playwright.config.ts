@@ -13,7 +13,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   
   use: {
-    baseURL: process.env.NOOK_BASE_URL || 'http://localhost:6300',
+    baseURL: process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300',
     trace: 'on-first-retry',
   },
 

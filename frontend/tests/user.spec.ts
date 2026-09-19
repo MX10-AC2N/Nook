@@ -20,7 +20,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { loginAs, loginViaAPI, waitForAppReady, clearSession, BASE, E2E_USER, E2E_PASS } from './helpers';
 
-const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300';
 
 test.describe.serial('User — Flux complet', () => {
 

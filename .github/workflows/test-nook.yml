@@ -136,8 +136,8 @@ jobs:
           # Nook CI Environment (test values)
           TZ=Europe/Paris
           PORT=6300
-          PUBLIC_SITE_URL=http://localhost:6300
-          E2EE_SETUP=0
+          PUBLIC_SITE_URL=http://127.0.0.1:6300
+          E2E_SETUP=1
           RATE_LIMIT_PER_MIN=999999
           AUTH_RATE_LIMIT_PER_MIN=999999
           DATA_DIR=./nook-data
@@ -195,7 +195,7 @@ jobs:
 
           echo "⏳ Waiting for healthcheck (max 120s)..."
           TIMEOUT=0
-          while ! curl -sf http://localhost:6300/api/health | grep -q "OK"; do
+          while ! curl -sf http://127.0.0.1:6300/api/health | grep -q "OK"; do
             sleep 2
             TIMEOUT=$((TIMEOUT + 2))
             if [ $TIMEOUT -gt 120 ]; then
@@ -239,32 +239,32 @@ jobs:
           ls -la tests/
           echo ""
           echo "=== Vérification du serveur ==="
-          curl -s http://localhost:6300/api/health || echo "❌ Serveur non accessible"
+          curl -s http://127.0.0.1:6300/api/health || echo "❌ Serveur non accessible"
 
       # - Shell Integration Tests
       - name: Test Health & Auth
         run: |
           # Verifier health
-          HEALTH=$(curl -s http://localhost:6300/api/health)
+          HEALTH=$(curl -s http://127.0.0.1:6300/api/health)
           echo "✅ Health: $HEALTH"
           [ "$HEALTH" = "OK" ] || (echo "❌ Health check échoue" && exit 1)
 
           # Verifier auth/me sans cookie -> 401
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:6300/api/auth/me)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:6300/api/auth/me)
           echo "✅ GET /auth/me sans cookie -> HTTP $STATUS (attendu 401)"
           [ "$STATUS" = "401" ] || (echo "❌ Attendu 401, reçu $STATUS" && exit 1)
 
       - name: Test Auth flows (admin login REQUIRED for e2e_ci approval)
         run: |
           echo "=== Test registration ==="
-          REG=$(curl -s -X POST http://localhost:6300/api/auth/register \
+          REG=$(curl -s -X POST http://127.0.0.1:6300/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{"username":"test_e2e_new","password":"E2eTest2026!","email":"test@nook.local","name":"Test User"}')
           echo "✅ Register: $REG"
 
           echo "=== Admin login (premier accès) ==="
           curl -s -c /tmp/admin-cookies.txt -o /tmp/admin-body.txt -X POST \
-            http://localhost:6300/api/auth/login \
+            http://127.0.0.1:6300/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"'"${ADMIN_INITIAL_PASSWORD:-AdminCI2026!}"'"}'
 
@@ -276,14 +276,14 @@ jobs:
           echo "✅ Login admin: OK"
 
           echo "=== Change password ==="
-          curl -s -X POST http://localhost:6300/api/auth/change-password \
+          curl -s -X POST http://127.0.0.1:6300/api/auth/change-password \
             -H "Content-Type: application/json" \
             -b /tmp/admin-cookies.txt \
             -d '{"new_password":"AdminCI2026!","user_id":"'"$ADMIN_ID"'"}'
 
           # Re-login with new password
           curl -s -c /tmp/admin-cookies.txt -X POST \
-            http://localhost:6300/api/auth/login \
+            http://127.0.0.1:6300/api/auth/login \
             -H "Content-Type: application/json" \
             -d '{"username":"admin","password":"AdminCI2026!"}' > /dev/null
           echo "✅ Re-login avec nouveau mot de passe"
@@ -291,11 +291,11 @@ jobs:
           ADMIN_COOKIE=$(grep -o 'auth_token=[^;]*' /tmp/admin-cookies.txt 2>/dev/null | head -1 || echo "")
 
           echo "=== /auth/me ==="
-          ME=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/auth/me)
+          ME=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/auth/me)
           echo "✅ /auth/me: $ME"
 
           echo "=== Register + approve ==="
-          REG2=$(curl -s -X POST http://localhost:6300/api/auth/register \
+          REG2=$(curl -s -X POST http://127.0.0.1:6300/api/auth/register \
             -H "Content-Type: application/json" \
             -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
           echo "✅ Register e2e_ci: $REG2"
@@ -305,7 +305,7 @@ jobs:
           E2E_ID=""
           for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
             sleep 3
-            PENDING=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
+            PENDING=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/users/pending)
             echo "Debug pending response (attempt $i): $PENDING"
             E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
             if [ -n "$E2E_ID" ]; then
@@ -316,7 +316,7 @@ jobs:
           done
 
           if [ -n "$E2E_ID" ]; then
-            curl -s -X POST http://localhost:6300/api/users/approve \
+            curl -s -X POST http://127.0.0.1:6300/api/users/approve \
               -H "Content-Type: application/json" \
               -b /tmp/admin-cookies.txt \
               -d '{"user_id":"'"$E2E_ID"'"}'
@@ -326,7 +326,7 @@ jobs:
             echo "=== Verify approval persisted ==="
             for j in 1 2 3 4 5; do
               sleep 2
-              PENDING_CHECK=$(curl -s -b /tmp/admin-cookies.txt http://localhost:6300/api/users/pending)
+              PENDING_CHECK=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/users/pending)
               APPROVED=$(echo "$PENDING_CHECK" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
               if [ -z "$APPROVED" ]; then
                 echo "✅ e2e_ci no longer in pending list (attempt $j)"
@@ -339,7 +339,7 @@ jobs:
             echo "=== Final e2e_ci login verification before Playwright ==="
             for i in 1 2 3 4 5; do
               sleep 2
-              VERIFY_LOGIN=$(curl -s -X POST http://localhost:6300/api/auth/login \
+              VERIFY_LOGIN=$(curl -s -X POST http://127.0.0.1:6300/api/auth/login \
                 -H "Content-Type: application/json" \
                 -d '{"username":"e2e_ci","password":"E2eTest2026!"}')
               echo "Final verify attempt $i: $VERIFY_LOGIN"

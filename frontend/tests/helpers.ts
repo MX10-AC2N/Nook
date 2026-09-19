@@ -12,7 +12,7 @@ import { expect, type Page, type BrowserContext } from '@playwright/test';
 export const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 export const E2E_USER = 'e2e_ci';
 export const E2E_PASS = 'E2eTest123!';
-export const BASE = `${process.env.NOOK_BASE_URL || 'http://localhost:6300'}/api`;
+export const BASE = `${process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300'}/api`;
 
 // ─────────────────────────────────────────────────────────────────
 // clearSession — révoque token serveur + vide browser state
@@ -90,6 +90,29 @@ export async function loginAsAdmin(page: Page): Promise<void> {
   await page.goto('/admin');
   await page.locator('.admin-header').waitFor({ state: 'visible', timeout: 15_000 });
   console.log('✅ Admin connecté sur /admin');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// loginViaAPI — login API rapide (sans UI) pour les tests qui n'ont
+// pas besoin de tester le formulaire de login.
+// Retourne le cookie d'authentification.
+// ─────────────────────────────────────────────────────────────────
+export async function loginViaAPI(
+  page: Page,
+  username: string,
+  password: string,
+): Promise<string> {
+  const res = await page.request.post(`${BASE}/auth/login`, {
+    data: { username, password },
+  });
+  if (!res.ok()) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(`loginViaAPI(${username}) failed: HTTP ${res.status()} - ${body.message || 'unknown'}`);
+  }
+  // Extraire le cookie Set-Cookie
+  const setCookie = res.headers()['set-cookie'] ?? '';
+  const cookieMatch = setCookie.match(/auth_token=[^;]+/);
+  return cookieMatch ? cookieMatch[0] : '';
 }
 
 // ─────────────────────────────────────────────────────────────────

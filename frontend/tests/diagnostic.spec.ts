@@ -1,6 +1,6 @@
 import { test } from '@playwright/test';
 
-const BASE_URL = process.env.NOOK_BASE_URL || 'http://localhost:6300';
+const BASE_URL = process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300';
 
 test.use({ ignoreHTTPSErrors: true });
 

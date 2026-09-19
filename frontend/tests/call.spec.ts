@@ -4,7 +4,7 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE = `${process.env.NOOK_BASE_URL || 'http://localhost:6300'}/api`;
+const BASE = `${process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300'}/api`;
 
 // ════════════════════════════════════════════════════
 // Tests API WebRTC (signalisation via REST)

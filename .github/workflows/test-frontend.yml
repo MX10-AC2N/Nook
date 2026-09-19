@@ -99,7 +99,7 @@ jobs:
         run: |
           npx serve -s build -l 6300 &
           sleep 3
-          curl -sf http://localhost:6300 | grep -q "Nook" || (echo "❌ Serveur static non démarré" && exit 1)
+          curl -sf http://127.0.0.1:6300 | grep -q "Nook" || (echo "❌ Serveur static non démarré" && exit 1)
           echo "✅ Serveur static sur :6300"
       - name: Run Playwright (core tests)
         run: |

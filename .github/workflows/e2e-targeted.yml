@@ -146,7 +146,7 @@ jobs:
           # Nook CI Environment (test values)
           TZ=Europe/Paris
           PORT=6300
-          PUBLIC_SITE_URL=http://localhost:6300
+          PUBLIC_SITE_URL=http://127.0.0.1:6300
           E2E_SETUP=1
           E2E_PASSWORD=E2eTest123!
           RATE_LIMIT_PER_MIN=999999
