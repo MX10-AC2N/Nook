@@ -237,8 +237,9 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
     // Support E2E_SETUP=1 (CI Playwright)
     if std::env::var("E2E_SETUP").as_deref() == Ok("1") {
-        tracing::info!("Mode E2E détecté - configuration de l'utilisateur de test");
+        tracing::info!("Mode E2E détecté - configuration des utilisateurs de test");
 
+        // Créer e2e_ci (utilisé par les tests API-first)
         let e2e_count: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'e2e_ci'")
                 .fetch_one(pool)
@@ -247,11 +248,8 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         if e2e_count.0 == 0 {
             let e2e_id = uuid::Uuid::new_v4().to_string();
             let e2e_password = std::env::var("E2E_PASSWORD")
-            .unwrap_or_else(|_| {
-                eprintln!("[E2E] ATTENTION: E2E_PASSWORD non défini, utilisation d'un mot de passe aléatoire");
-                uuid::Uuid::new_v4().to_string()
-            });
-        let e2e_hash = crate::auth::hash_password(&e2e_password);
+                .unwrap_or_else(|_| "E2eTest123!".to_string());
+            let e2e_hash = crate::auth::hash_password(&e2e_password);
             let now = Utc::now().timestamp();
             sqlx::query(
                 r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
@@ -272,11 +270,7 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .execute(pool)
             .await?;
 
-            tracing::info!(
-                username = "e2e_ci",
-                email = "e2e@nook.local",
-                "✓ Utilisateur E2E créé et ajouté à default_global"
-            );
+            tracing::info!("✓ Utilisateur e2e_ci créé (mot de passe: {})", e2e_password);
             eprintln!("[E2E] Utilisateur e2e_ci créé et inscrit à default_global");
         } else {
             let e2e_row: (String,) =
@@ -292,7 +286,56 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             .bind(now)
             .execute(pool)
             .await?;
-            tracing::debug!("Utilisateur E2E déjà existant — participation default_global vérifiée");
+            tracing::debug!("Utilisateur e2e_ci déjà existant");
+        }
+
+        // Créer hermes-bot (utilisé par les tests UI login)
+        let hermes_count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM users WHERE username = 'hermes-bot'")
+                .fetch_one(pool)
+                .await?;
+
+        if hermes_count.0 == 0 {
+            let hermes_id = uuid::Uuid::new_v4().to_string();
+            let hermes_password = "Hermes2026!";
+            let hermes_hash = crate::auth::hash_password(hermes_password);
+            let now = Utc::now().timestamp();
+            sqlx::query(
+                r#"INSERT INTO users (id, username, email, password_hash, name, role, approved, needs_password_change, created_at)
+                   VALUES (?, 'hermes-bot', 'hermes@nook.local', ?, 'Hermes Bot', 'user', 1, 0, ?)"#,
+            )
+            .bind(&hermes_id)
+            .bind(&hermes_hash)
+            .bind(now)
+            .execute(pool)
+            .await?;
+
+            sqlx::query(
+                "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+                 VALUES ('default_global', ?, ?)",
+            )
+            .bind(&hermes_id)
+            .bind(now)
+            .execute(pool)
+            .await?;
+
+            tracing::info!("✓ Utilisateur hermes-bot créé");
+            eprintln!("[E2E] Utilisateur hermes-bot créé et inscrit à default_global");
+        } else {
+            let hermes_row: (String,) =
+                sqlx::query_as("SELECT id FROM users WHERE username = 'hermes-bot'")
+                    .fetch_one(pool)
+                    .await?;
+            let now = Utc::now().timestamp();
+            sqlx::query(
+                "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id, joined_at)
+                 VALUES ('default_global', ?, ?)",
+            )
+            .bind(&hermes_row.0)
+            .bind(now)
+            .execute(pool)
+            .await?;
+            tracing::debug!("Utilisateur hermes-bot déjà existant");
         }
     }
 

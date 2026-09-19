@@ -147,7 +147,8 @@ jobs:
           TZ=Europe/Paris
           PORT=6300
           PUBLIC_SITE_URL=http://localhost:6300
-          E2EE_SETUP=0
+          E2E_SETUP=1
+          E2E_PASSWORD=E2eTest123!
           RATE_LIMIT_PER_MIN=999999
           AUTH_RATE_LIMIT_PER_MIN=999999
           DATA_DIR=./nook-data
