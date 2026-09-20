@@ -12,7 +12,7 @@ RUN mkdir -p /app/data/uploads /app/logs /app/static \
 ARG TARGETARCH=amd64
 
 COPY --chmod=755 backend/nook-backend-${TARGETARCH} /app/nook-backend
-COPY frontend/ /app/static/
+COPY frontend/build /app/static
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
