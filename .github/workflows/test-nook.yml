@@ -259,7 +259,7 @@ jobs:
           echo "=== Test registration ==="
           REG=$(curl -s -X POST http://127.0.0.1:6300/api/auth/register \
             -H "Content-Type: application/json" \
-            -d '{"username":"test_e2e_new","password":"E2eTest2026!","email":"test@nook.local","name":"Test User"}')
+            -d '{"username":"test_e2e_new","password":"E2eTest123!","email":"test@nook.local","name":"Test User"}')
           echo "✅ Register: $REG"
 
           echo "=== Admin login (premier accès) ==="
@@ -294,68 +294,25 @@ jobs:
           ME=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/auth/me)
           echo "✅ /auth/me: $ME"
 
-          echo "=== Register + approve ==="
-          REG2=$(curl -s -X POST http://127.0.0.1:6300/api/auth/register \
-            -H "Content-Type: application/json" \
-            -d '{"username":"e2e_ci","password":"E2eTest2026!","email":"e2e@ci.nook","name":"E2E CI"}')
-          echo "✅ Register e2e_ci: $REG2"
-
-          # Wait for DB transaction to commit and user to appear in pending list
-          echo "=== Wait for e2e_ci to appear in pending list ==="
-          E2E_ID=""
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            sleep 3
-            PENDING=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/users/pending)
-            echo "Debug pending response (attempt $i): $PENDING"
-            E2E_ID=$(echo "$PENDING" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
-            if [ -n "$E2E_ID" ]; then
-              echo "✅ Found e2e_ci in pending (attempt $i): $E2E_ID"
+          # ⚠️  E2E_SETUP=1 auto-créé et approuve e2e_ci au démarrage du backend.
+          # Ne PAS le re-enregistrer ici — il existe déjà et est déjà approuvé.
+          # On vérifie simplement que e2e_ci peut se connecter.
+          echo "=== Vérification login e2e_ci (créé par E2E_SETUP=1) ==="
+          for i in 1 2 3 4 5; do
+            sleep 2
+            VERIFY_LOGIN=$(curl -s -X POST http://127.0.0.1:6300/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"e2e_ci","password":"E2eTest123!"}')
+            echo "Attempt $i: $VERIFY_LOGIN"
+            if echo "$VERIFY_LOGIN" | grep -q '"success":true'; then
+              echo "✅ e2e_ci login verified - ready for Playwright"
               break
             fi
-            echo "Attempt $i: e2e_ci not yet in pending, waiting..."
+            if [ $i -eq 5 ]; then
+              echo "❌ e2e_ci login failed after 5 attempts"
+              exit 1
+            fi
           done
-
-          if [ -n "$E2E_ID" ]; then
-            curl -s -X POST http://127.0.0.1:6300/api/users/approve \
-              -H "Content-Type: application/json" \
-              -b /tmp/admin-cookies.txt \
-              -d '{"user_id":"'"$E2E_ID"'"}'
-            echo "✅ User e2e_ci approved"
-
-            # Verify approval persisted in DB before proceeding
-            echo "=== Verify approval persisted ==="
-            for j in 1 2 3 4 5; do
-              sleep 2
-              PENDING_CHECK=$(curl -s -b /tmp/admin-cookies.txt http://127.0.0.1:6300/api/users/pending)
-              APPROVED=$(echo "$PENDING_CHECK" | jq -r '.users[] | select(.username=="e2e_ci") | .id // empty' 2>/dev/null || echo "")
-              if [ -z "$APPROVED" ]; then
-                echo "✅ e2e_ci no longer in pending list (attempt $j)"
-                break
-              fi
-              echo "Attempt $j: e2e_ci still in pending, waiting..."
-            done
-
-            # Final login verification right before Playwright
-            echo "=== Final e2e_ci login verification before Playwright ==="
-            for i in 1 2 3 4 5; do
-              sleep 2
-              VERIFY_LOGIN=$(curl -s -X POST http://127.0.0.1:6300/api/auth/login \
-                -H "Content-Type: application/json" \
-                -d '{"username":"e2e_ci","password":"E2eTest2026!"}')
-              echo "Final verify attempt $i: $VERIFY_LOGIN"
-              if echo "$VERIFY_LOGIN" | grep -q '"success":true'; then
-                echo "✅ e2e_ci login verified - ready for Playwright"
-                break
-              fi
-              if [ $i -eq 5 ]; then
-                echo "❌ e2e_ci login failed after 5 final attempts"
-                exit 1
-              fi
-            done
-          else
-            echo "❌ e2e_ci never appeared in pending list"
-            exit 1
-          fi
 
       - name: Test Security endpoints
         continue-on-error: true
@@ -363,4 +320,47 @@ jobs:
           ADMIN_COOKIE=$(grep -o 'auth_token=[^;]*' /tmp/admin-cookies.txt 2>/dev/null | head -1 || echo "")
 
           echo "=== XSS prevention ==="
-          XSS=$(curl -s
+          XSS=$(curl -s -X POST http://127.0.0.1:6300/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"<script>alert(1)</script>","password":"E2eTest123!","email":"xss@nook.local","name":"XSS Test"}')
+          echo "XSS register response: $XSS"
+
+          echo "=== SQL Injection prevention ==="
+          SQLI=$(curl -s -X POST http://127.0.0.1:6300/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin'\'' OR '\''1'\''='\''1","password":"anything"}')
+          echo "SQLi login response: $SQLI"
+          echo "✅ Security tests completed"
+
+      - name: Run Playwright E2E tests
+        working-directory: ./frontend
+        run: |
+          npx playwright test \
+            --config playwright.ci.config.ts \
+            --reporter=list \
+            --workers=1 \
+            tests/comprehensive-chat.spec.ts \
+            tests/comprehensive-chess.spec.ts \
+            tests/comprehensive-polls.spec.ts \
+            tests/user.spec.ts \
+            2>&1 | tee /tmp/playwright-e2e.log
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "✅ All E2E tests passed"
+          else
+            echo "❌ E2E tests failed"
+            grep -E "passed|failed|skipped" /tmp/playwright-e2e.log || true
+            exit 1
+          fi
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-e2e
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Cleanup Docker
+        if: always()
+        run: docker compose -f docker-compose.ci.yml down -v --remove-orphans

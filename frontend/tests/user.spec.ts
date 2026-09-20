@@ -765,7 +765,7 @@ test.describe.serial('User — Flux complet', () => {
 
   
   // ── Avatar ────────────────────────────────────────────────────────
-  test('Avatar — composant visible avec initiales dans le chat', async ({ page }) => {
+  test('Avatar — composant visible avec initiales dans le chat', async () => {
     await page.goto(`${BASE_URL}/chat`);
     await waitForAppReady(page);
     await page.waitForTimeout(2000);
@@ -781,7 +781,7 @@ test.describe.serial('User — Flux complet', () => {
     }
   });
 
-  test('Settings — section avatar visible avec grille d\'options', async ({ page }) => {
+  test('Settings — section avatar visible avec grille d\'options', async () => {
     await page.goto(`${BASE_URL}/settings`);
     await waitForAppReady(page);
     await page.waitForTimeout(1000);
@@ -806,7 +806,7 @@ test.describe.serial('User — Flux complet', () => {
   });
 
   // ── Calendar Views ────────────────────────────────────────────────
-  test('Calendar — switcher vue Mois/Semaine/Jour visible', async ({ page }) => {
+  test('Calendar — switcher vue Mois/Semaine/Jour visible', async () => {
     await page.goto(`${BASE_URL}/calendar`);
     await waitForAppReady(page);
     await page.waitForTimeout(1000);
@@ -838,7 +838,7 @@ test.describe.serial('User — Flux complet', () => {
   });
 
   // ── Chess Improvements ────────────────────────────────────────────
-  test('Chess — sélection pièce → coups légaux visibles (dots)', async ({ page }) => {
+  test('Chess — sélection pièce → coups légaux visibles (dots)', async () => {
     test.setTimeout(45_000);
     // S'assurer que le test est authentifié
     await loginAs(page, E2E_USER, E2E_PASS);

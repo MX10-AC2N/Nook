@@ -11,6 +11,9 @@ import { expect, type Page, type BrowserContext } from '@playwright/test';
 
 export const ADMIN_NEW_PASSWORD = 'AdminCI2026!';
 export const E2E_USER = 'e2e_ci';
+// ⚠️  E2E_SETUP in backend/src/main.rs creates e2e_ci with E2E_PASSWORD env var
+// or defaults to 'E2eTest123!'. test-nook.yml .env does NOT set E2E_PASSWORD,
+// so the backend always uses this default. Keep in sync with main.rs.
 export const E2E_PASS = 'E2eTest123!';
 export const BASE = `${process.env.NOOK_BASE_URL || 'http://127.0.0.1:6300'}/api`;
 
