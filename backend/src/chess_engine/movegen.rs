@@ -43,6 +43,17 @@ pub fn legal_moves_from(pos: &Position, from: Square) -> Vec<Move> {
         .collect()
 }
 
+/// Generate all pseudo-legal moves originating from a specific square.
+///
+/// Pseudo-legal moves respect piece movement rules and board occupancy but
+/// do NOT check whether the side-to-move king would be left in check.
+/// Used for move-validation error messaging in the API layer.
+pub fn pseudo_legal_moves_from(pos: &Position, from: Square) -> Vec<Move> {
+    let mut pseudo = Vec::with_capacity(64);
+    generate_pseudo_legal(pos, &mut pseudo);
+    pseudo.into_iter().filter(|m| m.from == from).collect()
+}
+
 /// Generate legal captures and queen promotions only (for quiescence search).
 pub fn legal_captures(pos: &Position) -> Vec<Move> {
     let mut pseudo = Vec::with_capacity(64);

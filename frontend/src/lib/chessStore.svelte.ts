@@ -11,7 +11,7 @@ import { notifyChess } from '$lib/notificationStore.svelte';
 //   POST /api/chess/{id}/move            → { success, game: GameState }
 //     body: { from: "e2", to: "e4", promotion?: "q"|"r"|"b"|"n" }
 //   POST /api/chess/{id}/ai-move         → { success, game: GameState }
-//   GET  /api/chess/{id}/moves?from=e2   → { success, moves: ["e4","e3",...] }
+//   GET  /api/chess/{id}/moves?from=e2   → ["e2e4","e2e3",...]  (coup algébrique)
 //   POST /api/chess/{id}/resign          → { success }
 //
 // Format plateau : board[row][col] — row 0 = rang 8 (côté noir), row 7 = rang 1 (côté blanc)
@@ -395,14 +395,42 @@ class ChessStore {
     // Clic sur sa propre pièce → sélectionner
     if (piece && color === myColorChar) {
       this.selected     = { row, col, algebraic: alg };
+      // Affichage instantané depuis l'état moteur…
       this.legalTargets = getLegalTargets(
         this.currentGame.engine.legal_moves,
         alg
       );
+      // …puis rafraîchissement serveur via GET /moves?from= (source d'autorité
+      // pour empêcher les coups illégaux côté client).
+      const serverTargets = await this.fetchLegalTargets(alg);
+      if (serverTargets.length) this.legalTargets = serverTargets;
     } else {
       // Clic dans le vide ou pièce adverse sans sélection → désélectionner
       this.selected     = null;
       this.legalTargets = [];
+    }
+  }
+
+  // ── Cibles légales serveur (GET /api/chess/{id}/moves?from=) ────────
+  // Source d'autorité côté serveur : empêche de jouer une case illégale.
+  async fetchLegalTargets(from: string): Promise<string[]> {
+    if (!this.currentGame) return [];
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5_000);
+      const res = await fetch(`/api/chess/${this.currentGame.id}/moves?from=${from}`, {
+        credentials: 'include',
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const moves: string[] = await res.json();
+      // L'API renvoie "e2e4" / "e7e8=q" → ne garder que la case cible.
+      return Array.from(new Set(moves.map((m: string) => m.slice(2, 4))));
+    } catch {
+      // Fallback : état moteur déjà en mémoire (jamais bloquant).
+      const engine = this.currentGame?.engine;
+      return getLegalTargets(engine?.legal_moves ?? [], from);
     }
   }
 
@@ -456,7 +484,10 @@ class ChessStore {
 
       return true;
     } catch (e: any) {
-      this.error = e?.message ?? 'Coup invalide';
+      const msg = e?.message ?? 'Coup invalide';
+      this.error = msg;
+      // Feedback visuel immédiat d'un coup illégal (toast + message d'erreur).
+      if (this.currentGame) notifyChess('Coup illégal', msg, this.currentGame.id);
       return false;
     }
   }

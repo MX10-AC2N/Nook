@@ -677,13 +677,13 @@ impl fmt::Display for ChessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ChessError::InvalidMove { from, to, reason } => {
-                write!(f, "invalid move: {from} -> {to}: {reason}")
+                write!(f, "Coup illégal : {from} → {to} — {reason}")
             }
-            ChessError::InvalidFen(s) => write!(f, "invalid FEN string: {s}"),
-            ChessError::InvalidSquare(s) => write!(f, "invalid square notation: {s}"),
-            ChessError::GameOver(s) => write!(f, "game is already over: {s}"),
-            ChessError::InvalidPromotion(s) => write!(f, "invalid promotion piece: {s}"),
-            ChessError::NothingToUndo => write!(f, "no moves to undo"),
+            ChessError::InvalidFen(s) => write!(f, "FEN invalide : {s}"),
+            ChessError::InvalidSquare(s) => write!(f, "Case invalide : {s}"),
+            ChessError::GameOver(_) => write!(f, "Partie terminée"),
+            ChessError::InvalidPromotion(s) => write!(f, "Promotion invalide : {s}"),
+            ChessError::NothingToUndo => write!(f, "Aucun coup à annuler"),
         }
     }
 }

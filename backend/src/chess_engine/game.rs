@@ -180,10 +180,7 @@ impl Game {
     /// is already finished, or `ChessError::InvalidMove` if not legal.
     pub fn make_move(&mut self, mv: Move) -> Result<String, ChessError> {
         if self.status.is_game_over() {
-            return Err(ChessError::GameOver(format!(
-                "game is over: {}",
-                self.status
-            )));
+            return Err(ChessError::GameOver(format!("{}", self.status)));
         }
 
         // Validate legality.
@@ -192,7 +189,7 @@ impl Game {
             return Err(ChessError::InvalidMove {
                 from: mv.from.to_algebraic(),
                 to: mv.to.to_algebraic(),
-                reason: "not a legal move".into(),
+                reason: "ce n'est pas un coup légal".into(),
             });
         }
 

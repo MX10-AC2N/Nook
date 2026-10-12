@@ -199,6 +199,10 @@ test.describe.serial('Chess Extended — Scénarios avancés', () => {
       data: { from: 'e2', to: 'e4' },
     });
     expect([400, 404, 409]).toContain(moveRes.status());
+    if (moveRes.status() === 400) {
+      const body = await moveRes.json();
+      expect(body.message).toContain('Partie terminée');
+    }
     console.log(`✅ Coup après game over → ${moveRes.status()}`);
   });
 

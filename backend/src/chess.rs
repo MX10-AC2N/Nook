@@ -86,9 +86,11 @@ fn parse_difficulty(s: &str) -> Difficulty {
     }
 }
 
-fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>) -> Result<ChessMove, String> {
-    let from_sq = Square::from_algebraic(from).ok_or_else(|| format!("Case invalide : {from}"))?;
-    let to_sq = Square::from_algebraic(to).ok_or_else(|| format!("Case invalide : {to}"))?;
+fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>) -> Result<ChessMove, ChessError> {
+    let from_sq = Square::from_algebraic(from)
+        .ok_or_else(|| ChessError::InvalidSquare(from.to_string()))?;
+    let to_sq = Square::from_algebraic(to)
+        .ok_or_else(|| ChessError::InvalidSquare(to.to_string()))?;
 
     let promotion = match promo {
         Some("q") | Some("queen") => Some(PieceType::Queen),
@@ -96,15 +98,101 @@ fn parse_move(game: &Game, from: &str, to: &str, promo: Option<&str>) -> Result<
         Some("b") | Some("bishop") => Some(PieceType::Bishop),
         Some("n") | Some("knight") => Some(PieceType::Knight),
         None => None,
-        Some(other) => return Err(format!("Promotion invalide : {other}")),
+        Some(other) => return Err(ChessError::InvalidPromotion(other.to_string())),
     };
 
+    let pos = game.position();
+    let us = pos.side_to_move;
+
+    // 1. Check that a piece exists on the from-square and belongs to us.
+    let piece_type = match pos.piece_at(from_sq) {
+        None => {
+            return Err(ChessError::InvalidMove {
+                from: from.to_string(),
+                to: to.to_string(),
+                reason: "aucune pièce sur cette case".into(),
+            });
+        }
+        Some((color, _)) if color != us => {
+            return Err(ChessError::InvalidMove {
+                from: from.to_string(),
+                to: to.to_string(),
+                reason: "cette pièce ne vous appartient pas".into(),
+            });
+        }
+        Some((_, pt)) => pt,
+    };
+
+    // 2. Destination must not be occupied by a friendly piece.
+    if let Some((dest_color, _)) = pos.piece_at(to_sq) {
+        if dest_color == us {
+            return Err(ChessError::InvalidMove {
+                from: from.to_string(),
+                to: to.to_string(),
+                reason: "case occupée par votre propre pièce".into(),
+            });
+        }
+    }
+
+    // 3. Promotion requirement: pawns reaching the last rank must specify a piece.
+    let needs_promo = piece_type == PieceType::Pawn
+        && ((us == Color::White && to_sq.rank() == 7)
+            || (us == Color::Black && to_sq.rank() == 0));
+    if needs_promo && promotion.is_none() {
+        return Err(ChessError::InvalidMove {
+            from: from.to_string(),
+            to: to.to_string(),
+            reason: "promotion requise — choisissez une pièce (=q, =r, =b, =n)".into(),
+        });
+    }
+
+    // 4. Exact match in legal moves (correct promotion piece).
     let legal = game.legal_moves_from(from_sq);
-    legal
+    if let Some(mv) = legal
         .iter()
         .find(|mv| mv.from == from_sq && mv.to == to_sq && mv.promotion == promotion)
-        .copied()
-        .ok_or_else(|| format!("Coup illégal : {from}{to}"))
+    {
+        return Ok(*mv);
+    }
+
+    // 5. The from/to match a legal move but with a different promotion piece.
+    if let Some(mv) = legal.iter().find(|mv| mv.from == from_sq && mv.to == to_sq) {
+        if let Some(promo) = mv.promotion {
+            let promo_char = promo.to_char(Color::White).to_ascii_lowercase();
+            return Err(ChessError::InvalidMove {
+                from: from.to_string(),
+                to: to.to_string(),
+                reason: format!("choisissez la promotion \"={}\" ({})", promo_char, promo),
+            });
+        }
+    }
+
+    // 6. Pseudo-legal but not legal → the move would leave our king in check.
+    let pseudo = crate::chess_engine::movegen::pseudo_legal_moves_from(pos, from_sq);
+    if pseudo
+        .iter()
+        .any(|mv| mv.from == from_sq && mv.to == to_sq && mv.promotion == promotion)
+    {
+        // 6b. If the side to move is already in check, this move fails to escape it.
+        //    Otherwise the piece is pinned / the move exposes the king to check.
+        let reason = if pos.is_in_check() {
+            "vous êtes en échec, vous devez parer"
+        } else {
+            "le roi serait en échec"
+        };
+        return Err(ChessError::InvalidMove {
+            from: from.to_string(),
+            to: to.to_string(),
+            reason: reason.into(),
+        });
+    }
+
+    // 7. The piece simply cannot move to that square.
+    Err(ChessError::InvalidMove {
+        from: from.to_string(),
+        to: to.to_string(),
+        reason: "cette pièce ne se déplace pas comme ça".into(),
+    })
 }
 
 fn game_json(game: &Game) -> Value {
@@ -506,10 +594,16 @@ pub async fn make_move(
     };
 
     use sqlx::Row;
-    if row.get::<String, _>("status") != "playing" {
+    let db_game_status: String = row.get::<String, _>("status");
+    if db_game_status != "playing" {
+        let msg = if db_game_status == "finished" {
+            "Partie terminée".to_string()
+        } else {
+            "Partie non en cours".to_string()
+        };
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "success": false, "message": "Partie non en cours" })),
+            Json(json!({ "success": false, "message": msg.clone(), "error": msg })),
         )
             .into_response();
     }
@@ -558,9 +652,14 @@ pub async fn make_move(
     };
 
     if game.side_to_move() != player_color {
+        let whose = match game.side_to_move() {
+            Color::White => "blancs",
+            Color::Black => "noirs",
+        };
+        let msg = format!("Coup illégal : trait aux {}", whose);
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "success": false, "message": "Pas votre tour" })),
+            Json(json!({ "success": false, "message": msg, "error": msg })),
         )
             .into_response();
     }
@@ -570,7 +669,7 @@ pub async fn make_move(
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "success": false, "message": e })),
+                Json(json!({ "success": false, "message": e.to_string(), "error": e.to_string() })),
             )
                 .into_response()
         }
@@ -579,9 +678,10 @@ pub async fn make_move(
     let san = match game.make_move(mv) {
         Ok(s) => s,
         Err(e) => {
+            let msg = e.to_string();
             return (
                 StatusCode::BAD_REQUEST,
-                Json(json!({ "success": false, "message": e.to_string() })),
+                Json(json!({ "success": false, "message": msg.clone(), "error": msg })),
             )
                 .into_response()
         }
