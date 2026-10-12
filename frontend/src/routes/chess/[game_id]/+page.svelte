@@ -49,8 +49,6 @@
   async function handleClick(row: number, col: number) {
     if (chessStore.isGameOver) return;
     await chessStore.selectSquare(row, col);
-    // Force re-render after move
-    boardVersion++;
   }
 
   function cellClass(row: number, col: number): string {
@@ -59,7 +57,7 @@
     let cls = `cell ${isLight ? 'cell-light' : 'cell-dark'}`;
     if (chessStore.selected?.algebraic === alg)        cls += ' cell-selected';
     if (chessStore.legalTargets.includes(alg)) {
-      const hasPiece = (localBoard[row]?.[col] ?? '') !== '';
+      const hasPiece = (chessStore.board[row]?.[col] ?? '') !== '';
       cls += hasPiece ? ' cell-capture' : ' cell-target';
     }
     if (chessStore.lastMove?.from === alg || chessStore.lastMove?.to === alg) cls += ' cell-last';
@@ -148,21 +146,6 @@
 
   const flipped  = $derived(chessStore.myColor === 'black');
   
-  // Simple board state — updated by chessStore
-  let localBoard = $state<string[][]>(Array.from({ length: 8 }, () => Array(8).fill('')));
-  let boardVersion = $state(0);  // Increment to force re-render
-  
-  // Sync from chessStore when it changes
-  let lastFen = $state('');
-  $effect(() => {
-    const board = chessStore.board;
-    const fen = chessStore.currentGame?.fen ?? '';
-    if (board && board.length === 8 && fen !== lastFen) {
-      lastFen = fen;
-      localBoard = board.map((row: string[]) => [...row]);
-      boardVersion++;
-    }
-  });
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const recentHistory = $derived((chessStore.currentGame?.move_history ?? []).slice(-20));
@@ -397,9 +380,9 @@
               {#each rows as r}<span>{8 - r}</span>{/each}
             </div>
             <div class="chess-board">
-              {#each rows as row (row + '-' + boardVersion)}
+              {#each rows as row (row)}
                 {#each cols as col (col)}
-                  {@const piece   = localBoard[row]?.[col] ?? ''}
+                  {@const piece   = chessStore.board[row]?.[col] ?? ''}
                   {@const decoded = decodePiece(piece)}
                   <div
                     class={cellClass(row, col)}
