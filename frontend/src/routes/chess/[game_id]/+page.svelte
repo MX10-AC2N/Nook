@@ -149,6 +149,28 @@
   const rows     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const cols     = $derived(flipped ? [0,1,2,3,4,5,6,7].reverse() : [0,1,2,3,4,5,6,7]);
   const recentHistory = $derived((chessStore.currentGame?.move_history ?? []).slice(-20));
+
+  // Reactive aliases — $derived so the template updates when chessStore.currentGame changes.
+  // (Replaces frozen {@const game/engine/slot} which were not re-evaluated after moves.)
+  const game   = $derived(chessStore.currentGame);
+  const engine = $derived(game?.engine ?? null);
+  const slot   = $derived(mySlot);
+
+  // Pre-computed cell descriptors for the board grid.
+  // Replaces {@const piece}/{@const decoded} inside the nested {#each} — those were
+  // frozen at block-creation time because the keys (row, col) are static indices
+  // 0..7, so the blocks were never recreated and the values never updated.
+  const cells = $derived.by(() => {
+    const board = chessStore.board;
+    const out: Array<{ row: number; col: number; piece: string; decoded: ReturnType<typeof decodePiece> }> = [];
+    for (const row of rows) {
+      for (const col of cols) {
+        const piece = board[row]?.[col] ?? '';
+        out.push({ row, col, piece, decoded: decodePiece(piece) });
+      }
+    }
+    return out;
+  });
 </script>
 
 <svelte:head>
@@ -176,10 +198,6 @@
     </div>
 
   {:else}
-    {@const game   = chessStore.currentGame}
-    {@const engine = game?.engine ?? null}
-    {@const slot   = mySlot}
-
     <!-- ══ BARRE COMPACTE MOBILE (status + abandon) ══ -->
     <div class="mobile-bar">
       <!-- Statut -->
@@ -380,31 +398,27 @@
               {#each rows as r}<span>{8 - r}</span>{/each}
             </div>
             <div class="chess-board">
-              {#each rows as row (row)}
-                {#each cols as col (col)}
-                  {@const piece   = chessStore.board[row]?.[col] ?? ''}
-                  {@const decoded = decodePiece(piece)}
-                  <div
-                    class={cellClass(row, col)}
-                    role="button" tabindex="0"
-                    onclick={() => handleClick(row, col)}
-                    onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClick(row, col)}
-                  >
-                    {#if decoded}
-                      <span
-                        class="piece"
-                        class:piece-mine={decoded.color === (chessStore.myColor === 'white' ? 'w' : 'b')}
-                        class:piece-selected={chessStore.selected?.algebraic === toAlgebraic(row, col)}
-                        style="color:{decoded.color === 'w' ? '#fff' : '#1a1a1a'};
-                               text-shadow:{decoded.color === 'w'
-                                 ? '0 1px 3px rgba(0,0,0,0.8),0 0 1px rgba(0,0,0,1)'
-                                 : '0 1px 2px rgba(255,255,255,0.3)'};"
-                      >{PIECE_UNICODE[piece] ?? '?'}</span>
-                    {:else if chessStore.legalTargets.includes(toAlgebraic(row, col))}
-                      <span class="target-dot"></span>
-                    {/if}
-                  </div>
-                {/each}
+              {#each cells as cell (cell.row + '_' + cell.col)}
+                <div
+                  class={cellClass(cell.row, cell.col)}
+                  role="button" tabindex="0"
+                  onclick={() => handleClick(cell.row, cell.col)}
+                  onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleClick(cell.row, cell.col)}
+                >
+                  {#if cell.decoded}
+                    <span
+                      class="piece"
+                      class:piece-mine={cell.decoded.color === (chessStore.myColor === 'white' ? 'w' : 'b')}
+                      class:piece-selected={chessStore.selected?.algebraic === toAlgebraic(cell.row, cell.col)}
+                      style="color:{cell.decoded.color === 'w' ? '#fff' : '#1a1a1a'};
+                             text-shadow:{cell.decoded.color === 'w'
+                               ? '0 1px 3px rgba(0,0,0,0.8),0 0 1px rgba(0,0,0,1)'
+                               : '0 1px 2px rgba(255,255,255,0.3)'};"
+                    >{PIECE_UNICODE[cell.piece] ?? '?'}</span>
+                  {:else if chessStore.legalTargets.includes(toAlgebraic(cell.row, cell.col))}
+                    <span class="target-dot"></span>
+                  {/if}
+                </div>
               {/each}
             </div>
             <div class="coords-right">
