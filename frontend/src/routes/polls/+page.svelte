@@ -198,7 +198,7 @@
       <h1><Icon name="check-circle" size="24" /> Sondages</h1>
       <p class="subtitle">Décidez ensemble</p>
     </div>
-    <button class="btn-create" onclick={() => showCreate = !showCreate}>
+    <button class="btn-create" data-testid="create-poll-btn" onclick={() => showCreate = !showCreate}>
       {showCreate ? '✕ Annuler' : '＋ Nouveau sondage'}
     </button>
   </div>
@@ -207,6 +207,7 @@
   {#if showCreate}
     <div class="create-card">
       <h2>Nouveau sondage</h2>
+      <form data-testid="poll-form" onsubmit={(e) => { e.preventDefault(); createPoll(); }}>
 
       <label class="form-label">
         Question
@@ -281,14 +282,15 @@
       <div class="create-footer">
         <span class="form-hint">* champs obligatoires</span>
         <button
+          type="submit"
           class="btn-submit"
-          onclick={createPoll}
           disabled={submitting || !newQuestion.trim() || newOptions.filter(o => o.trim()).length < 2
             || (audienceMode === 'custom' && selectedMemberIds.length === 0)}
         >
           {submitting ? 'Création…' : 'Créer le sondage'}
         </button>
       </div>
+      </form>
     </div>
   {/if}
 
@@ -304,7 +306,7 @@
   {:else}
     <div class="polls-list">
       {#each polls as poll (poll.id)}
-        <div class="poll-card" class:closed={poll.is_closed}>
+        <div class="poll-card" class:closed={poll.is_closed} data-testid="poll-item">
           <div class="poll-header">
             <div class="poll-meta">
               <span class="poll-author">Par {poll.created_by_name}</span>

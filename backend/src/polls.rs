@@ -255,7 +255,9 @@ pub async fn list_polls(
     State(state): State<Arc<SharedState>>,
     Extension(CurrentUser(user)): Extension<CurrentUser>,
 ) -> impl IntoResponse {
-    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls WHERE (closed_at IS NULL OR closed_at > datetime('now')) ORDER BY created_at DESC LIMIT 100")
+    let now = Utc::now().timestamp();
+    let ids = sqlx::query_as::<_, IdRow>("SELECT id FROM polls WHERE (closed_at IS NULL OR closed_at > ?) ORDER BY created_at DESC LIMIT 100")
+        .bind(now)
         .fetch_all(&state.db)
         .await
         .unwrap_or_default();
@@ -537,7 +539,11 @@ pub async fn close_poll(
             for tx in guard.values() {
                 let _ = tx.send(notif.clone());
             }
-            (StatusCode::OK, Json(json!({ "success": true }))).into_response()
+            // Return updated poll object
+            match load_poll(&state.db, &poll_id, &user.id).await {
+                Some(p) => (StatusCode::OK, Json(json!({ "success": true, "poll": p }))).into_response(),
+                None => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "success": false }))).into_response(),
+            }
         }
     }
 }
