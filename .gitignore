@@ -29,3 +29,6 @@ frontend/playwright-report/
 frontend/build/
 frontend/.svelte-kit/
 
+
+# Build artifacts (peuple par le CI, ne pas versionner)
+docker-context/

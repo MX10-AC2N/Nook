@@ -81,7 +81,7 @@ jobs:
           mkdir -p /tmp/nook-data /tmp/nook-uploads
           cat > /tmp/nook.env << EOF
           DATABASE_URL=sqlite:/tmp/nook-data/nook.db
-          ALLOWED_ORIGINS=http://localhost:6300
+          ALLOWED_ORIGINS=http://127.0.0.1:6300
           JWT_SECRET=e2e-test-secret-key-for-ci-only
           UPLOAD_DIR=/tmp/nook-uploads
           BACKEND_PORT=3000
@@ -90,7 +90,7 @@ jobs:
           env $(cat /tmp/nook.env | xargs) backend/target/release/nook-backend &
           # Attendre que le backend soit prêt
           for i in $(seq 1 20); do
-            curl -sf http://localhost:6300/api/health | grep -q "OK" && break
+            curl -sf http://127.0.0.1:6300/api/health | grep -q "OK" && break
             sleep 3
           done
           echo "✅ Backend prêt"
