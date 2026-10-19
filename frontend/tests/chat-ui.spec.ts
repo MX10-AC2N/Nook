@@ -7,11 +7,11 @@ test.describe('Chat UI — Améliorations', () => {
     await page.screenshot({ path: '/tmp/nook-01-login.png' });
     
     // Fill login form
-    await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
     await page.screenshot({ path: '/tmp/nook-02-filled.png' });
     
-    await page.click('button[type="submit"]');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: '/tmp/nook-03-chat.png' });
@@ -20,9 +20,9 @@ test.describe('Chat UI — Améliorations', () => {
   test('Header is compact (< 60px)', async ({ page }) => {
     // Login first
     await page.goto('/login');
-    await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(2000);
     
@@ -36,9 +36,9 @@ test.describe('Chat UI — Améliorations', () => {
 
   test('Send emoji-only message (should be large)', async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(1000);
     
@@ -58,9 +58,9 @@ test.describe('Chat UI — Améliorations', () => {
 
   test('Reaction picker opens on hover + click', async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(2000);
     
@@ -94,9 +94,9 @@ test.describe('Chat UI — Améliorations', () => {
 
   test('Input stays enabled while sending', async ({ page }) => {
     await page.goto('/login');
-    await page.fill('input[name="username"], input[placeholder*="utilisateur"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForURL('**/chat', { timeout: 15000 });
     await page.waitForTimeout(1000);
     

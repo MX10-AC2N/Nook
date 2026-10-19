@@ -1,51 +1,30 @@
 import { test, expect } from '@playwright/test';
-import { BASE } from './helpers';
+import { BASE, loginAs, E2E_USER, E2E_PASS } from './helpers';
 
 
 test.describe('Polls UI — Create + Vote', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.fill('input[name="username"], input[type="text"]', 'hermes-bot');
-    await page.fill('input[name="password"], input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/chat', { timeout: 15000 });
-    await page.waitForTimeout(2000);
+    await loginAs(page, E2E_USER, E2E_PASS);
+    await page.waitForTimeout(1000);
   });
 
   test('Polls UI: Create poll button', async ({ page }) => {
-    // Look for poll creation button
-    const pollBtn = page.locator('[data-testid="create-poll"], button[title*="sondage"], button[title*="poll"], .poll-btn').first();
-    
-    if (await pollBtn.isVisible({ timeout: 3000 })) {
-      console.log('✅ Poll creation button found');
-      await pollBtn.click();
-      await page.waitForTimeout(1000);
+    await page.goto('/polls');
+    await page.waitForSelector('[data-testid="create-poll-btn"]', { state: 'visible', timeout: 10000 });
+    console.log('✅ Poll creation button found');
+    await page.click('[data-testid="create-poll-btn"]');
+    await page.waitForSelector('[data-testid="poll-form"]', { state: 'visible', timeout: 5000 });
+    console.log('✅ Poll form opened');
 
-      // Check for poll form
-      const pollForm = page.locator('[data-testid="poll-form"], form, .poll-form').first();
-      if (await pollForm.isVisible()) {
-        console.log('✅ Poll form opened');
-        
-        // Fill question
-        const questionInput = page.locator('input[placeholder*="question"], input[name="question"], [data-testid="poll-question"]').first();
-        if (await questionInput.isVisible()) {
-          await questionInput.fill('Test poll question?');
-        }
+    // Fill question
+    const q = 'Test poll question?';
+    await page.fill('input[placeholder="Quelle est votre question ?"]', q);
 
-        // Add options
-        const optionInputs = page.locator('input[placeholder*="option"], input[name*="option"], [data-testid="poll-option"]');
-        const optionCount = await optionInputs.count();
-        
-        for (let i = 0; i < Math.min(optionCount, 3); i++) {
-          await optionInputs.nth(i).fill(`Option ${i + 1}`);
-        }
-
-        console.log('✅ Poll form filled');
-      }
-    } else {
-      console.log('⚠️ Poll button not found (might be in menu or not implemented)');
-    }
+    // Fill options
+    await page.fill('input[placeholder="Option 1 *"]', 'Option 1');
+    await page.fill('input[placeholder="Option 2 *"]', 'Option 2');
+    console.log('✅ Poll form filled');
   });
 
   test('Polls UI: Display polls in chat', async ({ page }) => {
@@ -70,7 +49,7 @@ test.describe('Polls UI — Create + Vote', () => {
 
   test('API: List polls', async ({ request }) => {
     const login = await request.post(`${BASE}/api/auth/login`, {
-      data: { username: 'hermes-bot', password: 'Hermes2026!' },
+      data: { username: E2E_USER, password: E2E_PASS },
     });
     expect(login.ok()).toBeTruthy();
 
@@ -89,7 +68,7 @@ test.describe('Polls UI — Create + Vote', () => {
 
   test('API: Create and vote on poll', async ({ request }) => {
     const login = await request.post(`${BASE}/api/auth/login`, {
-      data: { username: 'hermes-bot', password: 'Hermes2026!' },
+      data: { username: E2E_USER, password: E2E_PASS },
     });
     expect(login.ok()).toBeTruthy();
 

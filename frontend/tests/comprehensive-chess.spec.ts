@@ -7,9 +7,9 @@ test.describe('Comprehensive Chess Functionality', () => {
     // Login
     await page.goto('/login');
     await page.waitForTimeout(2000);
-    await page.fill('input[type="text"]', 'hermes-bot');
-    await page.fill('input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForTimeout(3000);
     
     // Go to chess
@@ -44,9 +44,9 @@ test.describe('Comprehensive Chess Functionality', () => {
     // Login
     await page.goto('/login');
     await page.waitForTimeout(2000);
-    await page.fill('input[type="text"]', 'hermes-bot');
-    await page.fill('input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForTimeout(3000);
     
     // Go to chess
@@ -92,9 +92,9 @@ test.describe('Comprehensive Chess Functionality', () => {
     // Login
     await page.goto('/login');
     await page.waitForTimeout(2000);
-    await page.fill('input[type="text"]', 'hermes-bot');
-    await page.fill('input[type="password"]', 'Hermes2026!');
-    await page.click('button[type="submit"]');
+    await page.fill('#username', 'hermes-bot');
+    await page.fill('#password', 'Hermes2026!');
+    await page.click('[data-testid="login-btn"]');
     await page.waitForTimeout(3000);
     
     // Go to chess
