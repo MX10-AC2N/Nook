@@ -30,6 +30,22 @@
   let inviteLink       = $state<string | null>(null);
   let authChecked      = $state(false);
 
+  // ─── A11Y B3: Confirmation dialog state (replaces native confirm()) ─────
+  // Provides accessible modal with role="alertdialog", focus trap, ESC cancel
+  let confirmDialog = $state<{
+    show:    boolean;
+    message: string;
+    action:  (() => void) | null;
+  }>({ show: false, message: '', action: null });
+
+  function confirmAction(message: string, action: () => void): void {
+    confirmDialog.message = message;
+    confirmDialog.action  = action;
+    confirmDialog.show    = true;
+  }
+  function confirmOk():     void { confirmDialog.action?.(); confirmDialog.show = false; confirmDialog.action = null; }
+  function confirmCancel(): void { confirmDialog.show = false; confirmDialog.action = null; }
+
   // ─── Stats derived ─────────────────────────────────────────
   let totalUsers   = $derived(allUsers.length);
   let pendingCount = $derived(pendingUsers.length);
@@ -37,16 +53,26 @@
   let activeInvites = $derived(invites.filter(i => !i.used && !isExpired(i)).length);
 
   async function deleteUser(userId: string) {
-    if (!confirm('Supprimer définitivement ce membre ? Cette action est irréversible.')) return;
-    try {
-      const res = await fetch(`/api/users/${userId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(data.message ?? 'Erreur'); return; }
-      allUsers = allUsers.filter(u => u.id !== userId);
-    } catch (e) { alert('Erreur réseau'); }
+    confirmAction(
+      'Supprimer définitivement ce membre ? Cette action est irréversible.',
+      async () => {
+        try {
+          const res = await fetch(`/api/users/${userId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            notifyAdmin('Erreur', data.message ?? 'Erreur lors de la suppression');
+            return;
+          }
+          allUsers = allUsers.filter(u => u.id !== userId);
+          notifyAdmin('Membre supprimé', 'Le membre a été supprimé définitivement.');
+        } catch (e) {
+          notifyAdmin('Erreur', 'Impossible de supprimer le membre.');
+        }
+      }
+    );
   }
 
   onMount(async () => {
@@ -105,21 +131,31 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         credentials: 'include', body: JSON.stringify({ user_id: userId }),
       });
-      if (response.ok) { await loadUsers(); }
-      else alert("Erreur lors de l'approbation");
-    } catch (e) { alert('Erreur réseau'); }
+      if (response.ok) {
+        await loadUsers();
+        notifyAdmin('Utilisateur approuvé', 'Le membre a été approuvé.');
+      }
+      else notifyAdmin('Erreur', "Erreur lors de l'approbation");
+    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
   }
 
   async function rejectUser(userId: string) {
-    if (!confirm('Refuser cet utilisateur ? Il sera supprimé définitivement.')) return;
-    try {
-      const response = await fetch('/api/users/reject', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ user_id: userId }),
-      });
-      if (response.ok) { await loadUsers(); }
-      else alert('Erreur lors du refus');
-    } catch (e) { alert('Erreur réseau'); }
+    confirmAction(
+      'Refuser cet utilisateur ? Il sera supprimé définitivement.',
+      async () => {
+        try {
+          const response = await fetch('/api/users/reject', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', body: JSON.stringify({ user_id: userId }),
+          });
+          if (response.ok) {
+            await loadUsers();
+            notifyAdmin('Utilisateur refusé', 'Le membre a été refusé et supprimé.');
+          }
+          else notifyAdmin('Erreur', 'Erreur lors du refus');
+        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+      }
+    );
   }
 
   async function generateInvite() {
@@ -130,24 +166,31 @@
         const data = await response.json();
         const inviteToken = data.invite_link?.split('token=')[1] ?? data.token;
         inviteLink = `${window.location.origin}/invite?token=${inviteToken}`;
-        notifyAdmin('Invitation generee', 'Un nouveau lien d invitation a ete cree');
+        notifyAdmin('Invitation créée', 'Un nouveau lien d\'invitation a été créé.');
         try { await navigator.clipboard.writeText(inviteLink); }
         catch { console.warn('Clipboard non disponible'); }
         await loadInvites();
-      } else alert('Erreur lors de la génération');
-    } catch (e) { alert('Erreur réseau'); }
+      } else notifyAdmin('Erreur', 'Erreur lors de la génération');
+    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
     finally { generatingInvite = false; }
   }
 
   async function deleteInvite(id: string) {
-    if (!confirm('Supprimer cette invitation ?')) return;
-    try {
-      const res = await fetch('/api/invites/delete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify({ id }),
-      });
-      if (res.ok) await loadInvites(); else alert('Erreur lors de la suppression');
-    } catch (e) { alert('Erreur réseau'); }
+    confirmAction(
+      'Supprimer cette invitation ?',
+      async () => {
+        try {
+          const res = await fetch('/api/invites/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', body: JSON.stringify({ id }),
+          });
+          if (res.ok) {
+            await loadInvites();
+            notifyAdmin('Invitation supprimée', 'L\'invitation a été supprimée.');
+          } else notifyAdmin('Erreur', 'Erreur lors de la suppression');
+        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+      }
+    );
   }
 
   function formatDate(ts: number | string): string {
@@ -200,7 +243,7 @@
     </div>
 
     {#if loading}
-      <div class="loading-message">Chargement…</div>
+      <div class="loading-message" role="status" aria-live="polite">Chargement…</div>
     {:else}
       <!-- Quick stats -->
       <div class="quick-stats">
@@ -251,10 +294,10 @@
         </button>
       </div>
 
-      <div class="admin-content">
+      <div class="admin-content" aria-busy={loading} aria-live="polite">
         {#if activeTab === 'pending'}
           {#if pendingUsers.length === 0}
-            <div class="empty-state">
+            <div class="empty-state" role="status" aria-live="polite">
               <span class="empty-icon">✓</span>
               <span>Tous les membres sont approuvés</span>
             </div>
@@ -300,7 +343,7 @@
 
         {:else if activeTab === 'invites'}
           {#if invites.length === 0}
-            <div class="empty-state">
+            <div class="empty-state" role="status" aria-live="polite">
               <span class="empty-icon">🔗</span>
               <span>Aucune invitation créée</span>
             </div>
@@ -332,9 +375,64 @@
       </div>
     {/if}
   {/if}
+
+  <!-- A11Y B3: Accessible confirmation dialog (replaces native confirm()) -->
+  {#if confirmDialog.show}
+    <div
+      class="confirm-backdrop"
+      role="presentation"
+      onclick={confirmCancel}
+      onkeydown={(e) => { if (e.key === 'Escape') confirmCancel(); }}
+      aria-hidden="true"
+    ></div>
+    <div
+      class="confirm-dialog"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+      tabindex="-1"
+      onkeydown={(e) => {
+        if (e.key === 'Escape') { e.preventDefault(); confirmCancel(); }
+        if (e.key === 'Tab') {
+          // Trap tab focus within the dialog
+          const focusable = e.currentTarget.querySelectorAll('button');
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault(); last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault(); first.focus();
+          }
+        }
+      }}
+    >
+      <h3 id="confirm-title">Confirmer ?</h3>
+      <p class="confirm-message">{confirmDialog.message}</p>
+      <div class="confirm-actions">
+        <button class="btn-confirm-cancel" onclick={confirmCancel} autofocus>Annuler</button>
+        <button class="btn-confirm-ok" onclick={() => { confirmOk(); }}>Confirmer</button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
+  /* ─── A11Y: focus visible (WCAG 2.4.7) ─── */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring, #4f9cf9);
+    outline-offset: 2px;
+  }
+
+  /* ─── A11Y: respect prefers-reduced-motion (WCAG 2.3.3) ─── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   .admin-container {
     max-width: 800px;
     margin: 0 auto;
@@ -372,6 +470,8 @@
   .btn-icon {
     width: 36px;
     height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 50%;
     border: 1px solid var(--border, #e2e8f0);
     background: var(--bg-secondary, #f8fafc);
@@ -423,7 +523,7 @@
   }
   .qs-label {
     font-size: 0.7rem;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-primary, #1e293b);
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
@@ -434,6 +534,7 @@
   }
   .btn-primary {
     padding: 0.6rem 1.25rem;
+    min-height: 44px;
     background: var(--accent, #4ade80);
     color: #fff;
     border: none;
@@ -464,7 +565,8 @@
     white-space: nowrap;
   }
   .btn-copy {
-    padding: 0.3rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    min-height: 44px;
     border-radius: 6px;
     border: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
@@ -487,6 +589,7 @@
   .tab {
     flex: 1;
     padding: 0.5rem 0.75rem;
+    min-height: 44px;
     border: none;
     background: transparent;
     border-radius: 8px;
@@ -518,7 +621,7 @@
   }
   .tab-count {
     font-size: 0.75rem;
-    color: var(--text-muted, #94a3b8);
+    color: var(--text-primary, #1e293b);
   }
 
   /* User list */
@@ -565,14 +668,15 @@
     font-weight: 600;
     padding: 0.15rem 0.5rem;
     border-radius: 10px;
-    background: #dbeafe;
-    color: #2563eb;
+    background: var(--info-light, #dbeafe);
+    color: var(--text-primary, #1e293b);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
 
   .btn-approve {
-    padding: 0.4rem 1rem;
+    padding: 0.5rem 1rem;
+    min-height: 44px;
     background: var(--accent, #4ade80);
     color: #fff;
     border: none;
@@ -591,7 +695,8 @@
   }
 
   .btn-reject {
-    padding: 0.4rem 1rem;
+    padding: 0.5rem 1rem;
+    min-height: 44px;
     background: transparent;
     color: #dc2626;
     border: 1px solid #fecaca;
@@ -605,8 +710,10 @@
   .btn-reject:hover { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
 
   .btn-delete {
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 50%;
     border: 1px solid var(--border, #e2e8f0);
     background: transparent;
@@ -670,6 +777,8 @@
 
   .btn-copy-sm, .btn-delete-sm {
     padding: 0.3rem 0.6rem;
+    min-width: 44px;
+    min-height: 44px;
     border-radius: 6px;
     border: 1px solid var(--border, #e2e8f0);
     background: var(--bg-primary, #fff);
@@ -726,6 +835,120 @@
     min-height: 50vh;
     color: var(--text-secondary, #64748b);
   }
+
+  /* ─── A11Y G1: Dark mode support (.dark-mode is toggled by settings but had 0 CSS rules) ─── */
+  :global(.dark-mode) .admin-container {
+    background: var(--bg-primary, #0a0a0f);
+    color: var(--text-primary, #f1f5f9);
+  }
+  :global(.dark-mode) .admin-header h1 { color: var(--text-primary, #f1f5f9); }
+  :global(.dark-mode) .admin-subtitle { color: var(--text-secondary, #94a3b8); }
+  :global(.dark-mode) .quick-stat {
+    background: var(--bg-primary, #17171a);
+    border-color: var(--border, #333);
+  }
+  :global(.dark-mode) .qs-label { color: var(--text-secondary, #94a3b8); }
+  :global(.dark-mode) .qs-value { color: var(--text-primary, #f1f5f9); }
+  :global(.dark-mode) .tab-count { color: var(--text-primary, #f1f5f9); }
+  :global(.dark-mode) .tab {
+    color: var(--text-secondary, #94a3b8);
+  }
+  :global(.dark-mode) .tab.active {
+    background: var(--bg-primary, #17171a);
+    color: var(--text-primary, #f1f5f9);
+  }
+  :global(.dark-mode) .btn-icon {
+    background: var(--bg-secondary, #1a1a2e);
+    color: var(--text-secondary, #94a3b8);
+    border-color: var(--border, #333);
+  }
+  :global(.dark-mode) .btn-icon:hover {
+    background: var(--bg-tertiary, #333);
+    color: var(--text-primary, #f1f5f9);
+  }
+  :global(.dark-mode) .user-card {
+    background: var(--bg-primary, #17171a);
+    border-color: var(--border, #333);
+  }
+  :global(.dark-mode) .invite-card {
+    background: var(--bg-primary, #17171a);
+    border-color: var(--border, #333);
+  }
+  :global(.dark-mode) .status-active { background: var(--accent-light, #064e32); color: var(--accent, #4ade80); }
+  :global(.dark-mode) .status-used { background: var(--bg-secondary, #1a1a2e); color: var(--text-secondary, #94a3b8); }
+  :global(.dark-mode) .status-expired { background: #450a0a; color: #fca5a5; }
+  :global(.dark-mode) .btn-copy,
+  :global(.dark-mode) .btn-copy-sm,
+  :global(.dark-mode) .btn-delete-sm {
+    background: var(--bg-primary, #17171a);
+    color: var(--text-secondary, #94a3b8);
+    border-color: var(--border, #333);
+  }
+  :global(.dark-mode) .btn-copy:hover,
+  :global(.dark-mode) .btn-copy-sm:hover {
+    background: var(--bg-tertiary, #333);
+  }
+  :global(.dark-mode) .empty-state { color: var(--text-secondary, #94a3b8); }
+
+  /* ─── A11Y B3: Confirmation dialog styles ─── */
+  .confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9990;
+  }
+  .confirm-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9991;
+    background: var(--bg-primary, #fff);
+    border-radius: 12px;
+    padding: 1.5rem;
+    max-width: 400px;
+    width: min(90vw, 400px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border, #e2e8f0);
+  }
+  .confirm-dialog h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+    color: var(--text-primary, #1e293b);
+  }
+  .confirm-message {
+    font-size: 0.9rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0 0 1.25rem;
+    line-height: 1.4;
+  }
+  .confirm-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+  .btn-confirm-cancel {
+    padding: 0.5rem 1.25rem;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-secondary, #f8fafc);
+    color: var(--text-secondary, #64748b);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .btn-confirm-ok {
+    padding: 0.5rem 1.25rem;
+    border: none;
+    background: var(--accent, #4ade80);
+    color: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  .btn-confirm-cancel:hover { background: var(--bg-tertiary, #e2e8f0); }
+  .btn-confirm-ok:hover { opacity: 0.9; }
 
   @media (max-width: 640px) {
     .quick-stats { grid-template-columns: repeat(2, 1fr); }

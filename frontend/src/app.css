@@ -46,6 +46,16 @@ main {
   padding: 0.5rem 1rem;
   border-radius: 0 0 0.5rem 0;
   text-decoration: none;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ─── Global focus-visible (WCAG 2.4.7) ─── */
+/* Ensures keyboard focus is always visible on interactive elements. */
+/* Components with their own :focus-visible override this with higher specificity. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring, #3b82f6);
+  outline-offset: 2px;
 }
 
 /* ─── Global prefers-reduced-motion (a11y) ─── */

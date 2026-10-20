@@ -275,7 +275,7 @@
       ☰
     </button>
 
-    <h1>🌱 Nook</h1>
+    <h2>🌱 Nook</h2>
 
     {#if authStore.isAuthenticated}
       <span class="user-name">{authStore.user?.name || authStore.user?.username}</span>
@@ -435,11 +435,12 @@
   .menu-toggle, .logout-btn {
     background: none; border: none; font-size: 1.5rem;
     cursor: pointer; padding: 0.5rem; border-radius: 0.5rem; transition: background 0.2s;
+    min-width: 44px; min-height: 44px;
   }
 
   .menu-toggle:hover, .logout-btn:hover { background: var(--bg-tertiary, #f1f5f9); }
 
-  .app-header h1 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-primary, #1e293b); flex: 1; }
+  .app-header h2 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--text-primary, #1e293b); flex: 1; }
   .user-name { font-size: 0.9rem; color: var(--text-secondary, #64748b); margin-right: 0.5rem; }
 
   .menu-overlay {
@@ -517,7 +518,7 @@
 
   @media (max-width: 640px) {
     .app-header { padding: 0.85rem 1rem; }
-    .app-header h1 { font-size: 1.1rem; }
+    .app-header h2 { font-size: 1.1rem; }
     .app-main { padding: 0; }
     .menu { width: 85vw; max-width: none; left: 0; right: auto; }
     .error-content { padding: 1.5rem; }

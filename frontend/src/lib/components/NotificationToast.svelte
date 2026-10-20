@@ -69,7 +69,7 @@
 {/if}
 
 <!-- Toasts actifs (slide-in) -->
-<div class="toast-container">
+<div class="toast-container" role="status" aria-live="polite" aria-atomic="true">
   {#each visible as n (n.id)}
     <div
       class="toast"
