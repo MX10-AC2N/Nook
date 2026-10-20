@@ -657,7 +657,7 @@
     border-left: 3px solid var(--accent, #4ade80);
   }
   .user-card.admin-card {
-    border-left: 3px solid #60a5fa;
+    border-left: 3px solid var(--info, #60a5fa);
   }
   .user-info {
     flex: 1;
@@ -710,8 +710,8 @@
     padding: 0.5rem 1rem;
     min-height: 44px;
     background: transparent;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    color: var(--accent-danger, #dc2626);
+    border: 1px solid color-mix(in srgb, var(--accent-danger, #dc2626) 40%, transparent);
     border-radius: 8px;
     font-weight: 600;
     font-size: 0.85rem;
@@ -719,7 +719,7 @@
     transition: all 0.2s;
     white-space: nowrap;
   }
-  .btn-reject:hover { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
+  .btn-reject:hover { background: color-mix(in srgb, var(--accent-danger, #dc2626) 15%, transparent); color: var(--accent-danger, #dc2626); border-color: var(--accent-danger, #dc2626); }
 
   .btn-delete {
     width: 44px;
@@ -737,7 +737,7 @@
     align-items: center;
     justify-content: center;
   }
-  .btn-delete:hover { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+  .btn-delete:hover { background: color-mix(in srgb, var(--accent-danger, #dc2626) 15%, transparent); color: var(--accent-danger, #dc2626); border-color: var(--accent-danger, #dc2626); }
 
   /* Invites */
   .invites-list {
@@ -783,9 +783,9 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  .status-active { background: #dcfce7; color: #16a34a; }
-  .status-used { background: #f1f5f9; color: #64748b; }
-  .status-expired { background: #fef2f2; color: #dc2626; }
+  .status-active { background: var(--success-light, #dcfce7); color: var(--success, #16a34a); }
+  .status-used { background: var(--bg-tertiary, #f1f5f9); color: var(--text-secondary, #64748b); }
+  .status-expired { background: var(--error-light, #fef2f2); color: var(--accent-danger, #dc2626); }
 
   .btn-copy-sm, .btn-delete-sm {
     padding: 0.3rem 0.6rem;
@@ -800,8 +800,8 @@
     transition: all 0.15s;
   }
   .btn-copy-sm:hover { background: var(--bg-tertiary, #e2e8f0); }
-  .btn-delete-sm { color: #dc2626; border-color: #fecaca; }
-  .btn-delete-sm:hover { background: #fef2f2; }
+  .btn-delete-sm { color: var(--accent-danger, #dc2626); border-color: color-mix(in srgb, var(--accent-danger, #dc2626) 40%, transparent); }
+  .btn-delete-sm:hover { background: color-mix(in srgb, var(--accent-danger, #dc2626) 15%, transparent); }
 
   /* Empty state */
   .empty-state {
@@ -848,60 +848,11 @@
     color: var(--text-secondary, #64748b);
   }
 
-  /* ─── A11Y G1: Dark mode support (.dark-mode is toggled by settings but had 0 CSS rules) ─── */
-  :global(.dark-mode) .admin-container {
-    background: var(--bg-primary, #0a0a0f);
-    color: var(--text-primary, #f1f5f9);
-  }
-  :global(.dark-mode) .admin-header h1 { color: var(--text-primary, #f1f5f9); }
-  :global(.dark-mode) .admin-subtitle { color: var(--text-secondary, #94a3b8); }
-  :global(.dark-mode) .quick-stat {
-    background: var(--bg-primary, #17171a);
-    border-color: var(--border, #333);
-  }
-  :global(.dark-mode) .qs-label { color: var(--text-secondary, #94a3b8); }
-  :global(.dark-mode) .qs-value { color: var(--text-primary, #f1f5f9); }
-  :global(.dark-mode) .tab-count { color: var(--text-primary, #f1f5f9); }
-  :global(.dark-mode) .tab {
-    color: var(--text-secondary, #94a3b8);
-  }
-  :global(.dark-mode) .tab.active {
-    background: var(--bg-primary, #17171a);
-    color: var(--text-primary, #f1f5f9);
-  }
-  :global(.dark-mode) .btn-icon {
-    background: var(--bg-secondary, #1a1a2e);
-    color: var(--text-secondary, #94a3b8);
-    border-color: var(--border, #333);
-  }
-  :global(.dark-mode) .btn-icon:hover {
-    background: var(--bg-tertiary, #333);
-    color: var(--text-primary, #f1f5f9);
-  }
-  :global(.dark-mode) .user-card {
-    background: var(--bg-primary, #17171a);
-    border-color: var(--border, #333);
-  }
-  :global(.dark-mode) .invite-card {
-    background: var(--bg-primary, #17171a);
-    border-color: var(--border, #333);
-  }
-  :global(.dark-mode) .status-active { background: var(--accent-light, #064e32); color: var(--accent, #4ade80); }
-  :global(.dark-mode) .status-used { background: var(--bg-secondary, #1a1a2e); color: var(--text-secondary, #94a3b8); }
-  :global(.dark-mode) .status-expired { background: #450a0a; color: #fca5a5; }
-  :global(.dark-mode) .btn-copy,
-  :global(.dark-mode) .btn-copy-sm,
-  :global(.dark-mode) .btn-delete-sm {
-    background: var(--bg-primary, #17171a);
-    color: var(--text-secondary, #94a3b8);
-    border-color: var(--border, #333);
-  }
-  :global(.dark-mode) .btn-copy:hover,
-  :global(.dark-mode) .btn-copy-sm:hover {
-    background: var(--bg-tertiary, #333);
-  }
-  :global(.dark-mode) .empty-state { color: var(--text-secondary, #94a3b8); }
-  :global(.dark-mode) .btn-confirm-ok { background: #ef4444; }
+  /* ─── Voie A: dark mode via thème global (nuit-douce) — plus de classe dark-mode ───
+     Le toggle « Mode sombre » commute sur le thème nuit-douce qui définit
+     tous les tokens CSS (--bg-primary, --text-primary, --border, etc.) avec
+     des valeurs sombres.  Les règles dark-mode scope-ées ici ont été
+     supprimées : les var(--token, #fallback) ci-dessus s'adaptent automatiquement. ─── */
 
   /* ─── A11Y B3: Confirmation dialog styles ─── */
   .confirm-backdrop {
@@ -953,7 +904,7 @@
   .btn-confirm-ok {
     padding: 0.5rem 1.25rem;
     border: none;
-    background: #dc2626;
+    background: var(--accent-danger, #dc2626);
     color: #fff;
     border-radius: 8px;
     cursor: pointer;

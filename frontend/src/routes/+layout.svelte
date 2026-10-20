@@ -100,16 +100,18 @@
   // Appelé immédiatement dans onMount pour appliquer le thème AVANT tout rendu.
   // Sans ça, le thème ne s'applique qu'à settings/+page.svelte et disparaît
   // à la navigation.
+  // Voie A : le toggle dark-mode commute sur le thème sombre global (nuit-douce)
+  // qui possède des règles CSS globales → dark mode partout, plus de classe dark-mode.
   function initThemeGlobal(): void {
     if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem('nook-theme');
-    const dark  = localStorage.getItem('nook-dark-mode') === 'true';
-    const theme = saved ?? 'jardin-secret';
+    const savedTheme = localStorage.getItem('nook-theme');
+    const dark       = localStorage.getItem('nook-dark-mode') === 'true';
+    const theme      = dark ? 'nuit-douce' : (savedTheme ?? 'jardin-secret');
     document.body.classList.remove(
-      'theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse'
+      'theme-jardin-secret', 'theme-space-hub',
+      'theme-maison-chaleureuse', 'theme-nuit-douce', 'dark-mode'
     );
     document.body.classList.add(`theme-${theme}`);
-    document.body.classList.toggle('dark-mode', dark);
     document.documentElement.setAttribute('data-theme', theme);
   }
 

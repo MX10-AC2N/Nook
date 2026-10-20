@@ -118,14 +118,27 @@
     }
   }
 
+  // ─── Voie A : un seul mécanisme de thème ─────────────────────────────
+  // Le toggle « Mode sombre » ne pose plus une classe « dark-mode » (qui n'a
+  // de CSS que dans Settings → no-op ailleurs).  Il commute le thème
+  // `data-theme` / `theme-*` sur `nuit-douce` — un thème sombre COMPLET
+  // avec des règles CSS globales définies dans `nuit-douce.css`.
+  // Résultat : le dark mode s'applique sur TOUTES les pages, via le
+  // même mécanisme que le sélecteur de thème.
   function applyTheme() {
     if (typeof document !== 'undefined') {
       const body = document.body;
-      body.classList.remove('theme-jardin-secret', 'theme-space-hub', 'theme-maison-chaleureuse');
-      body.classList.add(`theme-${selectedTheme}`);
-      body.classList.toggle('dark-mode', darkMode);
-      document.documentElement.setAttribute('data-theme', selectedTheme);
-      document.documentElement.setAttribute('data-dark',  darkMode.toString());
+      body.classList.remove(
+        'theme-jardin-secret', 'theme-space-hub',
+        'theme-maison-chaleureuse', 'theme-nuit-douce', 'dark-mode'
+      );
+      // Le thème sombre global (nuit-douce) possède des règles CSS globales
+      // → le dark mode marche partout, pas seulement dans Settings.
+      const theme = darkMode ? 'nuit-douce' : selectedTheme;
+      body.classList.add(`theme-${theme}`);
+      document.documentElement.setAttribute('data-theme', theme);
+      // On persiste le thème clair selectionné (selectedTheme) séparément
+      // du flag dark-mode, afin de pouvoir restaurer le bon thème au toggle OFF.
       localStorage.setItem('nook-theme',     selectedTheme);
       localStorage.setItem('nook-dark-mode', darkMode.toString());
     }
@@ -416,7 +429,7 @@
         <label class="toggle-label" for="darkModeToggle">
           <div>
             <span class="toggle-title">🌙 Mode sombre</span>
-            <p class="help-text">Superpose un filtre sombre sur le thème actuel</p>
+            <p class="help-text">Active le mode sombre global (thème Nuit Douce) sur toutes les pages</p>
           </div>
           <div class="toggle-switch">
             <input type="checkbox" id="darkModeToggle" checked={darkMode} onchange={toggleDarkMode} />
@@ -512,10 +525,10 @@
     background: var(--button-hover); transform: translateY(-1px); box-shadow: var(--shadow-lg);
   }
   .btn-danger {
-    background: #ef4444; color: #fff; box-shadow: var(--shadow-md);
+    background: var(--error, #ef4444); color: #fff; box-shadow: var(--shadow-md);
   }
   .btn-danger:hover:not(:disabled) {
-    background: #dc2626; transform: translateY(-1px);
+    background: var(--accent-danger, #dc2626); transform: translateY(-1px);
   }
   .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
 
@@ -620,19 +633,14 @@
     font-size: 0.9rem; animation: var(--fade-in);
   }
   .alert-success {
-    background: color-mix(in srgb, #4ade80 15%, transparent);
-    border: 1px solid color-mix(in srgb, #4ade80 40%, transparent);
+    background: color-mix(in srgb, var(--success, #4ade80) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--success, #4ade80) 40%, transparent);
     color: var(--text-primary);
   }
   .alert-error {
-    background: color-mix(in srgb, #f87171 15%, transparent);
-    border: 1px solid color-mix(in srgb, #f87171 40%, transparent);
+    background: color-mix(in srgb, var(--error, #f87171) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--error, #f87171) 40%, transparent);
     color: var(--text-primary);
-  }
-
-  :global(.dark-mode) .settings-section,
-  :global(.dark-mode) .tabs {
-    filter: brightness(0.85);
   }
 
   @media (max-width: 768px) {
