@@ -30,8 +30,9 @@
   let inviteLink       = $state<string | null>(null);
   let authChecked      = $state(false);
 
-  // ─── A11Y B3: Confirmation dialog state (replaces native confirm()) ─────
+  // ─── A11Y B3: Confirmation dialog state (replaces native confirmation dialogs) ─────
   // Provides accessible modal with role="alertdialog", focus trap, ESC cancel
+  let lastFocusedElement: HTMLElement | null = null;
   let confirmDialog = $state<{
     show:    boolean;
     message: string;
@@ -39,12 +40,22 @@
   }>({ show: false, message: '', action: null });
 
   function confirmAction(message: string, action: () => void): void {
+    lastFocusedElement = document.activeElement as HTMLElement;
     confirmDialog.message = message;
     confirmDialog.action  = action;
     confirmDialog.show    = true;
   }
-  function confirmOk():     void { confirmDialog.action?.(); confirmDialog.show = false; confirmDialog.action = null; }
-  function confirmCancel(): void { confirmDialog.show = false; confirmDialog.action = null; }
+  function confirmOk():     void {
+    confirmDialog.action?.();
+    confirmDialog.show = false;
+    confirmDialog.action = null;
+    lastFocusedElement?.focus?.();
+  }
+  function confirmCancel(): void {
+    confirmDialog.show = false;
+    confirmDialog.action = null;
+    lastFocusedElement?.focus?.();
+  }
 
   // ─── Stats derived ─────────────────────────────────────────
   let totalUsers   = $derived(allUsers.length);
@@ -63,13 +74,13 @@
           });
           const data = await res.json();
           if (!res.ok) {
-            notifyAdmin('Erreur', data.message ?? 'Erreur lors de la suppression');
+            notifyAdmin('Erreur', data.message ?? 'Erreur lors de la suppression', true);
             return;
           }
           allUsers = allUsers.filter(u => u.id !== userId);
           notifyAdmin('Membre supprimé', 'Le membre a été supprimé définitivement.');
         } catch (e) {
-          notifyAdmin('Erreur', 'Impossible de supprimer le membre.');
+          notifyAdmin('Erreur', 'Impossible de supprimer le membre.', true);
         }
       }
     );
@@ -135,8 +146,8 @@
         await loadUsers();
         notifyAdmin('Utilisateur approuvé', 'Le membre a été approuvé.');
       }
-      else notifyAdmin('Erreur', "Erreur lors de l'approbation");
-    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+      else notifyAdmin('Erreur', "Erreur lors de l'approbation", true);
+    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau', true); }
   }
 
   async function rejectUser(userId: string) {
@@ -152,8 +163,8 @@
             await loadUsers();
             notifyAdmin('Utilisateur refusé', 'Le membre a été refusé et supprimé.');
           }
-          else notifyAdmin('Erreur', 'Erreur lors du refus');
-        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+          else notifyAdmin('Erreur', 'Erreur lors du refus', true);
+        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau', true); }
       }
     );
   }
@@ -170,8 +181,8 @@
         try { await navigator.clipboard.writeText(inviteLink); }
         catch { console.warn('Clipboard non disponible'); }
         await loadInvites();
-      } else notifyAdmin('Erreur', 'Erreur lors de la génération');
-    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+      } else notifyAdmin('Erreur', 'Erreur lors de la génération', true);
+    } catch (e) { notifyAdmin('Erreur', 'Erreur réseau', true); }
     finally { generatingInvite = false; }
   }
 
@@ -187,8 +198,8 @@
           if (res.ok) {
             await loadInvites();
             notifyAdmin('Invitation supprimée', 'L\'invitation a été supprimée.');
-          } else notifyAdmin('Erreur', 'Erreur lors de la suppression');
-        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau'); }
+          } else notifyAdmin('Erreur', 'Erreur lors de la suppression', true);
+        } catch (e) { notifyAdmin('Erreur', 'Erreur réseau', true); }
       }
     );
   }
@@ -376,7 +387,7 @@
     {/if}
   {/if}
 
-  <!-- A11Y B3: Accessible confirmation dialog (replaces native confirm()) -->
+  <!-- A11Y B3: Accessible confirmation dialog (replaces native browser dialogs) -->
   {#if confirmDialog.show}
     <div
       class="confirm-backdrop"
@@ -390,6 +401,7 @@
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
+      aria-describedby="confirm-message"
       tabindex="-1"
       onkeydown={(e) => {
         if (e.key === 'Escape') { e.preventDefault(); confirmCancel(); }
@@ -407,10 +419,10 @@
       }}
     >
       <h3 id="confirm-title">Confirmer ?</h3>
-      <p class="confirm-message">{confirmDialog.message}</p>
+      <p id="confirm-message" class="confirm-message">{confirmDialog.message}</p>
       <div class="confirm-actions">
         <button class="btn-confirm-cancel" onclick={confirmCancel} autofocus>Annuler</button>
-        <button class="btn-confirm-ok" onclick={() => { confirmOk(); }}>Confirmer</button>
+        <button class="btn-confirm-ok" onclick={confirmOk} aria-label="Confirmer l'action (irréversible)">Confirmer</button>
       </div>
     </div>
   {/if}
@@ -889,6 +901,7 @@
     background: var(--bg-tertiary, #333);
   }
   :global(.dark-mode) .empty-state { color: var(--text-secondary, #94a3b8); }
+  :global(.dark-mode) .btn-confirm-ok { background: #ef4444; }
 
   /* ─── A11Y B3: Confirmation dialog styles ─── */
   .confirm-backdrop {
@@ -940,7 +953,7 @@
   .btn-confirm-ok {
     padding: 0.5rem 1.25rem;
     border: none;
-    background: var(--accent, #4ade80);
+    background: #dc2626;
     color: #fff;
     border-radius: 8px;
     cursor: pointer;

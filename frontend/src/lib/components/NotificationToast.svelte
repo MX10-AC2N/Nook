@@ -69,7 +69,8 @@
 {/if}
 
 <!-- Toasts actifs (slide-in) -->
-<div class="toast-container" role="status" aria-live="polite" aria-atomic="true">
+<!-- Le container n'a pas de role live : chaque toast porte son propre live region SR-only -->
+<div class="toast-container">
   {#each visible as n (n.id)}
     <div
       class="toast"
@@ -79,6 +80,13 @@
       role="button"
       tabindex="0"
     >
+      <!-- Annonce SR : role et aria-live différenciés selon la gravité -->
+      <div
+        class="toast-announce"
+        role={n.isError ? 'alert' : 'status'}
+        aria-live={n.isError ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >{n.title} — {n.body}</div>
       <span class="toast-icon">{n.icon}</span>
       <div class="toast-body">
         <strong>{n.title}</strong>
@@ -191,6 +199,19 @@
   .toast-close {
     background: none; border: none; color: var(--text-secondary);
     cursor: pointer; font-size: .9rem; padding: .2rem; flex-shrink: 0;
+  }
+
+  /* Annonce SR pour les toasts — visuellement caché mais annonçé par les lecteurs d'écran */
+  .toast-announce {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   @keyframes slide-in {

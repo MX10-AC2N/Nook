@@ -17,6 +17,7 @@
   let cryptoError     = $state<string | null>(null);
   let menuElement     = $state<HTMLElement | undefined>(undefined);
   import { focusTrap } from '$lib/actions/focusTrap';
+  import NotificationToast from '$lib/components/NotificationToast.svelte';
 
   // Badge non-lu : somme de tous les compteurs de conversations
   const totalUnread = $derived(
@@ -351,6 +352,9 @@
     <p>© {new Date().getFullYear()} Nook • Messagerie privée pour la famille</p>
   </footer>
 {/if}
+
+  <!-- Toasts globaux + historique des notifications (accessibles) -->
+  <NotificationToast />
 
 <style>
   :global(:root) {

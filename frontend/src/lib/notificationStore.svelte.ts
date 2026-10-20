@@ -17,6 +17,7 @@ export interface AppNotification {
   icon:      string;            // emoji
   timestamp: number;
   read:      boolean;
+  isError:   boolean;           // true → role="alert" aria-live="assertive"
 }
 
 // ── État ──────────────────────────────────────────────────────────
@@ -90,9 +91,9 @@ function _updateTitle(): void {
 export function notify(
   title: string,
   body: string,
-  opts: { type?: NotificationType; href?: string | null; duration?: number } = {},
+  opts: { type?: NotificationType; href?: string | null; duration?: number; isError?: boolean } = {},
 ): void {
-  const { type = 'info', href = null, duration = 5000 } = opts;
+  const { type = 'info', href = null, duration = 5000, isError = false } = opts;
 
   const notif: AppNotification = {
     id:        `notif-${++_idCounter}-${Date.now()}`,
@@ -103,6 +104,7 @@ export function notify(
     icon:      ICONS[type],
     timestamp: Date.now(),
     read:      false,
+    isError,
   };
 
   // Son
@@ -172,6 +174,6 @@ export function notifyCall(caller: string): void {
   notify(`${ICONS.call} Appel entrant`, `${caller} vous appelle`, { type: 'call', href: '/call', duration: 30000 });
 }
 
-export function notifyAdmin(title: string, body: string): void {
-  notify(`${ICONS.admin} ${title}`, body, { type: 'admin', href: '/admin' });
+export function notifyAdmin(title: string, body: string, isError = false): void {
+  notify(`${ICONS.admin} ${title}`, body, { type: 'admin', href: '/admin', isError });
 }
