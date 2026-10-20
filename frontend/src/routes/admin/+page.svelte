@@ -57,6 +57,19 @@
     lastFocusedElement?.focus?.();
   }
 
+  // ─── A11Y B3: move focus into the dialog on open ─────────────────────
+  // `autofocus` is ignored by Svelte 5 (no attribute-to-focus bridge).
+  // We programatically focus the dialog container (tabindex="-1") the
+  // moment it mounts. This single fix resolves all 3 symptoms reported
+  // by the re-audit: non-moved focus, inactive Tab trap, unresponsive
+  // Escape. The existing trap/restore logic is left untouched.
+  let dialogEl: HTMLDivElement | null = null;
+  $effect(() => {
+    if (confirmDialog.show && dialogEl) {
+      dialogEl.focus();
+    }
+  });
+
   // ─── Stats derived ─────────────────────────────────────────
   let totalUsers   = $derived(allUsers.length);
   let pendingCount = $derived(pendingUsers.length);
@@ -403,6 +416,7 @@
       aria-labelledby="confirm-title"
       aria-describedby="confirm-message"
       tabindex="-1"
+      bind:this={dialogEl}
       onkeydown={(e) => {
         if (e.key === 'Escape') { e.preventDefault(); confirmCancel(); }
         if (e.key === 'Tab') {
@@ -421,7 +435,7 @@
       <h3 id="confirm-title">Confirmer ?</h3>
       <p id="confirm-message" class="confirm-message">{confirmDialog.message}</p>
       <div class="confirm-actions">
-        <button class="btn-confirm-cancel" onclick={confirmCancel} autofocus>Annuler</button>
+        <button class="btn-confirm-cancel" onclick={confirmCancel}>Annuler</button>
         <button class="btn-confirm-ok" onclick={confirmOk} aria-label="Confirmer l'action (irréversible)">Confirmer</button>
       </div>
     </div>
