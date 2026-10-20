@@ -76,6 +76,9 @@
   --accent-danger: #dc2626;
   --text-danger: #dc2626;
   --bg-danger: #fee2e2;
+  /* Dark alert background so .quick-stat.alert text stays readable.
+     Replaces the inherited --accent-light (#c4b5fd, too light on --text-primary). */
+  --alert-bg: var(--bg-tertiary);
 }
 
 .theme-nuit-douce .btn-primary {

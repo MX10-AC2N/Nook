@@ -538,7 +538,9 @@
   }
   .quick-stat.alert {
     border-color: var(--accent, #4ade80);
-    background: var(--accent-light, #f0fdf4);
+    /* --alert-bg is defined per-theme (dark) or falls back to --accent-light.
+       Prevents light-on-light in dark themes (WCAG 1.4.3). */
+    background: var(--alert-bg, var(--accent-light, #f0fdf4));
   }
   .qs-value {
     display: block;
@@ -743,7 +745,8 @@
     border-radius: 50%;
     border: 1px solid var(--border, #e2e8f0);
     background: transparent;
-    color: var(--text-muted, #94a3b8);
+    /* Use --text-secondary (6.50:1 in dark) instead of --text-muted (3.50:1) */
+    color: var(--text-secondary, #64748b);
     cursor: pointer;
     font-size: 0.85rem;
     transition: all 0.2s;
