@@ -181,11 +181,12 @@ export interface AuthState {
   THEME STORE STATE
 =====================================================================*/
 export interface ThemeState {
-  currentTheme: 'jardin-secret' | 'space-hub' | 'maison-chaleureuse';
+  currentTheme: 'jardin-secret' | 'space-hub' | 'maison-chaleureuse' | 'nuit-douce';
   themes: {
     'jardin-secret': Record<string, string>;
     'space-hub': Record<string, string>;
     'maison-chaleureuse': Record<string, string>;
+    'nuit-douce': Record<string, string>;
   };
 }
 

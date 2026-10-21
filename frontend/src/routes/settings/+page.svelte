@@ -94,6 +94,18 @@
       description: 'Chaleureux, ambre, feu',
       preview: { bg: '#fdf2e9', accent: '#ea580c', text: '#7c2d12', bubble: '#ffedd5' },
     },
+    {
+      id: 'nuit-douce',
+      name: 'Nuit Douce',
+      icon: '🌙',
+      description: 'Doux, sombre, apaisé — repose les yeux le soir',
+      preview: {
+        bg:      '#1a1d2e',   // --bg-primary (nuit-douce.css)
+        accent:  '#a78bfa',   // --accent
+        text:    '#e2e8f0',   // --text-primary
+        bubble:  '#232640',   // --bg-secondary
+      },
+    },
   ];
 
   onMount(async () => {
@@ -114,6 +126,9 @@
     if (typeof window !== 'undefined') {
       selectedTheme = localStorage.getItem('nook-theme') ?? 'jardin-secret';
       darkMode      = localStorage.getItem('nook-dark-mode') === 'true';
+      // Reconcilier : si nuit-douce est le thème sélectionné, le toggle
+      // sombre doit être ON (cohérence toggle ↔ thème).
+      if (selectedTheme === 'nuit-douce') darkMode = true;
       applyTheme();
     }
   }
@@ -125,6 +140,13 @@
   // avec des règles CSS globales définies dans `nuit-douce.css`.
   // Résultat : le dark mode s'applique sur TOUTES les pages, via le
   // même mécanisme que le sélecteur de thème.
+  //
+  // Cohérence toggle ↔ thème :
+  // • nuit-douce est un thème sombre → le toggle doit être ON quand il est
+  //   sélectionné (voir setTheme + loadTheme).
+  // • Si l'utilisateur désactive le toggle tout en ayant nuit-douce comme
+  //   thème, on redirige vers jardin-secret pour éviter l'état incohérent
+  //   « thème sombre + toggle OFF ».
   function applyTheme() {
     if (typeof document !== 'undefined') {
       const body = document.body;
@@ -144,8 +166,22 @@
     }
   }
 
-  function setTheme(themeId: string) { selectedTheme = themeId; applyTheme(); }
-  function toggleDarkMode()          { darkMode = !darkMode; applyTheme(); }
+  function setTheme(themeId: string) {
+    selectedTheme = themeId;
+    // nuit-douce est un thème sombre : le toggle doit refléter ça.
+    darkMode = themeId === 'nuit-douce';
+    applyTheme();
+  }
+
+  function toggleDarkMode() {
+    darkMode = !darkMode;
+    // Toggle OFF + thème sombre = nuit-douce → rediriger vers un thème clair
+    // pour éviter l'état incohérent « thème sombre mais toggle désactivé ».
+    if (!darkMode && selectedTheme === 'nuit-douce') {
+      selectedTheme = 'jardin-secret';
+    }
+    applyTheme();
+  }
 
   async function updateProfile() {
     if (!userName.trim()) { error = 'Le nom ne peut pas être vide'; return; }

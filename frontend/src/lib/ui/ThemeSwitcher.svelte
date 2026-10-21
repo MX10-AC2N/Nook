@@ -319,6 +319,9 @@
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.primary   { background-color: #fdf2e9; }
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.secondary { background-color: #fef3c7; }
   .theme-preview[data-theme="maison-chaleureuse"] .preview-circle.accent    { background-color: #ea580c; }
+  .theme-preview[data-theme="nuit-douce"] .preview-circle.primary          { background-color: #1a1d2e; }
+  .theme-preview[data-theme="nuit-douce"] .preview-circle.secondary        { background-color: #232640; }
+  .theme-preview[data-theme="nuit-douce"] .preview-circle.accent           { background-color: #a78bfa; }
 
   /* -----------------------------------------------------------------
      INFORMATIONS DU THÈME

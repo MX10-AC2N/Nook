@@ -106,7 +106,11 @@
     if (typeof window === 'undefined') return;
     const savedTheme = localStorage.getItem('nook-theme');
     const dark       = localStorage.getItem('nook-dark-mode') === 'true';
-    const theme      = dark ? 'nuit-douce' : (savedTheme ?? 'jardin-secret');
+    // nuit-douce est un thème sombre : si c'est le thème sauvegardé mais que
+    // le flag dark-mode est faux, on traite quand même comme du dark mode
+    // (cohérence toggle ↔ thème).
+    const isDarkTheme = dark || savedTheme === 'nuit-douce';
+    const theme      = isDarkTheme ? 'nuit-douce' : (savedTheme ?? 'jardin-secret');
     document.body.classList.remove(
       'theme-jardin-secret', 'theme-space-hub',
       'theme-maison-chaleureuse', 'theme-nuit-douce', 'dark-mode'
