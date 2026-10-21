@@ -73,6 +73,9 @@
   --error-light: rgba(248, 113, 113, 0.15);
   --info: #60a5fa;
   --info-light: rgba(96, 165, 250, 0.15);
+  /* Alert background so .quick-stat.alert text stays readable.
+     Replaces inherited --accent-light (#a78bfa, too light on --text-primary #f1f5f3). */
+  --alert-bg: var(--bg-tertiary);
 }
 
 /* Overrides spécifiques pour le thème Space */

@@ -538,8 +538,8 @@
   }
   .quick-stat.alert {
     border-color: var(--accent, #4ade80);
-    /* --alert-bg is defined per-theme (dark) or falls back to --accent-light.
-       Prevents light-on-light in dark themes (WCAG 1.4.3). */
+    /* --alert-bg is defined per-theme in all 4 themes (WCAG 1.4.3).
+       Ultimate fallback chain: --accent-light, then --bg-primary. */
     background: var(--alert-bg, var(--accent-light, #f0fdf4));
   }
   .qs-value {

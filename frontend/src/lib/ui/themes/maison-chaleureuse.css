@@ -73,6 +73,9 @@
   --error-light: #fee2e2;
   --info: #3b82f6;
   --info-light: #dbeafe;
+  /* Alert background so .quick-stat.alert text stays readable.
+     Replaces inherited --accent-light (#fb923c, 4.14:1 on --text-primary #7c2d12). */
+  --alert-bg: var(--bg-tertiary);
 }
 
 /* Overrides spécifiques pour le thème Maison */
