@@ -172,6 +172,70 @@ async fn check_membership(
     Ok(())
 }
 
+/// Contrôle d'accès clé de groupe — RFC-016 §5.4 / ADR-016 (écart E1).
+///
+/// `default_global` (groupe global) : réservé à l'admin. Un non-admin est
+/// refusé (403) sur les 3 routes, ce qui empêche la prise / avance de la clé
+/// globalisée ainsi que le scraping d'historique de versions par un membre
+/// ordinaire.
+///
+/// `require_creator = true` → routes qui AVANCENT ou DISTRUIT la clé
+/// (`distribute_group_keys`, `add_member_key`) : pour un groupe privé, seul le
+/// créateur du groupe ou un admin est autorisé. (Les DMs n'utilisent pas les
+/// clés de groupe et restent régis par `check_membership`.)
+///
+/// `require_creator = false` → auto-lecture (`get_my_group_key`) : un membre
+/// légitime peut toujours lire SA propre clé pour déchiffrer ; le
+/// `check_membership` préalable suffit pour les conversations non-globales.
+///
+/// NB : `check_membership` doit être appelé AVANT celui-ci.
+async fn require_group_key_access(
+    state: &Arc<SharedState>,
+    user: &crate::db::User,
+    conv_id: &str,
+    require_creator: bool,
+) -> Result<(), StatusCode> {
+    // Groupe global : admin uniquement (RFC-016 §5.4)
+    if conv_id == "default_global" {
+        if user.role.as_str() != "admin" {
+            tracing::warn!(
+                user = %user.id,
+                conv = %conv_id,
+                "e2ee: accès clé groupe refusé — admin requis pour default_global"
+            );
+            return Err(StatusCode::FORBIDDEN);
+        }
+        return Ok(());
+    }
+
+    if !require_creator {
+        // Auto-lecture : un membre légitime (vérifié au-dessus) lit sa propre clé.
+        return Ok(());
+    }
+
+    // Route avancant/distribuant la clé sur un groupe privé : créateur ou admin
+    let created_by: Option<(String,)> = sqlx::query_as(
+        "SELECT created_by FROM conversations WHERE id = ?",
+    )
+    .bind(conv_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    match created_by {
+        Some((cb,)) if cb == user.id || user.role.as_str() == "admin" => Ok(()),
+        Some(_) => {
+            tracing::warn!(
+                user = %user.id,
+                conv = %conv_id,
+                "e2ee: accès clé groupe refusé — créateur ou admin requis"
+            );
+            Err(StatusCode::FORBIDDEN)
+        }
+        None => Err(StatusCode::NOT_FOUND),
+    }
+}
+
 /// Récupère la version actuelle de la clé publique d'un utilisateur.
 /// Retourne 1 si aucune rotation n'a été effectuée (clé initiale dans users.public_key).
 async fn get_current_key_version(
@@ -595,6 +659,9 @@ pub async fn distribute_group_keys(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Vérifier que l'utilisateur est membre
     check_membership(&state, &user.id, &conv_id).await?;
+    // RFC-016 §5.4 : seul l'admin gère la clé du groupe global ; pour un groupe
+    // privé, seul le créateur ou un admin peut distribuer/avancer la clé.
+    require_group_key_access(&state, &user, &conv_id, true).await?;
 
     let now = chrono::Utc::now().timestamp();
 
@@ -681,6 +748,9 @@ pub async fn get_my_group_key(
     Query(query): Query<MyKeyQuery>,
 ) -> Result<Json<MyKeyResponse>, StatusCode> {
     check_membership(&state, &user.id, &conv_id).await?;
+    // RFC-016 §5.4 : seul l'admin peut lire la clé du groupe global ; pour un
+    // groupe privé, un membre légitime lit sa propre clé (auto-lecture).
+    require_group_key_access(&state, &user, &conv_id, false).await?;
 
     // Si version spécifiée, utiliser celle-là; sinon prendre la plus récente
     let row = if let Some(version) = query.version {
@@ -739,6 +809,9 @@ pub async fn add_member_key(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     // Vérifier que l'utilisateur est membre
     check_membership(&state, &user.id, &conv_id).await?;
+    // RFC-016 §5.4 : seul l'admin gère la clé du groupe global ; pour un groupe
+    // privé, seul le créateur ou un admin peut ajouter un membre à la clé.
+    require_group_key_access(&state, &user, &conv_id, true).await?;
 
     // Vérifier que la clé de groupe existe
     let key_exists: Option<(i64,)> = sqlx::query_as(
@@ -2235,6 +2308,43 @@ mod tests {
         assert_eq!(err, StatusCode::FORBIDDEN);
     }
 
+    // ─── Helpers RFC-016 §5.4 (contrôle rôle admin / créateur) ──────────
+
+    /// Crée un utilisateur admin (rôle `admin` en base et en struct).
+    async fn seed_admin_user(
+        pool: &SqlitePool,
+        username: &str,
+        password: &str,
+        public_key: Option<&str>,
+    ) -> User {
+        let mut user = seed_user(pool, username, password, public_key).await;
+        sqlx::query("UPDATE users SET role = 'admin' WHERE id = ?")
+            .bind(&user.id)
+            .execute(pool)
+            .await
+            .unwrap();
+        user.role = "admin".to_string();
+        user
+    }
+
+    /// Sème la conversation globale `default_global` (absente des migrations,
+    /// créée à chaud par `main.rs` en prod) avec un créateur admin interne
+    /// valide — la contrainte FK sur `created_by` exige un utilisateur réel.
+    async fn seed_default_global(pool: &SqlitePool) {
+        let creator = seed_admin_user(pool, "default_global_admin", "pass", None).await;
+        let now = chrono::Utc::now().timestamp();
+        sqlx::query(
+            "INSERT OR IGNORE INTO conversations (id, name, is_group, created_by, created_at, updated_at)
+             VALUES ('default_global', 'Groupe Global', 1, ?, ?, ?)",
+        )
+        .bind(&creator.id)
+        .bind(now)
+        .bind(now)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     // ═════════════════════════════════════════════════════════════════════
     // E3 correctif — distribution_status dans add_member_key
     // (membre sans clé publique → 'pending' → réclamable via claim_key)
@@ -2452,10 +2562,201 @@ mod tests {
     }
 
     // ═════════════════════════════════════════════════════════════════════
-    // GET /api/conversations/{conv_id}/my-encrypted-key/{msg_id}
+    // RFC-016 §5.4 — Contrôle de rôle admin / créateur sur les routes clé groupe
+    // (Volet B : gate admin sur default_global, créateur/admin sur groupe privé)
     // ═════════════════════════════════════════════════════════════════════
     // ═════════════════════════════════════════════════════════════════════
 
+    #[tokio::test]
+    async fn test_distribute_group_keys_non_admin_default_global_forbidden() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await; // rôle user
+        seed_default_global(&pool).await;
+        add_participant(&pool, "default_global", &alice.id).await; // membre non-admin
+
+        let mut dist = HashMap::new();
+        dist.insert(alice.id.clone(), "alice-key".to_string());
+        let body = DistributeKeysRequest { distributions: dist, keyVersion: 1 };
+
+        let result = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice)),
+            Path("default_global".to_string()),
+            Json(body),
+        )
+        .await;
+
+        let err =
+            result.expect_err("non-admin should be FORBIDDEN on default_global");
+        assert_eq!(err, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_distribute_group_keys_admin_default_global_succeeds() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let admin = seed_admin_user(&pool, "admin", "pass", None).await;
+        seed_default_global(&pool).await;
+        add_participant(&pool, "default_global", &admin.id).await;
+
+        let mut dist = HashMap::new();
+        dist.insert(admin.id.clone(), "admin-key".to_string());
+        let body = DistributeKeysRequest { distributions: dist, keyVersion: 1 };
+
+        let result = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(admin)),
+            Path("default_global".to_string()),
+            Json(body),
+        )
+        .await;
+
+        assert!(result.is_ok(), "admin should distribute on default_global");
+    }
+
+    #[tokio::test]
+    async fn test_add_member_key_non_creator_private_group_forbidden() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await; // créatrice
+        let bob = seed_user(&pool, "bob", "pass", None).await; // membre non-créateur
+        let conv_id = seed_conversation(&pool, &alice.id).await;
+        add_participant(&pool, &conv_id, &bob.id).await;
+
+        // alice (créatrice) distribue une clé version 1 pour bob
+        let mut dist = HashMap::new();
+        dist.insert(bob.id.clone(), "bob-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(DistributeKeysRequest { distributions: dist, keyVersion: 1 }),
+        )
+        .await
+        .unwrap();
+
+        // bob (non-créateur, non-admin) tente d'ajouter un membre → FORBIDDEN
+        let carol = seed_user(&pool, "carol", "pass", None).await;
+        add_participant(&pool, &conv_id, &carol.id).await;
+        let body = AddMemberKeyRequest {
+            userId: carol.id.clone(),
+            encryptedKey: "carol-key".to_string(),
+            userKeyVersion: 1,
+            keyVersion: 1,
+        };
+
+        let result = add_member_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(bob)),
+            Path(conv_id),
+            Json(body),
+        )
+        .await;
+
+        let err =
+            result.expect_err("non-creator should be FORBIDDEN on private group");
+        assert_eq!(err, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_add_member_key_admin_default_global_succeeds() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let admin = seed_admin_user(&pool, "admin", "pass", None).await;
+        seed_default_global(&pool).await;
+        add_participant(&pool, "default_global", &admin.id).await;
+
+        // Admin distribue une clé version 1 pour le groupe global
+        let mut dist = HashMap::new();
+        dist.insert(admin.id.clone(), "admin-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(admin.clone())),
+            Path("default_global".to_string()),
+            Json(DistributeKeysRequest { distributions: dist, keyVersion: 1 }),
+        )
+        .await
+        .unwrap();
+
+        // Admin ajoute un autre membre à la clé
+        let bob = seed_user(&pool, "bob", "pass", None).await;
+        add_participant(&pool, "default_global", &bob.id).await;
+        let body = AddMemberKeyRequest {
+            userId: bob.id.clone(),
+            encryptedKey: "bob-key".to_string(),
+            userKeyVersion: 1,
+            keyVersion: 1,
+        };
+        let result = add_member_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(admin)),
+            Path("default_global".to_string()),
+            Json(body),
+        )
+        .await;
+
+        assert!(result.is_ok(), "admin should add member on default_global");
+    }
+
+    #[tokio::test]
+    async fn test_get_my_group_key_non_admin_default_global_forbidden() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await; // rôle user, membre
+        seed_default_global(&pool).await;
+        add_participant(&pool, "default_global", &alice.id).await;
+
+        let query = MyKeyQuery { version: None };
+        let result = get_my_group_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice)),
+            Path("default_global".to_string()),
+            Query(query),
+        )
+        .await;
+
+        let err =
+            result.expect_err("non-admin should be FORBIDDEN on default_global");
+        assert_eq!(err, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_get_my_group_key_admin_default_global_succeeds() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let admin = seed_admin_user(&pool, "admin", "pass", None).await;
+        seed_default_global(&pool).await;
+        add_participant(&pool, "default_global", &admin.id).await;
+
+        // Admin distribue d'abord sa clé (distribute_group_keys autorisé pour admin)
+        let mut dist = HashMap::new();
+        dist.insert(admin.id.clone(), "admin-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(admin.clone())),
+            Path("default_global".to_string()),
+            Json(DistributeKeysRequest { distributions: dist, keyVersion: 1 }),
+        )
+        .await
+        .unwrap();
+
+        let query = MyKeyQuery { version: None };
+        let result = get_my_group_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(admin)),
+            Path("default_global".to_string()),
+            Query(query),
+        )
+        .await;
+
+        let resp = result.expect("admin should retrieve its own key on default_global");
+        assert_eq!(resp.encrypted_key, "admin-key");
+        assert_eq!(resp.keyVersion, 1);
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // GET /api/conversations/{conv_id}/my-encrypted-key/{msg_id}
     #[tokio::test]
     async fn test_get_my_encrypted_key_ok() {
         let pool = setup_test_db().await;

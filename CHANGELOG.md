@@ -6,6 +6,14 @@ Format basé sur [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ---
 
+## [Unreleased]
+
+### Sécurité
+- **E2EE — Contrôle d'accès clé de groupe** — Les routes `distribute_group_keys`, `add_member_key` et `get_my_group_key` refusent désormais un appelant non-admin sur le groupe global `default_global` (403) ; les routes d'avancement de clé exigent le créateur du groupe ou un admin sur les groupes privés (RFC-016 §5.4 / ADR-016).
+
+### Supprimé
+- **E2EE — `rotateGroupKey`** — Méthode morte du client supprimée (aucune interface ne la déclenche ; la rotation de la clé personnelle utilise `/api/auth/rotate-key` via la page Sécurité).
+
 ## [0.5.0] — 2026-04-12
 
 ### Ajouté

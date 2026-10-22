@@ -18,7 +18,6 @@
 //   e2ee.currentVersion(convId)  → number
 //   e2ee.distributeGroupKey(convId, memberPubkeys)
 //   e2ee.addMemberToConversation(convId, newPubkeyB64, newUserId)
-//   e2ee.rotateGroupKey(convId, remainingMembers)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { apiFetch } from './api';
@@ -178,43 +177,6 @@ export class E2EE {
     });
 
     console.info('[e2ee] Membre ajouté:', newMemberUserId, 'version:', this.currentVersion(convoId));
-  }
-
-  // ── Rotation de la clé de groupe ─────────────────────────────────────────
-  /**
-   * Rotation de la clé de groupe pour une conversation.
-   * Génère une nouvelle clé et la distribue aux membres restants.
-   * Utile quand un membre quitte ou que la clé est compromise.
-   */
-  async rotateGroupKey(
-    convoId: string,
-    remainingMembers: Record<string, string> // userId → base64 pubKey
-  ): Promise<Uint8Array> {
-    const na = await ensureSodium();
-    const newGroupKey = na.randombytes_buf(32);
-
-    const version = (this.groupKeys.get(convoId)?.version ?? 0) + 1;
-    const distributions: Record<string, string> = {};
-
-    for (const [uid, pubB64] of Object.entries(remainingMembers)) {
-      try {
-        const pub = na.from_base64(pubB64, na.base64_variants.ORIGINAL);
-        const sealed = na.crypto_box_seal(newGroupKey, pub);
-        distributions[uid] = na.to_base64(sealed, na.base64_variants.ORIGINAL);
-      } catch (e) {
-        console.warn('[e2ee] Échec rotation pour', uid, e);
-      }
-    }
-
-    await apiFetch(`/api/conversations/${convoId}/keys`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ distributions, keyVersion: version }),
-    });
-
-    this.groupKeys.set(convoId, { key: newGroupKey, version });
-    console.info('[e2ee] Rotation clé de groupe pour', convoId, 'version:', version);
-    return newGroupKey;
   }
 
   // ── Utilitaires ──────────────────────────────────────────────────────────
