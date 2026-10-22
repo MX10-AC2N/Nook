@@ -119,7 +119,7 @@ Le 2026-08-07, l'Architect a créé trois ADR de migration de dépendances **en 
 **Sort décidé** (carte `t_566014c5`, `@architect`, 2026-10-22) :
 
 - **ADR-013 (dual message store) → clos.** Son statut « Accepted » était **faux** : la décision a été **appliquée puis revertée**. Le commit `1b47e159` (2026-04-13) appliquait l'Option 1 (runes) ; `2601bcca` (2026-04-13, 8 min plus tard) rétablissait le `writable`. Le code atteste : `frontend/src/lib/chatStore.svelte.ts:85` = `writable`, `frontend/src/routes/chat/+page.svelte:122` = `localMessages`. Le suivi est porté par **DT-12**. Le numéro 013 reste **réservé, non réattribué**.
-- **ADR-014 (rand_core/argon2) et ADR-015 (sqlx) → recréés** au nom normalisé (`014-rand-core-argon2-migration.md`, `015-sqlx-08-to-09-migration.md`). Leur statut réel — **Proposé, bloqué** — est exact : les dépendances sont encore épinglées (`backend/Cargo.toml` : `rand_core 0.6`, `argon2 0.5`, `sqlx 0.8.6`) et les blocages (revue `security-auditor` pour 014, spike coder pour 015) sont toujours ouverts.
+- **ADR-014 (rand_core/argon2) et ADR-015 (sqlx) → recréés** au nom normalisé (`014-rand-core-argon2-migration.md`, `015-sqlx-08-to-09-migration.md`). Leur statut réel — **Proposé, bloqué** — est exact pour **014** (revue `security-auditor` toujours ouverte ; `argon2 0.5` / `rand_core 0.6` toujours épinglés `backend/Cargo.toml:35,38`) ; **015 a été débloqué le 2026-10-22 par le spike coder (`t_60a24c82`) : migration sqlx 0.9 faisable en une passe avec Axum 0.8 → Accepté**, mais `sqlx 0.8.6` reste épinglé `backend/Cargo.toml:17` en attendant application de la migration.
 - **ADR-016 (migration chacha20poly1305) → clos.** Le numéro **016 appartient à l'ADR E2EE** (option D, implémentée) — le numéro n'est pas disponible. De plus la prémisse de l'orphelin est **partiellement fausse** : le crate est utilisé dans `backend/src/webrtc.rs:15-18` (chiffrement de fichiers), **pas** dans `e2ee.rs`. La dépendance reste épinglée à `0.10.1` (`backend/Cargo.toml:39`).
 
 Le numéro **016** appartient donc à l'ADR E2EE, seul ADR réellement implémenté.
@@ -193,7 +193,7 @@ Exigences non négociables :
 | 001-010 | — | décisions pré-ADR, **ne pas recréer** (§4.3) |
 | 013 | Dual message store (`writable` + `$state`) | **clos** : décision appliquée puis revertée (§4.4) |
 | 014 | rand_core 0.6→0.10 + argon2 0.5→0.6 | **recréé** (Proposé, bloqué security-auditor) — §4.4 |
-| 015 | sqlx 0.8→0.9 (compat Axum 0.8) | **recréé** (Proposé, bloqué spike coder) — §4.4 |
+| 015 | sqlx 0.8→0.9 (compat Axum 0.8) | **Accepté** (spike 2026-10-22 : migration faisable 1 passe, Axum 0.8 confirmé) — §4.4 |
 | 016 | E2EE groupe global (Option D) | occupé |
 | 017 | Reply-to | occupé |
 | 018 | Mémoire par agent | occupé |
@@ -215,7 +215,7 @@ Exigences non négociables :
 | 7 | Levée des 2 réserves d'ADR-016 (rotation de clé, purge des anciennes versions) | `@architect` + `@security-auditor` | Non |
 | 8 | Récupérer le texte d'ADR-017 (rédigé dans le workspace `t_37a99925`, jamais commité) et le commiter | `@architect` | Non |
 | 9 | Débloquer ADR-014 : revue `security-auditor` du passage argon2 0.5→0.6 | `@security-auditor` | Non |
-| 10 | Débloquer ADR-015 : spike coder de compat sqlx 0.9 / Axum 0.8 | `@coder` | Non |
+| 10 | Débloquer ADR-015 : spike coder de compat sqlx 0.9 / Axum 0.8 | @coder ✔ t_60a24c82 (2026-10-22) | Non |
 
 ---
 
