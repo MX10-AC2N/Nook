@@ -119,7 +119,7 @@ Les deux cartes sont créées par cette carte et référencées dans `docs/adr/R
 |---|---|
 | `SEC-FIX-1` — validation de l'appartenance avant insertion | ✅ `add_member_key` valide `body.userId` : `backend/src/e2ee.rs:759-776` → 403 si non-membre |
 | `SEC-FIX-2` — rate limiting E2EE | ✅ limiter dédié : `backend/src/main.rs:501`, `backend/src/main.rs:612` |
-| `SEC-FIX-3` — routes de distribution | ✅ `claim-key` (`e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`e2ee.rs:959`) · `distribution_status` (migration 022) |
+| `SEC-FIX-3` — routes de distribution | ✅ `claim-key` (`e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`e2ee.rs:961`) · `distribution_status` (migration 022) |
 | Réserve majeure 1 — rotation | ➖ **ASSUMÉE** (manuelle) · écart rôle acté |
 | Réserve majeure 2 — purge | ➖ **ASSUMÉE** (illimitée) |
 | Réserve majeure 3 — *(découverte)* `distribution_status` | ➖ **ASSUMÉE** + carte `@coder` |

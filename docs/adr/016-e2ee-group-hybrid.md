@@ -14,7 +14,7 @@
 > **Les 3 CRITIQUES de la revue sont levées en code** (vérifié, non supposé) :
 > - `SEC-FIX-1` : `add_member_key` valide `body.userId` → 403 si non-membre (`backend/src/e2ee.rs:759-776`) ;
 > - `SEC-FIX-2` : rate limiter dédié aux routes E2EE (`backend/src/main.rs:501`, `backend/src/main.rs:612`) ;
-> - `SEC-FIX-3` : `claim-key` (`backend/src/e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`backend/src/e2ee.rs:959`) + `distribution_status` (migration 022).
+> - `SEC-FIX-3` : `claim-key` (`backend/src/e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`backend/src/e2ee.rs:961`) + `distribution_status` (migration 022).
 >
 > **Ce qui change dans ce document** : §Politique de rotation (rotation **manuelle**, pas de job), §Écarts de spécification (3 écarts actés), §Questions ouvertes (expiry **absent**, pas « à confirmer »).
 
@@ -92,7 +92,7 @@ Justification :
 - Migration du groupe global vers la group key : les messages existants (chiffrés avec l'enveloppe par destinataire) ne peuvent pas être ré-chiffrés. Le frontend doit supporter deux formats de messages chiffrés : ancien (par destinataire) et nouveau (group key).
 - La rotation casse l'accès à l'historique pour les membres qui ont quitté avant la rotation (comportement voulu, mais à documenter).
 - Nécessite une extension du schéma `conversation_key_recipients` avec une colonne `distribution_status` (`delivered` | `pending` | `failed`). **Fait** : migration 022.
-- Nécessite de nouvelles routes API : `GET /api/conversations/{conv_id}/my-key-status`, `POST /api/conversations/{conv_id}/claim-key`, `GET /api/conversations/{conv_id}/group-key-metadata`. **Fait** : `backend/src/e2ee.rs:834` et `:959`.
+- Nécessite de nouvelles routes API : `GET /api/conversations/{conv_id}/my-key-status`, `POST /api/conversations/{conv_id}/claim-key`, `GET /api/conversations/{conv_id}/group-key-metadata`. **Fait** : `backend/src/e2ee.rs:834` et `:961`.
 - `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`) est aujourd'hui du **dead code** (zéro appelant) : soit elle est branchée à un déclencheur UI, soit elle est retirée. Voir `docs/adr/DECISIONS.md` §4.
 
 ### → Agents impactés
@@ -117,7 +117,7 @@ Justification :
 |---------|-------|------|--------|
 | GET | `/api/conversations/{conv_id}/my-key-status` | Statut de distribution pour le membre courant | `backend/src/e2ee.rs` |
 | POST | `/api/conversations/{conv_id}/claim-key` | Réclamer sa clé après setup E2EE (statut pending) | `backend/src/e2ee.rs:834` |
-| GET | `/api/conversations/{conv_id}/group-key-metadata` | Metadata : version actuelle, dernière rotation, politique | `backend/src/e2ee.rs:959` |
+| GET | `/api/conversations/{conv_id}/group-key-metadata` | Metadata : version actuelle, dernière rotation, politique | `backend/src/e2ee.rs:961` |
 
 ### Frontend
 

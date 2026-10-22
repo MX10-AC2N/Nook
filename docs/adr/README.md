@@ -138,7 +138,7 @@ Le numéro **016** appartient à l'ADR E2EE (option D), seul ADR réellement imp
 | 013 | rand_core 0.6→0.10 + argon2 0.5→0.6 | orphelin | **Non abouti** | `backend/Cargo.toml:35,38` = encore `rand_core 0.6`, `argon2 0.5` |
 | 014 | sqlx 0.8→0.9 + Axum 0.8 compat | orphelin | **Non abouti** | `backend/Cargo.toml:17` = encore `sqlx 0.8.6` |
 | 015 | chacha20poly105 0.10→0.11 (E2EE path) | orphelin | **Non abouti** | `backend/Cargo.toml:39` = encore `chacha20poly1305 0.10.1` |
-| 016 | E2EE groupe global — Hybrid Sender Keys | `016-e2ee-group-hybrid.md` | **Accepté** | routes `claim-key` (`backend/src/e2ee.rs:834`), `group-key-metadata` (`:959`) · rate limit E2EE (`backend/src/main.rs:501`) · **3 écarts assumés** : rotation manuelle (`frontend/src/lib/e2ee.ts:189` dead code), conserve illimitée (`backend/src/e2ee.rs:130`), `distribution_status` non posé (`:780`) — détail : `DECISIONS.md` |
+| 016 | E2EE groupe global — Hybrid Sender Keys | `016-e2ee-group-hybrid.md` | **Accepté** | routes `claim-key` (`backend/src/e2ee.rs:834`), `group-key-metadata` (`:961`) · rate limit E2EE (`backend/src/main.rs:501`) · **3 écarts assumés** : rotation manuelle (`frontend/src/lib/e2ee.ts:189` dead code), conserve illimitée (`backend/src/e2ee.rs:130`), `distribution_status` non posé (`:780`) — détail : `DECISIONS.md` |
 | 017 | Reply-to (citer/répondre) | `ADR-017-reply-to-feature.md` | **Accepté** | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` |
 | 018 | Mémoire par agent (MEMORY.md vs Mem0 vs Supermemory) | `ADR-018-agent-memory-storage.md` | **Proposé** | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
 

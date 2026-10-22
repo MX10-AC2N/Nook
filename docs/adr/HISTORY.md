@@ -87,7 +87,7 @@
 | 2. Aucune purge des anciennes versions | **Assumée** — conserve **illimitée**, **aucun** expiry ; `get_my_group_key` accepte toute `version` (`backend/src/e2ee.rs:130`), `prune.rs` ne touche jamais les clés de groupe, et le client n'expire rien | ← Code: `backend/src/e2ee.rs:130`, `backend/src/prune.rs`, `frontend/src/lib/e2ee.ts` |
 | 3. *(découverte)* `add_member_key` ne pose pas `distribution_status` | **Assumée** — l'entrée naît `delivered`, `claim_key` ne la sert jamais → le cas « membre sans clé » est hors d'atteinte par ce chemin | ← Code: `backend/src/e2ee.rs:780`, `backend/migrations/022_distribution_status.sql:4`, `backend/src/e2ee.rs:845` |
 
-Les 3 CRITIQUES de la revue restent **levées en code** : `SEC-FIX-1` (`backend/src/e2ee.rs:759-776`), `SEC-FIX-2` (`backend/src/main.rs:501,612`), `SEC-FIX-3` (`backend/src/e2ee.rs:834,959`).
+Les 3 CRITIQUES de la revue restent **levées en code** : `SEC-FIX-1` (`backend/src/e2ee.rs:759-776`), `SEC-FIX-2` (`backend/src/main.rs:501,612`), `SEC-FIX-3` (`backend/src/e2ee.rs:834,961`).
 
 ---
 
