@@ -1,25 +1,22 @@
 # ADR-016 : E2EE groupe global — Hybrid Sender Keys (Option D)
 
-**Date** : 2026-08-24  
-**Session** : 492  
-**Status** : **Accepté avec réserves** (implémenté ; 2 réserves non levées — voir note de gouvernance ci-dessous)  
-**Décideur** : architect  
-**Supersede** : — (premier ADR sur l'architecture E2EE de groupe)  
-**Réserve** : revue `security-auditor` `ACCEPTÉ AVEC RÉSERVES MAJEURES` (carte kanban `t_0fc7cc3f`, 2026-08-24)  
-**Traçabilité** : RFC-016 `docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md` · migrations `019_conversation_keys.sql`, `022_distribution_status.sql`, `023_group_key_version.sql` · commits `ad499a3a` (SEC-FIX-1), `3b24583f` (SEC-FIX-2), `7bf46454` (SEC-FIX-3), `79edfc94` (E2EE-IMPL) · bugs `BUG-005`, `BUG-006` · dette `DT-05`
+**Date** : 2026-08-24 (réécrit le 2026-10-22 pour décrire la politique **réelle**)
+**Session** : 492
+**Status** : **Accepté** (les 2 réserves de la revue sont **assumées** et closes — voir §Écarts de spécification)
+**Décideur** : architect
+**Supersede** : — (premier ADR sur l'architecture E2EE de groupe)
+**Réserve** : revue `security-auditor` `ACCEPTÉ AVEC RÉSERVES MAJEURES` (carte kanban `t_0fc7cc3f`, 2026-08-24) — **les 2 réserves sont closes** (tranchage : `docs/adr/DECISIONS.md`, carte `t_08632b95`, 2026-10-22)
+**Traçabilité** : RFC-016 `docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md` · tranchage `docs/adr/DECISIONS.md` · migrations `019_conversation_keys.sql`, `022_distribution_status.sql`, `023_group_key_version.sql` · commits `ad499a3a` (SEC-FIX-1), `3b24583f` (SEC-FIX-2), `7bf46454` (SEC-FIX-3), `79edfc94` (E2EE-IMPL) · bugs `BUG-005`, `BUG-006` · dette `DT-05`
 
-> **Note de gouvernance (2026-10-22, `@docs-writer`, carte `t_db6f9481`)**
-> Le statut de cet ADR a été relevé de `Proposé → en attente d'acceptation` à `Accepté avec réserves` sur la base de **preuves de code**, pas sur une approbation formelle supplémentaire :
-> - `backend/src/e2ee.rs:590-1010` implémente les 3 routes SEC-FIX-3 (`claim-key`, `my-key-status`, `group-key-metadata`) + `distribution_status` ;
-> - `frontend/src/lib/e2ee.ts:189` implémente `rotateGroupKey()` ;
-> - `backend/src/main.rs:498-502` applique un rate limiter dédié aux routes E2EE (SEC-FIX-2) ;
-> - `ad499a3a` valide l'appartenance à la conversation avant insertion (SEC-FIX-1).
+> **Note de gouvernance (2026-10-22, `@architect`, carte `t_08632b95`)**
+> Ce document a été relevé de `Accepté avec réserves` à **`Accepté`** le 2026-10-22. Les deux réserves de la revue `security-auditor` ont été **tranchées par mesure de code** (`docs/adr/DECISIONS.md`) : elles sont **assumées** — la politique **réelle** est écrite ici, à la place de la politique spécifiée.
 >
-> **Réserves encore ouvertes** (aucun artefact ne les lève) :
-> 1. **Rotation automatique** : `rotateGroupKey()` existe côté frontend mais aucun job backend ni config `group_key_rotation_days` n'existe — la rotation 7j reste manuelle.
-> 2. **Purge des anciennes versions** : pas de mécanisme d'expiry ; `get_my_group_key` accepte n'importe quelle `version`, y compris expirée.
+> **Les 3 CRITIQUES de la revue sont levées en code** (vérifié, non supposé) :
+> - `SEC-FIX-1` : `add_member_key` valide `body.userId` → 403 si non-membre (`backend/src/e2ee.rs:759-767`) ;
+> - `SEC-FIX-2` : rate limiter dédié aux routes E2EE (`backend/src/main.rs:501`, `backend/src/main.rs:612`) ;
+> - `SEC-FIX-3` : `claim-key` (`backend/src/e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`backend/src/e2ee.rs:959`) + `distribution_status` (migration 022).
 >
-> Corrigé dans `docs/adr/README.md` §4.5 et §7 (actions 6-7).
+> **Ce qui change dans ce document** : §Politique de rotation (rotation **manuelle**, pas de job), §Écarts de spécification (3 écarts actés), §Questions ouvertes (expiry **absent**, pas « à confirmer »).
 
 ---
 
@@ -51,7 +48,7 @@ Une clé symétrique 32 bytes partagée par tous les membres. Chiffrement des me
 
 **Avantages** : modèle simple, compatible Signal/Matrix, nouveaux membres peuvent recevoir la clé.
 
-**Inconvénients** : seule la groupe global serait concernée, les DMs/groupes privés garderaient l'enveloppe par destinataire. Pas de "hybridation".
+**Inconvénients** : seule la groupe global serait concernée, les DMs/groupes privés garderaient l'enveloppe par destinataire. Pas d'"hybridation".
 
 **Rejeté au profit de l'Option D** qui généralise ce modèle avec une politique de rotation claire et un support explicite des membres sans clé.
 
@@ -64,7 +61,7 @@ Chaque message est chiffré deux fois : une fois avec la Global Group Key, une f
 ### D — Hybrid Sender Keys (choisie)
 
 - **DMs et groupes privés** (`is_group=0` ou `is_group=1` non-global) : garder l'enveloppe par destinataire (`crypto.ts` `encryptForRecipients`).
-- **Groupe global (`default_global`)** : utiliser une **Global Group Key** (XChaCha20-Poly1305 avec la clé de groupe). Distribution à chaque membre via `crypto_box_seal`. Rotation time-based (7j) + event-based (ajout/retrait de membre).
+- **Groupe global (`default_global`)** : utiliser une **Global Group Key** (XChaCha20-Poly1305 avec la clé de groupe). Distribution à chaque membre via `crypto_box_seal`. Rotation **manuelle** + event-based (ajout/retrait de membre).
 - **Membres sans clé publique** : distribution différée (status `pending`) + message explicite + template "setup E2EE puis reclamer la clé".
 - **Compatibilité** : les DMs/groupes privés existants conservent leur modèle actuel. Seul le groupe global migre.
 
@@ -77,7 +74,7 @@ Justification :
 1. **Adapté au cas d'usage** : le groupe global est par définition un groupe grand ouvert avec des arrivées/départs fréquents — le modèle d'enveloppe par destinataire est structurellement inadapté.
 2. **Fondations déjà en place** : Nook a déjà les tables `conversation_keys` + `conversation_key_recipients` (migration 019), les routes `distribute_group_keys`, `get_my_group_key`, `add_member_key` dans `e2ee.rs`, et la classe `E2EE` dans `e2ee.ts` avec `distributeGroupKey()`, `rotateGroupKey()`, `addMemberToConversation()`.
 3. **Compatibilité préservée** : les DMs et groupes privés conservent l'enveloppe par destinataire, modèle optimal pour un petit nombre de destinataires connus.
-4. **Forward secrecy partielle** : la rotation de clé de groupe empêche les nouveaux membres (après rotation) d'accéder à l'historique pré-rotation, ce qui est souhaitable pour la confidentialité.
+4. **Forward secrecy partielle** : la rotation de clé de groupe empêche les nouveaux membres (après rotation) d'accéder à l'historique pré-rotation, ce qui est souhaitable pour la confidentialité. *(Réserve : cf. §Écarts de spécification E2 — sans contrôle d'appartenance à la lecture, l'historique reste accessible après un départ.)*
 5. **Gestion explicite des membres sans clé** : au lieu du silence actuel, les membres sans clé publique ont un statut `pending` et un chemin clair vers le setup E2EE.
 
 ## Conséquences
@@ -87,39 +84,40 @@ Justification :
 - Messages du groupe global accessibles à tous les membres avec clé (pas de 404 `my-encrypted-key`).
 - Nouveaux membres peuvent recevoir la clé de groupe et déchiffrer les messages futurs (et l'historique si la clé n'a pas été rotée depuis leur arrivée).
 - Bots et comptes sans clé : comportement explicite (pending + message guidant vers setup E2EE).
-- Rotation automatique avec politique 7j + événementielle.
+- Rotation **manuelle** (déclenchée depuis l'UI par un membre) + event-based. Aucun déclenchement automatique n'existe.
 - Les DMs/groupes privés ne sont pas impactés.
 
 ### -
 
 - Migration du groupe global vers la group key : les messages existants (chiffrés avec l'enveloppe par destinataire) ne peuvent pas être ré-chiffrés. Le frontend doit supporter deux formats de messages chiffrés : ancien (par destinataire) et nouveau (group key).
 - La rotation casse l'accès à l'historique pour les membres qui ont quitté avant la rotation (comportement voulu, mais à documenter).
-- Nécessite une extension du schéma `conversation_key_recipients` avec une colonne `distribution_status` (`delivered` | `pending` | `failed`).
-- Nécessite de nouvelles routes API : `GET /api/conversations/{conv_id}/my-key-status`, `POST /api/conversations/{conv_id}/claim-key`, `GET /api/conversations/{conv_id}/group-key-metadata`.
+- Nécessite une extension du schéma `conversation_key_recipients` avec une colonne `distribution_status` (`delivered` | `pending` | `failed`). **Fait** : migration 022.
+- Nécessite de nouvelles routes API : `GET /api/conversations/{conv_id}/my-key-status`, `POST /api/conversations/{conv_id}/claim-key`, `GET /api/conversations/{conv_id}/group-key-metadata`. **Fait** : `backend/src/e2ee.rs:834` et `:959`.
+- `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`) est aujourd'hui du **dead code** (zéro appelant) : soit elle est branchée à un déclencheur UI, soit elle est retirée. Voir `docs/adr/DECISIONS.md` §4.
 
 ### → Agents impactés
 
-- **coder** : implémentation frontend (`cryptoStore.svelte.ts` + `chatStore.svelte.ts` pour supporter les deux formats de messages chiffrés, `e2ee.ts` pour le cas membres sans clé).
-- **security-auditor** : revue des routes E2EE group key, validation de la politique de rotation, audit du modèle de diffusion.
-- **researcher** : benchmark du modèle Signal/Matrix pour confirmer les paramètres de rotation (7j, version antiquity).
+- **coder** : 2 cartes de suivi créées (`docs/adr/README.md` §7) — (1) job de rotation / dead code + contrôle de rôle admin ; (2) purge des anciennes versions + correctif `distribution_status` dans `add_member_key`.
+- **security-auditor** : revue des routes E2EE group key (faite, `t_0fc7cc3f`) — les réserves sont closes ; ré-audit recommandé **après** livraison des 2 cartes ci-dessus.
+- **researcher** : benchmark du modèle Signal/Matrix pour confirmer les paramètres de rotation (7j, version antiquity) — **non requis** tant que la rotation reste manuelle.
 
 ## Implémentation — plan détaillé
 
-### Schéma SQL (extension)
+### Schéma SQL (extension) — **FAIT**
 
 ```sql
--- Dans conversation_key_recipients, ajouter :
---   distribution_status TEXT NOT NULL DEFAULT 'delivered'
+-- Migration 022 : conversation_key_recipients.distribution_status
+--   TEXT NOT NULL DEFAULT 'delivered'
 --   valeurs : 'delivered' | 'pending' | 'failed'
 ```
 
-### Routes API (nouvelles)
+### Routes API (nouvelles) — **FAIT**
 
-| Méthode | Route | Rôle |
-|---------|-------|------|
-| GET | `/api/conversations/{conv_id}/my-key-status` | Statut de distribution pour le membre courant |
-| POST | `/api/conversations/{conv_id}/claim-key` | Réclamer sa clé après setup E2EE (statut pending) |
-| GET | `/api/conversations/{conv_id}/group-key-metadata` | Metadata : version actuelle, dernière rotation, politique |
+| Méthode | Route | Rôle | Preuve |
+|---------|-------|------|--------|
+| GET | `/api/conversations/{conv_id}/my-key-status` | Statut de distribution pour le membre courant | `backend/src/e2ee.rs` |
+| POST | `/api/conversations/{conv_id}/claim-key` | Réclamer sa clé après setup E2EE (statut pending) | `backend/src/e2ee.rs:834` |
+| GET | `/api/conversations/{conv_id}/group-key-metadata` | Metadata : version actuelle, dernière rotation, politique | `backend/src/e2ee.rs:959` |
 
 ### Frontend
 
@@ -139,34 +137,53 @@ Justification :
 **e2ee.ts** :
 
 - `distributeGroupKey` retourne une erreur explicite quand un membre n'a pas de clé publique (au lieu du console.warn silencieux).
+- `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`) — **non branchée** (dead code), cf. §Écarts E1.
 
-### Backend (`e2ee.rs`)
+### Backend (`e2ee.rs`) — routes **FAITES**, rotation/purge **À FAIRE**
 
-- `distribute_group_keys` : ajouter le champ `distribution_status` dans l'INSERT.
-- Nouvelle route `claim_key` : si le membre a un statut `pending`, distribuer la clé courante (ou la dernière version disponible).
-- Nouvelle route `my_key_status` : retourner `delivered`/`pending`/`failed` pour le membre courant.
+- `distribute_group_keys` : ajoute le champ `distribution_status` dans l'INSERT.
+- Route `claim_key` : si le membre a un statut `pending`, distribuer la clé courante (ou la dernière version disponible). **Réserve** : `add_member_key` ne pose pas la colonne (§Écarts E3).
+- Route `my_key_status` : retourne `delivered`/`pending`/`failed` pour le membre courant.
+- **Absent** : job de rotation périodique ; contrôle de rôle admin ; purge des anciennes versions. → 2 cartes `@coder` (`docs/adr/README.md` §7).
 
-### Politique de rotation
+### Politique de rotation — **réelle** (diffère de la spécification)
 
-- **Time-based** : toutes les 7 jours (configurable `group_key_rotation_days` dans `config.rs`).
+- **Time-based 7j : NON implémenté.** Aucun champ `group_key_rotation_days` (`backend/src/config.rs:5-23` — `Config` n'a pas ce champ), aucun job périodique (les seuls `tokio::spawn` périodiques sont `main.rs:443` fichiers et `main.rs:449` `prune_old_data`).
+- **Rotation manuelle** : déclenchée par un appel à `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`). Cette fonction est **dead code** aujourd'hui (zéro appelant) — la rotation n'est donc déclenchable par personne en l'état.
 - **Event-based** : ajout/retrait de membre.
-- Déclencheur : créateur/admin du groupe (pour `default_global`, seul l'admin).
-- Expiry des anciennes clés : garder les 3 dernières versions (21j d'historique déchiffrable).
+- **Déclencheur** : un membre authentifié. La règle RFC-016 §5.4 (« seul l'admin » pour `default_global`) **n'est pas appliquée** — cf. §Écarts E1.
+- **Expiry des anciennes clés** : **aucun**. Les versions sont conservées indéfiniment et restent récupérables — cf. §Écarts E2.
+
+## Écarts de spécification (actés le 2026-10-22)
+
+Trois écarts entre cet ADR et le code ont été **mesurés** puis **assumés**. Détail et preuves : `docs/adr/DECISIONS.md`.
+
+| # | Écart | Mesure | Décision |
+|---|-------|--------|----------|
+| **E1** | Pas de job de rotation, et **pas de contrôle de rôle** sur les routes E2EE | `rotateGroupKey()` = dead code (`frontend/src/lib/e2ee.ts:189`, zéro appelant) · aucun `group_key_rotation_days` (`backend/src/config.rs:5-23`) · **zéro** contrôle de rôle dans `backend/src/e2ee.rs` alors que le rôle existe (`backend/src/admin.rs:69` : `if user.role != "admin"`) | **Assumé** — rotation manuelle, n'importe quel membre peut distribuer · → carte `@coder` (brancher/retirer `rotateGroupKey()` + contrôle admin) |
+| **E2** | Aucune purge des anciennes versions ; `get_my_group_key` accepte **n'importe quelle** version | `MyKeyQuery { version: Option<i32> }` (`backend/src/e2ee.rs:130`) · `prune.rs` ne nettoie jamais `conversation_keys` / `conversation_key_recipients` · **aucune** expiration côté client (`frontend/src/lib/e2ee.ts`) | **Assumé** — conserve **illimitée**, **aucun** expiry (la revue §3.6 disait à tort « résolu côté client ») · → carte `@coder` (purge) |
+| **E3** | `add_member_key` n'insère pas `distribution_status` → l'entrée naît `delivered` → `claim_key` ne la sert **jamais** | `INSERT` sans la colonne (`backend/src/e2ee.rs:780`) · défaut `'delivered'` (`backend/migrations/022_distribution_status.sql:4`) · `claim_key` ne sert que le `pending` (`backend/src/e2ee.rs:838-841`) | **Assumé** — cas « membre sans clé » structurellement hors d'atteinte par ce chemin · → carte `@coder` (correctif) |
+
+**Conséquence de E1+E2 sur la confidentialité** : un membre **renvoyé** peut, tant que son compte existe, redemander n'importe quelle version antérieure de la clé et déchiffrer l'historique. C'est le contraire de la forward secrecy partielle revendiquée (RFC-016 §5.4:180). **Une purge seule ne ferme pas cet accès** — il faut vérifier l'appartenance **au moment de la lecture**. Point acté, hors périmètre docs.
 
 ## Questions ouvertes
 
-1. **Historique post-rotation** : les nouveaux membres (après rotation) ne peuvent pas déchiffrer l'historique pré-rotation. Acceptable ? → Oui (confidentialité).
-2. **Expiry des anciennes versions** : 3 versions (21j) — à confirmer avec security-auditor.
-3. **Group key pour les DMs** : de côté pour maintenant (pas de benefice clair pour un DM à 2 participants).
+1. **Rotation** : brancher `rotateGroupKey()` à un déclencheur UI, ou la retirer comme dead code ? → **Carte `@coder` #1** (`docs/adr/README.md` §7). Le contrôle de rôle admin (RFC-016 §5.4) est dans la même carte.
+2. **Expiry** : garder les 3 dernières versions (21j), comme proposé en 2026-08 ? → **Non tranché** ; la politique réelle est « conserve illimitée » (E2). Toute purge doit être accompagnée d'un contrôle d'appartenance à la lecture, sinon elle ne réduit pas l'exposition.
+3. **`add_member_key`** : poser `distribution_status = 'pending'` quand le membre n'a pas de clé publique ? → **Carte `@coder` #2** (E3).
+4. **Group key pour les DMs** : de côté pour maintenant (pas de benefice clair pour un DM à 2 participants).
 
 ## Voir aussi
 
+- **Tranchage des réserves** : `docs/adr/DECISIONS.md` (carte `t_08632b95`)
 - RFC-016 : [URL relative : `docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md`]
+- Revue de sécurité : carte `t_0fc7cc3f` (`ACCEPTÉ AVEC RÉSERVES MAJEURES`)
 - Migration 019 : `backend/migrations/019_conversation_keys.sql`
+- Migration 022 : `backend/migrations/022_distribution_status.sql`
 - BUG-005 : `registerPublicKeyOnServer` fire-and-forget
 - BUG-006 : `encryptForRecipients` catch silencieux
 - DT-05 : E2EE partiellement implémenté
 
 ---
 
-*ADR-016 — architect, session 492, 2026-08-24. À convertir en "Accepté" après revue security-auditor.*
+*ADR-016 — architect, session 492, 2026-08-24. Réécrit le 2026-10-22 (carte `t_08632b95`) pour décrire la politique réelle et acter les 3 écarts mesurés — statut : **Accepté**.*
