@@ -12,7 +12,7 @@
 > Ce document a été relevé de `Accepté avec réserves` à **`Accepté`** le 2026-10-22. Les deux réserves de la revue `security-auditor` ont été **tranchées par mesure de code** (`docs/adr/DECISIONS.md`) : elles sont **assumées** — la politique **réelle** est écrite ici, à la place de la politique spécifiée.
 >
 > **Les 3 CRITIQUES de la revue sont levées en code** (vérifié, non supposé) :
-> - `SEC-FIX-1` : `add_member_key` valide `body.userId` → 403 si non-membre (`backend/src/e2ee.rs:759-767`) ;
+> - `SEC-FIX-1` : `add_member_key` valide `body.userId` → 403 si non-membre (`backend/src/e2ee.rs:759-776`) ;
 > - `SEC-FIX-2` : rate limiter dédié aux routes E2EE (`backend/src/main.rs:501`, `backend/src/main.rs:612`) ;
 > - `SEC-FIX-3` : `claim-key` (`backend/src/e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`backend/src/e2ee.rs:959`) + `distribution_status` (migration 022).
 >
@@ -162,7 +162,7 @@ Trois écarts entre cet ADR et le code ont été **mesurés** puis **assumés**.
 |---|-------|--------|----------|
 | **E1** | Pas de job de rotation, et **pas de contrôle de rôle** sur les routes E2EE | `rotateGroupKey()` = dead code (`frontend/src/lib/e2ee.ts:189`, zéro appelant) · aucun `group_key_rotation_days` (`backend/src/config.rs:5-23`) · **zéro** contrôle de rôle dans `backend/src/e2ee.rs` alors que le rôle existe (`backend/src/admin.rs:69` : `if user.role != "admin"`) | **Assumé** — rotation manuelle, n'importe quel membre peut distribuer · → carte `@coder` (brancher/retirer `rotateGroupKey()` + contrôle admin) |
 | **E2** | Aucune purge des anciennes versions ; `get_my_group_key` accepte **n'importe quelle** version | `MyKeyQuery { version: Option<i32> }` (`backend/src/e2ee.rs:130`) · `prune.rs` ne nettoie jamais `conversation_keys` / `conversation_key_recipients` · **aucune** expiration côté client (`frontend/src/lib/e2ee.ts`) | **Assumé** — conserve **illimitée**, **aucun** expiry (la revue §3.6 disait à tort « résolu côté client ») · → carte `@coder` (purge) |
-| **E3** | `add_member_key` n'insère pas `distribution_status` → l'entrée naît `delivered` → `claim_key` ne la sert **jamais** | `INSERT` sans la colonne (`backend/src/e2ee.rs:780`) · défaut `'delivered'` (`backend/migrations/022_distribution_status.sql:4`) · `claim_key` ne sert que le `pending` (`backend/src/e2ee.rs:838-841`) | **Assumé** — cas « membre sans clé » structurellement hors d'atteinte par ce chemin · → carte `@coder` (correctif) |
+| **E3** | `add_member_key` n'insère pas `distribution_status` → l'entrée naît `delivered` → `claim_key` ne la sert **jamais** | `INSERT` sans la colonne (`backend/src/e2ee.rs:780`) · défaut `'delivered'` (`backend/migrations/022_distribution_status.sql:4`) · `claim_key` ne sert que le `pending` (`backend/src/e2ee.rs:845`) | **Assumé** — cas « membre sans clé » structurellement hors d'atteinte par ce chemin · → carte `@coder` (correctif) |
 
 **Conséquence de E1+E2 sur la confidentialité** : un membre **renvoyé** peut, tant que son compte existe, redemander n'importe quelle version antérieure de la clé et déchiffrer l'historique. C'est le contraire de la forward secrecy partielle revendiquée (RFC-016 §5.4:180). **Une purge seule ne ferme pas cet accès** — il faut vérifier l'appartenance **au moment de la lecture**. Point acté, hors périmètre docs.
 

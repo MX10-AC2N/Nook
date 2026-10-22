@@ -86,7 +86,7 @@ Non listée dans la carte d'origine. Détectée en mesurant R2.
 
 - `add_member_key` (`backend/src/e2ee.rs:734`) fait un `INSERT OR REPLACE INTO conversation_key_recipients (conversation_id, version, user_id, encrypted_key, user_key_version)` (`e2ee.rs:780`) — la colonne `distribution_status` est **absente** de la liste.
 - La colonne existe pourtant, avec défaut `delivered` : `ALTER TABLE conversation_key_recipients ADD COLUMN distribution_status TEXT NOT NULL DEFAULT 'delivered'` (`backend/migrations/022_distribution_status.sql:4`).
-- `claim_key` (`backend/src/e2ee.rs:834`) ne sert **que** les entrées `pending` : `WHERE ... AND distribution_status = 'pending'` (`e2ee.rs:838-841`).
+- `claim_key` (`backend/src/e2ee.rs:834`) ne sert **que** les entrées `pending` : `WHERE ... AND distribution_status = 'pending'` (`e2ee.rs:845`).
 
 ### Conséquence
 
@@ -117,7 +117,7 @@ Les deux cartes sont créées par cette carte et référencées dans `docs/adr/R
 
 | Réserve de la revue | État |
 |---|---|
-| `SEC-FIX-1` — validation de l'appartenance avant insertion | ✅ `add_member_key` valide `body.userId` : `backend/src/e2ee.rs:759-767` → 403 si non-membre |
+| `SEC-FIX-1` — validation de l'appartenance avant insertion | ✅ `add_member_key` valide `body.userId` : `backend/src/e2ee.rs:759-776` → 403 si non-membre |
 | `SEC-FIX-2` — rate limiting E2EE | ✅ limiter dédié : `backend/src/main.rs:501`, `backend/src/main.rs:612` |
 | `SEC-FIX-3` — routes de distribution | ✅ `claim-key` (`e2ee.rs:834`), `my-key-status`, `group-key-metadata` (`e2ee.rs:959`) · `distribution_status` (migration 022) |
 | Réserve majeure 1 — rotation | ➖ **ASSUMÉE** (manuelle) · écart rôle acté |
