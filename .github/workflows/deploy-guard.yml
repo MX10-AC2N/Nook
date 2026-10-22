@@ -1,0 +1,126 @@
+name: 🚢 Deploy Guard — vérifier le bundle servi
+
+# =====================================================================
+#  GARDE-FOU DE DÉPLOIEMENT
+#
+#  Vérifie que le bundle effectivement SERVI par une instance déployée
+#  correspond bien au commit attendu. Échoue ROUGE sinon.
+#
+#  Incident détecté grâce à ce contrôle (2026-10-22) :
+#    192.168.1.192:6300 servait 0.CrOWh7b4.css (1× « alert-bg »)
+#    alors que le commit 8076eb2a produit 0.DyZ9Wpm1.css (4× « alert-bg »).
+#    Le conteneur n'avait pas été recréé après le rebuild.
+#
+#  Déclenchement : MANUEL uniquement (workflow_dispatch), après chaque
+#  redéploiement — comme les autres workflows du projet.
+#
+#  Le cœur de la vérification est dans scripts/deploy-guard.sh.
+# =====================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_url:
+        description: 'URL de l''instance déployée à vérifier'
+        required: false
+        default: 'http://192.168.1.192:6300'
+        type: string
+      expected_sha:
+        description: 'Commit attendu (SHA complet ou court). Vide = tip de branch_name'
+        required: false
+        default: ''
+        type: string
+      branch_name:
+        description: 'Branche de référence (pour retrouver le run Frontend.yml)'
+        required: false
+        default: 'develop'
+        type: string
+      workflow_run_id:
+        description: 'Optionnel : force le run Frontend.yml (si plusieurs runs pour le SHA)'
+        required: false
+        default: ''
+        type: string
+      allow_build_fallback:
+        description: 'Reconstruire le frontend si l''artifact a expiré (> 7 j)'
+        required: false
+        default: 'true'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy-guard:
+    name: 🚢 Deploy Guard — bundle servi ≡ commit attendu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historique complet : le repli rebuild a besoin du commit attendu
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+        # Nécessaire uniquement pour le repli (artifact expiré > 7 j)
+        if: ${{ inputs.allow_build_fallback != 'false' }}
+
+      - name: Résoudre le commit attendu
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "${{ inputs.expected_sha }}" ]; then
+            FULL=$(git rev-parse "${{ inputs.expected_sha }}^{commit}" 2>/dev/null || echo "")
+            if [ -z "$FULL" ]; then
+              # SHA court éventuel → on interroge l'API
+              FULL=$(curl -fsS -H "Authorization: Bearer ${GH_TOKEN}" \
+                "https://api.github.com/repos/${{ github.repository }}/commits/${{ inputs.expected_sha }}" \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin).get("sha",""))' 2>/dev/null || echo "")
+            fi
+            echo "expected_sha=$FULL" >> $GITHUB_OUTPUT
+            echo "✅ commit attendu : $FULL"
+          else
+            FULL=$(git ls-remote origin "refs/heads/${{ inputs.branch_name }}" | cut -f1)
+            echo "expected_sha=$FULL" >> $GITHUB_OUTPUT
+            echo "✅ commit attendu (tip de ${{ inputs.branch_name }}) : $FULL"
+          fi
+
+      - name: Vérifier le bundle servi
+        id: guard
+        env:
+          DEPLOY_URL: ${{ inputs.deploy_url }}
+          EXPECTED_SHA: ${{ steps.sha.outputs.expected_sha }}
+          EXPECTED_BRANCH: ${{ inputs.branch_name }}
+          WORKFLOW_RUN_ID: ${{ inputs.workflow_run_id }}
+          FALLBACK_BUILD: ${{ inputs.allow_build_fallback == 'true' && '1' || '0' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set +e
+          bash scripts/deploy-guard.sh 2>&1 | tee deploy-guard.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          echo "guard_rc=$RC" >> $GITHUB_OUTPUT
+
+          if [ "$RC" -ne 0 ]; then
+            echo ""
+            echo "::error title=DEPLOY GUARD — bundle servi ≠ commit attendu::Le bundle servi par ${{ inputs.deploy_url }} ne correspond pas au commit ${{ steps.sha.outputs.expected_sha }}. Redéploiement requis : reconstruire l'image puis recréer le conteneur."
+            exit $RC
+          fi
+          echo "✅ Deploy guard OK"
+
+      - name: Journal du garde-fou
+        if: always()
+        run: |
+          echo "### 🚢 Deploy Guard" >> $GITHUB_STEP_SUMMARY
+          echo "- instance : ${{ inputs.deploy_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- commit attendu : ${{ steps.sha.outputs.expected_sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- résultat : ${{ steps.guard.outputs.guard_rc == '0' && '✅ conforme' || '❌ bundle servi ≠ commit attendu' }}" >> $GITHUB_STEP_SUMMARY
+          if [ -f deploy-guard.log ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat deploy-guard.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
