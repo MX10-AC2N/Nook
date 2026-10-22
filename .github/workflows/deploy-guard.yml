@@ -25,6 +25,11 @@ on:
         required: false
         default: 'http://192.168.1.192:6300'
         type: string
+      deploy_image:
+        description: 'Repli si l''instance est injoignable (LAN derrière un runner CI) : image à vérifier'
+        required: false
+        default: 'ghcr.io/mx10-ac2n/nook:dev'
+        type: string
       expected_sha:
         description: 'Commit attendu (SHA complet ou court). Vide = tip de branch_name'
         required: false
@@ -91,6 +96,7 @@ jobs:
         id: guard
         env:
           DEPLOY_URL: ${{ inputs.deploy_url }}
+          DEPLOY_IMAGE: ${{ inputs.deploy_image }}
           EXPECTED_SHA: ${{ steps.sha.outputs.expected_sha }}
           EXPECTED_BRANCH: ${{ inputs.branch_name }}
           WORKFLOW_RUN_ID: ${{ inputs.workflow_run_id }}
