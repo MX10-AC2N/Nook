@@ -776,16 +776,28 @@ pub async fn add_member_key(
         return Err(StatusCode::FORBIDDEN);
     }
 
+    // SEC-FIX-3: Déterminer le statut de distribution en fonction de la présence de clé
+    // publique du destinataire. Si le membre n'a pas de clé publique (version = 0),
+    // la clé est posée en 'pending' et pourra être réclamée via claim_key.
+    // Sinon, la livraison est immédiate → 'delivered'.
+    let target_key_version = get_user_active_key_version(&state, &body.userId).await?;
+    let distribution_status: &str = if target_key_version == 0 {
+        "pending"
+    } else {
+        "delivered"
+    };
+
     sqlx::query(
         "INSERT OR REPLACE INTO conversation_key_recipients
-            (conversation_id, version, user_id, encrypted_key, user_key_version)
-         VALUES (?, ?, ?, ?, ?)",
+            (conversation_id, version, user_id, encrypted_key, user_key_version, distribution_status)
+         VALUES (?, ?, ?, ?, ?, ?)",
     )
     .bind(&conv_id)
     .bind(body.keyVersion)
     .bind(&body.userId)
     .bind(&body.encryptedKey)
     .bind(body.userKeyVersion)
+    .bind(distribution_status)
     .execute(&state.db)
     .await
     .map_err(|e| {
@@ -2224,7 +2236,224 @@ mod tests {
     }
 
     // ═════════════════════════════════════════════════════════════════════
+    // E3 correctif — distribution_status dans add_member_key
+    // (membre sans clé publique → 'pending' → réclamable via claim_key)
+    // ═════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_add_member_key_sets_pending_when_no_public_key() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await;
+        let bob = seed_user(&pool, "bob", "pass", None).await; // pas de clé publique
+        let conv_id = seed_conversation(&pool, &alice.id).await;
+        add_participant(&pool, &conv_id, &bob.id).await;
+
+        // alice distribue la clé de groupe v1 (à elle-même)
+        let mut dist = HashMap::new();
+        dist.insert(alice.id.clone(), "alice-enc-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(DistributeKeysRequest {
+                distributions: dist,
+                keyVersion: 1,
+            }),
+        )
+        .await
+        .unwrap();
+
+        // add_member_key : bob n'a pas de clé publique → 'pending'
+        let body = AddMemberKeyRequest {
+            userId: bob.id.clone(),
+            encryptedKey: "bob-enc-key".to_string(),
+            userKeyVersion: 1,
+            keyVersion: 1,
+        };
+        let _ = add_member_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(body),
+        )
+        .await
+        .unwrap();
+
+        let status: Option<(String,)> = sqlx::query_as(
+            "SELECT distribution_status FROM conversation_key_recipients
+             WHERE conversation_id = ? AND user_id = ? AND version = ?",
+        )
+        .bind(&conv_id)
+        .bind(&bob.id)
+        .bind(1)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            status.unwrap().0, "pending",
+            "membre sans clé publique doit être en 'pending'"
+        );
+
+        // claim_key sert exactement cette entrée 'pending'
+        let claim = claim_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(bob.clone())),
+            Path(conv_id.clone()),
+        )
+        .await
+        .unwrap();
+        let v = claim.0;
+        assert_eq!(v["status"], "delivered");
+        assert_eq!(v["encrypted_key"], "bob-enc-key");
+
+        // Après réclamation, le statut est 'delivered'
+        let after: Option<(String,)> = sqlx::query_as(
+            "SELECT distribution_status FROM conversation_key_recipients
+             WHERE conversation_id = ? AND user_id = ? AND version = ?",
+        )
+        .bind(&conv_id)
+        .bind(&bob.id)
+        .bind(1)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(after.unwrap().0, "delivered");
+    }
+
+    #[tokio::test]
+    async fn test_add_member_key_sets_delivered_when_has_public_key() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await;
+        let carol =
+            seed_user(&pool, "carol", "pass", Some(&valid_public_key())).await; // clé publique
+        let conv_id = seed_conversation(&pool, &alice.id).await;
+        add_participant(&pool, &conv_id, &carol.id).await;
+
+        let mut dist = HashMap::new();
+        dist.insert(alice.id.clone(), "alice-enc-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(DistributeKeysRequest {
+                distributions: dist,
+                keyVersion: 1,
+            }),
+        )
+        .await
+        .unwrap();
+
+        let body = AddMemberKeyRequest {
+            userId: carol.id.clone(),
+            encryptedKey: "carol-enc-key".to_string(),
+            userKeyVersion: 1,
+            keyVersion: 1,
+        };
+        let _ = add_member_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(body),
+        )
+        .await
+        .unwrap();
+
+        let status: Option<(String,)> = sqlx::query_as(
+            "SELECT distribution_status FROM conversation_key_recipients
+             WHERE conversation_id = ? AND user_id = ? AND version = ?",
+        )
+        .bind(&conv_id)
+        .bind(&carol.id)
+        .bind(1)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            status.unwrap().0, "delivered",
+            "membre avec clé publique doit être 'delivered'"
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // E2 correctif #2 — contrôle d'appartenance à la lecture (get_my_group_key)
+    // Un membre RENVOYÉ ne doit plus pouvoir lire les clés.
+    // ═════════════════════════════════════════════════════════════════════
+
+    #[tokio::test]
+    async fn test_get_my_group_key_removed_member_forbidden() {
+        let pool = setup_test_db().await;
+        let state = make_state(pool.clone());
+        let alice = seed_user(&pool, "alice", "pass", None).await;
+        let bob = seed_user(&pool, "bob", "pass", Some(&valid_public_key())).await;
+        let conv_id = seed_conversation(&pool, &alice.id).await;
+        add_participant(&pool, &conv_id, &bob.id).await;
+
+        let mut dist = HashMap::new();
+        dist.insert(bob.id.clone(), "bob-enc-key".to_string());
+        dist.insert(alice.id.clone(), "alice-enc-key".to_string());
+        let _ = distribute_group_keys(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice.clone())),
+            Path(conv_id.clone()),
+            Json(DistributeKeysRequest {
+                distributions: dist,
+                keyVersion: 1,
+            }),
+        )
+        .await
+        .unwrap();
+
+        // bob est encore membre → lecture OK
+        let ok = get_my_group_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(bob.clone())),
+            Path(conv_id.clone()),
+            Query(MyKeyQuery { version: None }),
+        )
+        .await;
+        assert!(ok.is_ok(), "membre courant doit pouvoir lire la clé");
+
+        // RENVOY : retrait de la conversation
+        sqlx::query(
+            "DELETE FROM conversation_participants
+             WHERE conversation_id = ? AND user_id = ?",
+        )
+        .bind(&conv_id)
+        .bind(&bob.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // bob n'est plus membre → FORBIDDEN au moment de la lecture
+        let err = get_my_group_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(bob)),
+            Path(conv_id.clone()),
+            Query(MyKeyQuery { version: None }),
+        )
+        .await
+        .expect_err("membre renvoyé ne doit plus lire la clé");
+        assert_eq!(err, StatusCode::FORBIDDEN);
+
+        // Non-régression : alice (membre courant) peut toujours lire
+        let ok = get_my_group_key(
+            AxumState(state.clone()),
+            Extension(CurrentUser(alice)),
+            Path(conv_id),
+            Query(MyKeyQuery { version: None }),
+        )
+        .await;
+        assert!(
+            ok.is_ok(),
+            "membre courant doit conserver la capacité de lecture"
+        );
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
     // GET /api/conversations/{conv_id}/my-encrypted-key/{msg_id}
+    // ═════════════════════════════════════════════════════════════════════
     // ═════════════════════════════════════════════════════════════════════
 
     #[tokio::test]
