@@ -29,6 +29,11 @@
 #
 #  Variables :
 #    DEPLOY_URL       URL de l'instance déployée (défaut http://192.168.1.192:6300)
+#    DEPLOY_IMAGE     image du conteneur (ex. ghcr.io/mx10-ac2n/nook:dev).
+#                     Repli utilisé quand DEPLOY_URL est injoignable — cas
+#                     d'un déploiement LAN vérifié depuis un runner CI
+#                     GitHub (le runner public ne route pas vers le LAN).
+#                     Vérifie alors le bundle contenu dans l'IMAGE.
 #    EXPECTED_SHA     commit attendu (défaut : HEAD du dépôt cloné)
 #    EXPECTED_DIR     répertoire contenant le build frontend attendu
 #                     (index.html à la racine). Si absent, on télécharge
@@ -39,10 +44,12 @@
 #    GITHUB_REPOSITORY        défaut MX10-AC2N/Nook
 #    FRONTEND_WORKFLOW        défaut « Frontend.yml »
 #    SKIP_ARTIFACT    si "1", ne pas tenter le téléchargement d'artifact
+#    FALLBACK_BUILD   si "1", rebuild le frontend si l'artifact a expiré
 # =====================================================================
 set -uo pipefail
 
 DEPLOY_URL="${DEPLOY_URL:-http://192.168.1.192:6300}"
+DEPLOY_IMAGE="${DEPLOY_IMAGE:-}"
 EXPECTED_SHA="${EXPECTED_SHA:-}"
 EXPECTED_DIR="${EXPECTED_DIR:-}"
 WORKFLOW_RUN_ID="${WORKFLOW_RUN_ID:-}"
@@ -193,25 +200,119 @@ info "bundle attendu : ${EXPECTED_CSS[*]}"
 [ -n "$EXPECTED_CSS_SHA" ] && info "sha256 attendu : $EXPECTED_CSS_SHA"
 
 # ---------------------------------------------------------------------
-# 4. Récupérer le bundle SERVI par l'instance
+# 4. Récupérer le bundle SERVI
+#    1) l'instance (DEPLOY_URL)   — mesure réelle du conteneur en cours
+#    2) repli : l'image (DEPLOY_IMAGE) — quand l'instance est injoignable
+#       (déploiement LAN vérifié depuis un runner CI public)
 # ---------------------------------------------------------------------
-info "instance : $DEPLOY_URL"
-SERVED_INDEX_RAW="$WORK/served-index.html"
-if ! curl -fsS -m 30 "$DEPLOY_URL/" -o "$SERVED_INDEX_RAW" 2>/dev/null; then
-  fail "Instance injoignable : $DEPLOY_URL — le garde-fou échoue (on ne valide pas un déploiement non mesurable)."
+SERVED_SOURCE=""
+SERVED_INDEX_RAW=""
+
+if [ -n "$DEPLOY_URL" ]; then
+  info "instance : $DEPLOY_URL"
+  SERVED_INDEX_RAW="$WORK/served-index.html"
+  if curl -fsS -m 30 "$DEPLOY_URL/" -o "$SERVED_INDEX_RAW" 2>/dev/null \
+     && grep -q "/_app/immutable/" "$SERVED_INDEX_RAW"; then
+    SERVED_SOURCE="instance"
+  else
+    info "instance injoignable ou réponse non Nook ($DEPLOY_URL)."
+  fi
 fi
-if ! grep -q "/_app/immutable/" "$SERVED_INDEX_RAW"; then
-  fail "Réponse de $DEPLOY_URL ne ressemble pas à l'app Nook (pas de /_app/immutable/ dans index.html)."
+
+# --- Repli image (GHCR) -------------------------------------------------
+fetch_image_static() {
+  # $1 = image (ex. ghcr.io/mx10-ac2n/nook:dev), $2 = outdir
+  # stdout : chemin de l'index.html extrait (exit 0), sinon IMGERR… (exit 3)
+  python3 - "$1" "$2" <<'PY'
+import io, json, os, sys, tarfile, urllib.request, warnings
+warnings.filterwarnings("ignore")
+ref, outdir = sys.argv[1], sys.argv[2]
+reg, _, rest = ref.partition("/")
+repo, _, tag = rest.rpartition(":")
+if not tag or tag == rest:
+    repo, tag = rest, "latest"
+
+def get(url, hdr=None, raw=False):
+    r = urllib.request.urlopen(urllib.request.Request(url, headers=hdr or {}), timeout=180)
+    return r.read() if raw else r
+
+try:
+    tok = json.load(get(f"https://{reg}/token?scope=repository:{repo}:pull&service={reg}"))["token"]
+except Exception as e:
+    print("IMGERR token:", e); sys.exit(3)
+AH = {"Authorization": f"Bearer {tok}"}
+ACC = ("application/vnd.oci.image.index.v1+json,"
+       "application/vnd.docker.distribution.manifest.list.v2+json,"
+       "application/vnd.docker.distribution.manifest.v2+json,"
+       "application/vnd.oci.image.manifest.v1+json")
+try:
+    ml = json.load(get(f"https://{reg}/v2/{repo}/manifests/{tag}", {**AH, "Accept": ACC}))
+except Exception as e:
+    print("IMGERR manifest:", e); sys.exit(3)
+
+man = ml
+if "manifests" in ml:
+    amd = next((m["digest"] for m in ml["manifests"]
+                if m.get("platform", {}).get("architecture") == "amd64"
+                and m.get("platform", {}).get("os") == "linux"), None)
+    if amd is None and ml["manifests"]:
+        amd = ml["manifests"][0]["digest"]
+    if amd:
+        man = json.load(get(f"https://{reg}/v2/{repo}/manifests/{amd}", {**AH, "Accept": ACC}))
+
+os.makedirs(outdir, exist_ok=True)
+for layer in man.get("layers", []):
+    try:
+        data = get(f"https://{reg}/v2/{repo}/blobs/{layer['digest']}", AH, raw=True)
+        tf = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+    except Exception:
+        continue
+    names = tf.getnames()
+    if any(n == "app/static/index.html" or n.endswith("/app/static/index.html") for n in names):
+        for n in names:
+            if n.startswith("app/static/"):
+                tf.extract(n, outdir)
+        tf.close()
+        idx = os.path.join(outdir, "app/static/index.html")
+        if os.path.exists(idx):
+            print(idx); sys.exit(0)
+    tf.close()
+print("IMGERR: app/static/index.html absent de toutes les couches"); sys.exit(3)
+PY
+}
+
+if [ -z "$SERVED_SOURCE" ] && [ -n "$DEPLOY_IMAGE" ]; then
+  info "repli image : $DEPLOY_IMAGE"
+  IMG_OUT="$(PYTHONWARNINGS=ignore fetch_image_static "$DEPLOY_IMAGE" "$WORK/image" 2>/dev/null | tail -n 1)" || true
+  case "$IMG_OUT" in
+    IMGERR*)
+      info "image illisible : $IMG_OUT"
+      ;;
+    */index.html)
+      SERVED_INDEX_RAW="$IMG_OUT"
+      SERVED_SOURCE="image"
+      info "image : bundle extrait depuis $DEPLOY_IMAGE"
+      ;;
+  esac
+fi
+
+if [ -z "$SERVED_SOURCE" ]; then
+  fail "Ni l'instance ($DEPLOY_URL) ni l'image (${DEPLOY_IMAGE:-non définie}) n'a pu être mesurée — le garde-fou ne passe PAS par silence."
 fi
 
 mapfile -t SERVED_CSS < <(extract_css "$SERVED_INDEX_RAW")
-[ ${#SERVED_CSS[@]} -gt 0 ] || fail "Aucune référence CSS trouvée dans le index.html servi par $DEPLOY_URL."
+[ ${#SERVED_CSS[@]} -gt 0 ] || fail "Aucune référence CSS trouvée dans le bundle servi ($SERVED_SOURCE)."
 info "bundle servi   : ${SERVED_CSS[*]}"
 
 SERVED_CSS_MAIN="${SERVED_CSS[0]}"
-SERVED_CSS_FILE="$WORK/served.css"
-if ! curl -fsS -m 30 "$DEPLOY_URL/_app/immutable/assets/$SERVED_CSS_MAIN" -o "$SERVED_CSS_FILE" 2>/dev/null; then
-  fail "Le CSS servi référencé est introuvable : /_app/immutable/assets/$SERVED_CSS_MAIN (404 sur $DEPLOY_URL)."
+if [ "$SERVED_SOURCE" = "instance" ]; then
+  SERVED_CSS_FILE="$WORK/served.css"
+  if ! curl -fsS -m 30 "$DEPLOY_URL/_app/immutable/assets/$SERVED_CSS_MAIN" -o "$SERVED_CSS_FILE" 2>/dev/null; then
+    fail "Le CSS servi référencé est introuvable : /_app/immutable/assets/$SERVED_CSS_MAIN (404 sur $DEPLOY_URL)."
+  fi
+else
+  SERVED_CSS_FILE="$WORK/image/app/static/_app/immutable/assets/$SERVED_CSS_MAIN"
+  [ -f "$SERVED_CSS_FILE" ] || fail "Le CSS est absent de l'image : _app/immutable/assets/$SERVED_CSS_MAIN."
 fi
 SERVED_CSS_SHA="$(sha256sum "$SERVED_CSS_FILE" | cut -d' ' -f1)"
 info "sha256 servi   : $SERVED_CSS_SHA"
@@ -224,6 +325,7 @@ if [ "${EXPECTED_CSS[*]}" = "${SERVED_CSS[*]}" ] && [ -n "$EXPECTED_CSS_SHA" ] &
   echo "${GREEN}${BOLD}✅ DEPLOY GUARD — OK${RESET}"
   echo "   commit attendu : $EXPECTED_SHA_FULL"
   echo "   bundle servi   : ${SERVED_CSS[*]} (sha256 $SERVED_CSS_SHA)"
+  echo "   source         : $SERVED_SOURCE"
   echo "   conforme au bundle du commit attendu."
   exit 0
 fi
@@ -234,8 +336,14 @@ echo ""
 echo "   commit attendu : $EXPECTED_SHA_FULL"
 echo "   bundle attendu : ${EXPECTED_CSS[*]}   (sha256 ${EXPECTED_CSS_SHA:-incalculable})"
 echo "   bundle servi   : ${SERVED_CSS[*]}   (sha256 $SERVED_CSS_SHA)"
-echo "   instance       : $DEPLOY_URL"
+echo "   source         : $SERVED_SOURCE"
+[ "$SERVED_SOURCE" = "instance" ] && echo "   instance       : $DEPLOY_URL"
+[ "$SERVED_SOURCE" = "image" ] && echo "   image          : $DEPLOY_IMAGE"
 echo ""
-echo "   → Le conteneur servi par l'instance n'a pas été recréé avec l'image du commit attendu."
+if [ "$SERVED_SOURCE" = "image" ]; then
+  echo "   → L'image déployée ne contient pas le bundle du commit attendu."
+else
+  echo "   → Le conteneur servi par l'instance n'a pas été recréé avec l'image du commit attendu."
+fi
 echo "   → Redéploiement nécessaire : reconstruire l'image puis recréer le conteneur."
 exit 1
