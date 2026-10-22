@@ -40,6 +40,11 @@ on:
         required: false
         default: ''
         type: string
+      allow_build_fallback:
+        description: 'Reconstruire le frontend si l''artifact a expiré (> 7 j)'
+        required: false
+        default: 'true'
+        type: string
 
 permissions:
   contents: read
@@ -51,6 +56,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historique complet : le repli rebuild a besoin du commit attendu
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+        # Nécessaire uniquement pour le repli (artifact expiré > 7 j)
+        if: ${{ inputs.allow_build_fallback != 'false' }}
 
       - name: Résoudre le commit attendu
         id: sha
@@ -80,6 +94,7 @@ jobs:
           EXPECTED_SHA: ${{ steps.sha.outputs.expected_sha }}
           EXPECTED_BRANCH: ${{ inputs.branch_name }}
           WORKFLOW_RUN_ID: ${{ inputs.workflow_run_id }}
+          FALLBACK_BUILD: ${{ inputs.allow_build_fallback == 'true' && '1' || '0' }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
