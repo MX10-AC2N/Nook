@@ -51,6 +51,7 @@ GITHUB_REPOSITORY="${GITHUB_REPOSITORY:-MX10-AC2N/Nook}"
 FRONTEND_WORKFLOW="${FRONTEND_WORKFLOW:-Frontend.yml}"
 EXPECTED_BRANCH="${EXPECTED_BRANCH:-develop}"
 SKIP_ARTIFACT="${SKIP_ARTIFACT:-0}"
+FALLBACK_BUILD="${FALLBACK_BUILD:-0}"
 
 RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; BOLD=$'\033[1m'; RESET=$'\033[0m'
 
@@ -139,6 +140,33 @@ z.extractall('$WORK/expected')
 fi
 
 # ---------------------------------------------------------------------
+# 2c. Repli : reconstruire le frontend depuis le commit attendu
+#     (l'artifact n'est conservé que 7 jours — au-delà, on rebuild)
+# ---------------------------------------------------------------------
+if [ -z "$EXPECTED_INDEX" ] && [ "$FALLBACK_BUILD" = "1" ]; then
+  info "repli : reconstruction du frontend depuis $EXPECTED_SHA_FULL ..."
+  if command -v npm >/dev/null 2>&1 && git rev-parse --git-dir >/dev/null 2>&1; then
+    if git clone --quiet --no-checkout . "$WORK/src" 2>/dev/null \
+       && git -C "$WORK/src" checkout --quiet "$EXPECTED_SHA_FULL" 2>/dev/null; then
+      if ( cd "$WORK/src/frontend" \
+             && npm ci --no-audit --no-fund --legacy-peer-deps >/dev/null 2>&1 \
+             && npm run build >/dev/null 2>&1 ) \
+         && [ -f "$WORK/src/frontend/build/index.html" ]; then
+        EXPECTED_DIR="$WORK/src/frontend/build"
+        EXPECTED_INDEX="$EXPECTED_DIR/index.html"
+        info "repli OK : bundle reconstruit depuis $EXPECTED_SHA_FULL"
+      else
+        info "repli KO : le build frontend a échoué."
+      fi
+    else
+      info "repli KO : commit $EXPECTED_SHA_FULL introuvable dans ce dépôt."
+    fi
+  else
+    info "repli KO : npm absent — installez Node pour activer le repli."
+  fi
+fi
+
+# ---------------------------------------------------------------------
 # 3. Extraire le bundle attendu
 # ---------------------------------------------------------------------
 extract_css() {
@@ -148,7 +176,7 @@ extract_css() {
 }
 
 if [ -z "$EXPECTED_INDEX" ]; then
-  fail "Aucun bundle ATTENDU disponible (artifact introuvable). Impossible de vérifier — le garde-fou ne passe PAS par silence."
+  fail "Aucun bundle ATTENDU disponible (artifact introuvable, repli désactivé). Impossible de vérifier — le garde-fou ne passe PAS par silence."
 fi
 
 mapfile -t EXPECTED_CSS < <(extract_css "$EXPECTED_INDEX")
