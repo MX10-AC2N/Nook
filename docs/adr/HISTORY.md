@@ -120,6 +120,15 @@ et les **titres des fichiers** : **013 = dual message store** (préexistant, 202
 > des ADR-011 (2026-07-02) et ADR-012 (2026-07-11) et les **titres des fichiers** donnent : 013=dual store (2026-07-11),
 > 014=rand_core/argon2, 015=sqlx, 016=chacha. Les sections §3, §4.4, §4.5 et §6 de `README.md` sont alignées sur cette numérotation.
 
+## 2026-10 — Récupération et commit d'ADR-017 (reply-to)
+
+Carte `t_0b0decb6` (`@architect`). L'ADR-017, rédigée le 2026-08-27 dans le workspace kanban `t_37a99925`,
+n'avait **jamais été commitée** alors que la fonctionnalité est en production (commit `eca8093e`). Le fichier
+a été **retrouvé à l'identique** dans le dump de session `coder` du 2026-08-28 (résultat d'un `read_file` de
+l'ADR), puis commité sous `docs/adr/017-reply-to-feature.md` (nom normalisé, convention §3). Seul le statut a
+été acté : `Proposé` → `Accepté` (revue Gate 2, preuve : `024_reply_to.sql`, `db.rs:415`, commit `eca8093e`).
+La référence cassée d'ADR-018:8 (« non encore commitée ») est corrigée. Détail et provenance : `README.md` §4.6.
+
 ---
 
 ## Récapitulatif des statuts

@@ -5,7 +5,7 @@
 **Décideur** : Mo Ju (commanditaire) · architect (auteur)
 **Session** : kanban `t_013c09f8`
 **Supersede** : —
-**Nota** : ADR-017 est réservé à la fonctionnalité *reply-to* (référencée dans la carte kanban `t_37a99925`, non encore commitée au `2026-10-22`). Ce document prend donc le numéro **018** pour éviter la collision d'identifiant.
+**Nota** : l'ADR-017 (*reply-to*) a longtemps été le seul occupant du numéro sans fichier commité — ce document avait pris le numéro **018** pour éviter la collision. L'ADR-017 est désormais commitée : [ADR-017 — Reply-to](017-reply-to-feature.md) (voir `docs/adr/README.md` §4.6 pour la provenance de la récupération). Le numéro **018** est conservé, un numéro n'étant jamais recyclé.
 
 ---
 
