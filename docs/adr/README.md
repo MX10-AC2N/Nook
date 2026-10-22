@@ -60,10 +60,10 @@ Règles :
 | `ADR-016-e2ee-group-hybrid.md` | `016-e2ee-group-hybrid.md` | à renommer |
 | `ADR-017-reply-to-feature.md` | `017-reply-to-feature.md` | à renommer |
 | `ADR-018-agent-memory-storage.md` | `018-agent-memory-storage.md` | à renommer |
-| `0013-dual-message-store-architecture.md` | `013-dual-message-store-architecture.md` | orphelin, §4 |
-| `0014-rand_core-argon2-migration.md` | `014-rand-core-argon2-migration.md` | orphelin, §4 |
-| `0015-sqlx-08-to-09-migration.md` | `015-sqlx-08-to-09-migration.md` | orphelin, §4 |
-| `0016-chacha20poly1305-010-to-011-migration.md` | — | doublon de collision, §4.4 |
+| `0013-dual-message-store-architecture.md` | — | ⛔ **clos** (décision appliquée puis revertée), carte `t_566014c5` |
+| `0014-rand_core-argon2-migration.md` | `014-rand-core-argon2-migration.md` | ✅ **recréé** (Proposé, bloqué), carte `t_566014c5` |
+| `0015-sqlx-08-to-09-migration.md` | `015-sqlx-08-to-09-migration.md` | ✅ **recréé** (Proposé, bloqué), carte `t_566014c5` |
+| `0016-chacha20poly1305-010-to-011-migration.md` | — | ⛔ **clos** — doublon de collision, n° 016 attribué à l'ADR E2EE |
 
 Les renommages sont listés en §7 (action en attente).
 
@@ -104,20 +104,25 @@ Raisons :
 
 ### 4.4 Collision de numérotation 013-016 (bug historique majeur)
 
-Le 2026-08-07, l'Architect a créé trois ADR de migration de dépendances **en partant du numéro 013** (carte `t_dd44fc37`), en supposant — à tort — que 011 et 012 étaient les deux seuls ADR existants et que 013 était le prochain numéro libre. Résultat :
+Le 2026-08-07, l'Architect a créé trois ADR de migration de dépendances **en partant du numéro 013** (carte `t_dd44fc37`), en supposant — à tort — que 011 et 012 étaient les deux seuls ADR existants et que 013 était le prochain numéro libre. Or un ADR **préexistant** du 2026-07-11 occupait déjà ce numéro. Numérotation **autoritative** (chronologie + titres des fichiers) :
 
 | Numéro | Attribué à | Fichier (jamais commité) |
 |---|---|---|
-| 013 | rand_core 0.6→0.10 + argon2 0.5→0.6 | `0013-…` puis `014-rand_core-argon2-migration.md` (renommé) |
-| 014 | sqlx 0.8→0.9 | `015-sqlx-08-to-09-migration.md` |
-| 015 | chacha20poly1305 0.10→0.11 | `0016-chacha20poly1305-010-to-011-migration.md` |
-| 016 | E2EE groupe global (Option D) | `ADR-016-e2ee-group-hybrid.md` |
+| 013 | Dual message store (`writable` + `$state`) — **préexistant, 2026-07-11** | `0013-dual-message-store-architecture.md` |
+| 014 | rand_core 0.6→0.10 + argon2 0.5→0.6 | `0014-rand_core-argon2-migration.md` |
+| 015 | sqlx 0.8→0.9 | `0015-sqlx-08-to-09-migration.md` |
+| 016 | chacha20poly1305 0.10→0.11 | `0016-chacha20poly1305-010-to-011-migration.md` |
+| 016 | E2EE groupe global (Option D) | `016-e2ee-group-hybrid.md` (**implémenté**) |
 
 **Un même numéro a failli désigner deux décisions différentes** (016 = migration de dépendance *ou* architecture E2EE). C'est la cause directe de l'incohérence actuelle.
 
-**Sort décidé** : les trois ADR de migration (013, 014, 015) sont **orphelins** : écrits mais jamais commités, leurs trois dépendances sont **encore épinglées aux versions anciennes** (`backend/Cargo.toml` : `rand_core 0.6`, `argon2 0.5`, `sqlx 0.8.6`, `chacha20poly1305 0.10.1`) — donc la décision n'a pas abouti. Leurs numéros restent réservés dans ce tableau (§6) et ne seront pas réattribués.
+**Sort décidé** (carte `t_566014c5`, `@architect`, 2026-10-22) :
 
-Le numéro **016** appartient à l'ADR E2EE (option D), seul ADR réellement implémenté.
+- **ADR-013 (dual message store) → clos.** Son statut « Accepted » était **faux** : la décision a été **appliquée puis revertée**. Le commit `1b47e159` (2026-04-13) appliquait l'Option 1 (runes) ; `2601bcca` (2026-04-13, 8 min plus tard) rétablissait le `writable`. Le code atteste : `frontend/src/lib/chatStore.svelte.ts:85` = `writable`, `frontend/src/routes/chat/+page.svelte:122` = `localMessages`. Le suivi est porté par **DT-12**. Le numéro 013 reste **réservé, non réattribué**.
+- **ADR-014 (rand_core/argon2) et ADR-015 (sqlx) → recréés** au nom normalisé (`014-rand-core-argon2-migration.md`, `015-sqlx-08-to-09-migration.md`). Leur statut réel — **Proposé, bloqué** — est exact : les dépendances sont encore épinglées (`backend/Cargo.toml` : `rand_core 0.6`, `argon2 0.5`, `sqlx 0.8.6`) et les blocages (revue `security-auditor` pour 014, spike coder pour 015) sont toujours ouverts.
+- **ADR-016 (migration chacha20poly1305) → clos.** Le numéro **016 appartient à l'ADR E2EE** (option D, implémentée) — le numéro n'est pas disponible. De plus la prémisse de l'orphelin est **partiellement fausse** : le crate est utilisé dans `backend/src/webrtc.rs:15-18` (chiffrement de fichiers), **pas** dans `e2ee.rs`. La dépendance reste épinglée à `0.10.1` (`backend/Cargo.toml:39`).
+
+Le numéro **016** appartient donc à l'ADR E2EE, seul ADR réellement implémenté.
 
 ### 4.5 Statut de chaque numéro cité — preuve par le code
 
@@ -186,7 +191,9 @@ Exigences non négociables :
 | Numéro | Réservé à | Raison |
 |---|---|---|
 | 001-010 | — | décisions pré-ADR, **ne pas recréer** (§4.3) |
-| 013, 014, 015 | ADR de migration de dépendances | orphelins, décision non aboutie (§4.4) |
+| 013 | Dual message store (`writable` + `$state`) | **clos** : décision appliquée puis revertée (§4.4) |
+| 014 | rand_core 0.6→0.10 + argon2 0.5→0.6 | **recréé** (Proposé, bloqué security-auditor) — §4.4 |
+| 015 | sqlx 0.8→0.9 (compat Axum 0.8) | **recréé** (Proposé, bloqué spike coder) — §4.4 |
 | 016 | E2EE groupe global (Option D) | occupé |
 | 017 | Reply-to | occupé |
 | 018 | Mémoire par agent | occupé |
@@ -204,9 +211,11 @@ Exigences non négociables :
 | 3 | Corriger `architect/SOUL.md:80` (DT-13 « DONE ») : les ADR 013-015 n'ont jamais été commités | `@architect` | Non |
 | 4 | Décider de ADR-001 (conteneur unique) : la mesure dit 3 services — ADR obsolète à marquer ou à reformuler | `@architect` | Non |
 | 5 | Décider de ADR-007 (Nginx Proxy Manager) : aucun artefact ne correspond — remplacer par `nginx-local` | `@architect` | Non |
-| 6 | Rouvrir ou clore les ADR 013/014/015 (migrations de deps encore bloquées) | `@architect` + `@security-auditor` | Non |
+| 6 | ~~Rouvrir ou clore les ADR 013/014/015~~ → **fait** (carte `t_566014c5`) : 013 clos, 014/015 recréés Proposé-bloqués, migration chacha 016 clos | `@architect` | — |
 | 7 | Levée des 2 réserves d'ADR-016 (rotation de clé, purge des anciennes versions) | `@architect` + `@security-auditor` | Non |
 | 8 | Récupérer le texte d'ADR-017 (rédigé dans le workspace `t_37a99925`, jamais commité) et le commiter | `@architect` | Non |
+| 9 | Débloquer ADR-014 : revue `security-auditor` du passage argon2 0.5→0.6 | `@security-auditor` | Non |
+| 10 | Débloquer ADR-015 : spike coder de compat sqlx 0.9 / Axum 0.8 | `@coder` | Non |
 
 ---
 

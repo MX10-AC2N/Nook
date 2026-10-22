@@ -67,6 +67,7 @@
 |---|---|
 | **Équipe Nook : 16 profils d'agents** + ownership de la dette technique DT-01..07 | ← ADR: `011-team-structure-decisions.md` · ← Code: `.hermes/profiles/` (17 profils réels) |
 | **Capacité SFU configurable** via `SFU_RELAY_CAPACITY` (défaut 500) + correction de déduplication des tracks (`peer_id` inclus) | ← ADR: `012-sfu-relay-capacity.md` · ← Code: `backend/src/config.rs:22`, `backend/src/sfu.rs:342` |
+| ~~**ADR-013** — Dual message store (`writable` + `$state`) : adopter l'Option 1 (source unique, runes)~~ | ← ADR: *orphelin, **clos** le 2026-10-22 (carte `t_566014c5`)* — **décision abandonnée** : appliquée puis **revertée** (cf. 2026-04) · le suivi est porté par **DT-12** |
 
 ---
 
@@ -74,9 +75,10 @@
 
 | Décision | Preuve |
 |---|---|
-| ~~Migration `rand_core 0.6 → 0.10` + `argon2 0.5 → 0.6`~~ | ← ADR: *orphelin, jamais commité (ADR-013)* — **non abouti** : `backend/Cargo.toml:35,38` = encore `rand_core 0.6`, `argon2 0.5` |
-| ~~Migration `sqlx 0.8 → 0.9` avec compat Axum 0.8~~ | ← ADR: *orphelin, jamais commité (ADR-014)* — **non abouti** : `backend/Cargo.toml:17` = encore `sqlx 0.8.6` |
-| ~~Migration `chacha20poly1305 0.10 → 0.11` (chemin E2EE)~~ | ← ADR: *orphelin, jamais commité (ADR-015)* — **non abouti** : `backend/Cargo.toml:39` = encore `chacha20poly1305 0.10.1` |
+| ~~**ADR-013** — Dual message store (`writable` + `$state`) : adopter l'Option 1 (source unique, runes)~~ | ← ADR: *orphelin, **clos** le 2026-10-22 (carte `t_566014c5`)* — **décision abandonnée** : appliquée puis **revertée** · ← Code: `frontend/src/lib/chatStore.svelte.ts:85` = encore `writable`, `frontend/src/routes/chat/+page.svelte:122` = encore `localMessages` · le suivi est porté par **DT-12** |
+| **`rand_core 0.6 → 0.10` + `argon2 0.5 → 0.6`** — migration **bloquée** (KDF de mot de passe : revue `security-auditor` requise) | ← ADR: `014-rand-core-argon2-migration.md` (**Proposé**, recréé le 2026-10-22) — **non abouti** · ← Code: `backend/Cargo.toml:35,38` = encore `rand_core 0.6`, `argon2 0.5` · `backend/Cargo.lock` = 3 copies de `rand_core` (0.6.4, 0.9.5, 0.10.1) |
+| **`sqlx 0.8 → 0.9`** avec compat Axum 0.8 — migration **bloquée** (spike coder requis) | ← ADR: `015-sqlx-08-to-09-migration.md` (**Proposé**, recréé le 2026-10-22) — **non abouti** · ← Code: `backend/Cargo.toml:17` = encore `sqlx 0.8.6` |
+| ~~**ADR-016** (migration `chacha20poly1305 0.10 → 0.11`)~~ — **numéro attribué à l'E2EE** | ← ADR: *orphelin, **clos** le 2026-10-22 (carte `t_566014c5`)* — le n° 016 désigne désormais `016-e2ee-group-hybrid.md` · ← Code: usage réel du crate = `backend/src/webrtc.rs:15-18` (**pas** `e2ee.rs` comme le stipulait l'orphelin) · `backend/Cargo.toml:39` = encore `chacha20poly1305 0.10.1` |
 | **E2EE groupe global — Hybrid Sender Keys (Option D)** : enveloppe par destinataire pour DMs/groupes privés, clé de groupe globale pour `default_global`, distribution par `crypto_box_seal`, rotation 7j + événementielle | ← ADR: `016-e2ee-group-hybrid.md` · ← RFC: `docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md` · ← Code: `backend/src/e2ee.rs:590-1010`, `frontend/src/lib/e2ee.ts:189` · ← Code: `backend/migrations/{019_conversation_keys,022_distribution_status,023_group_key_version}.sql` · commits `ad499a3a`, `3b24583f`, `7bf46454`, `79edfc94` |
 
 **Réserves ouvertes sur cette décision** (revue `security-auditor`, `ACCEPTÉ AVEC RÉSERVES MAJEURES`, carte `t_0fc7cc3f`) :
@@ -94,18 +96,44 @@
 
 ---
 
+## 2026-10 — Sort des orphelins ADR 013 / 014 / 015 (et du 016 en collision)
+
+Carte `t_566014c5` (`@architect`). Les quatre fichiers orphelins `0013-…`, `0014-…`, `0015-…`, `0016-…`
+(rédigés le 2026-07-11 et le 2026-08-07, **jamais commités**) sont tranchés. Numérotation **autoritative** =
+la **chronologie** (ADR-011 le 2026-07-02, ADR-012 le 2026-07-11, donc l'orphelin du 2026-07-11 suit au n° 013)
+et les **titres des fichiers** : **013 = dual message store** (préexistant, 2026-07-11), **014 = rand_core/argon2**,
+**015 = sqlx**, **016 = chacha20poly1305**.
+
+| ADR | Fichier orphelin | Sort | Justification (preuve) |
+|---|---|---|---|
+| **013** | `0013-dual-message-store-architecture.md` | **Clore** | Statut « Accepted » **faux** : la décision a été **appliquée puis revertée** · ← Code: commit `1b47e159` (2026-04-13 07:04, Option 1) puis `2601bcca` (2026-04-13 07:12, « Use Svelte writable store for messages cross-file reactivity ») · ← Code: `frontend/src/lib/chatStore.svelte.ts:85` = `writable`, `frontend/src/routes/chat/+page.svelte:122` = `localMessages` · le suivi est porté par **DT-12** |
+| **014** | `0014-rand_core-argon2-migration.md` | **Recréer** → `014-rand-core-argon2-migration.md` | Statut « Proposed (blocked on security-auditor coordination) » **exact** · ← Code: `backend/Cargo.toml:35` = `rand_core 0.6`, `:38` = `argon2 0.5` · `backend/Cargo.lock` = 3 copies de `rand_core` · le contenu est réel et reste la référence du blocage |
+| **015** | `0015-sqlx-08-to-09-migration.md` | **Recréer** → `015-sqlx-08-to-09-migration.md` | Statut « Proposed (blocked — architect review required) » **exact** · ← Code: `backend/Cargo.toml:17` = `sqlx 0.8.6` · le spike n'a jamais été lancé |
+| **016** | `0016-chacha20poly1305-010-to-011-migration.md` | **Clore** | Le n° **016 est attribué à l'E2EE** (`016-e2ee-group-hybrid.md`, implémenté) — le numéro n'est pas disponible · de plus la prémisse de l'orphelin est **partiellement fausse** : le crate est utilisé dans `backend/src/webrtc.rs:15-18` (chiffrement de fichiers), **pas** dans `e2ee.rs` · ← Code: `backend/Cargo.toml:39` = encore `chacha20poly1305 0.10.1` |
+
+**Règle de numérotation réaffirmée** : un numéro = une décision, jamais réutilisé. Les numéros **013** et **016**
+(dans son acception « migration ») restent **réservés et non réattribués**. Le prochain numéro libre est **019**
+(016, 017, 018 étant occupés).
+
+> **Corrections d'écriture** (par `@architect`, `t_566014c5`) : l'index `docs/adr/README.md` §4.4/§4.5 et le présent
+> historique numérotaient les migrations 013=rand_core, 014=sqlx, 015=chacha — **décalage d'un cran**. La **chronologie**
+> des ADR-011 (2026-07-02) et ADR-012 (2026-07-11) et les **titres des fichiers** donnent : 013=dual store (2026-07-11),
+> 014=rand_core/argon2, 015=sqlx, 016=chacha. Les sections §3, §4.4, §4.5 et §6 de `README.md` sont alignées sur cette numérotation.
+
+---
+
 ## Récapitulatif des statuts
 
 | Période | Décisions | Documentées ? |
 |---|---|---|
 | 2026-01 → 2026-05 | 10 | ❌ Aucune (ADR-001..010) |
 | 2026-07 | 2 | ✅ ADR-011, ADR-012 |
-| 2026-08 (deps) | 3 | ❌ Orphelins (ADR-013..015) |
+| 2026-08 (deps) | 3 | ⚠️ **ADR-014, ADR-015 recréés** (Proposé, bloqués) · ADR-013 et la migration 016 **clos** |
 | 2026-08 (E2EE) | 1 | ✅ ADR-016 (avec réserves) |
 | 2026-10 | 2 | ✅ ADR-017 (accepté), ADR-018 (proposé) |
 
-**Total : 18 décisions recensées · 5 documentées en ADR · 13 non documentées ou orphelines.**
+**Total : 18 décisions recensées · 7 documentées en ADR · 11 non documentées ou closes.**
 
 ---
 
-*Maintenu par `@docs-writer` · Décision de non-recréation des ADR 001-010/013-015 : `@architect` (validée par l'inventaire git, carte `t_db6f9481`)*
+*Maintenu par `@docs-writer` · Décision de non-recréation des ADR 001-010/013-015 : `@architect` (validée par l'inventaire git, carte `t_db6f9481`) · Sort des orphelins 013/014/015/016 : `@architect`, carte `t_566014c5` (2026-10-22)*
