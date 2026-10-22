@@ -21,7 +21,6 @@ use sqlx::{migrate, sqlite::SqliteConnectOptions, SqlitePool};
 use std::{net::SocketAddr, path::PathBuf, str::FromStr, sync::Arc};
 use tower_http::{
     compression::CompressionLayer,
-    set_header::SetResponseHeaderLayer,
     cors::CorsLayer,
     services::{ServeDir, ServeFile},
 };
@@ -340,6 +339,39 @@ async fn check_initial_admin(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     }
 
     Ok(())
+}
+
+/// 🛡️ Cache-Control SCOPÉ — see the inline comment above `app` in `main` for
+/// the full rationale. Extracted as a named function (instead of an inline
+/// closure) so the `cache_control_tests` module can exercise it directly.
+///
+/// Replaces the former global `SetResponseHeaderLayer::overriding` layer which
+/// clobbered Cache-Control on *every* response — including live `/api/*` JSON
+/// (chess/polls/messages) — defeating the 5s freshness polling.
+async fn scoped_cache_control(
+    req: Request<Body>,
+    next: Next,
+) -> axum::response::Response {
+    let is_static_asset = {
+        let path = req.uri().path();
+        path.starts_with("/_app/") || path.starts_with("/files/") || path.starts_with("/gifs")
+    };
+    let mut response = next.run(req).await;
+    // Only set Cache-Control when the handler did not already set one, so that
+    // `/api/avatar/*` keeps its own `public, max-age=31536000` (the old `::overriding`
+    // layer used to wipe it — that was the 192.168.1.192:6300 bug we reproduced).
+    if response.headers().get(axum::http::header::CACHE_CONTROL).is_none() {
+        let cacheable = is_static_asset
+            && (response.status().is_success()
+                || response.status() == axum::http::StatusCode::NOT_MODIFIED);
+        let value = if cacheable {
+            axum::http::HeaderValue::from_static("public, max-age=3600")
+        } else {
+            axum::http::HeaderValue::from_static("no-store")
+        };
+        response.headers_mut().insert(axum::http::header::CACHE_CONTROL, value);
+    }
+    response
 }
 
 // ---------------------------------------------------------------------
@@ -697,11 +729,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     response
                 }))
                 .layer(from_fn(my_middleware::csp::csp_nonce_middleware))
-        // Cache-Control for static assets (1h for hashed assets, no-cache for HTML)
-        .layer(SetResponseHeaderLayer::overriding(
-            axum::http::header::CACHE_CONTROL,
-            axum::http::HeaderValue::from_static("public, max-age=3600"),
-        ))
+        // Cache-Control SCOPÉ — le bug était un `SetResponseHeaderLayer::overriding`
+        // global `public, max-age=3600` posé sur le routeur entier, donc sur TOUTES
+        // les réponses JSON /api/*. Sans ETag/Last-Modified côté API, le navigateur
+        // servait des réponses périmées 1 h → le polling 5 s de chessStore.refreshGame()
+        // écrivait l'état initial sur le plateau (fix 544de8e1 rendu inefficace) et les
+        // sondages fermés réapparaissaient ouverts après reload.
+        //
+        //  /api/*            → no-store            (données vécues : chess, polls, msgs)
+        //  /_app/* /files/* /gifs/* → max-age=3600 (assets réels)
+        //  sinon (HTML, /ca) → no-store
+        // `if_not_present` préserve les en-têtes déjà fixés par le handler :
+        // /api/avatar/* garde son propre "public, max-age=31536000".
+        // Les réponses d'erreur (4xx/5xx) sont jamais mises en cache.
+        .layer(from_fn(scoped_cache_control))
         .layer(CompressionLayer::new())
         .layer(cors_layer)
         .with_state(shared_state)
@@ -737,4 +778,171 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod cache_control_tests {
+    //! Vérifient que le middleware `scoped_cache_control` fixe Cache-Control comme
+    //! prévu. `Router::oneshot` exécute le handler puis remonte la réponse à
+    //! travers le middleware — l'équivalent local de `curl -I`. Ces tests
+    //! couvrent exactement ce que `probe-cache.cjs` / `validate-final2.cjs`
+    //! valident en E2E (chess & polls no-store → données fraîches après reload).
+    use super::*;
+    use axum::http::{header::CACHE_CONTROL, StatusCode};
+    use tower::ServiceExt; // .oneshot()
+
+    // Handlers de test : le corps importe peu, seul le chemin et le status
+    // (et, pour l'avatar, le Cache-Control fixé par le handler) comptent.
+    async fn json_handler() -> impl IntoResponse {
+        StatusCode::OK
+    }
+    async fn html_handler() -> impl IntoResponse {
+        axum::response::Html("<!doctype html><html><body>nook</body></html>")
+    }
+
+    fn cc(resp: &axum::response::Response) -> Option<String> {
+        resp.headers()
+            .get(CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    }
+
+    /// Routeur miroir : routes `/api/*` publiques + handler avatar RÉEL (qui fixe
+    /// lui-même `max-age=31536000`), le tout enveloppé par le vrai middleware de
+    /// production `scoped_cache_control` (et rien d'autre — CORS/compression ne
+    /// touchent pas Cache-Control, donc isole le résultat).
+    fn test_app() -> Router {
+        Router::new()
+            .route("/api/health", get(|| async { "OK" }))
+            .route("/api/chess/{id}", get(json_handler))
+            .route("/api/polls/{id}", get(json_handler))
+            .route("/api/avatar/{style}/svg", get(crate::avatar::avatar_proxy))
+            .route("/_app/immutable/assets/app.css", get(|| async { "body{}" }))
+            .route("/files/foo.png", get(|| async { "img" }))
+            .route("/", get(html_handler))
+            .route("/ca/help", get(|| async { "help" }))
+            .layer(from_fn(scoped_cache_control))
+    }
+
+    #[tokio::test]
+    async fn api_health_is_no_store() {
+        let resp = test_app()
+            .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    #[tokio::test]
+    async fn api_chess_is_no_store() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/chess/abc123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    #[tokio::test]
+    async fn api_polls_is_no_store() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder().uri("/api/polls/1").body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    // Ancien bug : le layer global `max-age=3600` était appliqué aux 404 d'API →
+    // le navigateur mettait 1h de cache sur les erreurs. Vérifié non-caché.
+    #[tokio::test]
+    async fn api_error_is_not_cached() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder().uri("/api/bogus").body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    #[tokio::test]
+    async fn html_shell_is_no_store() {
+        let resp = test_app()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    #[tokio::test]
+    async fn ca_is_no_store() {
+        let resp = test_app()
+            .oneshot(Request::builder().uri("/ca/help").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(cc(&resp).as_deref(), Some("no-store"));
+    }
+
+    #[tokio::test]
+    async fn static_app_asset_gets_one_hour_cache() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder()
+                    .uri("/_app/immutable/assets/app.css")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(cc(&resp).as_deref(), Some("public, max-age=3600"));
+    }
+
+    #[tokio::test]
+    async fn files_asset_gets_one_hour_cache() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder().uri("/files/foo.png").body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(cc(&resp).as_deref(), Some("public, max-age=3600"));
+    }
+
+    /// Le handler avatar fixe lui-même `max-age=31536000` : le middleware ne
+    /// doit PAS l'écraser. C'était le bug observé sur 192.168.1.192:6300 (l'avatar
+    /// perdait sa cache de 1 an sous `max-age=3600`). Vérifié avec le vrai
+    /// `avatar_proxy` et un SVG valide.
+    #[tokio::test]
+    async fn avatar_own_cache_header_is_preserved() {
+        let resp = test_app()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/avatar/adventurer/svg?seed=test&size=32")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(
+            resp.headers().get("content-type").unwrap().to_str().unwrap(),
+            "image/svg+xml"
+        );
+        assert_eq!(cc(&resp).as_deref(), Some("public, max-age=31536000"));
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert!(
+            String::from_utf8(bytes.to_vec()).unwrap().starts_with("<svg"),
+            "corps attendu : un document SVG"
+        );
+    }
 }
