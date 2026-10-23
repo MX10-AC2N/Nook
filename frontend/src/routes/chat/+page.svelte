@@ -352,7 +352,7 @@
   let messageMenuMsgId = $state<string | null>(null);   // menu contextuel (éditer/supprimer)
   let emojiPickerPos = $state<{ top: number; left: number; right: number; maxHeight: number }>({ top: 0, left: 0, right: 0, maxHeight: 400 });
 
-  function openMsgEmojiPicker(msgId: string, targetEl?: HTMLElement) {
+  function openMsgEmojiPicker(msgId: string, targetEl: HTMLElement | null = null) {
     extendedEmojiMsgId = msgId;
     emojiPickerMsgId = null;
     
@@ -683,7 +683,7 @@
     }
   }
 
-  async function loadReactionsForMessages(convId: string, msgs?: ChatMessage[]) {
+  async function loadReactionsForMessages(convId: string, msgs: ChatMessage[] | null = null) {
     // Si msgs est fourni, l'utiliser directement (évite race condition après selectConversation)
     const toLoad = (msgs ?? localMessages.slice(-50));
     await Promise.allSettled(toLoad.map(async (msg) => {
