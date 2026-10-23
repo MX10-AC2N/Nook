@@ -27,6 +27,7 @@
 | [ADR-016](016-e2ee-group-hybrid.md) | `016-e2ee-group-hybrid.md` | E2EE groupe global — Hybrid Sender Keys (Option D) | **Accepté** (réserves closes le 2026-10-22 — voir `DECISIONS.md`) | 2026-08-24 | `backend/src/e2ee.rs:590`, `frontend/src/lib/e2ee.ts:189` · 3 écarts actés : `DECISIONS.md` |
 | [ADR-017](ADR-017-reply-to-feature.md) | `ADR-017-reply-to-feature.md` | Reply-to (citer / répondre à un message) | **Accepté** | 2026-10 | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` |
 | [ADR-018](ADR-018-agent-memory-storage.md) | `ADR-018-agent-memory-storage.md` | Stockage de la mémoire par agent — MEMORY.md + PLUR vs Mem0 vs Supermemory | **Proposé** (en attente décision Mo Ju) | 2026-10-22 | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
+| [ADR-019](019-deployment-topology.md) | `019-deployment-topology.md` | Topologie de déploiement — services, budget RAM/CPU, ingress TLS | **Accepté** | 2026-10-22 | `docker-compose.yml:2,58,88,39-46`, `nginx-local.conf`, `Dockerfile.nginx` |
 
 **ADR absents de ce tableau, cités mais jamais rédigés** : 001-010, 013-015. Voir §4.
 
@@ -128,13 +129,13 @@ Le numéro **016** appartient donc à l'ADR E2EE, seul ADR réellement implémen
 
 | ADR | Décision prétendue | Fichier ADR | Statut réel | Preuve dans le code |
 |-----|--------------------|-------------|-------------|---------------------|
-| 001 | Single Docker container deployment | — | **Décision obsolète** | `docker-compose.yml:2,58,88` = 3 services (`nook`, `nginx-local`, `turn`). Mesure contradictoire déjà consignée dans ADR-018:122 |
+| 001 | Single Docker container deployment | — | **Superseded** (→ [ADR-019](019-deployment-topology.md)) | `docker-compose.yml:2,58,88` = **3 services** (`nook`, `nginx-local`, `turn`) + 1 réseau (`:115`) · `docker-compose.ci.yml:2,58,86` idem · idem ADR-018:122 · la contrainte « 1 conteneur » n'a jamais été vraie ; remplacée par un **budget RAM/CPU** ← Code: `docker-compose.yml:39-46` (`MEMORY_LIMIT:-1028M`, `CPUS_LIMIT:-1.5`) |
 | 002 | Rust/Axum + SvelteKit 5 stack | — | **Vrai, non documenté** | `backend/Cargo.toml:10` (`axum 0.8`), `frontend/package.json` (SvelteKit 5) |
 | 003 | SQLite for primary DB | — | **Vrai, non documenté** | `backend/src/db.rs`, `backend/migrations/*.sql` |
 | 004 | E2EE Double Ratchet (Signal) | — | **Vrai, non documenté** | `backend/src/e2ee.rs`, `frontend/src/lib/e2ee.ts` |
 | 005 | WebRTC SFU (rustrtc) for calls | — | **Vrai, non documenté** | `backend/src/sfu.rs`, `backend/src/webrtc.rs` |
 | 006 | Cookie-based auth (HttpOnly, SameSite) | — | **Vrai, non documenté** | `backend/src/auth.rs:94-100` (`auth_token`, `HttpOnly`, `SameSite=None/Lax`) |
-| 007 | Nginx Proxy Manager for LAN/WAN TLS | — | **Faux dans les faits** | aucun fichier ne référence Nginx Proxy Manager ; le proxy réel est `nginx-local` (`docker-compose.yml:58`, `docs/nginx-local.md`) |
+| 007 | Nginx Proxy Manager for LAN/WAN TLS | — | **Superseded** (→ [ADR-019](019-deployment-topology.md)) | NPM n'est **référencé par aucun artefact déployé** (pas de service, image, workflow ni certificat) ; cité comme *recommandation WAN* seulement : `README.md:108,188,199`, `AGENTS.md:47`, `docs/nginx-local.md:57-69`, `.hermes/roles/architect.md:140` · le proxy LAN réel est `nginx-local` ← Code: `nginx-local.conf` (`listen 443 ssl`, `proxy_pass http://nook:3000`), `docker-compose.yml:58`, `Dockerfile.nginx` |
 | 008 | GHCR multi-arch (dawidd6 action) | — | **Vrai, non documenté** | `.github/workflows/Docker.yml:28` (`dawidd6/action-download-artifact@v6`) |
 | 009 | 5-workflow CI order (FE→BE→Turn→Docker→Release) | — | **Vrai, non documenté** | `.github/workflows/{Frontend,Backend,turn,Docker,Release}.yml` |
 | 010 | Svelte 5 Runes only (no Svelte 4 syntax) | — | **Vrai, non documenté** | `$state`/`$derived` dans `frontend/src/lib/*.svelte.ts` |
@@ -148,6 +149,31 @@ Le numéro **016** appartient donc à l'ADR E2EE, seul ADR réellement implémen
 | 018 | Mémoire par agent (MEMORY.md vs Mem0 vs Supermemory) | `ADR-018-agent-memory-storage.md` | **Proposé** | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
 
 > **Conséquence pour les revues de design** : citer `ADR-003` ou `ADR-001` comme justification **ne fonctionne pas** — il n'y a pas de fichier à lier. La preuve admissible est le **code** (`← Code: backend/Cargo.toml:17`). Utiliser la colonne «Preuve dans le code».
+>
+> **Exception**: `ADR-019` **remplace** les décisions 001 et 007 — c'est désormais **lui** la référence pour la topologie de déploiement et l'ingress TLS (voir §4.6).
+
+### 4.6 ADR-019 — reformulation de ADR-001 et ADR-007 (2026-10-22)
+
+Décision de `@architect`, carte `t_107d5ece`. Les deux formulations étaient **fausses dans les faits**
+(§4.5) et servaient d'arguments de rejet (`architect/SOUL.md:177`), ce qui les rendait inopposables.
+
+**Tranché : `Reformulée`, pas `Obsolète`.** La garde-fou de simplicité n'est pas supprimée, elle est
+**recadrée sur une contrainte mesurable** :
+
+| ADR | Statut | Remplacé par |
+|---|---|---|
+| **001** — « Single Docker container deployment » | `Superseded` | ADR-019 §1 (3 services) + §2 (budget RAM/CPU, pas un décompte de conteneurs) |
+| **007** — « Nginx Proxy Manager for LAN/WAN TLS » | `Superseded` | ADR-019 §3 (TLS LAN = `nginx-local`) + §4 (TLS WAN = reverse proxy externe, hors périmètre) |
+
+Pourquoi pas « Obsolète » : la contrainte d'**installabilité** est toujours nécessaire ; la supprimer
+laisserait le registre sans ancre. Pourquoi pas « recréé rétroactivement » : décision §4.3 (contexte
+perdu). L'ADR-019 est une **nouvelle** décision, prise sur des **mesures**, qui supersède les deux
+formulations — elle ne les recrée pas.
+
+**Point de vigilance** : la formulation « aucun artefact ne référence NPM » est **imprécise** (NPM
+apparaît dans `README.md`, `AGENTS.md`, `docs/nginx-local.md`, `.hermes/roles/*.md` comme
+*recommandation WAN*). Ce qui est faux, c'est « NPM est le proxy de Nook » — pas « NPM est cité ».
+L'alignement des doc concernées est suivi en §7 (action 9).
 
 ---
 
@@ -192,15 +218,16 @@ Exigences non négociables :
 
 | Numéro | Réservé à | Raison |
 |---|---|---|
-| 001-010 | — | décisions pré-ADR, **ne pas recréer** (§4.3) |
+| 001-010 | — | décisions pré-ADR, **ne pas recréer** (§4.3) · **001 et 007 supersédés par ADR-019** (§4.6) |
 | 013 | Dual message store (`writable` + `$state`) | **clos** : décision appliquée puis revertée (§4.4) |
 | 014 | rand_core 0.6→0.10 + argon2 0.5→0.6 | **recréé** (Proposé, bloqué security-auditor) — §4.4 |
 | 015 | sqlx 0.8→0.9 (compat Axum 0.8) | **Accepté** (spike 2026-10-22 : migration faisable 1 passe, Axum 0.8 confirmé) — §4.4 |
 | 016 | E2EE groupe global (Option D) | occupé |
 | 017 | Reply-to | occupé |
 | 018 | Mémoire par agent | occupé |
+| 019 | Topologie de déploiement (supersede 001, 007) | occupé (§4.6) |
 
-**Prochain numéro libre : 019.**
+**Prochain numéro libre : 020.**
 
 ---
 
@@ -211,8 +238,8 @@ Exigences non négociables :
 | 1 | ~~Renommer `ADR-016-*.md` → `016-*.md`~~ — **fait** le 2026-10-22 (`t_08632b95`) · reste 017/018 | `@architect` | Non |
 | 2 | Corriger `architect/SOUL.md:36-52` : marquer 001-010 et 013-015 `Non documenté` / `Orphelin`, retirer le statut `Accepted` | `@architect` | Non |
 | 3 | Corriger `architect/SOUL.md:80` (DT-13 « DONE ») : les ADR 013-015 n'ont jamais été commités | `@architect` | Non |
-| 4 | Décider de ADR-001 (conteneur unique) : la mesure dit 3 services — ADR obsolète à marquer ou à reformuler | `@architect` | Non |
-| 5 | Décider de ADR-007 (Nginx Proxy Manager) : aucun artefact ne correspond — remplacer par `nginx-local` | `@architect` | Non |
+| 4 | ~~Décider de ADR-001 (conteneur unique)~~ → **FAIT le 2026-10-22** : `Superseded` → [ADR-019](019-deployment-topology.md) (carte `t_107d5ece`) | `@architect` | — |
+| 5 | ~~Décider de ADR-007 (Nginx Proxy Manager)~~ → **FAIT le 2026-10-22** : `Superseded` → [ADR-019](019-deployment-topology.md) (carte `t_107d5ece`) | `@architect` | — |
 | 6 | ~~Rouvrir ou clore les ADR 013/014/015~~ → **fait** (carte `t_566014c5`) : 013 clos, 014/015 recréés, migration chacha 016 clos | `@architect` | — |
 | 7 | ~~Levée des 2 réserves d'ADR-016~~ → **faite** le 2026-10-22 (`t_08632b95`) : réserves **assumées** (mesure de code), ADR-016 repassé `Accepté`, tranchage dans `DECISIONS.md` | `@architect` | — |
 | 8 | Récupérer le texte d'ADR-017 (rédigé dans le workspace `t_37a99925`, jamais commité) et le commiter | `@architect` | Non |
@@ -220,6 +247,7 @@ Exigences non négociables :
 | 10 | Débloquer ADR-015 : spike coder de compat sqlx 0.9 / Axum 0.8 | `@coder` ✔ `t_60a24c82` (2026-10-22) | Non |
 | 11 | **Job de rotation** : brancher `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`) ou la retirer (dead code) + **contrôle de rôle admin** sur `distribute_group_keys` / `add_member_key` / `get_my_group_key` (RFC-016 §5.4 non appliqué) — écart **E1** de `DECISIONS.md` | `@coder` | Non |
 | 12 | **Purge des anciennes versions** de clé de groupe + **correctif `distribution_status`** dans `add_member_key` (`backend/src/e2ee.rs:780`) — écarts **E2/E3** de `DECISIONS.md` · ⚠️ une purge seule ne ferme pas l'accès post-départ : vérifier l'appartenance **à la lecture** | `@coder` ✔ `07ac1ad0` (2026-10-22) | Non |
+| 13 | Aligner les doc qui présentent NPM comme **le** proxy de Nook (LAN compris) → LAN = `nginx-local`, WAN = reverse proxy externe (`AGENTS.md`, `.hermes/rules/*`, template SOUL) | `@docs-writer` | Non |
 
 ---
 
@@ -234,9 +262,11 @@ README.md ──► docs/adr/README.md (cet index)
                   │                    │
                   │                    └──► DECISIONS.md ──► 2 cartes @coder (§7 #9, #10)
                   ├──► 017-reply-to-feature.md         ──► backend/migrations/024_reply_to.sql
-                  └──► 018-agent-memory-storage.md     ──► .hermes/plur/, .hermes/profiles/*/memories/
+                  ├──► 018-agent-memory-storage.md     ──► .hermes/plur/, .hermes/profiles/*/memories/
+                  └──► 019-deployment-topology.md       ──► docker-compose.yml:2,58,88 · nginx-local.conf
 
 .hermes/profiles/architect/SOUL.md:36  ──► cet index (source of truth)
+.hermes/profiles/architect/SOUL.md:177 ──► « Add microservice → Rejected. ADR-001 » → désormais ADR-019 §2 (budget, pas décompte)
 .hermes/roles/architect.md:25          ──► processus ADR (template §5)
 ```
 

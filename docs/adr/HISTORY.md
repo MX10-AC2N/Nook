@@ -22,7 +22,7 @@
 | Backend **Rust / Axum 0.8** | ← Code: `backend/Cargo.toml:10` · ← ADR: *non documenté (ADR-002)* |
 | Frontend **SvelteKit 5** | ← Code: `frontend/package.json` · ← ADR: *non documenté (ADR-002)* |
 | Base principale **SQLite** | ← Code: `backend/src/db.rs`, `backend/migrations/001_initial.sql` · ← ADR: *non documenté (ADR-003)* |
-| Déploiement **un seul conteneur Docker** | ← Code: `docker-compose.yml` · ← ADR: *non documenté (ADR-001)* — **décision aujourd'hui obsolète** : 3 services (`nook`, `nginx-local`, `turn`) |
+| Déploiement **un seul conteneur Docker** | ← Code: `docker-compose.yml:2,58,88` · ← ADR: *non documenté (ADR-001)* — **Superseded** par [ADR-019](019-deployment-topology.md) : **3 services** (`nook`, `nginx-local`, `turn`) + 1 réseau ; la contrainte « 1 conteneur » est remplacée par un **budget RAM/CPU** ← Code: `docker-compose.yml:39-46` |
 
 ---
 
@@ -40,7 +40,7 @@
 | Décision | Preuve |
 |---|---|
 | **Auth par cookie** `auth_token` — `HttpOnly`, `SameSite=None; Secure` (WAN) / `SameSite=Lax` (LAN) | ← Code: `backend/src/auth.rs:94-100` · ← ADR: *non documenté (ADR-006)* |
-| **TLS LAN/WAN par Nginx Proxy Manager** | ← ADR: *non documenté (ADR-007)* — **faux dans les faits** : aucun artefact ne référence NPM. Le proxy réel est `nginx-local` ← Code: `docker-compose.yml:58`, `docs/nginx-local.md` |
+| **TLS LAN = `nginx-local`** · **TLS WAN = reverse proxy externe** (NPM, Caddy, Traefik — au choix de l'utilisateur) | ← ADR: *non documenté (ADR-007)* — **Superseded** par [ADR-019](019-deployment-topology.md) : la formulation « NPM pour LAN/WAN » nommait un composant **hors de tout artefact déployé** ; NPM reste une **recommandation WAN** (`README.md:108,188,199`) et n'est **pas** le proxy LAN ← Code: `nginx-local.conf` (`listen 443 ssl`, `proxy_pass http://nook:3000`), `docker-compose.yml:58`, `Dockerfile.nginx`, `gen-cert.sh` · WAN honoré via `X-Forwarded-Proto` ← Code: `backend/src/auth.rs:184-216`, `backend/src/main.rs:716,725` |
 
 ---
 
@@ -129,18 +129,47 @@ et les **titres des fichiers** : **013 = dual message store** (préexistant, 202
 
 ---
 
+## 2026-10 — Topologie de déploiement (ADR-019, supersede ADR-001 et ADR-007)
+
+Carte `t_107d5ece` (`@architect`). Les deux décisions de déploiement du tableau
+`.hermes/profiles/architect/SOUL.md:36-52` étaient **fausses dans les faits** et **inopposables**
+comme arguments de rejet (`architect/SOUL.md:177`). Tranché : **`Reformulée`** — un ADR-019
+supersède les deux formulations, sur la base de **mesures** et non de mémoire.
+
+| Décision | Preuve |
+|---|---|
+| **Un seul hôte, 3 services conteneurisés** (`nook`, `nginx-local`, `turn`) + réseau `nook-network` — la règle « un seul conteneur » est **supprimée** | ← ADR: `019-deployment-topology.md` §1 · ← Code: `docker-compose.yml:2,58,88,115`, `docker-compose.ci.yml:2,58,86` |
+| **La garde-fou de simplicité porte sur le budget RAM/CPU, pas sur le nombre de conteneurs** : `cpus` `${CPUS_LIMIT:-1.5}`, `memory` `${MEMORY_LIMIT:-1028M}`, réservations `0.5` / `256M` (service `nook` uniquement) | ← ADR: `019-deployment-topology.md` §2 · ← Code: `docker-compose.yml:39-46` |
+| **TLS LAN = `nginx-local`** : HTTPS, certificat auto-signé auto-généré (10 ans, CN = IP, SAN = IP + `localhost` + `nook.local`), `proxy_pass http://nook:3000`, injection de `X-Forwarded-Proto`, redirection HTTP→HTTPS, CA publié sur `/ca` | ← ADR: `019-deployment-topology.md` §3 · ← Code: `nginx-local.conf`, `Dockerfile.nginx`, `gen-cert.sh`, `nginx-entrypoint.sh`, `docs/nginx-local.md` |
+| **TLS WAN = reverse proxy externe, hors périmètre Nook** (NPM / Caddy / Traefik au choix de l'utilisateur) — Nook ne le déploie pas ; sa seule obligation est d'honorer `X-Forwarded-Proto` pour choisir `SameSite=None; Secure` | ← ADR: `019-deployment-topology.md` §4 · ← Code: `backend/src/auth.rs:184-216`, `backend/src/main.rs:716,725` · doc de recommandation : `README.md:108,188,199` |
+
+**Sort des ADR remplacées** : **ADR-001 → `Superseded`** (formulation morte, contrainte reformulée
+sur le budget) · **ADR-007 → `Superseded`** (nom de composant faux, topologie réelle documentée).
+
+**Corrections d'écriture** : la formulation « aucun artefact ne référence Nginx Proxy Manager » est
+**imprécise** — NPM apparaît dans `README.md`, `AGENTS.md`, `docs/nginx-local.md`,
+`.hermes/roles/*.md` comme **recommandation WAN**. Ce qui est faux, c'est « NPM est **le** proxy de
+Nook ». L'alignement des doc concernées est suivi en §7 (action 9 de `README.md`).
+
+**Réserve** : Gate 4 (`Docker / CI / Déploiement`) — `@architect` ✅ · `@ci-monitor` / `@deployer`
+**sans objet** : aucune modification de `Dockerfile*`, `docker-compose*` ni workflow, l'ADR enregistre
+un état déjà en production.
+
+---
+
 ## Récapitulatif des statuts
 
 | Période | Décisions | Documentées ? |
 |---|---|---|
-| 2026-01 → 2026-05 | 10 | ❌ Aucune (ADR-001..010) |
+| 2026-01 → 2026-05 | 10 | ❌ Aucune (ADR-001..010) · **001 et 007 supersédés par ADR-019** |
 | 2026-07 | 2 | ✅ ADR-011, ADR-012 |
 | 2026-08 (deps) | 3 | ❌ Orphelins (ADR-013..015) |
 | 2026-08 (E2EE) | 1 | ✅ ADR-016 (**Accepté**, réserves closes le 2026-10-22) |
-| 2026-10 | 3 | ✅ ADR-017 (accepté), ADR-018 (proposé), tranchage ADR-016 (`DECISIONS.md`) |
+| 2026-10 | 2 | ✅ ADR-017 (accepté), ADR-018 (proposé) |
+| 2026-10 (topologie) | 1 | ✅ **ADR-019** (supersede 001, 007) |
 
-**Total : 19 décisions recensées · 5 documentées en ADR · 14 non documentées ou orphelines.**
+**Total : 19 décisions recensées · 6 documentées en ADR · 13 non documentées ou orphelines.**
 
 ---
 
-*Maintenu par `@docs-writer` · Décision de non-recréation des ADR 001-010/013-015 : `@architect` (validée par l'inventaire git, carte `t_db6f9481`) · Tranchage des réserves d'ADR-016 : `@architect` (mesure de code, carte `t_08632b95`)*
+*Maintenu par `@docs-writer` · Décision de non-recréation des ADR 001-010/013-015 : `@architect` (validée par l'inventaire git, carte `t_db6f9481`) · Reformulation de ADR-001/007 → ADR-019 : `@architect`, carte `t_107d5ece` (2026-10-22)*
