@@ -179,6 +179,12 @@ Le frontend doit déterminer le format du message en fonction de son arrivée : 
 - La rotation est déclenchée par le créateur/admin du groupe. Pour le groupe global, seul l'admin peut déclencher la rotation.
 - Après rotation, les membres qui ont quitté avant la rotation ne peuvent plus déchiffrer les nouveaux messages (forward secrecy).
 
+> **Amendement 2026-10-23 — portée de la règle « créateur/admin » (tranchage `t_e8af977c`).**
+> La règle ci-dessus porte sur les routes qui **distribuent ou avancent** la clé de groupe :
+> `distribute_group_keys` (`POST /api/conversations/{id}/keys`) et `add_member_key` (`POST /api/conversations/{id}/add-member-key`).
+> `get_my_group_key` (`GET /api/conversations/{id}/my-key`) n'est **pas** concernée : c'est l'**auto-lecture par un membre de sa propre clé** (nécessaire pour déchiffrer ses messages et pour chiffrer les siens). Elle reste bornée à `check_membership` — un membre **renvoyé** ne lit rien. Ne pas restreindre cette route au créateur/admin : aucun admin ne peut de toute façon y lire la clé d'un autre membre (`WHERE ckr.user_id = <appelant>`), donc la restriction supprimerait un droit sans rien retirer à un admin — et casserait l'E2EE pour les membres ordinaires.
+> Détail : `docs/adr/DECISIONS.md` §1-8.
+
 ---
 
 ## 6. Questions ouvertes

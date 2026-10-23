@@ -134,4 +134,151 @@ Les deux cartes sont créées par cette carte et référencées dans `docs/adr/R
 
 ---
 
-*architect · carte `t_08632b95` · 2026-10-22 · branche `docs/adr-016-reserves-t_08632b95`*
+# Tranchage E1 — `get_my_group_key` : restreindre au créateur/admin (volet B RFC-016 §5.4) ou l'exclure ?
+
+**Date** : 2026-10-23
+**Décideur** : architect (carte kanban `t_e8af977c`)
+**Objet** : la liste de **3 routes** du volet B de l'écart **E1** (`DECISIONS.md` §4 #1, `docs/adr/README.md:270`) — `distribute_group_keys`, `add_member_key`, `get_my_group_key` — appliquée **littéralement** par le coder sur la branche `fix/e2ee-admin-gate-t_83868105` (`ac3727ad`).
+**Méthode** : **mesure de code** sur `develop` (HEAD `8aec3d3d`, synchro `origin/develop`) et sur la branche (`ac3727ad`). Chaque affirmation est adossée à `fichier:ligne`.
+**Périmètre** : **docs + tranchage**. Aucun code touché (voir §6).
+
+---
+
+## 1. Décision
+
+> **Option (a) retenue : `get_my_group_key` est EXCLUS du volet B.**
+
+Le garde « créateur du groupe ou admin » (et, pour `default_global`, « admin uniquement ») s'applique **uniquement** à :
+- `POST /api/conversations/{id}/keys` → `distribute_group_keys`
+- `POST /api/conversations/{id}/add-member-key` → `add_member_key`
+
+`GET /api/conversations/{id}/my-key` → `get_my_group_key` reste en **auto-lecture membre**, bornée à `check_membership` (membre courant) + **clé scellée pour l'appelant**.
+
+**Options (b) et (c) rejetées** — justification en §3.
+
+---
+
+## 2. Justification — trois mesures de code, pas une interprétation de spec
+
+### M1 — Le nom de la route dit ce qu'elle fait, et la requête le prouve
+
+`get_my_group_key` ne prend **aucun** paramètre de cible : ni `userId`, ni `version` obligatoire.
+
+```
+Query(MyKeyQuery { version: Option<i32> })          → backend/src/e2ee.rs:130-132
+... WHERE ckr.conversation_id = ? AND ckr.user_id = ?   → backend/src/e2ee.rs:690 (versionnée) / :707 (dernière)
+    .bind(&user.id)                                     → backend/src/e2ee.rs:693 / :711
+```
+
+Le `user_id` de la requête est **toujours** `user.id` — l'appelant. Un administrateur ne peut **pas** lire la clé d'un autre membre via cette route. Il n'y a donc **aucun pouvoir d'administration** à retirer : restreindre la route au créateur/admin supprime un droit **sans rien retirer** à un admin.
+
+Le paramètre `version: Option<i32>` sert à l'**auto-lecture d'une version antérieure** de **sa propre** clé — c'est exactement le cas E2 (conserve illimitée, `DECISIONS.md` §2) vu côté client.
+
+### M2 — `get_my_group_key` est le chemin de lecture qui supporte l'auto-lecture ET l'envoi
+
+`frontend/src/lib/e2ee.ts:92` → `loadGroupKey()` appelle `GET .../my-key` (`:97-99`). Trois appelants :
+
+| Appelant | Ligne | Rôle de l'appel |
+|---|---|---|
+| `decryptMessage()` | `frontend/src/lib/cryptoStore.svelte.ts:399` | **auto-lecture** : déchiffrer un message reçu (format `group_key_version`) |
+| `encryptMessage()` | `frontend/src/lib/cryptoStore.svelte.ts:368` | **envoi** : lire la clé pour **chiffrer** ses propres messages dans `default_global` |
+| `file-transfer` | `frontend/src/lib/file-transfer.svelte.ts:128` | chiffrement des fichiers |
+
+**Conséquence mesurée** : restreindre la route au créateur/admin casse **trois** fonctions, pas une. Un membre ordinaire de `default_global` ne pourrait plus **déchiffrer les messages qu'il a lui-même reçus** (régression E2EE), ni **envoyer** un message chiffré (blocage pur). La carte d'origine ne mentionnait que l'auto-lecture ; l'envoi est le même chemin.
+
+### M3 — Le garde n'a jamais été un contrôle d'administration, c'est un contrôle d'**appartenance**
+
+Avant la branche, `get_my_group_key` n'avait qu'un seul garde : `check_membership(&state, &user.id, &conv_id)` (`backend/src/e2ee.rs:154`, appelé en `:683`). Ce garde est déjà **correct pour l'auto-lecture** : il garantit qu'un **non-membre** (ex. un membre **renvoyé**) ne lit rien.
+
+**Ce que ce garde ne couvre pas** — et que la carte d'origine a confondu avec le rôle — c'est l'**historique post-départ** : un membre renvoyé dont le compte existe peut redemander **n'importe quelle version** (`MyKeyQuery.version` non borné). C'est l'écart **E2**, déjà acté dans `DECISIONS.md` §2, dont la fermeture réelle exige de **borner les versions récupérables**, pas de filtrer sur le rôle.
+
+> **Ne pas confondre** : E1 = « qui a le droit d'**agir** sur la clé » · E2 = « jusqu'où un **membre** peut remonter dans **sa** clé ». Ce sont deux contrôles, sur deux routes, avec deux remèdes.
+
+---
+
+## 3. Pourquoi (b) et (c) sont rejetés
+
+**(b) Restreindre les 3 routes + chemin d'auto-lecture distinct.** Rejetée pour **3 raisons mesurées** :
+1. Le chemin d'auto-lecture distinct n'**existe pas** : il faudrait créer une route (`my-key-self`) **en doublon** de `my-key`, ou dériver la clé localement (impossible : la clé est **scellée** par destinataire avec `crypto_box_seal`, `e2ee.ts:104` — seul le serveur peut la fournir, déjà chiffrée pour l'appelant).
+2. C'est de la **complexité sans bénéfice** : l'auto-lecture est **déjà** bornée par `check_membership` + le scellement par destinataire (M1). Le doublon n'ajoute **aucune** protection ; il ajoute une route, des tests, et une surface d'attaque.
+3. **Règle de simplicité** (mandat architecte) : « est-ce que ça rend l'installation Docker plus complexe ? » → non, mais « est-ce que ça ajoute une surface sans valeur ? » → oui → **bloqué**. Et l'ADR-016 est **Accepté** : sa décision (Option D) ne change pas ; (b) aurait imposé de **réécrire** une spec acceptée pour un cas que le code ne traite pas.
+
+**(c) Autre** : rien de mesuré ne justifie une troisième forme. Le seul contrôle manquant réel (E2, historique post-départ) est déjà tracé et relève d'une **autre** route (borner `MyKeyQuery.version` / purger) — pas d'un filtre de rôle.
+
+---
+
+## 4. Corollaire — le code de `ac3727ad` est **déjà** l'option (a)
+
+La carte d'origine affirme : *« le code de la branche applique le volet B **littéralement aux 3 routes** »*. **C'est faux**, et la mesure le montre. Sur `ac3727ad`, le garde est **paramétré** :
+
+```rust
+async fn require_group_key_access(state, user, conv_id, require_creator: bool)
+```
+
+| Route | Appel sur `ac3727ad` | Effet |
+|---|---|---|
+| `distribute_group_keys` | `require_group_key_access(..., true)` | créateur ou admin (groupe privé) · **admin seul** (`default_global`) |
+| `add_member_key` | `require_group_key_access(..., true)` | idem |
+| `get_my_group_key` | `require_group_key_access(..., false)` | `require_creator = false` → `return Ok(())` après `check_membership` → **auto-lecture membre conservée** |
+
+Preuve : `get_my_group_key` sur `ac3727ad` appelle `require_group_key_access(&state, &user, &conv_id, false)`, et la branche `if !require_creator { return Ok(()) }` rend le garde **no-op** pour un membre non-groupe-global. La branche **implémente donc déjà (a)** — avec une réserve sur `default_global`, cf. §5.
+
+**Conséquence pratique** : il n'y a **aucun** conflit de code à résoudre pour ce tranchage, et **aucun** réécriture en (a) à faire. La carte d'origine demandait de ne pas résoudre un conflit avant décision ; il n'y en a pas. La revue `security-auditor` de `fix/e2ee-admin-gate-t_83868105` peut reprendre.
+
+---
+
+## 5. Réserve actée — le seul point de (a) qui n'est pas anodin
+
+Pour `default_global`, `require_group_key_access` **ne regarde pas** `require_creator` :
+
+```rust
+if conv_id == "default_global" {
+    if user.role.as_str() != "admin" { return Err(StatusCode::FORBIDDEN); }
+    return Ok(());
+}
+```
+
+Donc (a) **restreint `get_my_group_key` sur `default_global` aux admins** — un membre ordinaire du groupe global **perd l'auto-lecture** sur **cette** conversation, alors qu'un membre d'un groupe privé la conserve. C'est une **asymétrie** : le « groupe global » est le cas d'usage principal de l'E2EE groupe (ADR-016, Option D).
+
+**Décision de la réserve** : **assumée** — l'asymétrie est **réellement** dans le code (`ac3727ad`), donc on l'écrit plutôt que de la prétendre absente. Mais elle est **marquée comme écart à corriger**, pas comme une politique : pour `default_global`, `check_membership` suffit pour l'auto-lecture (M1/M3) ; l'exigence « admin » ne doit s'appliquer qu'aux routes qui **avancent** la clé.
+
+→ **Carte `@coder`** (créée par ce tranchage) : sur `default_global`, `get_my_group_key` doit retomber sur l'auto-lecture membre (`check_membership` seul), le filtre admin restant réservé à `distribute_group_keys` / `add_member_key`. Fichiers : `backend/src/e2ee.rs` (route + garde). SANS cela, le groupe global perd l'E2EE pour ses membres non-admins.
+
+---
+
+## 6. Ce que ce document ne fait pas
+
+- **Pas de code** : `backend/src/e2ee.rs` et `frontend/src/lib/e2ee.ts` sont **hors périmètre**. Le correctif de la réserve (§5) va en carte `@coder`.
+- **Pas de résolution de conflit** : la branche `fix/e2ee-admin-gate-t_83868105` ne contient **aucun** marqueur de conflit (`grep -c '<<<<<<<'` → 0). Aucun rebase à l'aveugle.
+- **Pas de fusion** : la branche n'est **pas** mergée. Seule la **doc** est poussée sur `develop`.
+- **Pas de réécriture d'ADR-016** : la décision (Option D) est inchangée. Seule la **liste des routes** du volet B est corrigée, et l'amendement est **rétrocompatible** (il retire une restriction, il n'en ajoute pas).
+
+---
+
+## 7. Amendements appliqués
+
+| Fichier | Changement | Raison |
+|---|---|---|
+| `docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md` | **§5.4** : la phrase « créateur/admin » est **précisée** comme portant sur les routes qui **distribuent ou avancent** la clé ; `get_my_group_key` est explicité comme **auto-lecture membre** (non couverte par la règle) | la spec prêtait à confusion entre « distribuer » et « lire » |
+| `docs/adr/016-e2ee-group-hybrid.md` | **§Écarts E1** : la liste des routes passe de **3 à 2** (`distribute_group_keys`, `add_member_key`) ; `get_my_group_key` renvoie à E2 | aligner l'ADR Accepté sur le réel mesuré |
+| `docs/adr/README.md` | **§7 #11** : même correction (2 routes), + renvoi vers ce tranchage | l'index citait les 3 routes |
+
+`get_my_group_key` **reste cité** dans ADR-016 §75 (« fondations déjà en place ») et dans RFC-016 `:37` (inventaire des routes) : ce sont des **inventaires**, pas la règle d'accès. Aucune correction nécessaire là.
+
+---
+
+## 8. Statut de l'écart E1 après ce tranchage
+
+**Fermé en code** — la décision (a) est celle **déjà implémentée** sur `ac3727ad` pour les groupes privés, avec la réserve `default_global` (§5) ouverte et routée.
+
+| Volet | État |
+|---|---|
+| E1 — `distribute_group_keys` | ✅ créateur/admin (privé) · admin (`default_global`) — `ac3727ad` |
+| E1 — `add_member_key` | ✅ créateur/admin (privé) · admin (`default_global`) — `ac3727ad` |
+| E1 — `get_my_group_key` (privé) | ✅ **auto-lecture membre** (décision (a)) — `ac3727ad` |
+| E1 — `get_my_group_key` (`default_global`) | ⚠️ admin seul dans le code → **carte `@coder`** (§5) |
+| E2 — versions non bornées / pas de purge | inchangé — écart distinct, déjà tracé (`DECISIONS.md` §2) |
+
+---
+
+*architect · carte `t_e8af977c` · 2026-10-23 · `develop` (HEAD `8aec3d3d`)*
