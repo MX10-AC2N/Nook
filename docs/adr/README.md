@@ -25,8 +25,8 @@
 | [ADR-011](011-team-structure-decisions.md) | `011-team-structure-decisions.md` | Team Nook — 16-Profile Agent Structure Decisions | **Accepté** | 2026-07-02 | `.hermes/profiles/` (17 profils) |
 | [ADR-012](012-sfu-relay-capacity.md) | `012-sfu-relay-capacity.md` | Configurable SFU MediaRelay Capacity | **Accepté** | 2026-07-11 | `backend/src/config.rs:22`, `backend/src/sfu.rs:342` |
 | [ADR-016](016-e2ee-group-hybrid.md) | `016-e2ee-group-hybrid.md` | E2EE groupe global — Hybrid Sender Keys (Option D) | **Accepté** (réserves closes le 2026-10-22 — voir `DECISIONS.md`) | 2026-08-24 | `backend/src/e2ee.rs:590`, `frontend/src/lib/e2ee.ts:189` · 3 écarts actés : `DECISIONS.md` |
-| [ADR-017](ADR-017-reply-to-feature.md) | `ADR-017-reply-to-feature.md` | Reply-to (citer / répondre à un message) | **Accepté** | 2026-10 | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` |
-| [ADR-018](ADR-018-agent-memory-storage.md) | `ADR-018-agent-memory-storage.md` | Stockage de la mémoire par agent — MEMORY.md + PLUR vs Mem0 vs Supermemory | **Proposé** (en attente décision Mo Ju) | 2026-10-22 | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
+| [ADR-017](017-reply-to-feature.md) | `017-reply-to-feature.md` | Reply-to (citer / répondre à un message) | **Accepté** | 2026-08-27 (récupéré 2026-10-22) | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415`, commit `eca8093e` |
+| [ADR-018](018-agent-memory-storage.md) | `018-agent-memory-storage.md` | Stockage de la mémoire par agent — MEMORY.md + PLUR vs Mem0 vs Supermemory | **Proposé** (en attente décision Mo Ju) | 2026-10-22 | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
 | [ADR-019](019-deployment-topology.md) | `019-deployment-topology.md` | Topologie de déploiement — services, budget RAM/CPU, ingress TLS | **Accepté** | 2026-10-22 | `docker-compose.yml:2,58,88,39-46`, `nginx-local.conf`, `Dockerfile.nginx` |
 
 **ADR absents de ce tableau, cités mais jamais rédigés** : 001-010, 013-015. Voir §4.
@@ -58,9 +58,9 @@ Règles :
 |---|---|---|
 | `011-team-structure-decisions.md` | `011-team-structure-decisions.md` | conforme (inchangé) |
 | `012-sfu-relay-capacity.md` | `012-sfu-relay-capacity.md` | conforme (inchangé) |
-| `ADR-016-e2ee-group-hybrid.md` | `016-e2ee-group-hybrid.md` | **normalisé** — commit `3c4e0ca8` (l'ancien nom n'a jamais été commité) |
-| `ADR-017-reply-to-feature.md` | `017-reply-to-feature.md` | à renommer |
-| `ADR-018-agent-memory-storage.md` | `018-agent-memory-storage.md` | à renommer |
+| `ADR-016-e2ee-group-hybrid.md` | `016-e2ee-group-hybrid.md` | ✅ renommé (commit `3c4e0ca8`) |
+| `ADR-017-reply-to-feature.md` | `017-reply-to-feature.md` | ✅ commité au nom normalisé (carte `t_0b0decb6`) |
+| `ADR-018-agent-memory-storage.md` | `018-agent-memory-storage.md` | ✅ renommé (commit `3c4e0ca8`) |
 | `0013-dual-message-store-architecture.md` | — | ⛔ **clos** (décision appliquée puis revertée), carte `t_566014c5` |
 | `0014-rand_core-argon2-migration.md` | `014-rand-core-argon2-migration.md` | ✅ **recréé** (Proposé, bloqué), carte `t_566014c5` |
 | `0015-sqlx-08-to-09-migration.md` | `015-sqlx-08-to-09-migration.md` | ✅ **recréé** (Proposé, bloqué), carte `t_566014c5` |
@@ -145,8 +145,8 @@ Le numéro **016** appartient donc à l'ADR E2EE, seul ADR réellement implémen
 | 014 | sqlx 0.8→0.9 + Axum 0.8 compat | orphelin | **Non abouti** | `backend/Cargo.toml:17` = encore `sqlx 0.8.6` |
 | 015 | chacha20poly105 0.10→0.11 (E2EE path) | orphelin | **Non abouti** | `backend/Cargo.toml:39` = encore `chacha20poly1305 0.10.1` |
 | 016 | E2EE groupe global — Hybrid Sender Keys | `016-e2ee-group-hybrid.md` | **Accepté** | routes `claim-key` (`backend/src/e2ee.rs:834`), `group-key-metadata` (`:961`) · rate limit E2EE (`backend/src/main.rs:501`) · **3 écarts assumés** : rotation manuelle (`frontend/src/lib/e2ee.ts:189` dead code), conserve illimitée (`backend/src/e2ee.rs:130`), `distribution_status` non posé (`:780`) — détail : `DECISIONS.md` |
-| 017 | Reply-to (citer/répondre) | `ADR-017-reply-to-feature.md` | **Accepté** | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` |
-| 018 | Mémoire par agent (MEMORY.md vs Mem0 vs Supermemory) | `ADR-018-agent-memory-storage.md` | **Proposé** | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
+| 017 | Reply-to (citer/répondre) | `017-reply-to-feature.md` | **Accepté** | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` · commit `eca8093e` (récupéré 2026-10-22) |
+| 018 | Mémoire par agent (MEMORY.md vs Mem0 vs Supermemory) | `018-agent-memory-storage.md` | **Proposé** | `.hermes/profiles/*/memories/`, `.hermes/plur/` |
 
 > **Conséquence pour les revues de design** : citer `ADR-003` ou `ADR-001` comme justification **ne fonctionne pas** — il n'y a pas de fichier à lier. La preuve admissible est le **code** (`← Code: backend/Cargo.toml:17`). Utiliser la colonne «Preuve dans le code».
 >
@@ -174,6 +174,28 @@ formulations — elle ne les recrée pas.
 apparaît dans `README.md`, `AGENTS.md`, `docs/nginx-local.md`, `.hermes/roles/*.md` comme
 *recommandation WAN*). Ce qui est faux, c'est « NPM est le proxy de Nook » — pas « NPM est cité ».
 L'alignement des doc concernées est suivi en §7 (action 9).
+
+### 4.6 Récupération d'ADR-017 (2026-10-22) — provenance vérifiée
+
+L'ADR-017 a été rédigée le **2026-08-27** dans le workspace kanban `t_37a99925`, puis **jamais commitée** ;
+le workspace a été nettoyé et le fichier a disparu du disque (carte `t_db6f9481`). Le texte a été
+**retrouvé à l'identique** dans un artefact daté, pas réécrit :
+
+| Élément | Valeur |
+|---|---|
+| Source | dump de session du profil `coder` : `profiles/coder/sessions/request_dump_20260828_171413_7f00b8_20260828_171601_168402.json` |
+| Date de la source | 2026-08-28 17:16 UTC (cohérent avec la date de l'ADR, 2026-08-27) |
+| Forme | résultat brut d'un `read_file` (430 lignes) de l'ADR, tel qu'il existait alors sur disque |
+| Différence avec le texte commité | **une seule ligne** : `Status: Proposé` → `Accepté` |
+| Preuve de la décision | `backend/migrations/024_reply_to.sql`, `backend/src/db.rs:415` (validation même conversation), `:769` (SET NULL), `:812` (JOIN preview), `frontend/src/lib/chatStore.svelte.ts:558`, commit `eca8093e` |
+
+**Revue Gate 2 (schéma DB) — approuvée** par `@architect` le 2026-10-22 : la décision est implémentée
+de bout en bout (migration, handlers, store, UI), le statut passe donc de `Proposé` à `Accepté` sur
+preuve de code, conformément à §5. Aucune réécriture du contenu : seul le statut a été acté.
+
+**Écart d'implémentation consigné** (sans conséquence sur la décision) : la migration 024 ajoute un index
+`idx_messages_reply_to` qui n'était pas prévu par la spécification §1 de l'ADR. Il s'agit d'une optimisation
+de lecture (`get_conversation_messages`), cohérente avec l'Option B.
 
 ---
 
@@ -223,7 +245,7 @@ Exigences non négociables :
 | 014 | rand_core 0.6→0.10 + argon2 0.5→0.6 | **recréé** (Proposé, bloqué security-auditor) — §4.4 |
 | 015 | sqlx 0.8→0.9 (compat Axum 0.8) | **Accepté** (spike 2026-10-22 : migration faisable 1 passe, Axum 0.8 confirmé) — §4.4 |
 | 016 | E2EE groupe global (Option D) | occupé |
-| 017 | Reply-to | occupé |
+| 017 | Reply-to (citer / répondre) | occupé — texte récupéré du workspace `t_37a99925` (§4.6) |
 | 018 | Mémoire par agent | occupé |
 | 019 | Topologie de déploiement (supersede 001, 007) | occupé (§4.6) |
 
@@ -235,14 +257,14 @@ Exigences non négociables :
 
 | # | Action | Profil | Bloquant ? |
 |---|--------|--------|------------|
-| 1 | ~~Renommer `ADR-016-*.md` → `016-*.md`~~ — **fait** le 2026-10-22 (`t_08632b95`) · reste 017/018 | `@architect` | Non |
+| 1 | ~~Renommer `ADR-016/017/018-*.md` → `016/017/018-*.md`~~ → **fait** (016/018 en `3c4e0ca8`, 017 avec la carte `t_0b0decb6`) | `@architect` | — |
 | 2 | Corriger `architect/SOUL.md:36-52` : marquer 001-010 et 013-015 `Non documenté` / `Orphelin`, retirer le statut `Accepted` | `@architect` | Non |
 | 3 | Corriger `architect/SOUL.md:80` (DT-13 « DONE ») : les ADR 013-015 n'ont jamais été commités | `@architect` | Non |
 | 4 | ~~Décider de ADR-001 (conteneur unique)~~ → **FAIT le 2026-10-22** : `Superseded` → [ADR-019](019-deployment-topology.md) (carte `t_107d5ece`) | `@architect` | — |
 | 5 | ~~Décider de ADR-007 (Nginx Proxy Manager)~~ → **FAIT le 2026-10-22** : `Superseded` → [ADR-019](019-deployment-topology.md) (carte `t_107d5ece`) | `@architect` | — |
 | 6 | ~~Rouvrir ou clore les ADR 013/014/015~~ → **fait** (carte `t_566014c5`) : 013 clos, 014/015 recréés, migration chacha 016 clos | `@architect` | — |
 | 7 | ~~Levée des 2 réserves d'ADR-016~~ → **faite** le 2026-10-22 (`t_08632b95`) : réserves **assumées** (mesure de code), ADR-016 repassé `Accepté`, tranchage dans `DECISIONS.md` | `@architect` | — |
-| 8 | Récupérer le texte d'ADR-017 (rédigé dans le workspace `t_37a99925`, jamais commité) et le commiter | `@architect` | Non |
+| 8 | ~~Récupérer le texte d'ADR-017~~ → **fait** : texte authentique retrouvé dans le dump de session coder du 2026-08-28, commité sous `017-reply-to-feature.md` (§4.6) | `@architect` | — |
 | 9 | Débloquer ADR-014 : revue `security-auditor` du passage argon2 0.5→0.6 | `@security-auditor` | Non |
 | 10 | Débloquer ADR-015 : spike coder de compat sqlx 0.9 / Axum 0.8 | `@coder` ✔ `t_60a24c82` (2026-10-22) | Non |
 | 11 | **Job de rotation** : brancher `rotateGroupKey()` (`frontend/src/lib/e2ee.ts:189`) ou la retirer (dead code) + **contrôle de rôle admin** sur `distribute_group_keys` / `add_member_key` / `get_my_group_key` (RFC-016 §5.4 non appliqué) — écart **E1** de `DECISIONS.md` | `@coder` | Non |
@@ -261,7 +283,7 @@ README.md ──► docs/adr/README.md (cet index)
                   ├──► 016-e2ee-group-hybrid.md        ──► docs/rfc/RFC-016-e2ee-global-hybrid-sender-keys.md
                   │                    │
                   │                    └──► DECISIONS.md ──► 2 cartes @coder (§7 #9, #10)
-                  ├──► 017-reply-to-feature.md         ──► backend/migrations/024_reply_to.sql
+                  ├──► 017-reply-to-feature.md         ──► backend/migrations/024_reply_to.sql, backend/src/db.rs:415
                   ├──► 018-agent-memory-storage.md     ──► .hermes/plur/, .hermes/profiles/*/memories/
                   └──► 019-deployment-topology.md       ──► docker-compose.yml:2,58,88 · nginx-local.conf
 
