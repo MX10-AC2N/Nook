@@ -160,7 +160,7 @@ LAN (HTTP) :
   CORS   : http://192.168.x.x:6300 dans ALLOWED_ORIGINS
 
 WAN (HTTPS) :
-  Navigateur → Nginx Proxy Manager (443) → Backend Axum (3000)
+  Navigateur → reverse proxy externe au choix (443) → Backend Axum (3000)
   Header : X-Forwarded-Proto: https
   Cookie : SameSite=None; Secure
   CORS   : https://nook.mondomaine.com dans ALLOWED_ORIGINS

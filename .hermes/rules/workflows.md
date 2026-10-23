@@ -36,8 +36,8 @@ UPLOAD_TTL_HOURS=48
 # LAN seulement
 BACKEND_PORT=6300
 
-# WAN (Nginx Proxy Manager)
-# Ajouter X-Forwarded-Proto: https dans la config Nginx
+# WAN (reverse proxy externe au choix — NPM, Caddy, Traefik)
+# Ajouter X-Forwarded-Proto: https dans la config du proxy
 ```
 
 ---

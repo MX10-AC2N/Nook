@@ -206,7 +206,7 @@ Workflows utilitaires (indépendants) :
 | `DT-01` | Dette technique : libsodium-wrappers 938 kB charge de façon synchrone → retard layout |
 | `DT-02` | Chess temps réel absent — adversaire voit les coups seulement au refresh |
 | `SameSite=Lax` | Cookie en HTTP/LAN (192.168.x.x) |
-| `SameSite=None;Secure` | Cookie en HTTPS/WAN (Nginx Proxy Manager) — déclenché par `X-Forwarded-Proto: https` |
+| `SameSite=None;Secure` | Cookie en HTTPS — WAN (reverse proxy externe) ou LAN via `nginx-local` — déclenché par `X-Forwarded-Proto: https` |
 | `auth_token` | Nom du cookie d'auth : `<userId>:<token>`, HttpOnly, Max-Age=86400 |
 | `require_auth` | Middleware Axum — vérifie cookie + `approved=1` + token en DB |
 | `require_admin` | Middleware Axum — vérifie `role='admin'` en plus de `require_auth` |

@@ -173,13 +173,15 @@ docker compose ps                    # état des containers
 docker exec -it nook sh              # ⚠️ impossible — distroless sans shell
 ```
 
-### Nginx Proxy Manager → Nook
+### Reverse proxy WAN externe → Nook (ex. Nginx Proxy Manager)
 ```
 Forward Hostname/IP : localhost (ou IP Zimaboard)
 Forward Port : 6300
 Websockets Support : ON  ← obligatoire pour /ws
 SSL : Let's Encrypt recommandé
 ```
+
+> **TLS LAN = `nginx-local`** — conteneur Nook (`nginx-local.conf`, `listen 443 ssl`, `proxy_pass http://nook:3000`), port `${NGINX_HTTPS_PORT:-6443}`, certificat auto-signé — voir `docs/nginx-local.md` · ADR-019
 
 ---
 

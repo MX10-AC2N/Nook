@@ -44,7 +44,7 @@
 - **Frontend**: SvelteKit 5 :6300 → stores `$state`, libsodium 938kB (DT-01), WebRTC P2P
 - **DB**: SQLite — users, conversations, conversation_participants, messages, uploads, invites, chess, e2ee, polls
 - **Auth**: Cookie HttpOnly `auth_token=<userId>:<token>`, SameSite=Lax (LAN) / None;Secure (WAN), token révocable en DB
-- **LAN/WAN**: Nginx Proxy Manager injecte `X-Forwarded-Proto: https`
+- **LAN/WAN**: `nginx-local` (LAN) / reverse proxy externe au choix (WAN) — injection de `X-Forwarded-Proto: https` · ADR-019
 
 ## CI/CD Order
 ```
