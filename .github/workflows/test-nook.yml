@@ -77,12 +77,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: nook-frontend
-          path: frontend/build
+          path: frontend
 
       - name: Verify frontend build
         run: |
-          test -f frontend/build/index.html || (echo "❌ index.html manquant" && exit 1)
-          echo "✅ frontend/build prêt ($(ls frontend/build | wc -l) fichiers)"
+          test -f frontend/index.html || (echo "❌ index.html manquant" && exit 1)
+          echo "✅ frontend prêt ($(ls frontend | wc -l) fichiers)"
 
       # Download pre-built backend artifacts from Backend.yml using cross-workflow action
       - name: Download backend artifact (amd64)
