@@ -279,11 +279,12 @@ test.describe('Sécurité — Call page access', () => {
   test('/call/fake-id sans auth → redirige vers /login', async ({ browser }) => {
     const page = await browser.newPage();
     await page.goto(`${BASE_URL}/call/fake-id`);
-    // Might redirect to login or show an error page
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    const url = page.url();
-    // Accept either login redirect or an error page
-    expect(url).toMatch(/login|error|404|call/);
+    // Attente STRUCTURELLE : le guard du layout redirige côté client vers /login.
+    // Ne PAS utiliser waitForLoadState('networkidle') : le SPA charge le chunk
+    // libsodium (WASM, fire-and-forget dans +layout.svelte) et le réseau reste
+    // occupé au-delà de 15 s en CI → networkidle n'est jamais atteint.
+    await page.waitForURL(/\/login/, { timeout: 15_000 });
+    expect(page.url()).toMatch(/\/login/);
   });
 
   test('/call/fake-id avec auth → page charge', async ({ browser }) => {
