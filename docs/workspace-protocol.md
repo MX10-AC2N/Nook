@@ -6,9 +6,10 @@
 > **fausse** alors qu'elle était présentée sous l'étiquette **live**. Elle est remplacée par le mécanisme
 > exact, mesuré sur un clone jetable.
 > (Historique : v4 distinguait les valeurs **live** des **snapshot** ⏱️ après que la revue round 3 eut
-> exécuté `git prune --expire=now` ; v5 ne change rien à cette architecture.) La revue round 3 avait exécuté `git prune --expire=now` : les objets que citaient les lignes
-> « mesure » du tableau ci-dessous **n'existent plus**. Le tableau distingue désormais deux catégories,
-> **marquées en ligne** :
+> exécuté `git prune --expire=now` — les objets que citaient les lignes « mesure » du tableau ci-dessous
+> **n'existent plus**. v5 ne change rien à cette architecture, ni à la règle 6 ni à la règle 7.)
+>
+> Le tableau distingue deux catégories, **marquées en ligne** :
 >
 > * **live** — la valeur affichée est la sortie **exacte** de la commande affichée dans la même cellule ; un
 >   lecteur qui l'exécute obtient le même nombre.
