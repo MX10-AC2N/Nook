@@ -1,11 +1,18 @@
 # Protocole du workspace commun — agents Nook
 
-> v3 — 2026-10-25. Amendé après la **2e** revue `@architect` de PR#48 (**REQUEST_CHANGES**,
-> carte `t_35ea07c7`) : le point restant (NB 5 — le « 33 » n'était pas reproductible par la commande
-> citée) est corrigé, et la vérification a été étendue à **toutes** les valeurs chiffrées du tableau
-> ci-dessous. Désormais **chaque affirmation sur l'état du repo est suivie de la commande qui la
-> reproduit**, et chaque valeur affichée est la sortie **exacte** de la commande affichée
-> (mesures du 2026-10-25, exécutées dans `/opt/data/nook-repo`).
+> v4 — 2026-10-25. Amendé après la **3e** revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
+> `t_35ea07c7`). La revue round 3 avait exécuté `git prune --expire=now` : les objets que citaient les lignes
+> « mesure » du tableau ci-dessous **n'existent plus**. Le tableau distingue désormais deux catégories,
+> **marquées en ligne** :
+>
+> * **live** — la valeur affichée est la sortie **exacte** de la commande affichée dans la même cellule ; un
+>   lecteur qui l'exécute obtient le même nombre.
+> * **snapshot** ⏱️ — instantané **daté et non reproductible** : la commande qui le produisait est conservée,
+>   avec la raison de la non-reproductibilité.
+>
+> Repère de mesure : `/opt/data/nook-repo`, branche `develop` à `21b0d93a`, le 2026-10-25. Toutes les commandes du
+> tableau sont **non destructrices** (aucune n'écrit dans le repo, aucune ne crée d'objet) — le seul bloc qui
+> crée un objet est le snippet §« Snippet de commit ».
 >
 > **Source de vérité : ce document** (versionné dans le repo, à relire avant de dispatcher ou de
 > briefer une carte qui touche au repo).
@@ -26,13 +33,40 @@ Il n'y a **pas** de worktree par worker — le partage est voulu, mais il exige 
 
 | Constat | Preuve (commande) | Valeur mesurée |
 |---|---|---|
-| `git add -A` embarque le travail de tous | `git fsck --no-reflogs --dangling \| awk '$2=="commit"{print $3}' \| while read s; do n=$(git show --stat --format='' $s \| tail -1 \| grep -oE '[0-9]+ files? changed' \| grep -oE '^[0-9]+'); [ -n "$n" ] && [ "$n" -ge 100 ] && echo "$n $s"; done \| sort -rn` | **5** commits dangling de ≥100 fichiers, dont **3** de **125-126 fichiers** : `ed4d960f` (125), `60b5a583` (126), `28cca557` (126) ; les 2 plus gros font **739** (`a721a1cf`) et **733** (`73ff44cc`) fichiers |
-| `backend/nook.db` embarqué par `git add -A` | `git show --name-only --format='' ed4d960f \| grep '\.db$'` | `backend/nook.db`, `nook-data/nook.db` |
-| `backend/nook.db` **ni suivi ni ignoré** | `git ls-files \| grep -c '\.db$'` → `0` ; `git log --all --oneline -- '*.db' \| wc -l` → `0` ; `git check-ignore backend/nook.db` → `rc=1` | non suivi **et** non ignoré |
-| Commits abandonnés | `git fsck --dangling \| awk '$2=="commit"' \| wc -l` → **22** ; `git fsck --no-reflogs --dangling \| awk '$2=="commit"' \| wc -l` → **34** ; `git fsck --unreachable \| awk '$2=="commit"' \| wc -l` → **33** ; `git fsck --dangling \| awk '$2=="commit"{print $3}' \| while read s; do git log -1 --format='%s' $s; done \| grep -c '^WIP on develop'` → **9** | **22** commits dangling (avec reflogs) ; **34** (`--no-reflogs --dangling`) ; **33** (`--unreachable`) ; dont **9** `WIP on develop` |
-| Branches mortes | `git ls-remote --heads origin \| wc -l` ; `git for-each-ref refs/remotes/origin \| wc -l` | **3** branches sur origin ; **3** refs locales de suivi au 2026-10-25 — décompte **prune-sensible** : il valait **4** avant le `git fetch --prune` du 2026-10-25 (dont la ref obsolète `origin/pr-48`, depuis supprimée) |
-| Travail jamais poussé | `git for-each-ref --format='%(refname:short)' refs/heads/` comparé à `git ls-remote --heads origin` | **0** branche locale sans équivalent distant au 2026-10-25. Le phénomène est historique (signalé par des workers entre 2026-08 et 2026-10) — non reproductible a posteriori |
-| Collision de suffixe | `git reflog --date=short \| grep -i checkout` | checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** |
+| **`backend/nook.db` embarqué par `git add -A`** — **live** | `timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| while read s; do git show --name-only --format='' $s 2>/dev/null \| grep -q '\.db$' && echo ${s:0:8}; done` → **`5d190f74`** | **live** : `5d190f74` contient `backend/nook.db + nook-data/nook.db` (`git show --name-only --format='' 5d190f74 \| grep '\.db$'` → `backend/nook.db + nook-data/nook.db`, **2** fichiers `.db`) — « embarqué puis perdu ». Aucun ref ne le contient (`git for-each-ref --format='%(refname)' \| while read r; do git merge-base --is-ancestor 5d190f74 $r 2>/dev/null && echo $r; done; echo fin` → **`fin`**, aucune ligne) → **inatteignable depuis `develop`** (`git log --all --oneline -- 'backend/nook.db' \| wc -l` → **0**) : un `git add -A` le réembarque et le perd à nouveau |
+| **`backend/nook.db` embarqué par `git add -A`** — ⏱️ snapshot | `git show --name-only --format='' ed4d960f \| grep '\.db$'` | ⏱️ **snapshot non reproductible** : `ed4d960f` **n'existe plus** (`git cat-file -t ed4d960f` → `fatal: Not a valid object name`). C'était un commit de **125** fichiers contenant `backend/nook.db` + `nook-data/nook.db`. Preuve **live** équivalente : ligne ci-dessus |
+| **`backend/nook.db` ni suivi ni ignoré** — **live** | `( git ls-files \| grep -c '\.db$' ; echo " jamais suivi ; " ; git log --all --oneline -- '*.db' \| wc -l ; echo " jamais commité ; " ; git check-ignore backend/nook.db ; echo "check-ignore rc="$? ) \| tr "\n" " "` | **live** : **0** (jamais suivi), **0** (jamais commité), `check-ignore rc=1` (**non ignoré**) → non suivi *et* non ignoré, le pire cas pour `git add -A` |
+| **Commits abandonnés** — **live** | `( echo "reflogs: " ; timeout 90 git fsck --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --no-reflogs --dangling: " ; timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --unreachable: " ; timeout 90 git fsck --unreachable 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --no-reflogs --unreachable: " ; timeout 120 git fsck --no-reflogs --unreachable 2>&1 \| awk '$2=="commit"' \| wc -l ) \| tr "\n" " "` | **live** : reflogs **0** ; `--no-reflogs --dangling` **12** ; `--unreachable` **0** ; `--no-reflogs --unreachable` **16**. Objets restants : **12** (détail dans le listing ci-dessous) |
+| **Commits abandonnés** — ⏱️ snapshot | ⏱️ `timeout 90 git fsck --dangling 2>&1 \| awk '$2=="commit"' \| wc -l` ; `… --no-reflogs --dangling …` ; `… --unreachable …` ; `… --no-reflogs --unreachable …` | ⏱️ **22** (reflogs) ; **34** (`--no-reflogs --dangling`) ; **33** (`--unreachable`) ; dont **9** `WIP on develop`. **Non reproductible** — voir la ligne « Objets cités supprimés » ci-dessous. **Live** : ligne ci-dessus |
+| **`git add -A` embarque le travail de tous** — ⏱️ snapshot | ⏱️ `timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| while read s; do n=$(git show --stat --format='' $s 2>/dev/null \| tail -1 \| grep -oE '[0-9]+ files? changed' \| grep -oE '^[0-9]+'); [ -n "$n" ] && [ "$n" -ge 100 ] && echo "$n $s"; done \| sort -rn` | ⏱️ **5** commits dangling de ≥100 fichiers : **739** (`a721a1cf`), **733** (`73ff44cc`), **126** (`60b5a583`), **126** (`28cca557`), **125** (`ed4d960f`). **Non reproductible** : ces 5 objets ont disparu. **Live** : la même commande renvoie **aujourd'hui 0 ligne** (seuil ≥100 fichiers) — et toute exécution du snippet §« Snippet de commit » **ajoute** un commit à ce compte |
+| **Objets cités supprimés** (cause des snapshots) | `for s in ed4d960f 60b5a583 28cca557 a721a1cf 73ff44cc; do printf '%s: %s \| ' $s "$(git cat-file -t $s 2>&1 \| head -1)"; done` | **live** : `ed4d960f: fatal: Not a valid object name ed4d960f \| 60b5a583: fatal: Not a valid object name 60b5a583 \| 28cca557: fatal: Not a valid object name 28cca557 \| a721a1cf: fatal: Not a valid object name a721a1cf \| 73ff44cc: fatal: Not a valid object name 73ff44cc \|` — les 5 objets **n'existent plus** dans le repo |
+| **Branches mortes** — **live** | `( git ls-remote --heads origin \| wc -l ; echo " branches sur origin ; " ; git for-each-ref refs/remotes/origin \| wc -l ) \| tr "\n" " "` | **live** : **3** branches sur origin ; **3** refs locales de suivi. Décompte **prune-sensible** : un `git fetch --prune` retire les refs obsolètes (ex. `origin/pr-48`) |
+| **Travail jamais poussé** — **live** | `comm -23 <(git for-each-ref --format='%(refname:short)' refs/heads/ \| sort) <(git ls-remote --heads origin 2>/dev/null \| sed 's\|.*refs/heads/\|\|' \| sort) \| wc -l` | **live** : **0** branche locale sans équivalent distant au 2026-10-25 |
+| **Collision de suffixe** — **live** | `git reflog --date=short \| grep -i checkout \| head -2` | **live** : checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** ; checkout vers `8050ed53` le **2026-10-25** |
+
+
+Objets restants au 2026-10-25 — sortie de `timeout 120 git fsck --no-reflogs --dangling 2>&1 | awk '$2=="commit"{print $3}' | while read s; do printf '%s %s files | %s\n' ${s:0:8} $(git show --stat --format='' $s 2>/dev/null | tail -1 | grep -oE '[0-9]+ files? changed' | grep -oE '^[0-9]+') "$(git log -1 --format='%s' $s | head -c 45)"; done` :
+
+```
+7e16d8a6 2 files | fix(chat): emoji picker always opens below me
+b55e5076 1 files | fix(cache-control): replace global override w
+dbb1245f 1 files | fix(chat): picker emojis reaction s'ouvre en 
+75de8a5f 1 files | fix(chess): preserve player selection across 
+1106aff7 1 files | fix(sw): network-first strategy for HTML/JS/C
+6107278e 2 files | ci(e2e-targeted): replace cargo build with Do
+5d190f74 24 files | fix(chat): picker emoji toujours en dessous +
+8050ed53 3 files | feat(e2ee): enforce RFC-016 §5.4 group-key a
+2b720ffb 1 files | fix(frontend): unblock build on develop — r
+af943317 1 files | fix(chat): bouton Repondre visible pour tous 
+97ab9529 1 files | docs(workspace): protocole du workspace commu
+5cc0a7c7 5 files | fix(Backend.yml): correct artifact upload pat
+```
+
+> ⚠️ **Objets cités supprimés le 2026-10-25** — les valeurs marquées ⏱️ sont des **snapshots** : les 5 commits qu'elles
+> citent (`ed4d960f`, `60b5a583`, `28cca557`, `a721a1cf`, `73ff44cc`) **n'existent plus** dans le repo, supprimés
+> par un `git prune --expire=now` exécuté lors de la revue `@architect` round 3. Ils étaient absents d'`origin`
+> (HTTP 422) → **irrécupérables** : ne pas tenter de les restaurer. La preuve `backend/nook.db` **survit** sur le
+> commit encore présent `5d190f74` (ligne « live » ci-dessus).
 
 **Lacune identifiée — à corriger hors de ce document** : `backend/nook.db` n'est pas dans
 `.gitignore` → non suivi *et* non ignoré, le pire cas pour `git add -A` (il est embarqué puis
