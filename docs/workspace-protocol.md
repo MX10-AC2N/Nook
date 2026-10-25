@@ -1,35 +1,84 @@
 # Protocole du workspace commun — agents Nook
 
-> v1 — 2026-10-25. Amendé par 3 relecteurs critiques (architecte, coder, github-manager)
-> après mesures sur le repo réel. Ce document est la **source de vérité** du protocole ;
-> la skill `nook-worker-supervision` en contient une copie d'accompagnement.
+> v2 — 2026-10-25. Amendé après la revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
+> `t_9d6d47fa`) : les 2 points bloquants et les 4 points non bloquants sont corrigés.
+> Désormais **chaque affirmation sur l'état du repo est suivie de la commande qui la reproduit**
+> (mesures du 2026-10-25, exécutées dans `/opt/data/nook-repo`).
+>
+> **Source de vérité : ce document** (versionné dans le repo, à relire avant de dispatcher ou de
+> briefer une carte qui touche au repo).
+> La skill `nook-worker-supervision` (profil `orchestrator`) en porte une **copie d'accompagnement**
+> : `skills/nook/nook-worker-supervision/references/workspace-protocol.md`. **En cas de divergence,
+> ce document prime** — la skill est mise à jour *depuis* ici. Les deux portent les mêmes 9 règles ;
+> les contrôles d'exécution propres à la skill (test FF, garde `push.default`) sont repris ci-dessous
+> § Publication.
+> La copie de la skill portait encore, au 2026-10-25, la **règle 6 v1 (fausse)** et le compteur
+> « 22/23 workflows manuels » → alignement suivi par la carte `t_e90110f9` (profil `orchestrator`).
 
 ## Contexte
 
 Tous les workers Nook partagent **un seul working tree** : `/opt/data/nook-repo`.
 Il n'y a **pas** de worktree par worker — le partage est voulu, mais il exige un protocole.
 
-**Problèmes mesurés qui motivent ce protocole :**
+**Problèmes mesurés qui motivent ce protocole** (mesures du 2026-10-25, repo `/opt/data/nook-repo`) :
 
-- `git add -A` a embarqué **121 fichiers** modifiés appartenant à d'autres workers
-  (dont `backend/nook.db`, une base SQLite *trackée*).
-- **23 commits dangling** dont des `WIP on develop` : les workers stashent et abandonnent.
-- **9 branches mortes** sur origin, ~27 commits qui n'étaient jamais retombés sur `develop`.
-- **3 fois** : travail fait, commit local, carte `done`, mais **rien poussé** sur origin.
-- Deux branches distinctes partageant le même suffixe de carte → le 2e `update-ref` écrasait le 1er.
+| Constat | Preuve (commande) | Valeur mesurée |
+|---|---|---|
+| `git add -A` embarque le travail de tous | `git fsck --no-reflogs --dangling \| awk '$2=="commit"{print $3}' \| while read s; do git show --stat --format='%h %s' $s \| tail -1; done` | commits dangling de **125-126 fichiers** (`ed4d960f`, `60b5a583`, `28cca557`) |
+| `backend/nook.db` embarqué par `git add -A` | `git show --name-only --format='' ed4d960f \| grep '\.db$'` | `backend/nook.db`, `nook-data/nook.db` |
+| `backend/nook.db` **ni suivi ni ignoré** | `git ls-files \| grep -c '\.db$'` → `0` ; `git log --all --oneline -- '*.db' \| wc -l` → `0` ; `git check-ignore backend/nook.db` → `rc=1` | non suivi **et** non ignoré |
+| Commits abandonnés | `git fsck --dangling \| awk '$2=="commit"' \| wc -l` | **22** (avec reflogs) ; **33** (`--no-reflogs`), dont des `WIP on develop` |
+| Branches mortes | `git ls-remote --heads origin \| wc -l` ; `git for-each-ref refs/remotes/origin \| wc -l` | **3** branches sur origin ; **4** refs locales obsolètes (dont `pr-48`) |
+| Travail jamais poussé | `git for-each-ref --format='%(refname:short)' refs/heads/` comparé à `git ls-remote --heads origin` | **0** branche locale sans équivalent distant au 2026-10-25. Le phénomène est historique (signalé par des workers entre 2026-08 et 2026-10) — non reproductible a posteriori |
+| Collision de suffixe | `git reflog --date=short \| grep -i checkout` | checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** |
 
-## Règles dures
+**Lacune identifiée — à corriger hors de ce document** : `backend/nook.db` n'est pas dans
+`.gitignore` → non suivi *et* non ignoré, le pire cas pour `git add -A` (il est embarqué puis
+perdu). Carte de suivi créée : `t_586756e1` (ajout de `backend/nook.db` et `nook-data/` au
+`.gitignore`).
 
-1. **HEAD partagé = `develop`.** Avant toute opération git, vérifier `git branch --show-current`.
-   Si ce n'est pas `develop` → `git checkout develop` avant de continuer.
+## Règles dures — **cibles**, pas états acquis
+
+Le reflog prouve que les règles 1 et 2 ne sont **pas** encore respectées partout :
+`git reflog --date=short | grep -i checkout` → `checkout: moving from develop to
+origin/fix/e2ee-admin-gate-t_83868105` (2026-10-24). Elles sont énoncées comme des **objectifs**.
+
+1. **HEAD partagé = `develop`.** Avant toute opération git, `git branch --show-current` doit renvoyer
+   `develop` ; sinon `git checkout develop` avant de continuer.
+   Contrôle : `git rev-parse --short=8 HEAD` (au 2026-10-25 : `21b0d93a`).
 2. **Aucun worker ne fait `git checkout` de branche**, aucun ne commite directement sur `develop`.
 3. **Jamais de `git add -A` global** — l'index partagé capture le travail de tout le monde.
    **Pathspecs explicites uniquement.**
 4. **Index isolé** : `GIT_INDEX_FILE` + `git read-tree HEAD`.
 5. **Le push est le travail de github-manager seul** (carte de publication groupée).
 6. **Branches de travail en `w/`** : `w/<carte>-<slug>-<uuid8>`. Pousser une branche `w/*` ne
-   déclenche aucune CI ; seule la fusion vers `develop` déclenche la CI.
-7. **Suffixe unique par branche** — deux cartes d'une même tâche parente ne partagent pas le suffixe.
+   déclenche **pas** la CI **sauf** si le commit touche un chemin filtré par l'un des **4 workflows
+   sans filtre `branches:`** (audit du 2026-10-25, commande §« Audit CI ») :
+   - `services/turn-rs/**` → `turn.yml`, `test-turn.yml` (build/test, **sans écriture**) ;
+   - `backend/Cargo.toml` → `update-cargo-lock.yml` (**commit + force-push sur la branche**) ;
+   - `frontend/package.json` → `update-frontend-lock.yml` (**commit + force-push sur la branche**).
+
+   Les deux derniers **réécrivent la branche `w/` sous le worker**
+   (`git push --force-with-lease origin HEAD:${{ github.ref_name }}`) → ils violent la règle 5.
+   **Conséquence pratique** : ne pas commiter `backend/Cargo.toml` ni `frontend/package.json` sur
+   une branche `w/` (les laisser à `develop`) ; à défaut, accepter que le workflow réécrive la
+   branche — le CAS `update-ref` protège le commit *local*, pas le *remote*.
+
+   Repère chiffré : sur **23** workflows, **8** ont un trigger `push:` (les 4 ci-dessus +
+   `Backend.yml`, `bundle-analysis.yml`, `generate-pwa-icons.yml`, `sqlx-prepare.yml`, qui ont un
+   filtre `branches:`) ; **22** sont déclenchables manuellement (`workflow_dispatch`).
+7. **Suffixe unique par branche** — le `<uuid8>` est **aléatoire** : `openssl rand -hex 4`.
+   ⚠️ **Ne pas** utiliser `$(git rev-parse --short=8 HEAD)` : sous la règle 1 (`HEAD = develop`),
+   ce suffixe vaut **toujours** le SHA de `develop` (mesuré `21b0d93a`) → deux branches de même
+   carte et de même slug auraient un **nom identique**, et le 2e `update-ref` écraserait le 1er.
+   Preuve (mesurée) :
+   ```bash
+   CARD=t_83868105
+   for i in 1 2; do echo "w/${CARD}-fix-e2ee-access-$(git rev-parse --short=8 HEAD)"; done
+   # → 2 fois : w/t_83868105-fix-e2ee-access-21b0d93a   (COLLISION)
+   for i in 1 2; do echo "w/${CARD}-fix-e2ee-access-$(openssl rand -hex 4)"; done
+   # → 2 noms distincts (validé : le snippet ci-dessous crée 2 branches différentes)
+   ```
 8. **Claim file avant le commit**, mis à jour après. Un écrivain par fichier.
 9. **1 worker Kanban à la fois** — l'index partagé n'est jamais en contention.
 
@@ -39,7 +88,7 @@ Il n'y a **pas** de worktree par worker — le partage est voulu, mais il exige 
 set -euo pipefail
 REPO=/opt/data/nook-repo
 CARD=t_83868105
-BRANCH="w/${CARD}-fix-e2ee-access-$(git rev-parse --short=8 HEAD)"
+BRANCH="w/${CARD}-fix-e2ee-access-$(openssl rand -hex 4)"   # uuid8 ALÉATOIRE (règle 7)
 cd "$REPO"
 
 [ "$(git branch --show-current)" = "develop" ] || { echo "HEAD partage n'est pas develop"; exit 1; }
@@ -67,6 +116,11 @@ git merge-base --is-ancestor "$PARENT" "$COMMIT"
 git rev-parse "refs/heads/$BRANCH"
 ```
 
+**Validé empiriquement** (clone jetable de `/opt/data/nook-repo`, 2026-10-25) : deux exécutions sur
+la même carte créent **deux branches distinctes** (une exécution a produit `…-e2f8b78f` puis
+`…-d095e811` ; une autre `…-9cbb0435` puis `…-eb6faa14`), `HEAD` reste sur `develop` (`21b0d93a`),
+`develop` est inchangé, le parent du commit vaut `develop`.
+
 **Pièges confirmés (ne pas réintroduire) :**
 
 - `git write-tree` échoue sur index non résolu → `TREE` recevrait le message d'erreur.
@@ -74,12 +128,35 @@ git rev-parse "refs/heads/$BRANCH"
 - `commit-tree` contourne les hooks et ne vérifie pas l'ancestralité.
 - `update-ref refs/heads/develop` est possible même en detached HEAD → se limiter à `refs/heads/w/*`.
 - `core.fileMode=true` : un `chmod +x` devient une modification détectée.
+- `commit-tree` exige une identité git (`user.name`/`user.email`) : mesuré
+  `github-manager (Hermes) <github-manager@nook.local>` dans `/opt/data/nook-repo`
+  (`git config --local user.name`).
 
 **Confirmé** : en detached HEAD, ce plumbing **ne déplace pas HEAD**.
 
+## Audit CI — quels workflows partent sur `w/*`
+
+```bash
+cd /opt/data/nook-repo
+for f in .github/workflows/*.yml; do
+  blk=$(awk '/^on:/{ino=1;next} ino&&/^[^ \t]/{ino=0} ino&&/^  push:/{ip=1;next} ip&&/^  [a-zA-Z_]+:/{ip=0} ip{print}' "$f")
+  [ -z "$blk" ] && continue
+  grep -q 'branches:' <<<"$blk" && continue
+  echo "SANS filtre branches: $f"
+  grep -A3 'paths:' <<<"$blk" | grep -E '^[[:space:]]*-' | sed 's/^[[:space:]]*/  /'
+done
+```
+
+Sortie mesurée le 2026-10-25 : `test-turn.yml` (`services/turn-rs/**`), `turn.yml`
+(`services/turn-rs/**`), `update-cargo-lock.yml` (`backend/Cargo.toml`),
+`update-frontend-lock.yml` (`frontend/package.json`).
+
+Compteurs : `ls .github/workflows/*.yml | wc -l` → **23** ; workflows avec `push:` → **8** ;
+avec `workflow_dispatch` → **22**.
+
 ## Publication (github-manager)
 
-`git branch -vv` et `rev-list --count` mentent (patch déjà présent, upstream configuré sur develop).
+`git branch -vv` et `rev-list --count` mentent (patch déjà présent, upstream configuré sur `develop`).
 Utiliser le **patch-id** :
 
 ```bash
@@ -91,13 +168,21 @@ for b in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
 done
 ```
 
-Garde anti-commit-cassé, puis push atomique :
+Garde anti-commit-cassé + test de fast-forward, puis push atomique :
 
 ```bash
 SHA=$(git rev-parse <branche>)
 git cat-file -e "$SHA^{commit}" || exit 1
 git fsck --no-dangling "$SHA"
 ORIGIN=$(git ls-remote origin "refs/heads/<branche>" | cut -f1)
+[ -z "$ORIGIN" ] && echo "nouvelle branche"
+git merge-base --is-ancestor "$ORIGIN" "$SHA" && echo "FF OK" || echo "NON-FF: rebase obligatoire"
+```
+
+⚠️ **Jamais de `git push` nu** : `push.default=simple` + HEAD dégradé + `merge=develop` peuvent
+pousser sur `develop`. Toujours :
+
+```bash
 git push --force-with-lease=<branche>:<ORIGIN> origin "$SHA":refs/heads/<branche>
 git ls-remote origin refs/heads/<branche>   # doit renvoyer $SHA
 ```
@@ -136,5 +221,15 @@ Gardes : `git rev-parse <branch>` doit valoir `head_sha` ; le publisher ne clos 
 
 Le token **ne doit pas** vivre dans `remote.origin.url` (visible dans `ps`) ni dans
 `.git-credentials`. Utiliser `GITHUB_TOKEN` en environnement.
-(Mesuré : le token en dur dans `hosts.yml` était invalide — 401 — alors que la variable
+(Mesuré en 2026-08 : le token en dur dans `hosts.yml` était invalide — 401 — alors que la variable
 d'environnement fonctionnait.)
+
+⚠️ **Écart constaté le 2026-10-25** : `git remote get-url origin` sur `/opt/data/nook-repo`
+contient bien un token (`x-access-token`) → cette règle n'est **pas** appliquée par le repo lui-même.
+Correction hors périmètre de ce document (modif de la remote = infra).
+
+## Références
+
+← Code : `.github/workflows/{turn,test-turn,update-cargo-lock,update-frontend-lock}.yml` (déclencheurs `push:`)
+← Skill : `nook-worker-supervision` → `references/workspace-protocol.md` (profil `orchestrator`)
+← Profil : `@architect` (revue PR#48), `@github-manager` (publication)
