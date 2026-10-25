@@ -1,13 +1,15 @@
 # Protocole du workspace commun — agents Nook
 
-> v5 — 2026-10-25. Amendé après la **4e** revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
-> `t_35ea07c7`). La revue round 4 ne demandait qu'**une** correction, ligne « `git add -A` embarque le
-> travail de tous » : la proposition « toute exécution du snippet ajoute un commit à ce compte » y était
-> **fausse** alors qu'elle était présentée sous l'étiquette **live**. Elle est remplacée par le mécanisme
-> exact, mesuré sur un clone jetable.
+> v6 — 2026-10-25. Amendé après la **5e** revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
+> `t_35ea07c7`). La revue round 5 ne demandait qu'**une** correction : la règle 6 classait
+> `test-turn.yml` comme « build/test, **sans écriture** », alors que ce workflow **commit et
+> force-pousse** `.hermes/TURN-REPORT.md` sur la branche courante (ligne **363**) → il est **à
+> écriture**, comme `update-cargo-lock.yml` et `update-frontend-lock.yml`. La règle 6 cite donc
+> **3** workflows qui réécrivent la branche `w/`, et non 2.
 > (Historique : v4 distinguait les valeurs **live** des **snapshot** ⏱️ après que la revue round 3 eut
 > exécuté `git prune --expire=now` — les objets que citaient les lignes « mesure » du tableau ci-dessous
-> **n'existent plus**. v5 ne change rien à cette architecture, ni à la règle 6 ni à la règle 7.)
+> **n'existent plus**. v5 corrigeait la ligne « `git add -A` embarque le travail de tous ». v6 ne change
+> rien à cette architecture, ni à la règle 7, ni aux autres lignes validées aux rounds 2 et 4.)
 >
 > Le tableau distingue deux catégories, **marquées en ligne** :
 >
@@ -115,20 +117,35 @@ origin/fix/e2ee-admin-gate-t_83868105` (2026-10-24). Elles sont énoncées comme
 5. **Le push est le travail de github-manager seul** (carte de publication groupée).
 6. **Branches de travail en `w/`** : `w/<carte>-<slug>-<uuid8>`. Pousser une branche `w/*` ne
    déclenche **pas** la CI **sauf** si le commit touche un chemin filtré par l'un des **4 workflows
-   sans filtre `branches:`** (audit du 2026-10-25, commande §« Audit CI ») :
-   - `services/turn-rs/**` → `turn.yml`, `test-turn.yml` (build/test, **sans écriture**) ;
-   - `backend/Cargo.toml` → `update-cargo-lock.yml` (**commit + force-push sur la branche**) ;
-   - `frontend/package.json` → `update-frontend-lock.yml` (**commit + force-push sur la branche**).
+   sans filtre `branches:`** (audit du 2026-10-25, commandes §« Audit CI »). **3 de ces 4 sont des
+   workflows à écriture** : ils **réécrivent la branche `w/` sous le worker** et violent la règle 5.
 
-   Les deux derniers **réécrivent la branche `w/` sous le worker**
-   (`git push --force-with-lease origin HEAD:${{ github.ref_name }}`) → ils violent la règle 5.
-   **Conséquence pratique** : ne pas commiter `backend/Cargo.toml` ni `frontend/package.json` sur
-   une branche `w/` (les laisser à `develop`) ; à défaut, accepter que le workflow réécrive la
-   branche — le CAS `update-ref` protège le commit *local*, pas le *remote*.
+   - `services/turn-rs/**` → `turn.yml` : **lecture seule** — build seul, aucun `git push`
+     (`grep -c 'git push' .github/workflows/turn.yml` → **0**, mesuré) ;
+   - `services/turn-rs/**` → `test-turn.yml` : **À ÉCRITURE** — commit + force-push de
+     `.hermes/TURN-REPORT.md` sur la branche courante
+     (`grep -n 'git push --force-with-lease' .github/workflows/test-turn.yml` → **ligne 363**,
+     mesuré) ;
+   - `backend/Cargo.toml` → `update-cargo-lock.yml` : **À ÉCRITURE** — commit + force-push de
+     `backend/Cargo.lock` (même commande → **ligne 51**) ;
+   - `frontend/package.json` → `update-frontend-lock.yml` : **À ÉCRITURE** — commit + force-push de
+     `frontend/package-lock.json` (même commande → **ligne 38**).
 
-   Repère chiffré : sur **23** workflows, **8** ont un trigger `push:` (les 4 ci-dessus +
-   `Backend.yml`, `bundle-analysis.yml`, `generate-pwa-icons.yml`, `sqlx-prepare.yml`, qui ont un
-   filtre `branches:`) ; **22** sont déclenchables manuellement (`workflow_dispatch`).
+   Le commit de `test-turn.yml` n'a lieu que si le rapport a changé (`git diff --staged --quiet`
+   non nul ; sinon « Aucun changement », no-op) ; **mais quand il a lieu, il force-pousse
+   `${{ github.ref_name }}`** → la branche `w/` du worker est réécrite. C'est bien `test-turn.yml`
+   qui écrit, **pas son homonyme `turn.yml`** (lecture seule) : les deux se déclenchent sur le même
+   chemin et ont des comportements opposés.
+
+   **Conséquence pratique** : ne pas commiter `backend/Cargo.toml`, `frontend/package.json` **ni
+   `services/turn-rs/**`** sur une branche `w/` (les laisser à `develop`) ; à défaut, accepter que
+   le workflow réécrive la branche — le CAS `update-ref` protège le commit *local*, pas le *remote*.
+
+   Repère chiffré : sur **23** workflows, **8** ont un trigger `push:` — les **4** sans filtre
+   `branches:` ci-dessus (`turn.yml`, `test-turn.yml`, `update-cargo-lock.yml`,
+   `update-frontend-lock.yml`, dont **3** à écriture) **+** `Backend.yml`, `bundle-analysis.yml`,
+   `generate-pwa-icons.yml`, `sqlx-prepare.yml`, qui portent un filtre `branches:` — ; **22** sont
+   déclenchables manuellement (`workflow_dispatch`).
 7. **Suffixe unique par branche** — le `<uuid8>` est **aléatoire** : `openssl rand -hex 4`.
    ⚠️ **Ne pas** utiliser `$(git rev-parse --short=8 HEAD)` : sous la règle 1 (`HEAD = develop`),
    ce suffixe vaut **toujours** le SHA de `develop` (mesuré `21b0d93a`) → deux branches de même
@@ -209,7 +226,9 @@ produit un nom différent, c'est précisément le comportement attendu par la r�
   travail de tous » ne compte que les commits de **≥100 fichiers** : un commit de snippet (1-2 fichiers) n'y
   entre jamais, qu'il soit ou non compté par ailleurs.
 
-## Audit CI — quels workflows partent sur `w/*`
+## Audit CI — quels workflows partent sur `w/*`, et lesquels y écrivent
+
+**A. Quels workflows partent sur une branche `w/*`** (trigger `push:` **sans** filtre `branches:`) :
 
 ```bash
 cd /opt/data/nook-repo
@@ -222,12 +241,53 @@ for f in .github/workflows/*.yml; do
 done
 ```
 
-Sortie mesurée le 2026-10-25 : `test-turn.yml` (`services/turn-rs/**`), `turn.yml`
-(`services/turn-rs/**`), `update-cargo-lock.yml` (`backend/Cargo.toml`),
-`update-frontend-lock.yml` (`frontend/package.json`).
+Sortie mesurée le 2026-10-25 (commande exécutée **verbatim**) :
 
-Compteurs : `ls .github/workflows/*.yml | wc -l` → **23** ; workflows avec `push:` → **8** ;
-avec `workflow_dispatch` → **22**.
+```
+SANS filtre branches: .github/workflows/test-turn.yml
+  - 'services/turn-rs/**'
+  - '.github/workflows/test-turn.yml'
+SANS filtre branches: .github/workflows/turn.yml
+  - 'services/turn-rs/**'
+  - '.github/workflows/turn.yml'
+SANS filtre branches: .github/workflows/update-cargo-lock.yml
+  - 'backend/Cargo.toml'
+SANS filtre branches: .github/workflows/update-frontend-lock.yml
+  - 'frontend/package.json'
+```
+
+**B. Lesquels de ces 4 réécrivent la branche** — un workflow est **à écriture** s'il contient un
+`git push` sur la branche courante :
+
+```bash
+cd /opt/data/nook-repo
+for f in .github/workflows/turn.yml .github/workflows/test-turn.yml \
+         .github/workflows/update-cargo-lock.yml .github/workflows/update-frontend-lock.yml; do
+  n=$(grep -c 'git push' "$f")
+  printf '%-32s git push: %s  -> %s\n' "$(basename "$f")" "$n" \
+    "$([ "$n" -gt 0 ] && echo 'A ECRITURE (reecrit la branche)' || echo 'lecture seule')"
+done
+```
+
+Sortie mesurée le 2026-10-25 (commande exécutée **verbatim**) :
+
+```
+turn.yml                         git push: 0  -> lecture seule
+test-turn.yml                    git push: 1  -> A ECRITURE (reecrit la branche)
+update-cargo-lock.yml            git push: 1  -> A ECRITURE (reecrit la branche)
+update-frontend-lock.yml         git push: 1  -> A ECRITURE (reecrit la branche)
+```
+
+Lignes exactes du force-push : `grep -n 'git push --force-with-lease' .github/workflows/*.yml` →
+`test-turn.yml:363`, `update-cargo-lock.yml:51`, `update-frontend-lock.yml:38`.
+
+Deux autres workflows contiennent la même commande mais sont **hors périmètre `w/*`** :
+`sqlx-prepare.yml:84` (porte un filtre `branches:` → ne part pas sur `w/*`) et
+`e2e-targeted.yml:287` (n'a **pas** de trigger `push:` → `workflow_dispatch` seul). Ni l'un ni
+l'autre ne peut être déclenché par un push de branche `w/`.
+
+**C. Compteurs** — `ls .github/workflows/*.yml | wc -l` → **23** ; workflows avec `push:` → **8**
+; dont **4** sans filtre `branches:` (dont **3** à écriture) ; avec `workflow_dispatch` → **22**.
 
 ## Publication (github-manager)
 
