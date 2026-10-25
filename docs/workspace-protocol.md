@@ -1,7 +1,12 @@
 # Protocole du workspace commun — agents Nook
 
-> v4 — 2026-10-25. Amendé après la **3e** revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
-> `t_35ea07c7`). La revue round 3 avait exécuté `git prune --expire=now` : les objets que citaient les lignes
+> v5 — 2026-10-25. Amendé après la **4e** revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
+> `t_35ea07c7`). La revue round 4 ne demandait qu'**une** correction, ligne « `git add -A` embarque le
+> travail de tous » : la proposition « toute exécution du snippet ajoute un commit à ce compte » y était
+> **fausse** alors qu'elle était présentée sous l'étiquette **live**. Elle est remplacée par le mécanisme
+> exact, mesuré sur un clone jetable.
+> (Historique : v4 distinguait les valeurs **live** des **snapshot** ⏱️ après que la revue round 3 eut
+> exécuté `git prune --expire=now` ; v5 ne change rien à cette architecture.) La revue round 3 avait exécuté `git prune --expire=now` : les objets que citaient les lignes
 > « mesure » du tableau ci-dessous **n'existent plus**. Le tableau distingue désormais deux catégories,
 > **marquées en ligne** :
 >
@@ -38,11 +43,11 @@ Il n'y a **pas** de worktree par worker — le partage est voulu, mais il exige 
 | **`backend/nook.db` ni suivi ni ignoré** — **live** | `( git ls-files \| grep -c '\.db$' ; echo " jamais suivi ; " ; git log --all --oneline -- '*.db' \| wc -l ; echo " jamais commité ; " ; git check-ignore backend/nook.db ; echo "check-ignore rc="$? ) \| tr "\n" " "` | **live** : **0** (jamais suivi), **0** (jamais commité), `check-ignore rc=1` (**non ignoré**) → non suivi *et* non ignoré, le pire cas pour `git add -A` |
 | **Commits abandonnés** — **live** | `( echo "reflogs: " ; timeout 90 git fsck --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --no-reflogs --dangling: " ; timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --unreachable: " ; timeout 90 git fsck --unreachable 2>&1 \| awk '$2=="commit"' \| wc -l ; echo " ; --no-reflogs --unreachable: " ; timeout 120 git fsck --no-reflogs --unreachable 2>&1 \| awk '$2=="commit"' \| wc -l ) \| tr "\n" " "` | **live** : reflogs **0** ; `--no-reflogs --dangling` **12** ; `--unreachable` **0** ; `--no-reflogs --unreachable` **16**. Objets restants : **12** (détail dans le listing ci-dessous) |
 | **Commits abandonnés** — ⏱️ snapshot | ⏱️ `timeout 90 git fsck --dangling 2>&1 \| awk '$2=="commit"' \| wc -l` ; `… --no-reflogs --dangling …` ; `… --unreachable …` ; `… --no-reflogs --unreachable …` | ⏱️ **22** (reflogs) ; **34** (`--no-reflogs --dangling`) ; **33** (`--unreachable`) ; dont **9** `WIP on develop`. **Non reproductible** — voir la ligne « Objets cités supprimés » ci-dessous. **Live** : ligne ci-dessus |
-| **`git add -A` embarque le travail de tous** — ⏱️ snapshot | ⏱️ `timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| while read s; do n=$(git show --stat --format='' $s 2>/dev/null \| tail -1 \| grep -oE '[0-9]+ files? changed' \| grep -oE '^[0-9]+'); [ -n "$n" ] && [ "$n" -ge 100 ] && echo "$n $s"; done \| sort -rn` | ⏱️ **5** commits dangling de ≥100 fichiers : **739** (`a721a1cf`), **733** (`73ff44cc`), **126** (`60b5a583`), **126** (`28cca557`), **125** (`ed4d960f`). **Non reproductible** : ces 5 objets ont disparu. **Live** : la même commande renvoie **aujourd'hui 0 ligne** (seuil ≥100 fichiers) — et toute exécution du snippet §« Snippet de commit » **ajoute** un commit à ce compte |
+| **`git add -A` embarque le travail de tous** — ⏱️ snapshot | ⏱️ `timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| while read s; do n=$(git show --stat --format='' $s 2>/dev/null \| tail -1 \| grep -oE '[0-9]+ files? changed' \| grep -oE '^[0-9]+'); [ -n "$n" ] && [ "$n" -ge 100 ] && echo "$n $s"; done \| sort -rn` | ⏱️ **5** commits dangling de ≥100 fichiers : **739** (`a721a1cf`), **733** (`73ff44cc`), **126** (`60b5a583`), **126** (`28cca557`), **125** (`ed4d960f`). **Non reproductible** : ces 5 objets ont disparu. **Live** : la même commande renvoie **aujourd'hui 0 ligne** — et un commit de snippet n'entre dans ce compte en aucune façon, pour deux raisons indépendantes. **1.** Il porte **≤2 fichiers** et le seuil de la ligne est **≥100 fichiers** : il n'y entre donc jamais, quoi qu'il arrive. **2.** Tant que sa branche `w/` existe, le commit est **atteignable** via `refs/heads/w/*` → il n'est **pas** compté par `git fsck --no-reflogs --dangling` ; il ne le devient qu'**après** la suppression de la branche (`git update-ref -d`), et même alors il reste sous le seuil. Mécanisme, mesuré sur clone jetable (forme `compteur avant, commit listé avant, compteur après, commit listé après`) : `( timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| grep -c '^<SHA-du-commit>$' ; git update-ref -d refs/heads/w/<slug>-<uuid8> ; timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"' \| wc -l ; timeout 120 git fsck --no-reflogs --dangling 2>&1 \| awk '$2=="commit"{print $3}' \| grep -c '^<SHA-du-commit>$' )` → `12 0 13 1` : `0` = non compté, `1` = compté après suppression (et le compteur ne peut croître que d'une unité, jamais d'un bloc) |
 | **Objets cités supprimés** (cause des snapshots) | `for s in ed4d960f 60b5a583 28cca557 a721a1cf 73ff44cc; do printf '%s: %s \| ' $s "$(git cat-file -t $s 2>&1 \| head -1)"; done` | **live** : `ed4d960f: fatal: Not a valid object name ed4d960f \| 60b5a583: fatal: Not a valid object name 60b5a583 \| 28cca557: fatal: Not a valid object name 28cca557 \| a721a1cf: fatal: Not a valid object name a721a1cf \| 73ff44cc: fatal: Not a valid object name 73ff44cc \|` — les 5 objets **n'existent plus** dans le repo |
 | **Branches mortes** — **live** | `( git ls-remote --heads origin \| wc -l ; echo " branches sur origin ; " ; git for-each-ref refs/remotes/origin \| wc -l ) \| tr "\n" " "` | **live** : **3** branches sur origin ; **3** refs locales de suivi. Décompte **prune-sensible** : un `git fetch --prune` retire les refs obsolètes (ex. `origin/pr-48`) |
 | **Travail jamais poussé** — **live** | `comm -23 <(git for-each-ref --format='%(refname:short)' refs/heads/ \| sort) <(git ls-remote --heads origin 2>/dev/null \| sed 's\|.*refs/heads/\|\|' \| sort) \| wc -l` | **live** : **0** branche locale sans équivalent distant au 2026-10-25 |
-| **Collision de suffixe** — **live** | `git reflog --date=short \| grep -i checkout \| head -2` | **live** : checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** ; checkout vers `8050ed53` le **2026-10-25** |
+| **Collision de suffixe** — **live** | `git reflog --date=short \| grep -i checkout \| head -2` | **live** : checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** ; et le **2026-10-25** un retour vers `develop` **depuis** `8050ed53` (le reflog dit `moving from 8050ed53 to develop` : `8050ed53` est le point de **départ**, pas la destination) |
 
 
 Objets restants au 2026-10-25 — sortie de `timeout 120 git fsck --no-reflogs --dangling 2>&1 | awk '$2=="commit"{print $3}' | while read s; do printf '%s %s files | %s\n' ${s:0:8} $(git show --stat --format='' $s 2>/dev/null | tail -1 | grep -oE '[0-9]+ files? changed' | grep -oE '^[0-9]+') "$(git log -1 --format='%s' $s | head -c 45)"; done` :
@@ -172,6 +177,17 @@ produit un nom différent, c'est précisément le comportement attendu par la r�
 
 **Confirmé** : en detached HEAD, ce plumbing **ne déplace pas HEAD**.
 
+- **Working tree propre ⇒ le snippet est un no-op.** `git add -A -- <pathspec>` ne Capture que des
+  **modifications** : si aucun des pathspecs n'a changé, `git write-tree` rend le **même arbre** que
+  `develop` et le commit produit est identique à `develop` (mesuré sur clone jetable :
+  `git rev-parse <commit>^{tree}` = `e3a74634d3456f21fe65ef3fa727ff709f3bdf5c` = arbre de `develop`,
+  `git diff-tree -r --root --name-only <commit>` → **0 ligne**). Il est quand même créé et référencé par
+  `refs/heads/w/…`, donc **atteignable** → il ne figure dans aucun compteur `fsck --dangling` tant que la
+  branche existe. Ne pas lire l'absence de sortie de `git show --stat` comme un échec du snippet.
+- **Le seuil de fichiers du § mesures est un filtre, pas un compteur.** La ligne « `git add -A` embarque le
+  travail de tous » ne compte que les commits de **≥100 fichiers** : un commit de snippet (1-2 fichiers) n'y
+  entre jamais, qu'il soit ou non compté par ailleurs.
+
 ## Audit CI — quels workflows partent sur `w/*`
 
 ```bash
@@ -217,8 +233,11 @@ ORIGIN=$(git ls-remote origin "refs/heads/<branche>" | cut -f1)
 git merge-base --is-ancestor "$ORIGIN" "$SHA" && echo "FF OK" || echo "NON-FF: rebase obligatoire"
 ```
 
-⚠️ **Jamais de `git push` nu** : `push.default=simple` + HEAD dégradé + `merge=develop` peuvent
-pousser sur `develop`. Toujours :
+⚠️ **Jamais de `git push` nu** — *avertissement de comportement, pas un état mesuré* : `push.default=simple`
+combiné à un HEAD dégradé, et `merge=develop`, peuvent faire partir un push sur `develop`. **Aucune de ces deux
+configs n'est posée dans `/opt/data/nook-repo`** (`git config --get push.default` → *unset*,
+`git config --get merge.develop` → *unset*, mesuré le 2026-10-25) : la garde reste de mise car un worker peut
+les poser. Toujours :
 
 ```bash
 git push --force-with-lease=<branche>:<ORIGIN> origin "$SHA":refs/heads/<branche>
