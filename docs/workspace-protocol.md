@@ -1,8 +1,10 @@
 # Protocole du workspace commun — agents Nook
 
-> v2 — 2026-10-25. Amendé après la revue `@architect` de PR#48 (**REQUEST_CHANGES**, carte
-> `t_9d6d47fa`) : les 2 points bloquants et les 4 points non bloquants sont corrigés.
-> Désormais **chaque affirmation sur l'état du repo est suivie de la commande qui la reproduit**
+> v3 — 2026-10-25. Amendé après la **2e** revue `@architect` de PR#48 (**REQUEST_CHANGES**,
+> carte `t_35ea07c7`) : le point restant (NB 5 — le « 33 » n'était pas reproductible par la commande
+> citée) est corrigé, et la vérification a été étendue à **toutes** les valeurs chiffrées du tableau
+> ci-dessous. Désormais **chaque affirmation sur l'état du repo est suivie de la commande qui la
+> reproduit**, et chaque valeur affichée est la sortie **exacte** de la commande affichée
 > (mesures du 2026-10-25, exécutées dans `/opt/data/nook-repo`).
 >
 > **Source de vérité : ce document** (versionné dans le repo, à relire avant de dispatcher ou de
@@ -24,11 +26,11 @@ Il n'y a **pas** de worktree par worker — le partage est voulu, mais il exige 
 
 | Constat | Preuve (commande) | Valeur mesurée |
 |---|---|---|
-| `git add -A` embarque le travail de tous | `git fsck --no-reflogs --dangling \| awk '$2=="commit"{print $3}' \| while read s; do git show --stat --format='%h %s' $s \| tail -1; done` | commits dangling de **125-126 fichiers** (`ed4d960f`, `60b5a583`, `28cca557`) |
+| `git add -A` embarque le travail de tous | `git fsck --no-reflogs --dangling \| awk '$2=="commit"{print $3}' \| while read s; do n=$(git show --stat --format='' $s \| tail -1 \| grep -oE '[0-9]+ files? changed' \| grep -oE '^[0-9]+'); [ -n "$n" ] && [ "$n" -ge 100 ] && echo "$n $s"; done \| sort -rn` | **5** commits dangling de ≥100 fichiers, dont **3** de **125-126 fichiers** : `ed4d960f` (125), `60b5a583` (126), `28cca557` (126) ; les 2 plus gros font **739** (`a721a1cf`) et **733** (`73ff44cc`) fichiers |
 | `backend/nook.db` embarqué par `git add -A` | `git show --name-only --format='' ed4d960f \| grep '\.db$'` | `backend/nook.db`, `nook-data/nook.db` |
 | `backend/nook.db` **ni suivi ni ignoré** | `git ls-files \| grep -c '\.db$'` → `0` ; `git log --all --oneline -- '*.db' \| wc -l` → `0` ; `git check-ignore backend/nook.db` → `rc=1` | non suivi **et** non ignoré |
-| Commits abandonnés | `git fsck --dangling \| awk '$2=="commit"' \| wc -l` | **22** (avec reflogs) ; **33** (`--no-reflogs`), dont des `WIP on develop` |
-| Branches mortes | `git ls-remote --heads origin \| wc -l` ; `git for-each-ref refs/remotes/origin \| wc -l` | **3** branches sur origin ; **4** refs locales obsolètes (dont `pr-48`) |
+| Commits abandonnés | `git fsck --dangling \| awk '$2=="commit"' \| wc -l` → **22** ; `git fsck --no-reflogs --dangling \| awk '$2=="commit"' \| wc -l` → **34** ; `git fsck --unreachable \| awk '$2=="commit"' \| wc -l` → **33** ; `git fsck --dangling \| awk '$2=="commit"{print $3}' \| while read s; do git log -1 --format='%s' $s; done \| grep -c '^WIP on develop'` → **9** | **22** commits dangling (avec reflogs) ; **34** (`--no-reflogs --dangling`) ; **33** (`--unreachable`) ; dont **9** `WIP on develop` |
+| Branches mortes | `git ls-remote --heads origin \| wc -l` ; `git for-each-ref refs/remotes/origin \| wc -l` | **3** branches sur origin ; **3** refs locales de suivi au 2026-10-25 — décompte **prune-sensible** : il valait **4** avant le `git fetch --prune` du 2026-10-25 (dont la ref obsolète `origin/pr-48`, depuis supprimée) |
 | Travail jamais poussé | `git for-each-ref --format='%(refname:short)' refs/heads/` comparé à `git ls-remote --heads origin` | **0** branche locale sans équivalent distant au 2026-10-25. Le phénomène est historique (signalé par des workers entre 2026-08 et 2026-10) — non reproductible a posteriori |
 | Collision de suffixe | `git reflog --date=short \| grep -i checkout` | checkout vers `origin/fix/e2ee-admin-gate-t_83868105` le **2026-10-24** |
 
@@ -120,6 +122,8 @@ git rev-parse "refs/heads/$BRANCH"
 la même carte créent **deux branches distinctes** (une exécution a produit `…-e2f8b78f` puis
 `…-d095e811` ; une autre `…-9cbb0435` puis `…-eb6faa14`), `HEAD` reste sur `develop` (`21b0d93a`),
 `develop` est inchangé, le parent du commit vaut `develop`.
+⚠️ Ces suffixes sont **aléatoires** : ils ne sont pas reproductibles à l'identique — chaque exécution
+produit un nom différent, c'est précisément le comportement attendu par la règle 7.
 
 **Pièges confirmés (ne pas réintroduire) :**
 
