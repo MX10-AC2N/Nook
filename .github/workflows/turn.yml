@@ -48,6 +48,8 @@ jobs:
       - name: Build turn-server (release)
         env:
           PROTOC: ${{ env.PROTOC }}
+          RUSTFLAGS: ${{ matrix.arch == 'amd64' && '-C target-cpu=x86-64' || '-C target-cpu=generic' }}
+          CFLAGS: ${{ matrix.arch == 'amd64' && '-march=x86-64' || '' }}
         run: cargo build --release --target ${{ matrix.target }} --manifest-path turn-rs-src/Cargo.toml
 
       - name: Prepare artifact
